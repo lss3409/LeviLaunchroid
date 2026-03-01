@@ -18,7 +18,6 @@ public class InbuiltModManager {
     private static final String KEY_ADDED_MODS = "added_mods";
     private static final String KEY_AUTOSPRINT_KEY = "autosprint_key";
     private static final String KEY_OVERLAY_BUTTON_SIZE_PREFIX = "overlay_button_size_";
-    private static final String KEY_OVERLAY_BUTTON_SIZE_GLOBAL = "overlay_button_size";
     private static final String KEY_OVERLAY_OPACITY_PREFIX = "overlay_opacity_";
     private static final String KEY_MOD_MENU_ENABLED = "mod_menu_enabled";
     private static final String KEY_NOTIFICATIONS_ENABLED = "notifications_enabled";

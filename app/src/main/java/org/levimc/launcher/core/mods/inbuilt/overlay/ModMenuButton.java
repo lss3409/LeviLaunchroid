@@ -1,40 +1,26 @@
 package org.levimc.launcher.core.mods.inbuilt.overlay;
 
 import android.app.Activity;
-import android.app.Dialog;
 import android.content.Context;
-import android.graphics.Color;
 import android.graphics.PixelFormat;
-import android.graphics.drawable.ColorDrawable;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.view.Gravity;
-import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.Window;
 import android.view.WindowManager;
-import android.widget.ArrayAdapter;
-import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
-import android.widget.LinearLayout;
-import android.widget.SeekBar;
-import android.widget.Spinner;
-import android.widget.Switch;
-import android.widget.TextView;
 
 import org.levimc.launcher.R;
 import org.levimc.launcher.core.mods.inbuilt.manager.InbuiltModManager;
 import org.levimc.launcher.core.mods.inbuilt.model.InbuiltMod;
-import org.levimc.launcher.core.mods.inbuilt.model.ModIds;
 
 public class ModMenuButton {
-    private static final String MOD_MENU_ID = "mod_menu";
-    
+
     private final Activity activity;
     private View buttonView;
     private WindowManager windowManager;
@@ -115,12 +101,7 @@ public class ModMenuButton {
         wmParams = null;
         applyOpacity();
     }
-    
-    private int getButtonSizePx() {
-        float density = activity.getResources().getDisplayMetrics().density;
-        return (int) (48 * density);
-    }
-    
+
     private void applyOpacity() {
         if (buttonView != null) {
             int opacity = InbuiltModManager.getInstance(activity).getModMenuButtonOpacity();
@@ -214,7 +195,9 @@ public class ModMenuButton {
                 }
                 @Override
                 public void onModConfigRequested(InbuiltMod mod) {
-                    showConfigDialog(mod);
+                    org.levimc.launcher.ui.util.InbuiltModConfigHelper.showConfigDialog(activity, mod, modId -> {
+                        applyConfigurationChanges(modId);
+                    });
                 }
                 @Override
                 public void onButtonOpacityChanged(int opacity) {
@@ -230,177 +213,7 @@ public class ModMenuButton {
         }
     }
     
-    private void showConfigDialog(InbuiltMod mod) {
-        Context themedContext = new android.view.ContextThemeWrapper(activity, R.style.Base_Theme_FullScreen);
-        Dialog dialog = new Dialog(themedContext);
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        dialog.setContentView(R.layout.dialog_inbuilt_mod_config);
-        
-        Window window = dialog.getWindow();
-        if (window != null) {
-            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
-            android.view.WindowManager.LayoutParams params = window.getAttributes();
-            params.dimAmount = 0.6f;
 
-            float density = activity.getResources().getDisplayMetrics().density;
-            int screenWidth = activity.getResources().getDisplayMetrics().widthPixels;
-            int maxWidth = (int) (380 * density);
-            params.width = Math.min((int) (screenWidth * 0.9), maxWidth);
-            params.height = ViewGroup.LayoutParams.WRAP_CONTENT;
-            window.setAttributes(params);
-        }
-        
-        TextView title = dialog.findViewById(R.id.config_title);
-        SeekBar seekBarSize = dialog.findViewById(R.id.seekbar_button_size);
-        TextView textSize = dialog.findViewById(R.id.text_button_size);
-        SeekBar seekBarOpacity = dialog.findViewById(R.id.seekbar_button_opacity);
-        TextView textOpacity = dialog.findViewById(R.id.text_button_opacity);
-        LinearLayout lockContainer = dialog.findViewById(R.id.config_lock_container);
-        Switch lockSwitch = dialog.findViewById(R.id.switch_lock_position);
-        LinearLayout autoSprintContainer = dialog.findViewById(R.id.config_autosprint_container);
-        Button btnAutoSprintKeybind = dialog.findViewById(R.id.btn_autosprint_keybind);
-        LinearLayout zoomContainer = dialog.findViewById(R.id.config_zoom_container);
-        SeekBar seekBarZoom = dialog.findViewById(R.id.seekbar_zoom_level);
-        TextView textZoom = dialog.findViewById(R.id.text_zoom_level);
-        Button btnZoomKeybind = dialog.findViewById(R.id.btn_zoom_keybind);
-        Button btnCancel = dialog.findViewById(R.id.btn_cancel);
-        Button btnSave = dialog.findViewById(R.id.btn_save);
-        
-        InbuiltModManager manager = InbuiltModManager.getInstance(activity);
-        final int[] pendingAutoSprintKeybind = {manager.getAutoSprintKeybind()};
-        final int[] pendingZoomKeybind = {manager.getZoomKeybind()};
-        
-        title.setText(mod.getName());
-        
-        int currentSize = manager.getOverlayButtonSize(mod.getId());
-        seekBarSize.setProgress(currentSize);
-        textSize.setText(currentSize + "dp");
-        
-        int currentOpacity = manager.getOverlayOpacity(mod.getId());
-        seekBarOpacity.setProgress(currentOpacity);
-        textOpacity.setText(currentOpacity + "%");
-        
-        lockSwitch.setChecked(manager.isOverlayLocked(mod.getId()));
-
-        if (mod.getId().equals(ModIds.CHICK_PET)) {
-            lockContainer.setVisibility(View.GONE);
-        }
-        
-        lockSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            manager.setOverlayLocked(mod.getId(), isChecked);
-            applyConfigurationChanges(mod.getId());
-        });
-        
-        seekBarSize.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                textSize.setText(progress + "dp");
-                if (fromUser) {
-                    manager.setOverlayButtonSize(mod.getId(), progress);
-                    applyConfigurationChanges(mod.getId());
-                }
-            }
-            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
-            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
-        });
-        
-        seekBarOpacity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                textOpacity.setText(progress + "%");
-                if (fromUser) {
-                    manager.setOverlayOpacity(mod.getId(), progress);
-                    applyConfigurationChanges(mod.getId());
-                }
-            }
-            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
-            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
-        });
-        
-        if (mod.getId().equals(ModIds.AUTO_SPRINT)) {
-            autoSprintContainer.setVisibility(View.VISIBLE);
-            btnAutoSprintKeybind.setText(getKeyName(pendingAutoSprintKeybind[0]));
-            btnAutoSprintKeybind.setOnClickListener(v -> showKeybindCaptureDialog(activity, btnAutoSprintKeybind, pendingAutoSprintKeybind, false));
-        } else {
-            autoSprintContainer.setVisibility(View.GONE);
-        }
-
-        if (mod.getId().equals(ModIds.ZOOM)) {
-            zoomContainer.setVisibility(View.VISIBLE);
-            int currentZoom = manager.getZoomLevel();
-            seekBarZoom.setProgress(currentZoom);
-            textZoom.setText(currentZoom + "%");
-
-            seekBarZoom.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                @Override
-                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                    textZoom.setText(progress + "%");
-                    if (fromUser) {
-                        manager.setZoomLevel(progress);
-                        applyConfigurationChanges(mod.getId());
-                    }
-                }
-                @Override public void onStartTrackingTouch(SeekBar seekBar) {}
-                @Override public void onStopTrackingTouch(SeekBar seekBar) {}
-            });
-
-            btnZoomKeybind.setText(getKeyName(pendingZoomKeybind[0]));
-            btnZoomKeybind.setOnClickListener(v -> showKeybindCaptureDialog(activity, btnZoomKeybind, pendingZoomKeybind, true));
-        } else {
-            zoomContainer.setVisibility(View.GONE);
-        }
-        
-        btnCancel.setOnClickListener(v -> dialog.dismiss());
-        btnSave.setOnClickListener(v -> {
-            manager.setOverlayButtonSize(mod.getId(), seekBarSize.getProgress());
-            manager.setOverlayOpacity(mod.getId(), seekBarOpacity.getProgress());
-            manager.setOverlayLocked(mod.getId(), lockSwitch.isChecked());
-            if (mod.getId().equals(ModIds.AUTO_SPRINT)) {
-                manager.setAutoSprintKeybind(pendingAutoSprintKeybind[0]);
-            }
-            if (mod.getId().equals(ModIds.ZOOM)) {
-                manager.setZoomLevel(seekBarZoom.getProgress());
-                manager.setZoomKeybind(pendingZoomKeybind[0]);
-            }
-            dialog.dismiss();
-        });
-        
-        dialog.show();
-    }
-    
-    private void showKeybindCaptureDialog(Context context, Button keybindButton, int[] pendingKeybind, boolean isZoom) {
-        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(context);
-        builder.setTitle(context.getString(isZoom ? R.string.zoom_keybind_label : R.string.autosprint_keybind_label));
-        builder.setMessage(context.getString(isZoom ? R.string.zoom_keybind_press : R.string.autosprint_keybind_press));
-        builder.setCancelable(true);
-        builder.setNegativeButton(context.getString(R.string.dialog_negative_cancel), null);
-
-        androidx.appcompat.app.AlertDialog captureDialog = builder.create();
-        captureDialog.setOnKeyListener((dialogInterface, keyCode, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                if (keyCode == KeyEvent.KEYCODE_BACK) {
-                    captureDialog.dismiss();
-                    return true;
-                }
-                pendingKeybind[0] = keyCode;
-                keybindButton.setText(getKeyName(keyCode));
-                captureDialog.dismiss();
-                return true;
-            }
-            return false;
-        });
-        captureDialog.show();
-    }
-
-    private String getKeyName(int keyCode) {
-        String keyLabel = KeyEvent.keyCodeToString(keyCode);
-        if (keyLabel.startsWith("KEYCODE_")) {
-            keyLabel = keyLabel.substring(8);
-        }
-        return keyLabel;
-    }
     
     private void applyConfigurationChanges(String modId) {
         InbuiltOverlayManager overlayManager = InbuiltOverlayManager.getInstance();
@@ -434,8 +247,5 @@ public class ModMenuButton {
     public boolean isShowing() {
         return isShowing;
     }
-    
-    public ModMenuOverlay getMenuOverlay() {
-        return menuOverlay;
-    }
+
 }

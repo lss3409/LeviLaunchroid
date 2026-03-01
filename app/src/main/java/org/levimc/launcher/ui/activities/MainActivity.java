@@ -966,7 +966,8 @@ import okhttp3.OkHttpClient;
     private void updateModsUI(List<Mod> mods) {
         if (binding == null) return;
         int externalCount = (mods != null) ? mods.size() : 0;
-        int internalCount = InbuiltModManager.getInstance(this).getAddedMods(this).size();
+        InbuiltModManager manager = InbuiltModManager.getInstance(this);
+        int internalCount = manager.isModMenuEnabled() ? 0 : manager.getAddedMods(this).size();
         
         if (externalModsCount != null) {
             externalModsCount.setText(String.valueOf(externalCount));

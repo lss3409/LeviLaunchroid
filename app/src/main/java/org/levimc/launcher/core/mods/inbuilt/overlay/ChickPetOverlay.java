@@ -17,7 +17,6 @@ import org.levimc.launcher.core.mods.inbuilt.model.ModIds;
 import java.util.Random;
 
 public class ChickPetOverlay {
-    private static final int DEFAULT_SIZE_DP = 48;
     private static final int FRAME_DELAY = 200;
     private static final int BLINK_DELAY = 2500;
     private static final int STATE_CHANGE_MIN = 4000;
@@ -64,15 +63,12 @@ public class ChickPetOverlay {
         }
     };
 
-    private final Runnable stateChangeRunnable = new Runnable() {
-        @Override
-        public void run() {
-            if (!isShowing) return;
-            if (currentState != State.RUNNING) {
-                changeToRandomState();
-            }
-            scheduleNextStateChange();
+    private final Runnable stateChangeRunnable = () -> {
+        if (!isShowing) return;
+        if (currentState != State.RUNNING) {
+            changeToRandomState();
         }
+        scheduleNextStateChange();
     };
 
     public ChickPetOverlay(Activity activity) {

@@ -2,7 +2,6 @@ package org.levimc.launcher.ui.activities;
 
 import android.os.Bundle;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -26,7 +25,6 @@ public class InbuiltModsActivity extends BaseActivity {
     private InbuiltModManager modManager;
     private TextView emptyText;
     private Switch modMenuToggle;
-    private View modMenuOverlay;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -41,12 +39,6 @@ public class InbuiltModsActivity extends BaseActivity {
             DynamicAnim.applyPressScaleRecursively(root);
         }
         
-        // Remove press animation from mod menu overlay and its children
-        if (modMenuOverlay != null) {
-            modMenuOverlay.setOnTouchListener(null);
-            clearPressAnimationRecursively(modMenuOverlay);
-        }
-        
         loadMods();
     }
 
@@ -57,18 +49,14 @@ public class InbuiltModsActivity extends BaseActivity {
 
         recyclerView = findViewById(R.id.inbuilt_mods_recycler);
         recyclerView.setLayoutManager(new GridLayoutManager(this, 3));
-        
-        emptyText = findViewById(R.id.empty_inbuilt_text);
-        modMenuOverlay = findViewById(R.id.mod_menu_overlay);
 
-        // Mod Menu Toggle
+        emptyText = findViewById(R.id.empty_inbuilt_text);
         modMenuToggle = findViewById(R.id.mod_menu_toggle);
         modMenuToggle.setChecked(modManager.isModMenuEnabled());
-        updateModMenuOverlay(modManager.isModMenuEnabled());
         
         modMenuToggle.setOnCheckedChangeListener((buttonView, isChecked) -> {
             modManager.setModMenuEnabled(isChecked);
-            updateModMenuOverlay(isChecked);
+            loadMods();
             Toast.makeText(this, 
                 isChecked ? R.string.mod_menu_enabled : R.string.mod_menu_disabled, 
                 Toast.LENGTH_SHORT).show();
@@ -83,18 +71,13 @@ public class InbuiltModsActivity extends BaseActivity {
         recyclerView.setAdapter(adapter);
     }
 
-    private void updateModMenuOverlay(boolean modMenuEnabled) {
-        if (modMenuOverlay != null) {
-            modMenuOverlay.setVisibility(modMenuEnabled ? View.VISIBLE : View.GONE);
-        }
-    }
-
     private void loadMods() {
-        List<InbuiltMod> mods = modManager.getAvailableMods(this);
+        boolean modMenuEnabled = modManager.isModMenuEnabled();
+        List<InbuiltMod> mods = modMenuEnabled ? modManager.getAllMods(this) : modManager.getAvailableMods(this);
+        adapter.setModMenuEnabled(modMenuEnabled);
         adapter.updateMods(mods);
         
         boolean isEmpty = mods.isEmpty();
-        boolean modMenuEnabled = modManager.isModMenuEnabled();
         
         emptyText.setVisibility(isEmpty && !modMenuEnabled ? View.VISIBLE : View.GONE);
         recyclerView.setVisibility(isEmpty ? View.GONE : View.VISIBLE);
@@ -103,14 +86,5 @@ public class InbuiltModsActivity extends BaseActivity {
             recyclerView.post(() -> DynamicAnim.staggerRecyclerChildren(recyclerView));
         }
     }
-    
-    private void clearPressAnimationRecursively(View view) {
-        view.setOnTouchListener(null);
-        if (view instanceof ViewGroup) {
-            ViewGroup group = (ViewGroup) view;
-            for (int i = 0; i < group.getChildCount(); i++) {
-                clearPressAnimationRecursively(group.getChildAt(i));
-            }
-        }
-    }
+
 }

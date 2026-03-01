@@ -7,10 +7,6 @@ public class InbuiltMod {
     private final boolean hasConfig;
     private boolean added;
 
-    public InbuiltMod(String id, String name, String description) {
-        this(id, name, description, false, false);
-    }
-
     public InbuiltMod(String id, String name, String description, boolean hasConfig, boolean added) {
         this.id = id;
         this.name = name;

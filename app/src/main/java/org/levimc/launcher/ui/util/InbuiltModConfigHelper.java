@@ -1,27 +1,20 @@
-package org.levimc.launcher.ui.adapter;
+package org.levimc.launcher.ui.util;
 
 import android.app.Dialog;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.view.KeyEvent;
-import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.ImageButton;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
-import android.widget.Spinner;
 import android.widget.Switch;
 import android.widget.TextView;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
-import androidx.recyclerview.widget.RecyclerView;
 
 import org.levimc.launcher.R;
 import org.levimc.launcher.core.mods.inbuilt.manager.InbuiltModManager;
@@ -29,87 +22,54 @@ import org.levimc.launcher.core.mods.inbuilt.model.InbuiltMod;
 import org.levimc.launcher.core.mods.inbuilt.model.ModIds;
 import org.levimc.launcher.ui.animation.DynamicAnim;
 
-import java.util.ArrayList;
-import java.util.List;
+public class InbuiltModConfigHelper {
 
-public class AddedInbuiltModsAdapter extends RecyclerView.Adapter<AddedInbuiltModsAdapter.ViewHolder> {
-
-    private List<InbuiltMod> mods = new ArrayList<>();
-    private OnRemoveClickListener onRemoveClickListener;
-
-    public interface OnRemoveClickListener {
-        void onRemoveClick(InbuiltMod mod);
+    public interface OnConfigChangeListener {
+        void onConfigChanged(String modId);
     }
 
-    public void setOnRemoveClickListener(OnRemoveClickListener listener) {
-        this.onRemoveClickListener = listener;
-    }
-
-    public void updateMods(List<InbuiltMod> mods) {
-        this.mods = mods;
-        notifyDataSetChanged();
-    }
-
-    @NonNull
-    @Override
-    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_inbuilt_mod_added, parent, false);
-        return new ViewHolder(v);
-    }
-
-    @Override
-    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        InbuiltMod mod = mods.get(position);
-        Context context = holder.itemView.getContext();
-        holder.name.setText(mod.getName());
-        holder.description.setText(mod.getDescription());
-
-        int iconRes = getModIcon(mod.getId());
-        holder.icon.setImageResource(iconRes);
-        holder.icon.setImageTintList(null);
-        holder.icon.setBackgroundTintList(null);
-
-        holder.settingsButton.setOnClickListener(v -> showConfigDialog(context, mod));
-        DynamicAnim.applyPressScale(holder.settingsButton);
-
-        holder.removeButton.setOnClickListener(v -> {
-            if (onRemoveClickListener != null) {
-                onRemoveClickListener.onRemoveClick(mod);
-            }
-        });
-        DynamicAnim.applyPressScale(holder.removeButton);
-    }
-
-    private int getModIcon(String modId) {
+    public static int getModIcon(String modId) {
         return switch (modId) {
             case ModIds.QUICK_DROP -> R.drawable.ic_quick_drop;
             case ModIds.CAMERA_PERSPECTIVE -> R.drawable.ic_camera;
             case ModIds.TOGGLE_HUD -> R.drawable.ic_hud;
-            case ModIds.AUTO_SPRINT -> R.drawable.ic_sprint_enabled;
+            case ModIds.AUTO_SPRINT -> R.drawable.ic_sprint_disabled;
             case ModIds.CHICK_PET -> R.drawable.chick_idle_1;
-            case ModIds.ZOOM -> R.drawable.ic_zoom_enabled;
+            case ModIds.ZOOM -> R.drawable.ic_zoom_disabled;
             case ModIds.FPS_DISPLAY -> R.drawable.ic_fps;
             case ModIds.CPS_DISPLAY -> R.drawable.ic_cps;
-            case ModIds.SNAPLOOK -> R.drawable.ic_snaplook_enabled;
+            case ModIds.SNAPLOOK -> R.drawable.ic_snaplook_disabled;
             default -> R.drawable.ic_settings;
         };
     }
 
-    private void showConfigDialog(Context context, InbuiltMod mod) {
-        Dialog dialog = new Dialog(context);
+    public static void showConfigDialog(Context context, InbuiltMod mod, OnConfigChangeListener listener) {
+        Context themedContext = new android.view.ContextThemeWrapper(context, R.style.Base_Theme_FullScreen);
+        Dialog dialog = new Dialog(themedContext);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         dialog.setContentView(R.layout.dialog_inbuilt_mod_config);
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-            dialog.getWindow().setLayout(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            );
+
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
+            android.view.WindowManager.LayoutParams params = window.getAttributes();
+            params.dimAmount = 0.6f;
+
+            float density = context.getResources().getDisplayMetrics().density;
+            int screenWidth = context.getResources().getDisplayMetrics().widthPixels;
+            int maxWidth = (int) (380 * density);
+            params.width = Math.min((int) (screenWidth * 0.9), maxWidth);
+            params.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+            window.setAttributes(params);
         }
 
         TextView title = dialog.findViewById(R.id.config_title);
         SeekBar seekBarSize = dialog.findViewById(R.id.seekbar_button_size);
         TextView textSize = dialog.findViewById(R.id.text_button_size);
+        SeekBar seekBarOpacity = dialog.findViewById(R.id.seekbar_button_opacity);
+        TextView textOpacity = dialog.findViewById(R.id.text_button_opacity);
         LinearLayout lockContainer = dialog.findViewById(R.id.config_lock_container);
         Switch lockSwitch = dialog.findViewById(R.id.switch_lock_position);
         LinearLayout autoSprintContainer = dialog.findViewById(R.id.config_autosprint_container);
@@ -127,9 +87,22 @@ public class AddedInbuiltModsAdapter extends RecyclerView.Adapter<AddedInbuiltMo
 
         title.setText(mod.getName());
 
+        View contentView = dialog.findViewById(android.R.id.content);
+        if (contentView != null) {
+            DynamicAnim.animateDialogShow(contentView);
+        }
+
         int currentSize = manager.getOverlayButtonSize(mod.getId());
         seekBarSize.setProgress(currentSize);
         textSize.setText(currentSize + "dp");
+
+        int currentOpacity = manager.getOverlayOpacity(mod.getId());
+        if (seekBarOpacity != null) {
+            seekBarOpacity.setProgress(currentOpacity);
+        }
+        if (textOpacity != null) {
+            textOpacity.setText(currentOpacity + "%");
+        }
 
         lockSwitch.setChecked(manager.isOverlayLocked(mod.getId()));
 
@@ -137,10 +110,21 @@ public class AddedInbuiltModsAdapter extends RecyclerView.Adapter<AddedInbuiltMo
             lockContainer.setVisibility(View.GONE);
         }
 
+        if (listener != null) {
+            lockSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                manager.setOverlayLocked(mod.getId(), isChecked);
+                listener.onConfigChanged(mod.getId());
+            });
+        }
+
         seekBarSize.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 textSize.setText(progress + "dp");
+                if (fromUser && listener != null) {
+                    manager.setOverlayButtonSize(mod.getId(), progress);
+                    listener.onConfigChanged(mod.getId());
+                }
             }
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {}
@@ -148,10 +132,27 @@ public class AddedInbuiltModsAdapter extends RecyclerView.Adapter<AddedInbuiltMo
             public void onStopTrackingTouch(SeekBar seekBar) {}
         });
 
+        if (seekBarOpacity != null && textOpacity != null) {
+            seekBarOpacity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                @Override
+                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                    textOpacity.setText(progress + "%");
+                    if (fromUser && listener != null) {
+                        manager.setOverlayOpacity(mod.getId(), progress);
+                        listener.onConfigChanged(mod.getId());
+                    }
+                }
+                @Override
+                public void onStartTrackingTouch(SeekBar seekBar) {}
+                @Override
+                public void onStopTrackingTouch(SeekBar seekBar) {}
+            });
+        }
+
         if (mod.getId().equals(ModIds.AUTO_SPRINT)) {
             autoSprintContainer.setVisibility(View.VISIBLE);
             btnAutoSprintKeybind.setText(getKeyName(pendingAutoSprintKeybind[0]));
-            btnAutoSprintKeybind.setOnClickListener(v -> showKeybindCaptureDialog(context, btnAutoSprintKeybind, pendingAutoSprintKeybind));
+            btnAutoSprintKeybind.setOnClickListener(v -> showKeybindCaptureDialog(context, btnAutoSprintKeybind, pendingAutoSprintKeybind, false));
         } else {
             autoSprintContainer.setVisibility(View.GONE);
         }
@@ -166,6 +167,10 @@ public class AddedInbuiltModsAdapter extends RecyclerView.Adapter<AddedInbuiltMo
                 @Override
                 public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                     textZoom.setText(progress + "%");
+                    if (fromUser && listener != null) {
+                        manager.setZoomLevel(progress);
+                        listener.onConfigChanged(mod.getId());
+                    }
                 }
                 @Override
                 public void onStartTrackingTouch(SeekBar seekBar) {}
@@ -174,7 +179,7 @@ public class AddedInbuiltModsAdapter extends RecyclerView.Adapter<AddedInbuiltMo
             });
 
             btnZoomKeybind.setText(getKeyName(pendingZoomKeybind[0]));
-            btnZoomKeybind.setOnClickListener(v -> showKeybindCaptureDialog(context, btnZoomKeybind, pendingZoomKeybind));
+            btnZoomKeybind.setOnClickListener(v -> showKeybindCaptureDialog(context, btnZoomKeybind, pendingZoomKeybind, true));
         } else {
             zoomContainer.setVisibility(View.GONE);
         }
@@ -184,6 +189,9 @@ public class AddedInbuiltModsAdapter extends RecyclerView.Adapter<AddedInbuiltMo
 
         btnSave.setOnClickListener(v -> {
             manager.setOverlayButtonSize(mod.getId(), seekBarSize.getProgress());
+            if (seekBarOpacity != null) {
+                manager.setOverlayOpacity(mod.getId(), seekBarOpacity.getProgress());
+            }
             manager.setOverlayLocked(mod.getId(), lockSwitch.isChecked());
             if (mod.getId().equals(ModIds.AUTO_SPRINT)) {
                 manager.setAutoSprintKeybind(pendingAutoSprintKeybind[0]);
@@ -192,6 +200,9 @@ public class AddedInbuiltModsAdapter extends RecyclerView.Adapter<AddedInbuiltMo
                 manager.setZoomLevel(seekBarZoom.getProgress());
                 manager.setZoomKeybind(pendingZoomKeybind[0]);
             }
+            if (listener != null) {
+                listener.onConfigChanged(mod.getId());
+            }
             dialog.dismiss();
         });
         DynamicAnim.applyPressScale(btnSave);
@@ -199,10 +210,10 @@ public class AddedInbuiltModsAdapter extends RecyclerView.Adapter<AddedInbuiltMo
         dialog.show();
     }
 
-    private void showKeybindCaptureDialog(Context context, Button keybindButton, int[] pendingKeybind) {
+    private static void showKeybindCaptureDialog(Context context, Button keybindButton, int[] pendingKeybind, boolean isZoom) {
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
-        builder.setTitle(context.getString(R.string.zoom_keybind_label));
-        builder.setMessage(context.getString(R.string.zoom_keybind_press));
+        builder.setTitle(context.getString(isZoom ? R.string.zoom_keybind_label : R.string.autosprint_keybind_label));
+        builder.setMessage(context.getString(isZoom ? R.string.zoom_keybind_press : R.string.autosprint_keybind_press));
         builder.setCancelable(true);
         builder.setNegativeButton(context.getString(R.string.dialog_negative_cancel), null);
 
@@ -223,31 +234,11 @@ public class AddedInbuiltModsAdapter extends RecyclerView.Adapter<AddedInbuiltMo
         captureDialog.show();
     }
 
-    private String getKeyName(int keyCode) {
+    private static String getKeyName(int keyCode) {
         String keyLabel = KeyEvent.keyCodeToString(keyCode);
         if (keyLabel.startsWith("KEYCODE_")) {
             keyLabel = keyLabel.substring(8);
         }
         return keyLabel;
-    }
-
-    @Override
-    public int getItemCount() {
-        return mods.size();
-    }
-
-    static class ViewHolder extends RecyclerView.ViewHolder {
-        ImageView icon;
-        TextView name, description;
-        ImageButton settingsButton, removeButton;
-
-        ViewHolder(View itemView) {
-            super(itemView);
-            icon = itemView.findViewById(R.id.inbuilt_mod_icon);
-            name = itemView.findViewById(R.id.inbuilt_mod_name);
-            description = itemView.findViewById(R.id.inbuilt_mod_desc);
-            settingsButton = itemView.findViewById(R.id.inbuilt_mod_settings);
-            removeButton = itemView.findViewById(R.id.remove_inbuilt_button);
-        }
     }
 }

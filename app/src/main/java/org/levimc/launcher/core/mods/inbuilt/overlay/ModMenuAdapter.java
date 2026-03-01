@@ -46,10 +46,6 @@ public class ModMenuAdapter extends RecyclerView.Adapter<ModMenuAdapter.ViewHold
         notifyDataSetChanged();
     }
 
-    public boolean isModEnabled(String modId) {
-        return toggleStates.getOrDefault(modId, false);
-    }
-
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -63,7 +59,7 @@ public class ModMenuAdapter extends RecyclerView.Adapter<ModMenuAdapter.ViewHold
         InbuiltMod mod = mods.get(position);
 
         holder.name.setText(mod.getName());
-        holder.icon.setImageResource(getModIcon(mod.getId()));
+        holder.icon.setImageResource(org.levimc.launcher.ui.util.InbuiltModConfigHelper.getModIcon(mod.getId()));
         holder.icon.setImageTintList(null);
         holder.icon.setColorFilter(null);
 
@@ -110,20 +106,6 @@ public class ModMenuAdapter extends RecyclerView.Adapter<ModMenuAdapter.ViewHold
         holder.icon.setAlpha(enabled ? 1f : 0.5f);
     }
 
-    private int getModIcon(String modId) {
-        return switch (modId) {
-            case ModIds.QUICK_DROP -> R.drawable.ic_quick_drop;
-            case ModIds.CAMERA_PERSPECTIVE -> R.drawable.ic_camera;
-            case ModIds.TOGGLE_HUD -> R.drawable.ic_hud;
-            case ModIds.AUTO_SPRINT -> R.drawable.ic_sprint_disabled;
-            case ModIds.CHICK_PET -> R.drawable.chick_idle_1;
-            case ModIds.ZOOM -> R.drawable.ic_zoom_disabled;
-            case ModIds.FPS_DISPLAY -> R.drawable.ic_fps;
-            case ModIds.CPS_DISPLAY -> R.drawable.ic_cps;
-            case ModIds.SNAPLOOK -> R.drawable.ic_snaplook_disabled;
-            default -> R.drawable.ic_settings;
-        };
-    }
 
     @Override
     public int getItemCount() {
