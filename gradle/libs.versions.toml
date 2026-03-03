@@ -6,7 +6,6 @@ espressoCore = "3.7.0"
 appcompat = "1.7.1"
 annotation = "1.9.1"
 activityKtx = "1.12.2"
-apkParser = "2.6.10"
 browser = "1.9.0"
 conscryptAndroid = "2.5.3"
 constraintlayout = "2.2.1"
@@ -52,7 +51,6 @@ androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecyc
 androidx-lifecycle-viewmodel-ktx = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-ktx", version.ref = "lifecycle" }
 androidx-preference-ktx = { module = "androidx.preference:preference-ktx", version.ref = "preference-ktx" }
 appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
-apk-parser = { module = "net.dongliu:apk-parser", version.ref = "apkParser" }
 bcprov-jdk15on = { module = "org.bouncycastle:bcprov-jdk15on", version.ref = "bcprovJdk15on" }
 bedrock-connection = { module = "org.cloudburstmc.protocol:bedrock-connection", version.ref = "bedrockConnection" }
 conscrypt-android = { module = "org.conscrypt:conscrypt-android", version.ref = "conscryptAndroid" }

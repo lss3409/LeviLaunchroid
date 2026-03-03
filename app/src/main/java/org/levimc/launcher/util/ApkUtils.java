@@ -3,8 +3,8 @@ package org.levimc.launcher.util;
 import android.content.Context;
 import android.net.Uri;
 
-import net.dongliu.apk.parser.ApkFile;
-import net.dongliu.apk.parser.bean.ApkMeta;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -30,10 +30,11 @@ public class ApkUtils {
                     os.write(buffer, 0, len);
                 }
             }
-            try (ApkFile apkFile = new ApkFile(tempFile)) {
-                ApkMeta apkMeta = apkFile.getApkMeta();
-                String packageName = apkMeta.getPackageName();
-                String versionName = apkMeta.getVersionName();
+            PackageManager pm = context.getPackageManager();
+            PackageInfo info = pm.getPackageArchiveInfo(tempFile.getAbsolutePath(), 0);
+            if (info != null) {
+                String packageName = info.packageName;
+                String versionName = info.versionName;
 
                 if ("com.mojang.minecraftpe".equals(packageName) && versionName != null && !versionName.isEmpty()) {
                     return "Minecraft_" + versionName;
@@ -77,10 +78,11 @@ public class ApkUtils {
                             }
                         }
                         
-                        try (ApkFile apkFile = new ApkFile(tempApkFile)) {
-                            ApkMeta apkMeta = apkFile.getApkMeta();
-                            String packageName = apkMeta.getPackageName();
-                            String versionName = apkMeta.getVersionName();
+                        PackageManager pm = context.getPackageManager();
+                        PackageInfo info = pm.getPackageArchiveInfo(tempApkFile.getAbsolutePath(), 0);
+                        if (info != null) {
+                            String packageName = info.packageName;
+                            String versionName = info.versionName;
                             if ("com.mojang.minecraftpe".equals(packageName) && versionName != null && !versionName.isEmpty()) {
                                 return "Minecraft_" + versionName;
                             }

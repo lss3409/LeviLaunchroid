@@ -8,8 +8,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.OpenableColumns;
 
-import net.dongliu.apk.parser.ApkFile;
-import net.dongliu.apk.parser.bean.ApkMeta;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -236,12 +236,15 @@ public class ApkInstaller {
     }
 
     private String extractApkVersionName(File apkFile) {
-        try (ApkFile apk = new ApkFile(apkFile)) {
-            ApkMeta meta = apk.getApkMeta();
-            String pkgName = meta.getPackageName();
-            String vName = meta.getVersionName();
-            if ("com.mojang.minecraftpe".equals(pkgName) && vName != null && !vName.isEmpty()) {
-                return vName;
+        try {
+            PackageManager pm = context.getPackageManager();
+            PackageInfo info = pm.getPackageArchiveInfo(apkFile.getAbsolutePath(), 0);
+            if (info != null) {
+                String pkgName = info.packageName;
+                String vName = info.versionName;
+                if ("com.mojang.minecraftpe".equals(pkgName) && vName != null && !vName.isEmpty()) {
+                    return vName;
+                }
             }
         } catch (Exception ignored) {
         }

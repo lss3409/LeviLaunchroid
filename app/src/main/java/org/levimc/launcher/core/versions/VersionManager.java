@@ -132,10 +132,12 @@ public class VersionManager {
     }
 
     private String getApkVersionName(File apkFile) {
-        try (net.dongliu.apk.parser.ApkFile apk = new net.dongliu.apk.parser.ApkFile(apkFile)) {
-            net.dongliu.apk.parser.bean.ApkMeta meta = apk.getApkMeta();
-            if (meta.getVersionName() != null)
-                return meta.getVersionName();
+        try {
+            PackageManager pm = context.getPackageManager();
+            PackageInfo pi = pm.getPackageArchiveInfo(apkFile.getAbsolutePath(), 0);
+            if (pi != null && pi.versionName != null) {
+                return pi.versionName;
+            }
         } catch (Exception ignored) {
         }
         return "unknown";

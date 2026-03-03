@@ -125,7 +125,6 @@ dependencies {
     implementation project(':minecraft')
     implementation project(':minecraft-msftauth')
     implementation libs.core.splashscreen
-    implementation libs.apk.parser
     implementation libs.appcompat
     implementation libs.conscrypt.android
     implementation libs.constraintlayout
