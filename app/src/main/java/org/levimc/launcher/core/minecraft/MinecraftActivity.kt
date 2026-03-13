@@ -114,6 +114,20 @@ class MinecraftActivity : MainActivity() {
         }
         
         overlayManager?.handleTouchEvent(event)
+
+        if (org.levimc.launcher.core.mods.inbuilt.overlay.VirtualCursorMod.isActive()) {
+            org.levimc.launcher.core.mods.inbuilt.overlay.VirtualCursorMod.processTouchEvent(event, this)
+            return true
+        }
+
+        return super.dispatchTouchEvent(event)
+    }
+
+    fun dispatchGenericMotionEventToGame(event: MotionEvent): Boolean {
+        return super.dispatchGenericMotionEvent(event)
+    }
+
+    fun dispatchTouchEventToGame(event: MotionEvent): Boolean {
         return super.dispatchTouchEvent(event)
     }
 

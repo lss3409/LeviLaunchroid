@@ -62,6 +62,22 @@ public abstract class BaseOverlayButton {
         return (int) (sizeDp * density);
     }
 
+    protected int getButtonWidthPx() {
+        return (int) (getButtonSizePx() * getWidthScale());
+    }
+
+    protected int getButtonHeightPx() {
+        return (int) (getButtonSizePx() * getHeightScale());
+    }
+
+    protected float getWidthScale() {
+        return 1.0f;
+    }
+
+    protected float getHeightScale() {
+        return 1.0f;
+    }
+
     protected float getButtonOpacity() {
         int opacity = InbuiltModManager.getInstance(activity).getOverlayOpacity(getModId());
         return opacity / 100f;
@@ -79,6 +95,10 @@ public abstract class BaseOverlayButton {
 
     protected abstract String getModId();
 
+    protected int getLayoutResource() {
+        return R.layout.overlay_mod_button;
+    }
+
     public void tick() {}
 
     public void show(int startX, int startY) {
@@ -95,15 +115,20 @@ public abstract class BaseOverlayButton {
         if (isShowing || isHiding || activity.isFinishing() || activity.isDestroyed()) return;
         
         try {
-            overlayView = LayoutInflater.from(activity).inflate(R.layout.overlay_mod_button, null);
-            ImageButton btn = (ImageButton) overlayView;
-            btn.setImageResource(getIconResource());
+            overlayView = LayoutInflater.from(activity).inflate(getLayoutResource(), null);
+            if (overlayView instanceof ImageButton) {
+                ImageButton btn = (ImageButton) overlayView;
+                if (getIconResource() != 0) {
+                    btn.setImageResource(getIconResource());
+                }
+                btn.setScaleType(ImageButton.ScaleType.FIT_CENTER);
+            }
 
-            int buttonSize = getButtonSizePx();
-            btn.setScaleType(ImageButton.ScaleType.FIT_CENTER);
+            int buttonWidth = getButtonWidthPx();
+            int buttonHeight = getButtonHeightPx();
             wmParams = new WindowManager.LayoutParams(
-                buttonSize,
-                buttonSize,
+                buttonWidth,
+                buttonHeight,
                 WindowManager.LayoutParams.TYPE_APPLICATION_PANEL,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                     | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
@@ -116,7 +141,7 @@ public abstract class BaseOverlayButton {
             wmParams.y = startY;
             wmParams.token = activity.getWindow().getDecorView().getWindowToken();
 
-            btn.setOnTouchListener(this::handleTouch);
+            overlayView.setOnTouchListener(this::handleTouch);
             windowManager.addView(overlayView, wmParams);
             isShowing = true;
             applyOpacity();
@@ -132,22 +157,27 @@ public abstract class BaseOverlayButton {
         ViewGroup rootView = activity.findViewById(android.R.id.content);
         if (rootView == null) return;
 
-        overlayView = LayoutInflater.from(activity).inflate(R.layout.overlay_mod_button, null);
-        ImageButton btn = (ImageButton) overlayView;
-        btn.setImageResource(getIconResource());
+        overlayView = LayoutInflater.from(activity).inflate(getLayoutResource(), null);
+        if (overlayView instanceof ImageButton) {
+            ImageButton btn = (ImageButton) overlayView;
+            if (getIconResource() != 0) {
+                btn.setImageResource(getIconResource());
+            }
+            btn.setScaleType(ImageButton.ScaleType.FIT_CENTER);
+        }
 
-        int buttonSize = getButtonSizePx();
-        btn.setScaleType(ImageButton.ScaleType.FIT_CENTER);
+        int buttonWidth = getButtonWidthPx();
+        int buttonHeight = getButtonHeightPx();
         
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
-            buttonSize,
-            buttonSize
+            buttonWidth,
+            buttonHeight
         );
         params.gravity = Gravity.TOP | Gravity.START;
         params.leftMargin = startX;
         params.topMargin = startY;
 
-        btn.setOnTouchListener(this::handleTouchFallback);
+        overlayView.setOnTouchListener(this::handleTouchFallback);
         rootView.addView(overlayView, params);
         isShowing = true;
         wmParams = null;
@@ -357,18 +387,19 @@ public abstract class BaseOverlayButton {
     public void applyConfigurationChanges() {
         if (!isShowing || overlayView == null) return;
 
-        int newSize = getButtonSizePx();
+        int newWidth = getButtonWidthPx();
+        int newHeight = getButtonHeightPx();
         if (wmParams != null) {
-            wmParams.width = newSize;
-            wmParams.height = newSize;
+            wmParams.width = newWidth;
+            wmParams.height = newHeight;
             try {
                 windowManager.updateViewLayout(overlayView, wmParams);
             } catch (Exception ignored) {}
         } else {
             ViewGroup.LayoutParams params = overlayView.getLayoutParams();
             if (params != null) {
-                params.width = newSize;
-                params.height = newSize;
+                params.width = newWidth;
+                params.height = newHeight;
                 overlayView.setLayoutParams(params);
             }
         }
@@ -579,20 +610,20 @@ public abstract class BaseOverlayButton {
     private void updateButtonSize(int sizeDp) {
         if (overlayView == null || !isShowing) return;
         
-        float density = activity.getResources().getDisplayMetrics().density;
-        int buttonSize = (int) (sizeDp * density);
+        int buttonWidth = getButtonWidthPx();
+        int buttonHeight = getButtonHeightPx();
         
         if (wmParams != null) {
-            wmParams.width = buttonSize;
-            wmParams.height = buttonSize;
+            wmParams.width = buttonWidth;
+            wmParams.height = buttonHeight;
             try {
                 windowManager.updateViewLayout(overlayView, wmParams);
             } catch (Exception ignored) {}
         } else {
             ViewGroup.LayoutParams params = overlayView.getLayoutParams();
             if (params != null) {
-                params.width = buttonSize;
-                params.height = buttonSize;
+                params.width = buttonWidth;
+                params.height = buttonHeight;
                 overlayView.setLayoutParams(params);
             }
         }

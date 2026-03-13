@@ -82,6 +82,7 @@ public class InbuiltOverlayManager {
         modActiveStates.put(ModIds.FPS_DISPLAY, false);
         modActiveStates.put(ModIds.CPS_DISPLAY, false);
         modActiveStates.put(ModIds.SNAPLOOK, false);
+        modActiveStates.put(ModIds.VIRTUAL_CURSOR, false);
 
         modPositionMap.put(ModIds.QUICK_DROP, nextY + SPACING);
         modPositionMap.put(ModIds.CAMERA_PERSPECTIVE, nextY + SPACING * 2);
@@ -91,6 +92,7 @@ public class InbuiltOverlayManager {
         modPositionMap.put(ModIds.FPS_DISPLAY, nextY + SPACING * 6);
         modPositionMap.put(ModIds.CPS_DISPLAY, nextY + SPACING * 7);
         modPositionMap.put(ModIds.SNAPLOOK, nextY + SPACING * 8);
+        modPositionMap.put(ModIds.VIRTUAL_CURSOR, nextY + SPACING * 9);
 
         if (zoomOverlay == null) {
             zoomOverlay = new ZoomOverlay(activity);
@@ -187,6 +189,12 @@ public class InbuiltOverlayManager {
                 snaplookOverlay.show(savedX, savedY);
                 overlays.add(snaplookOverlay);
                 modOverlayMap.put(modId, snaplookOverlay);
+                break;
+            case ModIds.VIRTUAL_CURSOR:
+                VirtualCursorOverlay cursorOverlay = new VirtualCursorOverlay(activity);
+                cursorOverlay.show(savedX, savedY);
+                overlays.add(cursorOverlay);
+                modOverlayMap.put(modId, cursorOverlay);
                 break;
         }
     }
@@ -326,6 +334,14 @@ public class InbuiltOverlayManager {
             snaplookOverlay.show(x, y);
             overlays.add(snaplookOverlay);
             modOverlayMap.put(ModIds.SNAPLOOK, snaplookOverlay);
+            nextY += SPACING;
+        }
+        if (manager.isModAdded(ModIds.VIRTUAL_CURSOR)) {
+            int x = manager.getOverlayPositionX(ModIds.VIRTUAL_CURSOR, START_X);
+            int y = manager.getOverlayPositionY(ModIds.VIRTUAL_CURSOR, nextY);
+            VirtualCursorOverlay overlay = new VirtualCursorOverlay(activity);
+            overlay.show(x, y);
+            overlays.add(overlay);
             nextY += SPACING;
         }
         return nextY;

@@ -206,6 +206,55 @@
 
             </LinearLayout>
 
+            <!-- Cursor Sensitivity -->
+            <LinearLayout
+                android:id="@+id/config_cursor_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginBottom="16dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/cursor_sensitivity_label"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textSize="14sp"
+                    android:fontFamily="@font/misans" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="8dp">
+
+                    <SeekBar
+                        android:id="@+id/seekbar_cursor_sensitivity"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:min="10"
+                        android:max="300"
+                        android:progress="120"
+                        android:progressTint="?attr/colorPrimary"
+                        android:thumbTint="?attr/colorPrimary" />
+
+                    <TextView
+                        android:id="@+id/text_cursor_sensitivity"
+                        android:layout_width="48dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:gravity="center"
+                        android:text="120%"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textSize="12sp"
+                        android:fontFamily="@font/misans" />
+
+                </LinearLayout>
+            </LinearLayout>
+
             <!-- Zoom Level -->
             <LinearLayout
                 android:id="@+id/config_zoom_container"

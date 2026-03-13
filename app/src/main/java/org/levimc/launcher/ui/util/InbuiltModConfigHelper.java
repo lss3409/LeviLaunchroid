@@ -39,6 +39,7 @@ public class InbuiltModConfigHelper {
             case ModIds.FPS_DISPLAY -> R.drawable.ic_fps;
             case ModIds.CPS_DISPLAY -> R.drawable.ic_cps;
             case ModIds.SNAPLOOK -> R.drawable.ic_snaplook_disabled;
+            case ModIds.VIRTUAL_CURSOR -> R.drawable.ic_virtual_cursor;
             default -> R.drawable.ic_settings;
         };
     }
@@ -74,6 +75,9 @@ public class InbuiltModConfigHelper {
         Switch lockSwitch = dialog.findViewById(R.id.switch_lock_position);
         LinearLayout autoSprintContainer = dialog.findViewById(R.id.config_autosprint_container);
         Button btnAutoSprintKeybind = dialog.findViewById(R.id.btn_autosprint_keybind);
+        LinearLayout cursorContainer = dialog.findViewById(R.id.config_cursor_container);
+        SeekBar seekBarCursor = dialog.findViewById(R.id.seekbar_cursor_sensitivity);
+        TextView textCursor = dialog.findViewById(R.id.text_cursor_sensitivity);
         LinearLayout zoomContainer = dialog.findViewById(R.id.config_zoom_container);
         SeekBar seekBarZoom = dialog.findViewById(R.id.seekbar_zoom_level);
         TextView textZoom = dialog.findViewById(R.id.text_zoom_level);
@@ -157,6 +161,34 @@ public class InbuiltModConfigHelper {
             autoSprintContainer.setVisibility(View.GONE);
         }
 
+        if (mod.getId().equals(ModIds.VIRTUAL_CURSOR)) {
+            if (cursorContainer != null) {
+                cursorContainer.setVisibility(View.VISIBLE);
+                int currentSensitivity = manager.getCursorSensitivity();
+                seekBarCursor.setProgress(currentSensitivity);
+                textCursor.setText(currentSensitivity + "%");
+
+                seekBarCursor.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                    @Override
+                    public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                        textCursor.setText(progress + "%");
+                        if (fromUser && listener != null) {
+                            manager.setCursorSensitivity(progress);
+                            listener.onConfigChanged(mod.getId());
+                        }
+                    }
+                    @Override
+                    public void onStartTrackingTouch(SeekBar seekBar) {}
+                    @Override
+                    public void onStopTrackingTouch(SeekBar seekBar) {}
+                });
+            }
+        } else {
+            if (cursorContainer != null) {
+                cursorContainer.setVisibility(View.GONE);
+            }
+        }
+
         if (mod.getId().equals(ModIds.ZOOM)) {
             zoomContainer.setVisibility(View.VISIBLE);
             int currentZoom = manager.getZoomLevel();
@@ -199,6 +231,9 @@ public class InbuiltModConfigHelper {
             if (mod.getId().equals(ModIds.ZOOM)) {
                 manager.setZoomLevel(seekBarZoom.getProgress());
                 manager.setZoomKeybind(pendingZoomKeybind[0]);
+            }
+            if (mod.getId().equals(ModIds.VIRTUAL_CURSOR) && seekBarCursor != null) {
+                manager.setCursorSensitivity(seekBarCursor.getProgress());
             }
             if (listener != null) {
                 listener.onConfigChanged(mod.getId());
