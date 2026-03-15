@@ -31,7 +31,7 @@ public class MainViewModel extends ViewModel {
     }
 
     public void removeMod(Mod mod) {
-        modManager.deleteMod(mod.getFileName());
+        modManager.deleteMod(mod.getId());
         refreshMods();
     }
 

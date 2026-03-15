@@ -86,7 +86,7 @@ public class ModDetailActivity extends BaseActivity {
         modSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (currentMod != null && isChecked != currentMod.isEnabled()) {
                 currentMod.setEnabled(isChecked);
-                viewModel.setModEnabled(currentMod.getFileName(), isChecked);
+                viewModel.setModEnabled(currentMod.getId(), isChecked);
                 Toast.makeText(this, isChecked ? R.string.mod_enabled : R.string.mod_disabled, Toast.LENGTH_SHORT).show();
             }
         });
@@ -98,7 +98,7 @@ public class ModDetailActivity extends BaseActivity {
             viewModel.getModsLiveData().observe(this, mods -> {
                 if (mods != null) {
                     for (Mod mod : mods) {
-                        if (mod.getFileName().equals(modFilename)) {
+                        if (mod.getId().equals(modFilename)) {
                             currentMod = mod;
                             updateModUI(mod);
                             break;

@@ -84,8 +84,7 @@ public class ModsAdapter extends RecyclerView.Adapter<ModsAdapter.ModViewHolder>
             }
         });
 
-        // 设置稳定的过渡名称到整个条目，实现卡片共享元素过渡
-        ViewCompat.setTransitionName(holder.itemView, "mod_card_" + mod.getFileName());
+        ViewCompat.setTransitionName(holder.itemView, "mod_card_" + mod.getId());
 
         holder.itemView.setOnClickListener(v -> {
             if (onModClickListener != null) {

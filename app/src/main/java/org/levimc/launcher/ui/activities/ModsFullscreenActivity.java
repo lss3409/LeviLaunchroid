@@ -77,6 +77,7 @@ public class ModsFullscreenActivity extends BaseActivity {
 
                             @Override
                             public void onError(String errorMessage) {
+                                Toast.makeText(ModsFullscreenActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
                             }
 
                             @Override
@@ -138,7 +139,7 @@ public class ModsFullscreenActivity extends BaseActivity {
 
         modsAdapter.setOnModClickListener((mod, position, sharedView) -> {
             Intent intent = new Intent(this, ModDetailActivity.class);
-            intent.putExtra("mod_filename", mod.getFileName());
+            intent.putExtra("mod_filename", mod.getId());
             intent.putExtra("mod_position", position);
             ActivityOptionsCompat options = ActivityOptionsCompat.makeSceneTransitionAnimation(
                     this,
@@ -150,7 +151,7 @@ public class ModsFullscreenActivity extends BaseActivity {
 
         modsAdapter.setOnModEnableChangeListener((mod, enabled) -> {
             if (viewModel != null) {
-                viewModel.setModEnabled(mod.getFileName(), enabled);
+                viewModel.setModEnabled(mod.getId(), enabled);
                 updateModsCount(); 
             }
         });

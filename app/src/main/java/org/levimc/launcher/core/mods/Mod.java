@@ -1,24 +1,32 @@
 package org.levimc.launcher.core.mods;
 
 public class Mod {
+    private final String id;
     private final String fileName;
+    private final String entryPath;
+    private final String displayName;
     private boolean enabled;
     private int order;
 
-    public Mod(String fileName, boolean enabled) {
+    public Mod(String id, String fileName, String entryPath, String displayName, boolean enabled, int order) {
+        this.id = id;
         this.fileName = fileName;
-        this.enabled = enabled;
-        this.order = 0;
-    }
-
-    public Mod(String fileName, boolean enabled, int order) {
-        this.fileName = fileName;
+        this.entryPath = entryPath;
+        this.displayName = displayName;
         this.enabled = enabled;
         this.order = order;
     }
 
+    public String getId() {
+        return id;
+    }
+
     public String getFileName() {
         return fileName;
+    }
+
+    public String getEntryPath() {
+        return entryPath;
     }
 
     public boolean isEnabled() {
@@ -38,6 +46,6 @@ public class Mod {
     }
 
     public String getDisplayName() {
-        return fileName.replace(".so", "");
+        return displayName;
     }
 }

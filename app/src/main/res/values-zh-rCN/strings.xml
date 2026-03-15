@@ -148,7 +148,7 @@
     <string name="toast_delete_failed">删除失败: %1$s</string>
     <string name="error_delete_builtin_version">不能删除内置版本</string>
     <string name="invalid_mod_file">失败</string>
-    <string name="invalid_mod_file_reason">仅允许 .so 扩展名的文件（例如 4dskins.so）。所选文件不是有效的原生共享库。</string>
+    <string name="invalid_mod_file_reason">仅允许导入 .so 文件或 .zip 模组包。所选文件不是有效的原生模组导入包。</string>
     <string name="error_versions">错误版本</string>
 
     <string name="dialog_title_delete_mod">删除 Mod</string>

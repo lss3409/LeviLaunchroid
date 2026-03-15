@@ -946,6 +946,9 @@ import okhttp3.OkHttpClient;
 
             @Override
             public void onError(String errorMessage) {
+                if (errorMessage != null && !errorMessage.isEmpty()) {
+                    UIHelper.showToast(MainActivity.this, errorMessage);
+                }
             }
 
             @Override
