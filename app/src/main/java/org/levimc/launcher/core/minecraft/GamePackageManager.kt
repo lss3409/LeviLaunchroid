@@ -1,5 +1,6 @@
 package org.levimc.launcher.core.minecraft
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
@@ -9,6 +10,8 @@ import android.util.Log
 import org.levimc.launcher.core.versions.GameVersion
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
+import java.io.InputStream
 import java.util.zip.ZipFile
 
 class GamePackageManager private constructor(private val context: Context, private val version: GameVersion?) {
@@ -146,9 +149,9 @@ class GamePackageManager private constructor(private val context: Context, priva
             val dstFile = File(destDir, lib)
             if (srcFile.exists() && srcFile.length() > 0) {
                 try {
-                    srcFile.copyTo(dstFile, overwrite = true)
-                    dstFile.setReadable(true)
-                    dstFile.setExecutable(true)
+                    srcFile.inputStream().use { input ->
+                        copyStreamToReadOnlyFile(input, dstFile)
+                    }
                     logFileOperation("Copied", lib)
                 } catch (e: Exception) {
                     logFileOperation("Failed to copy", lib, e = e)
@@ -179,19 +182,56 @@ class GamePackageManager private constructor(private val context: Context, priva
                     }
                     val output = File(outputDir, lib)
                     if (output.exists() && output.length() > 0) {
+                        ensureReadOnly(output)
                         return@forEach
                     }
                     zip.getInputStream(entry).use { input ->
-                        FileOutputStream(output).use { out ->
-                            input.copyTo(out)
-                        }
+                        copyStreamToReadOnlyFile(input, output)
                     }
-                    output.setReadable(true)
-                    output.setExecutable(true)
                 }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to extract libraries from $apkPath: ${e.message}")
+        }
+    }
+
+    private fun copyStreamToReadOnlyFile(input: InputStream, output: File) {
+        ensureParentDirectory(output)
+        if (output.exists() && !output.delete()) {
+            throw IOException("Failed to replace existing file: ${output.absolutePath}")
+        }
+
+        FileOutputStream(output).use { out ->
+            markReadOnlyBeforeWrite(output)
+            input.copyTo(out)
+            out.fd.sync()
+        }
+
+        ensureReadOnly(output)
+    }
+
+    private fun ensureParentDirectory(file: File) {
+        val parent = file.parentFile ?: return
+        if (!parent.exists() && !parent.mkdirs()) {
+            throw IOException("Failed to create parent directory: ${parent.absolutePath}")
+        }
+    }
+
+    private fun markReadOnlyBeforeWrite(file: File) {
+        if (!file.setReadOnly() && file.canWrite()) {
+            throw IOException("Failed to mark file read-only before write: ${file.absolutePath}")
+        }
+    }
+
+    private fun ensureReadOnly(file: File) {
+        if (!file.isFile) {
+            throw IOException("Expected regular file: ${file.absolutePath}")
+        }
+        if (!file.setReadable(true, true) && !file.canRead()) {
+            throw IOException("Failed to mark file readable: ${file.absolutePath}")
+        }
+        if (!file.setReadOnly() && file.canWrite()) {
+            throw IOException("Failed to keep file read-only: ${file.absolutePath}")
         }
     }
 
@@ -264,8 +304,21 @@ class GamePackageManager private constructor(private val context: Context, priva
         }
     }
 
-    fun loadLibrary(name: String): Boolean {
+    fun resolveLibraryPath(name: String): String? {
         val libFile = File(nativeLibDir, if (name.startsWith("lib")) name else "lib$name.so")
+        return if (libFile.exists() && libFile.length() > 0) {
+            libFile.absolutePath
+        } else {
+            Log.w(TAG, "Library $name not found in $nativeLibDir")
+            null
+        }
+    }
+
+    @SuppressLint("UnsafeDynamicallyLoadedCode")
+    fun loadLibrary(name: String): Boolean {
+        val resolvedPath = resolveLibraryPath(name)
+        val libFile = resolvedPath?.let(::File)
+            ?: File(nativeLibDir, if (name.startsWith("lib")) name else "lib$name.so")
         val libName = libFile.name
         return if (systemLoadedLibs.contains(libName)) {
             try {
@@ -279,6 +332,7 @@ class GamePackageManager private constructor(private val context: Context, priva
         } else {
             try {
                 if (libFile.exists() && libFile.length() > 0) {
+                    ensureReadOnly(libFile)
                     System.load(libFile.absolutePath)
                     Log.d(TAG, "Loaded $name from $nativeLibDir")
                     true

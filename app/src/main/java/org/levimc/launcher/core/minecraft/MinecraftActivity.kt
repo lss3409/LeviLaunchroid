@@ -18,6 +18,8 @@ class MinecraftActivity : MainActivity() {
     private lateinit var gameManager: GamePackageManager
     private var overlayManager: InbuiltOverlayManager? = null
 
+    private external fun nativeOnLauncherLoaded(libPath: String): Boolean
+
     override fun onCreate(savedInstanceState: Bundle?) {
         try {
             val versionDir = intent.getStringExtra("MC_PATH")
@@ -58,9 +60,12 @@ class MinecraftActivity : MainActivity() {
                 Log.w(TAG, "Failed to load preloader: ${e.message}")
             }
 
-            if (!gameManager.loadLibrary("minecraftpe")) {
-                throw RuntimeException("Failed to load libminecraftpe.so")
+            val minecraftLibraryPath = gameManager.resolveLibraryPath("minecraftpe")
+                ?: throw RuntimeException("Failed to resolve libminecraftpe.so path")
+            if (!nativeOnLauncherLoaded(minecraftLibraryPath)) {
+                throw RuntimeException("Failed to bootstrap preloader for libminecraftpe.so")
             }
+            Log.d(TAG, "Bootstrapped preloader with $minecraftLibraryPath")
         } catch (e: Exception) {
             Toast.makeText(this, "Failed to load game: ${e.message}", Toast.LENGTH_LONG).show()
             finish()
