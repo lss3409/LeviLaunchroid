@@ -37,6 +37,11 @@
 
     <string name="import_confirmation_title">Import Mods</string>
     <string name="import_confirmation_message">Are you sure you want to import the selected %d mod files?</string>
+    <string name="import_so_plugin_title">🧩 Import SO Plugin</string>
+    <string name="plugin_name_label">Plugin Name</string>
+    <string name="plugin_type_label">Type</string>
+    <string name="plugin_version_label">Version</string>
+    <string name="import_button">Import</string>
     <string name="overwrite_file_title">File Already Exists</string>
     <string name="overwrite_file_message">The file %s already exists. Do you want to overwrite it?</string>
     <string name="overwrite">Overwrite</string>

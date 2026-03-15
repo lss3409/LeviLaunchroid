@@ -112,19 +112,163 @@ public class FileHandler {
             return;
         }
 
+        new Thread(() -> {
+            List<Uri> packagedUris = new ArrayList<>();
+            List<Uri> bareUris = new ArrayList<>();
+            for (Uri uri : supportedUris) {
+                String fileName = resolveFileName(uri);
+                if (needsMetadataInput(uri, fileName)) {
+                    bareUris.add(uri);
+                } else {
+                    packagedUris.add(uri);
+                }
+            }
+
+            new Handler(Looper.getMainLooper()).post(() -> {
+                if (!packagedUris.isEmpty()) {
+                    new CustomAlertDialog(context)
+                            .setTitleText(context.getString(R.string.import_confirmation_title))
+                            .setMessage(context.getString(R.string.import_confirmation_message, packagedUris.size()))
+                            .setPositiveButton(context.getString(R.string.confirm), d -> handleFilesWithOverwriteCheck(packagedUris, null, null, null, callback))
+                            .setNegativeButton(context.getString(R.string.cancel), d -> {
+                                if (callback != null) {
+                                    callback.onError(context.getString(R.string.user_cancelled));
+                                }
+                            })
+                            .show();
+                }
+
+                if (!bareUris.isEmpty()) {
+                    showNextMetadataDialog(bareUris, 0, callback);
+                }
+            });
+        }).start();
+    }
+
+    private boolean needsMetadataInput(Uri uri, String fileName) {
+        String lowerName = fileName.toLowerCase(Locale.ROOT);
+        if (lowerName.endsWith(".so")) {
+            return true;
+        }
+        if (lowerName.endsWith(".zip")) {
+            return !peekZipForManifest(uri);
+        }
+        return false;
+    }
+
+    private boolean peekZipForManifest(Uri uri) {
+        try (InputStream raw = context.getContentResolver().openInputStream(uri);
+             ZipInputStream zis = new ZipInputStream(raw)) {
+            if (raw == null) return false;
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                String name = entry.getName();
+                if (name != null && (name.equals(MANIFEST_FILE_NAME) || name.endsWith("/" + MANIFEST_FILE_NAME))) {
+                    return true;
+                }
+                zis.closeEntry();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Could not peek zip for manifest: " + e.getMessage());
+        }
+        return false;
+    }
+
+    private void showNextMetadataDialog(List<Uri> bareUris, int index, FileOperationCallback callback) {
+        if (index >= bareUris.size()) {
+            return;
+        }
+        Uri uri = bareUris.get(index);
+        String fileName = resolveFileName(uri);
+        String defaultName = deriveDisplayNameFromLibrary(fileName);
+        String defaultType = PRELOAD_NATIVE_TYPE;
+        String defaultVersion = DEFAULT_MOD_VERSION;
+
+        float density = context.getResources().getDisplayMetrics().density;
+        android.widget.LinearLayout container = new android.widget.LinearLayout(context);
+        container.setOrientation(android.widget.LinearLayout.VERTICAL);
+        int padH = (int) (16 * density);
+        int padV = (int) (4 * density);
+        container.setPadding(padH, padV, padH, padV);
+
+        android.widget.EditText etName    = buildLabeledEditText(container, context.getString(R.string.plugin_name_label), defaultName, density);
+        android.widget.EditText etType    = buildLabeledEditText(container, context.getString(R.string.plugin_type_label), defaultType, density);
+        android.widget.EditText etVersion = buildLabeledEditText(container, context.getString(R.string.plugin_version_label), defaultVersion, density);
+
         new CustomAlertDialog(context)
-                .setTitleText(context.getString(R.string.import_confirmation_title))
-                .setMessage(context.getString(R.string.import_confirmation_message, supportedUris.size()))
-                .setPositiveButton(context.getString(R.string.confirm), d -> handleFilesWithOverwriteCheck(supportedUris, callback))
-                .setNegativeButton(context.getString(R.string.cancel), d -> {
+                .setTitleText(context.getString(R.string.import_so_plugin_title))
+                .setCustomView(container)
+                .setPositiveButton(context.getString(R.string.import_button), v -> {
+                    String name    = etName.getText().toString().trim();
+                    String type    = etType.getText().toString().trim();
+                    String version = etVersion.getText().toString().trim();
+                    if (name.isEmpty()) name = defaultName;
+                    if (type.isEmpty()) type = defaultType;
+                    if (version.isEmpty()) version = defaultVersion;
+                    handleFilesWithOverwriteCheck(
+                            java.util.Collections.singletonList(uri),
+                            name, type, version, callback);
+                    showNextMetadataDialog(bareUris, index + 1, callback);
+                })
+                .setNegativeButton(context.getString(R.string.cancel), v -> {
                     if (callback != null) {
                         callback.onError(context.getString(R.string.user_cancelled));
                     }
+                    showNextMetadataDialog(bareUris, index + 1, callback);
                 })
                 .show();
     }
 
-    private void handleFilesWithOverwriteCheck(List<Uri> fileUris, FileOperationCallback callback) {
+    private android.widget.EditText buildLabeledEditText(
+            android.widget.LinearLayout container, String label, String defaultValue, float density) {
+        android.widget.LinearLayout card = new android.widget.LinearLayout(context);
+        card.setOrientation(android.widget.LinearLayout.VERTICAL);
+        card.setBackgroundResource(R.drawable.plugin_field_background);
+        int cardPadH = (int) (16 * density);
+        int cardPadTop = (int) (10 * density);
+        int cardPadBottom = (int) (12 * density);
+        card.setPadding(cardPadH, cardPadTop, cardPadH, cardPadBottom);
+        android.widget.LinearLayout.LayoutParams cardParams = new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+        cardParams.topMargin = (int) (10 * density);
+        card.setLayoutParams(cardParams);
+
+        android.widget.TextView tv = new android.widget.TextView(context);
+        tv.setText(label);
+        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 11);
+        int secondaryColor = 0xFFAAAAAA;
+        try { secondaryColor = context.getResources().getColor(R.color.text_secondary, context.getTheme()); } catch (Exception ignored) {}
+        tv.setTextColor(secondaryColor);
+        tv.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT));
+        card.addView(tv);
+
+        android.widget.EditText et = new android.widget.EditText(context);
+        et.setText(defaultValue);
+        et.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15);
+        int primaryColor = 0xFFFFFFFF;
+        try { primaryColor = context.getResources().getColor(R.color.text_primary, context.getTheme()); } catch (Exception ignored) {}
+        et.setTextColor(primaryColor);
+        et.setHintTextColor(secondaryColor);
+        et.setBackground(null);
+        et.setPadding(0, (int) (4 * density), 0, 0);
+        et.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT));
+        card.addView(et);
+
+        container.addView(card);
+        return et;
+    }
+
+
+
+    private void handleFilesWithOverwriteCheck(
+            List<Uri> fileUris,
+            String overrideName, String overrideType, String overrideVersion,
+            FileOperationCallback callback) {
         new Thread(() -> {
             if (targetPath == null) {
                 postError(callback, "No selected version mods directory");
@@ -149,7 +293,7 @@ public class FileHandler {
                         throw new IOException("Unsupported mod import file: " + fileName);
                     }
 
-                    preparedImport = prepareImport(uri, fileName);
+                    preparedImport = prepareImport(uri, fileName, overrideName, overrideType, overrideVersion);
                     File destinationDir = new File(targetDir, preparedImport.targetId);
                     if (destinationDir.exists() && !confirmOverwrite(preparedImport.targetId)) {
                         continue;
@@ -188,20 +332,26 @@ public class FileHandler {
         }).start();
     }
 
-    private PreparedImport prepareImport(Uri uri, String fileName) throws IOException {
+    private PreparedImport prepareImport(
+            Uri uri, String fileName,
+            String overrideName, String overrideType, String overrideVersion) throws IOException {
         String lowerName = fileName.toLowerCase(Locale.ROOT);
         if (lowerName.endsWith(".so")) {
-            return prepareSoImport(uri, fileName);
+            return prepareSoImport(uri, fileName, overrideName, overrideType, overrideVersion);
         }
         if (lowerName.endsWith(".zip")) {
-            return prepareZipImport(uri, fileName);
+            return prepareZipImport(uri, fileName, overrideName, overrideType, overrideVersion);
         }
         throw new IOException("Unsupported mod import file: " + fileName);
     }
 
-    private PreparedImport prepareSoImport(Uri uri, String fileName) throws IOException {
+    private PreparedImport prepareSoImport(
+            Uri uri, String fileName,
+            String overrideName, String overrideType, String overrideVersion) throws IOException {
         File stagingRoot = createTempDirectory("mod_import_so");
-        String displayName = deriveDisplayNameFromLibrary(fileName);
+        String displayName = (overrideName != null && !overrideName.isEmpty())
+                ? overrideName
+                : deriveDisplayNameFromLibrary(fileName);
         String targetId = buildTargetId(displayName, stripExtension(fileName));
         File packageDir = new File(stagingRoot, targetId);
         if (!packageDir.mkdirs()) {
@@ -210,11 +360,14 @@ public class FileHandler {
 
         File libraryFile = new File(packageDir, fileName);
         copyUriToFile(uri, libraryFile);
-        writeManifest(packageDir, createNormalizedManifest(new JsonObject(), displayName, fileName, packageDir));
+        writeManifest(packageDir, createNormalizedManifest(
+                new JsonObject(), displayName, fileName, packageDir, overrideType, overrideVersion));
         return new PreparedImport(targetId, packageDir, stagingRoot);
     }
 
-    private PreparedImport prepareZipImport(Uri uri, String fileName) throws IOException {
+    private PreparedImport prepareZipImport(
+            Uri uri, String fileName,
+            String overrideName, String overrideType, String overrideVersion) throws IOException {
         File tempZip = new File(context.getCacheDir(), "mod_zip_" + System.currentTimeMillis() + ".zip");
         File stagingRoot = createTempDirectory("mod_import_zip");
         try {
@@ -239,8 +392,11 @@ public class FileHandler {
             throw new IOException("Invalid mod zip: manifest entry is missing or ambiguous");
         }
 
-        String displayName = resolveDisplayName(manifest, entryPath);
-        writeManifest(modRoot, createNormalizedManifest(manifest, displayName, entryPath, modRoot));
+        String displayName = (overrideName != null && !overrideName.isEmpty())
+                ? overrideName
+                : resolveDisplayName(manifest, entryPath);
+        writeManifest(modRoot, createNormalizedManifest(
+                manifest, displayName, entryPath, modRoot, overrideType, overrideVersion));
 
         String rootName = modRoot.equals(stagingRoot) ? stripExtension(fileName) : modRoot.getName();
         String targetId = buildTargetId(displayName, rootName);
@@ -262,15 +418,25 @@ public class FileHandler {
         }
     }
 
-    private JsonObject createNormalizedManifest(JsonObject manifest, String displayName, String entryPath, File modRoot) {
+    private JsonObject createNormalizedManifest(
+            JsonObject manifest, String displayName, String entryPath, File modRoot,
+            String overrideType, String overrideVersion) {
         JsonObject normalized = manifest == null ? new JsonObject() : manifest.deepCopy();
-        normalized.addProperty("type", PRELOAD_NATIVE_TYPE);
+        String type = (overrideType != null && !overrideType.isEmpty()) ? overrideType : PRELOAD_NATIVE_TYPE;
+        String version = (overrideVersion != null && !overrideVersion.isEmpty()) ? overrideVersion : resolveVersion(manifest);
+        normalized.addProperty("type", type);
         normalized.addProperty("name", displayName);
         normalized.addProperty("entry", entryPath.replace('\\', '/'));
         normalized.addProperty("author", resolveAuthor(manifest));
         normalized.addProperty("icon", resolveIconPath(manifest, modRoot));
-        normalized.addProperty("version", resolveVersion(manifest));
+        normalized.addProperty("version", version);
         return normalized;
+    }
+
+    // Overload without metadata overrides (for packaged zips that already have a manifest).
+    private JsonObject createNormalizedManifest(
+            JsonObject manifest, String displayName, String entryPath, File modRoot) {
+        return createNormalizedManifest(manifest, displayName, entryPath, modRoot, null, null);
     }
 
     private String resolveAuthor(JsonObject manifest) {

@@ -572,8 +572,9 @@ import okhttp3.OkHttpClient;
         refreshAccountHeaderUI();
         updateBetaBadge();
         updateDebugBadge();
-        updateModsUI(viewModel.getModsLiveData().getValue());
+        viewModel.refreshMods();
     }
+
 
     private void updateAbiLabel() {
         if (binding == null) return;

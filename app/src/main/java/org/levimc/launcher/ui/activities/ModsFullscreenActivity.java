@@ -123,6 +123,11 @@ public class ModsFullscreenActivity extends BaseActivity {
     private void setupViewModel() {
         viewModel = new ViewModelProvider(this, new MainViewModelFactory(getApplication())).get(MainViewModel.class);
 
+        org.levimc.launcher.core.versions.GameVersion selectedVersion = VersionManager.get(this).getSelectedVersion();
+        if (selectedVersion != null) {
+            viewModel.setCurrentVersion(selectedVersion);
+        }
+
         viewModel.getModsLiveData().observe(this, this::updateModsUI);
     }
 
