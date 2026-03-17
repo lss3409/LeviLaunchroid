@@ -187,6 +187,9 @@ public class FileHandler {
         float density = context.getResources().getDisplayMetrics().density;
         android.widget.LinearLayout container = new android.widget.LinearLayout(context);
         container.setOrientation(android.widget.LinearLayout.VERTICAL);
+        container.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT));
         int padH = (int) (16 * density);
         int padV = (int) (4 * density);
         container.setPadding(padH, padV, padH, padV);

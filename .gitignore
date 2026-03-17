@@ -3,7 +3,6 @@
 *.ap_
 *.aab
 
-
 # Java class files
 *.class
 
@@ -15,6 +14,7 @@ out/
 # Gradle files
 .gradle/
 build/
+**/build/
 
 # Local configuration file (sdk path, etc)
 local.properties
@@ -31,7 +31,7 @@ proguard/
 # Android Studio captures folder
 captures/
 
-# IntelliJ IDEA files
+# IntelliJ / Android Studio
 *.iml
 .idea/
 **/misc.xml
@@ -40,35 +40,50 @@ captures/
 **/encodings.xml
 **/shelf/
 
+# VS Code
+.vscode/
+*.code-workspace
+
+# Keystore files (DO NOT COMMIT)
 *.jks
 *.keystore
 
+# Native build
 .externalNativeBuild/
 .cxx/
 
+# Google Services (optional, ignore if not needed)
 **/google-services.json
 **/google-services.xml
 
+# Freeline
 freeline.py
 freeline/
 freeline_project_description.json
 
+# Fastlane
 fastlane/report.xml
 fastlane/Preview.html
-fastlane/screenshots
-fastlane/test_output
+fastlane/screenshots/
+fastlane/test_output/
 fastlane/readme.md
 
+# Profiling
 android-profiler/
 *.hprof
 
+# OS files
 .DS_Store
-
 Thumbs.db
 
+# Keep gradle wrapper jar
 !gradle/wrapper/gradle-wrapper.jar
 
-**/build/
+# Other build systems
 **/target/
+
+# Kotlin
 .kotlin
+
+# Alternative builds
 .altbuild
