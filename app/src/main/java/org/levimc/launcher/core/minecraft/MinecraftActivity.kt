@@ -3,7 +3,6 @@ package org.levimc.launcher.core.minecraft
 import android.content.Intent
 import android.content.res.AssetManager
 import android.os.Bundle
-import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.widget.Toast
@@ -17,8 +16,6 @@ class MinecraftActivity : MainActivity() {
 
     private lateinit var gameManager: GamePackageManager
     private var overlayManager: InbuiltOverlayManager? = null
-
-    private external fun nativeOnLauncherLoaded(libPath: String): Boolean
 
     override fun onCreate(savedInstanceState: Bundle?) {
         try {
@@ -56,16 +53,11 @@ class MinecraftActivity : MainActivity() {
 
             try {
                 System.loadLibrary("preloader")
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to load preloader: ${e.message}")
-            }
+            } catch (e: Exception) {}
 
-            val minecraftLibraryPath = gameManager.resolveLibraryPath("minecraftpe")
-                ?: throw RuntimeException("Failed to resolve libminecraftpe.so path")
-            if (!nativeOnLauncherLoaded(minecraftLibraryPath)) {
-                throw RuntimeException("Failed to bootstrap preloader for libminecraftpe.so")
+            if (!gameManager.loadLibrary("minecraftpe")) {
+                throw RuntimeException("Failed to load libminecraftpe.so")
             }
-            Log.d(TAG, "Bootstrapped preloader with $minecraftLibraryPath")
         } catch (e: Exception) {
             Toast.makeText(this, "Failed to load game: ${e.message}", Toast.LENGTH_LONG).show()
             finish()
@@ -263,9 +255,5 @@ class MinecraftActivity : MainActivity() {
         } else {
             super.getCacheDir()
         }
-    }
-
-    companion object {
-        private const val TAG = "MinecraftActivity"
     }
 }

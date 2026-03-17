@@ -1,6 +1,5 @@
 package org.levimc.launcher.core.mods;
 
-import android.annotation.SuppressLint;
 import android.util.Log;
 
 import java.io.File;
@@ -8,15 +7,15 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class ModNativeLoader {
     private static final String TAG = "ModNativeLoader";
 
-    @SuppressLint("UnsafeDynamicallyLoadedCode")
     public static void loadEnabledSoMods(ModManager modManager, File cacheDir) {
         if (modManager.getCurrentVersion() == null || modManager.getCurrentVersion().modsDir == null) {
-            Log.w(TAG, "No selected version mods directory available");
             return;
         }
 
@@ -27,6 +26,7 @@ public class ModNativeLoader {
             return;
         }
 
+        Set<String> stagedModIds = new HashSet<>();
         for (Mod mod : mods) {
             if (!mod.isEnabled()) {
                 continue;
@@ -40,12 +40,21 @@ public class ModNativeLoader {
                 }
 
                 ensureReadOnly(targetFile);
+                stagedModIds.add(mod.getId());
                 System.load(targetFile.getAbsolutePath());
-                Log.i(TAG, "Loaded so: " + targetFile.getName());
+
+                if (ModManager.ensurePreloaderLoaded()) {
+                    if (!ModManager.initializeLoadedMod(targetFile.getAbsolutePath(), mod)) {
+                        Log.e(TAG, "Failed to finish native initialization for " + mod.getDisplayName());
+                        continue;
+                    }
+                }
             } catch (IOException | UnsatisfiedLinkError e) {
                 Log.e(TAG, "Can't load " + mod.getDisplayName() + ": " + e.getMessage(), e);
             }
         }
+
+        pruneStaleCachedMods(cacheModsDir, stagedModIds);
     }
 
     private static File prepareCachedEntry(ModManager modManager, File cacheModsDir, Mod mod) throws IOException {
@@ -128,6 +137,21 @@ public class ModNativeLoader {
 
         if (!file.setReadOnly() && file.canWrite()) {
             throw new IOException("Failed to keep file read-only: " + file.getAbsolutePath());
+        }
+    }
+
+    private static void pruneStaleCachedMods(File cacheModsDir, Set<String> stagedModIds) {
+        File[] cachedEntries = cacheModsDir.listFiles(File::isDirectory);
+        if (cachedEntries == null) {
+            return;
+        }
+
+        for (File cachedEntry : cachedEntries) {
+            if (stagedModIds.contains(cachedEntry.getName())) {
+                continue;
+            }
+
+            deleteRecursively(cachedEntry);
         }
     }
 

@@ -39,6 +39,8 @@ public class ModManager {
     private static final int COPY_BUFFER_SIZE = 8192;
 
     private static volatile ModManager instance;
+    private static volatile boolean preloaderLoadAttempted;
+    private static volatile boolean preloaderLoaded;
     private File modsDir;
     private File configFile;
     private final Map<String, Boolean> enabledMap = new LinkedHashMap<>();
@@ -68,6 +70,8 @@ public class ModManager {
 
     private ModManager() {}
 
+    private static native boolean nativeLoadMod(String libPath, Mod modObj);
+
     public static ModManager getInstance() {
         ModManager result = instance;
         if (result == null) {
@@ -79,6 +83,39 @@ public class ModManager {
             }
         }
         return result;
+    }
+
+    public static synchronized boolean ensurePreloaderLoaded() {
+        if (preloaderLoaded) {
+            return true;
+        }
+
+        if (preloaderLoadAttempted) {
+            return false;
+        }
+
+        preloaderLoadAttempted = true;
+        try {
+            System.loadLibrary("preloader");
+            preloaderLoaded = true;
+        } catch (UnsatisfiedLinkError e) {
+            Log.e(TAG, "Failed to load preloader in launcher process", e);
+        }
+
+        return preloaderLoaded;
+    }
+
+    public static boolean initializeLoadedMod(String libPath, Mod mod) {
+        if (!ensurePreloaderLoaded()) {
+            return false;
+        }
+
+        try {
+            return nativeLoadMod(libPath, mod);
+        } catch (UnsatisfiedLinkError e) {
+            Log.e(TAG, "Failed to invoke nativeLoadMod for " + libPath, e);
+            return false;
+        }
     }
 
     public synchronized void setCurrentVersion(GameVersion version) {
@@ -326,7 +363,6 @@ public class ModManager {
         moveFile(looseLibrary, migratedLibrary);
         writeManifest(targetDirectory, displayName, fileName);
         migrateConfigId(fileName, targetDirectory.getName());
-        Log.i(TAG, "Migrated loose mod " + fileName + " -> " + targetDirectory.getAbsolutePath());
         return true;
     }
 

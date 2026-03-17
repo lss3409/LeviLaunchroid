@@ -241,8 +241,6 @@ class GamePackageManager private constructor(private val context: Context, priva
         }
         if (missing.isNotEmpty()) {
             Log.w(TAG, "Missing libraries in $dir: ${missing.joinToString()}")
-        } else {
-            Log.i(TAG, "All libraries verified in $dir")
         }
     }
 
@@ -252,7 +250,7 @@ class GamePackageManager private constructor(private val context: Context, priva
             if (extra != null) append(" $extra")
             if (e != null) append(": ${e.message}")
         }
-        if (e != null) Log.w(TAG, message) else Log.d(TAG, message)
+        if (e != null) Log.w(TAG, message)
     }
 
     private fun createAssetManager(): AssetManager {
@@ -271,7 +269,6 @@ class GamePackageManager private constructor(private val context: Context, priva
             applicationInfo.splitSourceDirs?.forEach {
                 if (File(it).exists()) {
                     paths.add(it)
-                    Log.d(TAG, "Adding split APK for assets: $it")
                 } else {
                     Log.w(TAG, "Split APK for assets not found: $it")
                 }
@@ -287,7 +284,6 @@ class GamePackageManager private constructor(private val context: Context, priva
         paths.forEach { path ->
             try {
                 addAssetPathMethod.invoke(assets, path)
-                Log.d(TAG, "Added asset path: $path")
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to add asset path $path: ${e.message}")
             }
@@ -296,7 +292,6 @@ class GamePackageManager private constructor(private val context: Context, priva
     }
 
     private fun setupSecurityProvider() {
-        Log.d(TAG, "Setting up security provider...")
         try {
             java.security.Security.insertProviderAt(org.conscrypt.Conscrypt.newProvider(), 1)
         } catch (e: Exception) {
@@ -323,7 +318,6 @@ class GamePackageManager private constructor(private val context: Context, priva
         return if (systemLoadedLibs.contains(libName)) {
             try {
                 System.loadLibrary(name.removePrefix("lib").removeSuffix(".so"))
-                Log.d(TAG, "Loaded $name as system library")
                 true
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load system library $name: ${e.message}")
@@ -334,7 +328,6 @@ class GamePackageManager private constructor(private val context: Context, priva
                 if (libFile.exists() && libFile.length() > 0) {
                     ensureReadOnly(libFile)
                     System.load(libFile.absolutePath)
-                    Log.d(TAG, "Loaded $name from $nativeLibDir")
                     true
                 } else {
                     Log.w(TAG, "Library $name not found in $nativeLibDir, skipping")
@@ -352,7 +345,6 @@ class GamePackageManager private constructor(private val context: Context, priva
         allLibs.forEach { lib ->
             val libName = lib.removePrefix("lib").removeSuffix(".so")
             if (excludeLibs.contains(libName) || excludeLibs.contains(lib)) {
-                Log.d(TAG, "Skipping excluded library: $libName")
                 return@forEach
             }
             if (!loadLibrary(libName)) {
