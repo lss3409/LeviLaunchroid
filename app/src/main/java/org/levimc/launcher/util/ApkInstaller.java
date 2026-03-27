@@ -67,9 +67,6 @@ public class ApkInstaller {
                 if (externalDir.exists() && !deleteDir(externalDir))
                     return;
 
-                VersionAbi info = extractVersionAndAbi(apkOrApksUri);
-                String versionName = info.versionName;
-
                 File libTargetDir = new File(internalDir, "lib");
                 if (libTargetDir.exists()) {
                     deleteDir(libTargetDir);
@@ -84,7 +81,7 @@ public class ApkInstaller {
                 if (fileName != null && fileName.toLowerCase().endsWith(".apks")) {
                     boolean foundBaseApk = false;
                     File splitsDir = new File(baseDir, "splits");
-                    
+
                     try (InputStream is = context.getContentResolver().openInputStream(apkOrApksUri);
                          ZipInputStream zis = new ZipInputStream(new BufferedInputStream(is))) {
                         ZipEntry entry;
@@ -93,16 +90,16 @@ public class ApkInstaller {
                                 zis.closeEntry();
                                 continue;
                             }
-                            
+
                             String entryName = entry.getName();
                             if (!entryName.endsWith(".apk")) {
                                 zis.closeEntry();
                                 continue;
                             }
-                            
+
                             File outFile;
                             String outputName;
-                            
+
                             if (entryName.equals("base.apk") || entryName.endsWith("/base.apk")) {
                                 outFile = new File(baseDir, APK_FILE_NAME);
                                 outputName = APK_FILE_NAME;
@@ -113,7 +110,7 @@ public class ApkInstaller {
                                 outFile = new File(splitsDir, splitName);
                                 outputName = splitName;
                             }
-                            
+
                             File parent = outFile.getParentFile();
                             if (parent != null && !parent.exists()) parent.mkdirs();
 
@@ -156,7 +153,8 @@ public class ApkInstaller {
                     }
                 }
 
-                // version.txt
+                String versionName = extractVersionName(apkOrApksUri, baseDir, dirName);
+                if (!internalDir.exists()) internalDir.mkdirs();
                 writeTextFile(new File(internalDir, "version.txt"), versionName);
 
                 postSuccess(versionName);
@@ -165,6 +163,19 @@ public class ApkInstaller {
                 postError("Install error: " + e.getMessage());
             }
         });
+    }
+
+    private String extractVersionName(Uri apkOrApksUri, File baseDir, String dirName) {
+        File baseApkLevi = new File(baseDir, APK_FILE_NAME);
+        if (baseApkLevi.exists()) {
+            String v = extractApkVersionName(baseApkLevi);
+            if (!"unknown_version".equals(v)) return v;
+        }
+        String name = dirName;
+        if (name.startsWith("Minecraft_")) {
+            name = name.substring("Minecraft_".length());
+        }
+        return name;
     }
 
     private static void copyStream(InputStream is, OutputStream os) throws IOException {
@@ -205,16 +216,18 @@ public class ApkInstaller {
         try {
             if (fileName != null && fileName.toLowerCase().endsWith(".apks")) {
                 try (InputStream apksIs = context.getContentResolver().openInputStream(apkOrApksUri);
-                     ZipInputStream zis = new ZipInputStream(new BufferedInputStream(apksIs));
-                     OutputStream os = new FileOutputStream(tempFile)) {
+                     ZipInputStream zis = new ZipInputStream(new BufferedInputStream(apksIs))) {
                     boolean found = false;
                     ZipEntry entry;
                     while ((entry = zis.getNextEntry()) != null) {
                         if (!entry.isDirectory() && entry.getName().endsWith(".apk")) {
-                            if (entry.getName().equals("base.apk") || !found) {
-                                copyStream(zis, os);
+                            boolean isBase = entry.getName().equals("base.apk") || entry.getName().endsWith("/base.apk");
+                            if (isBase || !found) {
+                                try (OutputStream os = new FileOutputStream(tempFile)) {
+                                    copyStream(zis, os);
+                                }
                                 found = true;
-                                if (entry.getName().equals("base.apk")) break;
+                                if (isBase) break;
                             }
                         }
                         zis.closeEntry();
