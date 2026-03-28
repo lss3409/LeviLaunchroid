@@ -190,13 +190,36 @@ public class FileHandler {
         container.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT));
-        int padH = (int) (16 * density);
-        int padV = (int) (4 * density);
-        container.setPadding(padH, padV, padH, padV);
+        int padH = (int) (12 * density);
+        container.setPadding(padH, 0, padH, padH);
 
-        android.widget.EditText etName    = buildLabeledEditText(container, context.getString(R.string.plugin_name_label), defaultName, density);
-        android.widget.EditText etType    = buildLabeledEditText(container, context.getString(R.string.plugin_type_label), defaultType, density);
-        android.widget.EditText etVersion = buildLabeledEditText(container, context.getString(R.string.plugin_version_label), defaultVersion, density);
+        android.widget.LinearLayout.LayoutParams nameParams = new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+        nameParams.topMargin = (int) (4 * density);
+        
+        android.widget.EditText etName = buildLabeledEditText(container, context.getString(R.string.plugin_name_label), defaultName, density, nameParams);
+
+        android.widget.LinearLayout rowLayout = new android.widget.LinearLayout(context);
+        rowLayout.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        android.widget.LinearLayout.LayoutParams rowParams = new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+        rowParams.topMargin = (int) (6 * density);
+        rowLayout.setLayoutParams(rowParams);
+
+        android.widget.LinearLayout.LayoutParams typeParams = new android.widget.LinearLayout.LayoutParams(
+                0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f);
+        typeParams.rightMargin = (int) (4 * density);
+
+        android.widget.LinearLayout.LayoutParams versionParams = new android.widget.LinearLayout.LayoutParams(
+                0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f);
+        versionParams.leftMargin = (int) (4 * density);
+
+        android.widget.EditText etType = buildLabeledEditText(rowLayout, context.getString(R.string.plugin_type_label), defaultType, density, typeParams);
+        android.widget.EditText etVersion = buildLabeledEditText(rowLayout, context.getString(R.string.plugin_version_label), defaultVersion, density, versionParams);
+
+        container.addView(rowLayout);
 
         new CustomAlertDialog(context)
                 .setTitleText(context.getString(R.string.import_so_plugin_title))
@@ -223,23 +246,26 @@ public class FileHandler {
     }
 
     private android.widget.EditText buildLabeledEditText(
-            android.widget.LinearLayout container, String label, String defaultValue, float density) {
+            android.view.ViewGroup container, String label, String defaultValue, float density, android.widget.LinearLayout.LayoutParams layoutParams) {
         android.widget.LinearLayout card = new android.widget.LinearLayout(context);
         card.setOrientation(android.widget.LinearLayout.VERTICAL);
         card.setBackgroundResource(R.drawable.plugin_field_background);
-        int cardPadH = (int) (16 * density);
-        int cardPadTop = (int) (10 * density);
-        int cardPadBottom = (int) (12 * density);
+        int cardPadH = (int) (12 * density);
+        int cardPadTop = (int) (8 * density);
+        int cardPadBottom = (int) (8 * density);
         card.setPadding(cardPadH, cardPadTop, cardPadH, cardPadBottom);
-        android.widget.LinearLayout.LayoutParams cardParams = new android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
-        cardParams.topMargin = (int) (10 * density);
-        card.setLayoutParams(cardParams);
+        
+        if (layoutParams == null) {
+            layoutParams = new android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+            layoutParams.topMargin = (int) (8 * density);
+        }
+        card.setLayoutParams(layoutParams);
 
         android.widget.TextView tv = new android.widget.TextView(context);
         tv.setText(label);
-        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 11);
+        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 10);
         int secondaryColor = 0xFFAAAAAA;
         try { secondaryColor = context.getResources().getColor(R.color.text_secondary, context.getTheme()); } catch (Exception ignored) {}
         tv.setTextColor(secondaryColor);
@@ -250,13 +276,13 @@ public class FileHandler {
 
         android.widget.EditText et = new android.widget.EditText(context);
         et.setText(defaultValue);
-        et.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15);
+        et.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
         int primaryColor = 0xFFFFFFFF;
         try { primaryColor = context.getResources().getColor(R.color.text_primary, context.getTheme()); } catch (Exception ignored) {}
         et.setTextColor(primaryColor);
         et.setHintTextColor(secondaryColor);
         et.setBackground(null);
-        et.setPadding(0, (int) (4 * density), 0, 0);
+        et.setPadding(0, (int) (2 * density), 0, 0);
         et.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT));
