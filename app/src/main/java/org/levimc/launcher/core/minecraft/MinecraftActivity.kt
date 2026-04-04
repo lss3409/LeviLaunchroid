@@ -64,14 +64,15 @@ class MinecraftActivity : MainActivity() {
             return
         }
         super.onCreate(savedInstanceState)
+        org.levimc.launcher.preloader.PreloaderInput.setActivity(this)
         MinecraftActivityState.onCreated(this)
     }
-    
+
     private fun startInbuiltModServices() {
         overlayManager = InbuiltOverlayManager(this)
         overlayManager?.showEnabledOverlays()
     }
-    
+
     private fun stopInbuiltModServices() {
         overlayManager?.hideAllOverlays()
         overlayManager = null
@@ -91,6 +92,18 @@ class MinecraftActivity : MainActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            val unicodeChar = event.unicodeChar
+            if (unicodeChar != 0) {
+                if (org.levimc.launcher.preloader.PreloaderInput.onKeyChar(unicodeChar)) {
+                    return true
+                }
+            }
+            if (org.levimc.launcher.preloader.PreloaderInput.onKeyDown(event.keyCode)) {
+                return true
+            }
+        }
+
         overlayManager?.let { manager ->
             if (manager.handleKeyEvent(event.keyCode, event.action)) {
                 return true
@@ -102,14 +115,14 @@ class MinecraftActivity : MainActivity() {
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         val actionIndex = event.actionIndex
         if (org.levimc.launcher.preloader.PreloaderInput.onTouch(
-            event.actionMasked,
-            event.getPointerId(actionIndex),
-            event.getX(actionIndex),
-            event.getY(actionIndex)
-        )) {
+                event.actionMasked,
+                event.getPointerId(actionIndex),
+                event.getX(actionIndex),
+                event.getY(actionIndex)
+            )) {
             return true
         }
-        
+
         overlayManager?.handleTouchEvent(event)
 
         if (org.levimc.launcher.core.mods.inbuilt.overlay.VirtualCursorMod.isActive()) {
@@ -129,11 +142,11 @@ class MinecraftActivity : MainActivity() {
     }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
-        if (event.action == MotionEvent.ACTION_BUTTON_PRESS || 
+        if (event.action == MotionEvent.ACTION_BUTTON_PRESS ||
             event.action == MotionEvent.ACTION_BUTTON_RELEASE) {
             overlayManager?.handleMouseEvent(event)
         }
-        
+
         if (event.action == MotionEvent.ACTION_SCROLL) {
             val vScroll = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
             if (vScroll != 0f) {
@@ -153,6 +166,7 @@ class MinecraftActivity : MainActivity() {
     }
 
     override fun onDestroy() {
+        org.levimc.launcher.preloader.PreloaderInput.clearActivity()
         MinecraftActivityState.onDestroyed()
         stopInbuiltModServices()
         super.onDestroy()
@@ -254,6 +268,24 @@ class MinecraftActivity : MainActivity() {
             cacheDir
         } else {
             super.getCacheDir()
+        }
+    }
+
+    fun showSoftKeyboard() {
+        runOnUiThread {
+            val inputMethodManager = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+            val view = window.decorView.findFocus() ?: window.decorView
+            view.requestFocus()
+            inputMethodManager.showSoftInput(view, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+            inputMethodManager.toggleSoftInput(android.view.inputmethod.InputMethodManager.SHOW_FORCED, 0)
+        }
+    }
+
+    fun hideSoftKeyboard() {
+        runOnUiThread {
+            val inputMethodManager = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+            val view = window.decorView.findFocus() ?: window.decorView
+            inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
         }
     }
 }
