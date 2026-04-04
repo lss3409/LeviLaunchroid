@@ -86,9 +86,20 @@ public class MinecraftLauncher {
                 loadingDialog = new LoadingDialog(activity);
                 loadingDialog.show();
             });
-            gameManager = GamePackageManager.Companion.getInstance(context.getApplicationContext(), version);
-            fillIntentWithMcPath(sourceIntent, version);
-            launchMinecraftActivity(sourceIntent, version, false);
+
+            new Thread(() -> {
+                try {
+                    gameManager = GamePackageManager.Companion.getInstance(context.getApplicationContext(), version);
+                    fillIntentWithMcPath(sourceIntent, version);
+                    launchMinecraftActivity(sourceIntent, version, false);
+                } catch (Exception e) {
+                    Log.e(TAG, "Launch failed: " + e.getMessage(), e);
+                    activity.runOnUiThread(() -> {
+                        dismissLoading();
+                        showLaunchErrorOnUi("Launch failed: " + e.getMessage());
+                    });
+                }
+            }).start();
         } catch (Exception e) {
             Log.e(TAG, "Launch failed: " + e.getMessage(), e);
             dismissLoading();

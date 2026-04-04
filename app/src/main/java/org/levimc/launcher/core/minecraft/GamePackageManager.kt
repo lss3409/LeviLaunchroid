@@ -101,6 +101,49 @@ class GamePackageManager private constructor(private val context: Context, priva
             outputDir.mkdirs()
         }
 
+        var markerString: String
+        if (version != null && !version.isInstalled) {
+            val baseApk = File(applicationInfo.sourceDir)
+            markerString = "isolated_" + if (baseApk.exists()) baseApk.lastModified().toString() else "0"
+        } else {
+            val baseApk = applicationInfo.sourceDir?.let { File(it) }
+            markerString = "installed_" + if (baseApk != null && baseApk.exists()) baseApk.lastModified().toString() else "0"
+        }
+        markerString += "_" + getDeviceAbi()
+
+        val markerFile = File(outputDir, ".extraction_marker")
+        var markerMatches = false
+        if (markerFile.exists()) {
+            try {
+                if (markerFile.readText().trim() == markerString) {
+                    markerMatches = true
+                }
+            } catch (e: Exception) {
+                // Ignore
+            }
+        }
+        var allPresent = markerMatches
+        if (allPresent) {
+            for (lib in requiredLibs) {
+                val file = File(outputDir, lib)
+                if (!file.exists() || file.length() == 0L) {
+                    allPresent = false
+                    break
+                }
+            }
+        }
+        
+        if (allPresent) {
+            for (lib in requiredLibs) {
+                try {
+                    ensureReadOnly(File(outputDir, lib))
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed ensureReadOnly: ${e.message}")
+                }
+            }
+            return
+        }
+
         if (version != null && !version.isInstalled) {
             val apkPaths = mutableListOf<String>()
             val baseApk = File(applicationInfo.sourceDir)
@@ -135,6 +178,14 @@ class GamePackageManager private constructor(private val context: Context, priva
             apkPaths.forEach { extractFromApk(it, outputDir, getDeviceAbi()) }
         }
         verifyLibraries(outputDir)
+
+        if (requiredLibs.all { File(outputDir, it).let { f -> f.exists() && f.length() > 0 } }) {
+            try {
+                markerFile.writeText(markerString)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to write marker file: ${e.message}")
+            }
+        }
     }
 
     private fun copyFromNativeDir(sourceDir: String, destDir: File) {
@@ -201,10 +252,17 @@ class GamePackageManager private constructor(private val context: Context, priva
             throw IOException("Failed to replace existing file: ${output.absolutePath}")
         }
 
-        FileOutputStream(output).use { out ->
-            markReadOnlyBeforeWrite(output)
+        val tempFile = File(output.absolutePath + ".tmp")
+        if (tempFile.exists()) tempFile.delete()
+
+        FileOutputStream(tempFile).use { out ->
             input.copyTo(out)
             out.fd.sync()
+        }
+
+        if (!tempFile.renameTo(output)) {
+            tempFile.delete()
+            throw IOException("Failed to rename temporary file to ${output.absolutePath}")
         }
 
         ensureReadOnly(output)
@@ -214,12 +272,6 @@ class GamePackageManager private constructor(private val context: Context, priva
         val parent = file.parentFile ?: return
         if (!parent.exists() && !parent.mkdirs()) {
             throw IOException("Failed to create parent directory: ${parent.absolutePath}")
-        }
-    }
-
-    private fun markReadOnlyBeforeWrite(file: File) {
-        if (!file.setReadOnly() && file.canWrite()) {
-            throw IOException("Failed to mark file read-only before write: ${file.absolutePath}")
         }
     }
 
@@ -372,12 +424,17 @@ class GamePackageManager private constructor(private val context: Context, priva
 
         @Volatile
         private var instance: GamePackageManager? = null
+        private var lastVersionCode: String? = null
 
         @JvmStatic
         fun getInstance(context: Context, version: GameVersion? = null): GamePackageManager {
             return synchronized(this) {
-                instance = null // Reset instance to ensure fresh initialization
-                instance ?: GamePackageManager(context.applicationContext, version).also { instance = it }
+                val newVersionCode = version?.versionCode
+                if (instance == null || (newVersionCode != null && newVersionCode != lastVersionCode)) {
+                    instance = GamePackageManager(context.applicationContext, version)
+                    lastVersionCode = newVersionCode
+                }
+                instance!!
             }
         }
 
