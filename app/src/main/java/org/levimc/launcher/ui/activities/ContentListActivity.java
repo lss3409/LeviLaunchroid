@@ -76,9 +76,11 @@ public class ContentListActivity extends BaseActivity {
 
     private ActivityResultLauncher<Intent> importLauncher;
     private ActivityResultLauncher<Intent> exportLauncher;
+    private ActivityResultLauncher<Intent> exportPackLauncher;
     private ActivityResultLauncher<Intent> customFlatWorldLauncher;
     private ActivityResultLauncher<Intent> structureExportLauncher;
     private WorldItem pendingExportWorld;
+    private ResourcePackItem pendingExportPack;
     private WorldItem pendingStructureExportWorld;
     private StructureExtractor.StructureInfo pendingStructureInfo;
     private StructureExtractor structureExtractor;
@@ -137,6 +139,19 @@ public class ContentListActivity extends BaseActivity {
                     }
                 }
                 pendingExportWorld = null;
+            }
+        );
+
+        exportPackLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK && result.getData() != null && pendingExportPack != null) {
+                    Uri uri = result.getData().getData();
+                    if (uri != null) {
+                        exportPack(pendingExportPack, uri);
+                    }
+                }
+                pendingExportPack = null;
             }
         );
 
@@ -336,6 +351,11 @@ public class ContentListActivity extends BaseActivity {
             public void onResourcePackTransfer(ResourcePackItem pack) {
                 showTransferPackDialog(pack);
             }
+
+            @Override
+            public void onResourcePackExport(ResourcePackItem pack) {
+                startPackExport(pack);
+            }
         });
 
         binding.contentRecyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -505,6 +525,32 @@ public class ContentListActivity extends BaseActivity {
 
     private void exportWorld(WorldItem world, Uri uri) {
         contentManager.exportWorld(world, uri, new WorldManager.WorldOperationCallback() {
+            @Override
+            public void onSuccess(String message) {
+                runOnUiThread(() -> Toast.makeText(ContentListActivity.this, message, Toast.LENGTH_SHORT).show());
+            }
+
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> Toast.makeText(ContentListActivity.this, error, Toast.LENGTH_LONG).show());
+            }
+
+            @Override
+            public void onProgress(int progress) {}
+        });
+    }
+
+    private void startPackExport(ResourcePackItem pack) {
+        pendingExportPack = pack;
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/zip");
+        intent.putExtra(Intent.EXTRA_TITLE, pack.getPackName() + ".mcpack");
+        exportPackLauncher.launch(intent);
+    }
+
+    private void exportPack(ResourcePackItem pack, Uri uri) {
+        contentManager.exportResourcePack(pack, uri, new ResourcePackManager.PackOperationCallback() {
             @Override
             public void onSuccess(String message) {
                 runOnUiThread(() -> Toast.makeText(ContentListActivity.this, message, Toast.LENGTH_SHORT).show());

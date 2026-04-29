@@ -13,7 +13,10 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -456,6 +459,51 @@ public class ResourcePackManager {
                 callback.onError("Delete failed: " + e.getMessage());
             }
         });
+    }
+
+    public void exportPack(ResourcePackItem pack, Uri exportUri, PackOperationCallback callback) {
+        if (executor.isShutdown()) {
+            callback.onError("ResourcePackManager has been shut down");
+            return;
+        }
+        executor.execute(() -> {
+            try {
+                OutputStream outputStream = context.getContentResolver().openOutputStream(exportUri);
+                if (outputStream == null) {
+                    callback.onError("Cannot create export file");
+                    return;
+                }
+                try (ZipOutputStream zos = new ZipOutputStream(outputStream)) {
+                    zipDirectory(pack.getFile(), "", zos);
+                }
+                callback.onSuccess("Pack exported successfully");
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to export pack", e);
+                callback.onError("Export failed: " + e.getMessage());
+            }
+        });
+    }
+
+    private void zipDirectory(File dir, String basePath, ZipOutputStream zos) throws IOException {
+        File[] files = dir.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                String entryPath = basePath.isEmpty() ? file.getName() : basePath + "/" + file.getName();
+                if (file.isDirectory()) {
+                    zipDirectory(file, entryPath, zos);
+                } else {
+                    zos.putNextEntry(new ZipEntry(entryPath));
+                    try (FileInputStream fis = new FileInputStream(file)) {
+                        byte[] buffer = new byte[BUFFER_SIZE];
+                        int len;
+                        while ((len = fis.read(buffer)) > 0) {
+                            zos.write(buffer, 0, len);
+                        }
+                    }
+                    zos.closeEntry();
+                }
+            }
+        }
     }
 
     private String getFileName(Uri uri) {

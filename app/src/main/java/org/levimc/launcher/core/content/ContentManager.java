@@ -345,6 +345,28 @@ public class ContentManager {
         });
     }
 
+    public void exportResourcePack(ResourcePackItem pack, android.net.Uri exportUri, ResourcePackManager.PackOperationCallback callback) {
+        setStatus("Exporting pack...");
+        resourcePackManager.exportPack(pack, exportUri, new ResourcePackManager.PackOperationCallback() {
+            @Override
+            public void onSuccess(String message) {
+                setStatus(message);
+                if (callback != null) callback.onSuccess(message);
+            }
+
+            @Override
+            public void onError(String error) {
+                setStatus("Export failed: " + error);
+                if (callback != null) callback.onError(error);
+            }
+
+            @Override
+            public void onProgress(int progress) {
+                if (callback != null) callback.onProgress(progress);
+            }
+        });
+    }
+
     public void transferWorld(WorldItem world, java.io.File targetDirectory, WorldManager.WorldOperationCallback callback) {
         setStatus("Transferring world...");
         worldManager.transferWorld(world, targetDirectory, new WorldManager.WorldOperationCallback() {

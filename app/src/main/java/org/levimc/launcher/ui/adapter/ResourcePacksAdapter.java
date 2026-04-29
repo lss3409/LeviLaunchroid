@@ -23,6 +23,7 @@ public class ResourcePacksAdapter extends RecyclerView.Adapter<ResourcePacksAdap
     public interface OnResourcePackActionListener {
         void onResourcePackDelete(ResourcePackItem pack);
         void onResourcePackTransfer(ResourcePackItem pack);
+        void onResourcePackExport(ResourcePackItem pack);
     }
 
     public ResourcePacksAdapter() {
@@ -48,10 +49,16 @@ public class ResourcePacksAdapter extends RecyclerView.Adapter<ResourcePacksAdap
     @Override
     public void onBindViewHolder(@NonNull ResourcePackViewHolder holder, int position) {
         ResourcePackItem pack = resourcePacks.get(position);
-        
+
         holder.packName.setText(pack.getPackName());
         holder.packDescription.setText(pack.getDescription());
         holder.packSize.setText("Size: " + pack.getFormattedSize());
+
+        holder.exportButton.setOnClickListener(v -> {
+            if (onResourcePackActionListener != null) {
+                onResourcePackActionListener.onResourcePackExport(pack);
+            }
+        });
 
         holder.deleteButton.setOnClickListener(v -> {
             if (onResourcePackActionListener != null) {
@@ -75,6 +82,7 @@ public class ResourcePacksAdapter extends RecyclerView.Adapter<ResourcePacksAdap
         TextView packName;
         TextView packDescription;
         TextView packSize;
+        Button exportButton;
         Button deleteButton;
         Button transferButton;
 
@@ -83,6 +91,7 @@ public class ResourcePacksAdapter extends RecyclerView.Adapter<ResourcePacksAdap
             packName = itemView.findViewById(R.id.pack_name);
             packDescription = itemView.findViewById(R.id.pack_description);
             packSize = itemView.findViewById(R.id.pack_size);
+            exportButton = itemView.findViewById(R.id.pack_export_button);
             deleteButton = itemView.findViewById(R.id.pack_delete_button);
             transferButton = itemView.findViewById(R.id.pack_transfer_button);
         }
