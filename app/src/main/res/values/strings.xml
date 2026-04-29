@@ -30,8 +30,8 @@
     <string name="ms_add_account_subtitle">Sign in with Microsoft</string>
 
     <!-- Dialogs -->
-    <string name="resourcepack_detected_title">Resource Pack Detected</string>
-    <string name="resourcepack_detected_message">Do you want to launch the game now?\n\nResource Pack: %s</string>
+    <string name="content_detected_title">Content Detected</string>
+    <string name="content_detected_message">Do you want to launch the game now?\n\nFile: %s</string>
     <string name="launch_now">Launch Now</string>
     <string name="launch_later">Launch Later</string>
 

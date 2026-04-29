@@ -28,8 +28,8 @@
     <string name="manage_accounts">管理</string>
 
     <!-- Dialogs -->
-    <string name="resourcepack_detected_title">检测到资源包导入</string>
-    <string name="resourcepack_detected_message">是否立即启动游戏？\n\n资源包：%s</string>
+    <string name="content_detected_title">检测到内容导入</string>
+    <string name="content_detected_message">是否立即启动游戏？\n\n文件：%s</string>
     <string name="launch_now">立即启动</string>
     <string name="launch_later">稍后启动</string>
 

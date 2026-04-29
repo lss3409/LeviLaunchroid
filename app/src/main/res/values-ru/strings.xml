@@ -29,8 +29,8 @@
     <string name="ms_add_account_subtitle">Войти через Microsoft</string>
 
     <!-- Диалоги -->
-    <string name="resourcepack_detected_title">Обнаружен набор ресурсов</string>
-    <string name="resourcepack_detected_message">Хотите запустить игру сейчас?\n\nНабор ресурсов: %s</string>
+    <string name="content_detected_title">Обнаружен контент</string>
+    <string name="content_detected_message">Хотите запустить игру сейчас?\n\nФайл: %s</string>
     <string name="launch_now">Запустить сейчас</string>
     <string name="launch_later">Запустить позже</string>
 

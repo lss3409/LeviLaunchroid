@@ -34,8 +34,8 @@ public class ResourcepackHandler {
             String path = data.getPath();
             if (path != null && isMinecraftResourceFile(path)) {
                 new CustomAlertDialog(activity)
-                        .setTitleText(activity.getString(R.string.resourcepack_detected_title))
-                        .setMessage(activity.getString(R.string.resourcepack_detected_message, path))
+                        .setTitleText(activity.getString(R.string.content_detected_title))
+                        .setMessage(activity.getString(R.string.content_detected_message, path))
                         .setPositiveButton(activity.getString(R.string.launch_now), (d) -> launchMinecraft(intent))
                         .setNegativeButton(activity.getString(R.string.launch_later), null)
                         .show();

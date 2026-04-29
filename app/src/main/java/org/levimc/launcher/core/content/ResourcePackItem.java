@@ -21,6 +21,7 @@ public class ResourcePackItem extends ContentItem {
     public enum PackType {
         RESOURCE_PACK,
         BEHAVIOR_PACK,
+        SKIN_PACK,
         ADDON
     }
     
@@ -45,6 +46,8 @@ public class ResourcePackItem extends ContentItem {
                 return "Resource Pack";
             case BEHAVIOR_PACK:
                 return "Behavior Pack";
+            case SKIN_PACK:
+                return "Skin Pack";
             case ADDON:
                 return "Add-On";
             default:
@@ -292,7 +295,7 @@ public class ResourcePackItem extends ContentItem {
                         } else if ("data".equals(moduleType) || "script".equals(moduleType)) {
                             packType = PackType.BEHAVIOR_PACK;
                         } else if ("skin_pack".equals(moduleType)) {
-                            packType = PackType.RESOURCE_PACK;
+                            packType = PackType.SKIN_PACK;
                         }
                     }
                 }
@@ -312,5 +315,9 @@ public class ResourcePackItem extends ContentItem {
 
     public boolean isBehaviorPack() {
         return packType == PackType.BEHAVIOR_PACK;
+    }
+
+    public boolean isSkinPack() {
+        return packType == PackType.SKIN_PACK;
     }
 }

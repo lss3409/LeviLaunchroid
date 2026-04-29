@@ -105,7 +105,7 @@ public class ResourcePackManager {
         List<ResourcePackItem> packs = new ArrayList<>();
         
         if (skinPacksDirectory != null && skinPacksDirectory.exists()) {
-            addPacksFromDirectory(skinPacksDirectory, ResourcePackItem.PackType.RESOURCE_PACK, packs);
+            addPacksFromDirectory(skinPacksDirectory, ResourcePackItem.PackType.SKIN_PACK, packs);
         }
         
         return packs;

@@ -29,8 +29,8 @@
     <string name="ms_add_account_subtitle">Masuk dengan Microsoft</string>
 
     <!-- Dialogs -->
-    <string name="resourcepack_detected_title">Paket Sumber Daya Terdeteksi</string>
-    <string name="resourcepack_detected_message">Apakah Anda ingin meluncurkan game sekarang?\n\Paket Sumber Daya: %s</string>
+    <string name="content_detected_title">Konten Terdeteksi</string>
+    <string name="content_detected_message">Apakah Anda ingin meluncurkan game sekarang?\n\nFile: %s</string>
     <string name="launch_now">Luncurkan Sekarang</string>
     <string name="launch_later">Luncurkan Nanti</string>
 
