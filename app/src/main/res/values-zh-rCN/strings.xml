@@ -383,37 +383,6 @@
     <string name="overlay_button_lock_desc">防止拖动和误触</string>
     <string name="settings">设置</string>
 
-    <!-- Memory Editor -->
-    <string name="memory_editor_enable">内存编辑器</string>
-    <string name="memory_editor_title">内存编辑器</string>
-    <string name="memory_editor_minimize">最小化</string>
-    <string name="memory_editor_close">关闭</string>
-    <string name="memory_editor_value_hint">数值</string>
-    <string name="memory_editor_search">搜索</string>
-    <string name="memory_editor_filter">筛选</string>
-    <string name="memory_editor_reset">重置</string>
-    <string name="memory_editor_address">地址</string>
-    <string name="memory_editor_value">数值</string>
-    <string name="memory_editor_action">操作</string>
-    <string name="memory_editor_tab_search">搜索</string>
-    <string name="memory_editor_tab_saved">已保存</string>
-    <string name="memory_editor_save">保存</string>
-    <string name="memory_editor_freeze">锁定</string>
-    <string name="memory_editor_delete">删除</string>
-    <string name="memory_editor_overlay">悬浮按钮</string>
-    <string name="memory_editor_base_address">MC基址: %1$s</string>
-    <string name="memory_editor_base_loading">正在加载基址…</string>
-    <string name="memory_editor_base_not_found">MC基址: 未找到</string>
-    <string name="memory_overlay_config_title">配置悬浮按钮</string>
-    <string name="memory_overlay_name">按钮名称</string>
-    <string name="memory_overlay_name_hint">例如：生命值、速度</string>
-    <string name="memory_overlay_original_value">原始值</string>
-    <string name="memory_overlay_new_value">新值</string>
-    <string name="memory_overlay_new_value_hint">输入要应用的值</string>
-    <string name="memory_overlay_toggleable">可切换</string>
-    <string name="memory_editor_warning_title">⚠️ 开发者功能警告</string>
-    <string name="memory_editor_warning_message">内存编辑器是一个高级工具，仅供模组开发和调试使用。\n\n此功能不适合普通用户。不当使用可能导致：\n• 游戏崩溃\n• 数据损坏\n• 意外行为\n\n请仅在您了解其用途时启用此功能。</string>
-
     <!-- Extract Structures -->
     <string name="extract_structures">提取结构</string>
     <string name="no_structures_found">在此世界中未发现任何结构</string>

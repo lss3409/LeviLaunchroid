@@ -5,11 +5,6 @@ import android.view.MotionEvent;
 
 import org.levimc.launcher.core.mods.inbuilt.manager.InbuiltModManager;
 import org.levimc.launcher.core.mods.inbuilt.model.ModIds;
-import org.levimc.launcher.core.mods.memoryeditor.MemoryAddress;
-import org.levimc.launcher.core.mods.memoryeditor.MemoryEditorButton;
-import org.levimc.launcher.core.mods.memoryeditor.MemoryOverlayButton;
-import org.levimc.launcher.core.mods.memoryeditor.SavedAddressManager;
-import org.levimc.launcher.settings.FeatureSettings;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -20,11 +15,9 @@ public class InbuiltOverlayManager {
     private static volatile InbuiltOverlayManager instance;
     private final Activity activity;
     private final List<BaseOverlayButton> overlays = new ArrayList<>();
-    private final List<MemoryOverlayButton> memoryOverlays = new ArrayList<>();
     private final Map<String, Boolean> modActiveStates = new HashMap<>();
     private final Map<String, BaseOverlayButton> modOverlayMap = new HashMap<>();
     private final Map<String, Integer> modPositionMap = new HashMap<>();
-    private MemoryEditorButton memoryEditorButton;
     private ChickPetOverlay chickPetOverlay;
     private ZoomOverlay zoomOverlay;
     private SnaplookOverlay snaplookOverlay;
@@ -57,19 +50,6 @@ public class InbuiltOverlayManager {
             nextY = showIndividualOverlays(manager, nextY);
         }
 
-        if (FeatureSettings.getInstance().isMemoryEditorEnabled()) {
-            memoryEditorButton = new MemoryEditorButton(activity);
-            memoryEditorButton.show(START_X, nextY);
-            nextY += SPACING;
-        }
-
-        List<MemoryAddress> overlayAddresses = SavedAddressManager.getInstance(activity).getOverlayEnabledAddresses();
-        for (MemoryAddress addr : overlayAddresses) {
-            MemoryOverlayButton overlayBtn = new MemoryOverlayButton(activity, addr);
-            overlayBtn.show(START_X, nextY);
-            memoryOverlays.add(overlayBtn);
-            nextY += SPACING;
-        }
     }
 
     private int showModMenuMode(InbuiltModManager manager, int nextY) {
@@ -347,32 +327,6 @@ public class InbuiltOverlayManager {
         return nextY;
     }
 
-    public void addMemoryOverlay(MemoryAddress address) {
-        if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
-        for (MemoryOverlayButton existing : memoryOverlays) {
-            if (existing.getMemoryAddress().getAddress() == address.getAddress()) {
-                return;
-            }
-        }
-        int posY = baseY + (overlays.size() + memoryOverlays.size() + 1) * SPACING;
-        MemoryOverlayButton overlayBtn = new MemoryOverlayButton(activity, address);
-        overlayBtn.show(START_X, posY);
-        memoryOverlays.add(overlayBtn);
-    }
-
-    public void removeMemoryOverlay(long addressValue) {
-        MemoryOverlayButton toRemove = null;
-        for (MemoryOverlayButton btn : memoryOverlays) {
-            if (btn.getMemoryAddress().getAddress() == addressValue) {
-                toRemove = btn;
-                break;
-            }
-        }
-        if (toRemove != null) {
-            toRemove.hide();
-            memoryOverlays.remove(toRemove);
-        }
-    }
 
     public void hideAllOverlays() {
         for (BaseOverlayButton overlay : overlays) {
@@ -380,10 +334,6 @@ public class InbuiltOverlayManager {
         }
         overlays.clear();
         modOverlayMap.clear();
-        for (MemoryOverlayButton memOverlay : memoryOverlays) {
-            memOverlay.hide();
-        }
-        memoryOverlays.clear();
         modActiveStates.clear();
         modPositionMap.clear();
         if (chickPetOverlay != null) {
@@ -409,13 +359,6 @@ public class InbuiltOverlayManager {
         if (modMenuButton != null) {
             modMenuButton.hide();
             modMenuButton = null;
-        }
-        if (memoryEditorButton != null) {
-            if (memoryEditorButton.getEditorOverlay() != null) {
-                memoryEditorButton.getEditorOverlay().hide();
-            }
-            memoryEditorButton.hide();
-            memoryEditorButton = null;
         }
         instance = null;
     }

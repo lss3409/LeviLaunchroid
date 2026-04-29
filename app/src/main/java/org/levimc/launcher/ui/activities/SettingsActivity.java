@@ -4,7 +4,6 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.CountDownTimer;
 import android.util.Base64;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -76,7 +75,6 @@ public class SettingsActivity extends BaseActivity {
             FeatureSettings fs = FeatureSettings.getInstance();
             addThemeSelectorItem(themeManager);
             addLanguageSelectorItem(languageManager);
-            addMemoryEditorSwitchItem(fs);
             addSwitchItem(getString(R.string.version_isolation), fs.isVersionIsolationEnabled(), (btn, checked) -> fs.setVersionIsolationEnabled(checked));
             addSwitchItem(getString(R.string.launcher_managed_mc_login), fs.isLauncherManagedMcLoginEnabled(), (btn, checked) -> fs.setLauncherManagedMcLoginEnabled(checked));
             addSwitchItem(getString(R.string.show_logcat_overlay), fs.isLogcatOverlayEnabled(), (btn, checked) -> {
@@ -139,70 +137,6 @@ public class SettingsActivity extends BaseActivity {
         settingsItemsContainer.addView(ll);
     }
 
-    private void addMemoryEditorSwitchItem(FeatureSettings fs) {
-        View ll = LayoutInflater.from(this).inflate(R.layout.item_settings_switch, settingsItemsContainer, false);
-        ((TextView) ll.findViewById(R.id.tv_title)).setText(getString(R.string.memory_editor_enable));
-        SwitchMaterial sw = ll.findViewById(R.id.switch_value);
-        sw.setChecked(fs.isMemoryEditorEnabled());
-        
-        sw.setOnCheckedChangeListener((btn, checked) -> {
-            if (checked && !fs.isMemoryEditorEnabled()) {
-                sw.setChecked(false);
-                showMemoryEditorWarningDialog(sw, fs);
-            } else if (!checked) {
-                fs.setMemoryEditorEnabled(false);
-            }
-        });
-        settingsItemsContainer.addView(ll);
-    }
-
-    private void showMemoryEditorWarningDialog(SwitchMaterial sw, FeatureSettings fs) {
-        CustomAlertDialog dialog = new CustomAlertDialog(this);
-        final int[] countdown = {5};
-        final String confirmText = getString(R.string.confirm);
-        
-        dialog.setTitleText(getString(R.string.memory_editor_warning_title))
-              .setMessage(getString(R.string.memory_editor_warning_message))
-              .setUseBorderedBackground(true)
-              .setBlurBackground(true)
-              .setPositiveButton(confirmText + " (" + countdown[0] + ")", null)
-              .setNegativeButton(getString(R.string.cancel), null);
-        
-        dialog.show();
-        
-        Button positiveBtn = dialog.getPositiveButton();
-        if (positiveBtn != null) {
-            positiveBtn.setEnabled(false);
-            positiveBtn.setAlpha(0.5f);
-        }
-        
-        CountDownTimer timer = new CountDownTimer(5000, 1000) {
-            @Override
-            public void onTick(long millisUntilFinished) {
-                countdown[0] = (int) (millisUntilFinished / 1000) + 1;
-                if (positiveBtn != null) {
-                    positiveBtn.setText(confirmText + " (" + countdown[0] + ")");
-                }
-            }
-
-            @Override
-            public void onFinish() {
-                if (positiveBtn != null) {
-                    positiveBtn.setText(confirmText);
-                    positiveBtn.setEnabled(true);
-                    positiveBtn.setAlpha(1.0f);
-                    positiveBtn.setOnClickListener(v -> {
-                        fs.setMemoryEditorEnabled(true);
-                        sw.setChecked(true);
-                        dialog.dismiss();
-                    });
-                }
-            }
-        };
-        timer.start();
-        
-        dialog.setOnDismissListener(d -> timer.cancel());
-    }
 
     private Spinner addSpinnerItem(String label, String[] options, int defaultIdx) {
         View ll = LayoutInflater.from(this).inflate(R.layout.item_settings_spinner, settingsItemsContainer, false);

@@ -405,37 +405,6 @@
     <string name="overlay_button_lock_desc">Prevent dragging and accidental activation</string>
     <string name="settings">Settings</string>
 
-    <!-- Memory Editor -->
-    <string name="memory_editor_enable">Memory Editor</string>
-    <string name="memory_editor_title">Memory Editor</string>
-    <string name="memory_editor_minimize">Minimize</string>
-    <string name="memory_editor_close">Close</string>
-    <string name="memory_editor_value_hint">Value</string>
-    <string name="memory_editor_search">Search</string>
-    <string name="memory_editor_filter">Filter</string>
-    <string name="memory_editor_reset">Reset</string>
-    <string name="memory_editor_address">Address</string>
-    <string name="memory_editor_value">Value</string>
-    <string name="memory_editor_action">Action</string>
-    <string name="memory_editor_tab_search">Search</string>
-    <string name="memory_editor_tab_saved">Saved</string>
-    <string name="memory_editor_save">Save</string>
-    <string name="memory_editor_freeze">Freeze</string>
-    <string name="memory_editor_delete">Delete</string>
-    <string name="memory_editor_overlay">Overlay</string>
-    <string name="memory_editor_base_address">MC Base: %1$s</string>
-    <string name="memory_editor_base_loading">Loading base address…</string>
-    <string name="memory_editor_base_not_found">MC Base: Not found</string>
-    <string name="memory_overlay_config_title">Configure Overlay Button</string>
-    <string name="memory_overlay_name">Button Name</string>
-    <string name="memory_overlay_name_hint">e.g. Health, Speed</string>
-    <string name="memory_overlay_original_value">Original Value</string>
-    <string name="memory_overlay_new_value">New Value</string>
-    <string name="memory_overlay_new_value_hint">Enter value to apply</string>
-    <string name="memory_overlay_toggleable">Toggleable</string>
-    <string name="memory_editor_warning_title">⚠️ Developer Feature Warning</string>
-    <string name="memory_editor_warning_message">The Memory Editor is an advanced tool intended ONLY for mod development and debugging purposes.\n\nThis feature is NOT for normal users. Improper use may cause:\n• Game crashes\n• Data corruption\n• Unexpected behavior\n\nOnly enable this if you understand what you are doing.</string>
-
     <!-- Extract Structures -->
     <string name="extract_structures">Extract Structures</string>
     <string name="no_structures_found">No structures found in this world</string>

@@ -391,37 +391,6 @@
     <string name="overlay_button_lock_desc">Mencegah penyeretan dan aktivasi tidak sengaja</string>
     <string name="settings">Pengaturan</string>
 
-    <!-- Memory Editor -->
-    <string name="memory_editor_enable">Memory Editor</string>
-    <string name="memory_editor_title">Memory Editor</string>
-    <string name="memory_editor_minimize">Memperkecil</string>
-    <string name="memory_editor_close">Tutup</string>
-    <string name="memory_editor_value_hint">Nilai</string>
-    <string name="memory_editor_search">Cari</string>
-    <string name="memory_editor_filter">Filter</string>
-    <string name="memory_editor_reset">Reset</string>
-    <string name="memory_editor_address">Alamat</string>
-    <string name="memory_editor_value">Nilai</string>
-    <string name="memory_editor_action">Aksi</string>
-    <string name="memory_editor_tab_search">Cari</string>
-    <string name="memory_editor_tab_saved">Tersimpan</string>
-    <string name="memory_editor_save">Simpan</string>
-    <string name="memory_editor_freeze">Bekukan</string>
-    <string name="memory_editor_delete">Hapus</string>
-    <string name="memory_editor_overlay">Overlay</string>
-    <string name="memory_editor_base_address">Basis MC: %1$s</string>
-    <string name="memory_editor_base_loading">Memuat alamat basis…</string>
-    <string name="memory_editor_base_not_found">Basis MC: Tidak ditemukan</string>
-    <string name="memory_overlay_config_title">Konfigurasi Tombol Overlay</string>
-    <string name="memory_overlay_name">Nama Tombol</string>
-    <string name="memory_overlay_name_hint">misalnya Zoom</string>
-    <string name="memory_overlay_original_value">Nilai Asli</string>
-    <string name="memory_overlay_new_value">Nilai Baru</string>
-    <string name="memory_overlay_new_value_hint">Masukkan nilai yang akan diterapkan</string>
-    <string name="memory_overlay_toggleable">Dapat diaktifkan/dinonaktifkan</string>
-    <string name="memory_editor_warning_title">⚠️ Peringatan Fitur Pengembang</string>
-    <string name="memory_editor_warning_message">Peringatan Editor Memori adalah alat lanjutan yang HANYA dimaksudkan untuk pengembangan mod dan tujuan debugging.\n\nFitur ini TIDAK untuk pengguna biasa. Penggunaan yang tidak tepat dapat menyebabkan:\n• Game crash\n• Kerusakan data\n• Perilaku tidak terduga\n\nHanya aktifkan ini jika Anda memahami apa yang Anda lakukan.</string>
-
     <!-- Extract Structures -->
     <string name="extract_structures">Ekstrak Struktur</string>
     <string name="no_structures_found">Tidak ditemukan struktur apa pun di dunia ini.</string>
