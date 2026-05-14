@@ -74,7 +74,6 @@ public class ContentListActivity extends BaseActivity {
     private org.levimc.launcher.ui.adapter.ScreenshotsAdapter screenshotsAdapter;
     private org.levimc.launcher.ui.adapter.ServersAdapter serversAdapter;
 
-    private ActivityResultLauncher<Intent> importLauncher;
     private ActivityResultLauncher<Intent> exportLauncher;
     private ActivityResultLauncher<Intent> exportPackLauncher;
     private ActivityResultLauncher<Intent> customFlatWorldLauncher;
@@ -117,18 +116,6 @@ public class ContentListActivity extends BaseActivity {
     }
 
     private void setupActivityResultLaunchers() {
-        importLauncher = registerForActivityResult(
-            new ActivityResultContracts.StartActivityForResult(),
-            result -> {
-                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                    Uri uri = result.getData().getData();
-                    if (uri != null) {
-                        handleImport(uri);
-                    }
-                }
-            }
-        );
-
         exportLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
@@ -182,7 +169,6 @@ public class ContentListActivity extends BaseActivity {
     }
 
     private void setupUI() {
-        binding.backButton.setOnClickListener(v -> finish());
 
         String worldsPath = getIntent().getStringExtra(EXTRA_WORLDS_DIRECTORY);
         if (worldsPath != null) {
@@ -192,48 +178,42 @@ public class ContentListActivity extends BaseActivity {
         switch (contentType) {
             case TYPE_WORLDS:
                 binding.titleText.setText(getString(R.string.worlds_title));
-                binding.importButton.setText(getString(R.string.import_world));
                 binding.customFlatButton.setVisibility(View.VISIBLE);
                 setupWorldsRecyclerView();
                 break;
             case TYPE_SKIN_PACKS:
                 binding.titleText.setText(getString(R.string.skin_packs_title));
-                binding.importButton.setText(getString(R.string.import_skin_pack));
                 setupPacksRecyclerView();
                 break;
             case TYPE_RESOURCE_PACKS:
                 binding.titleText.setText(getString(R.string.resource_packs_title));
-                binding.importButton.setText(getString(R.string.import_resource_pack));
                 setupPacksRecyclerView();
                 break;
             case TYPE_BEHAVIOR_PACKS:
                 binding.titleText.setText(getString(R.string.behavior_packs_title));
-                binding.importButton.setText(getString(R.string.import_behavior_pack));
                 setupPacksRecyclerView();
                 break;
             case TYPE_SCREENSHOTS:
                 binding.titleText.setText(getString(R.string.screenshots_category));
-                binding.importButton.setVisibility(View.GONE);
                 binding.searchEditText.setVisibility(View.GONE);
                 setupScreenshotsRecyclerView();
                 break;
             case TYPE_SERVERS:
                 binding.titleText.setText(getString(R.string.servers_category));
-                binding.importButton.setText(getString(R.string.quick_launch_add_server));
-                binding.importButton.setVisibility(View.VISIBLE);
                 binding.searchEditText.setVisibility(View.VISIBLE);
+                binding.customFlatButton.setText(getString(R.string.quick_launch_add_server));
+                binding.customFlatButton.setVisibility(View.VISIBLE);
                 setupServersRecyclerView();
                 break;
         }
 
-        binding.importButton.setOnClickListener(v -> {
+        binding.customFlatButton.setOnClickListener(v -> {
             if (contentType == TYPE_SERVERS) {
                 showAddServerDialog();
             } else {
-                startImport();
+                openCustomFlatWorld();
             }
         });
-        binding.customFlatButton.setOnClickListener(v -> openCustomFlatWorld());
 
         setupSearchFilter();
     }
@@ -471,47 +451,6 @@ public class ContentListActivity extends BaseActivity {
 
     private void showLoading(boolean show) {
         binding.loadingOverlay.setVisibility(show ? View.VISIBLE : View.GONE);
-    }
-
-    private void startImport() {
-        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-        intent.setType("*/*");
-        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"application/zip", "application/octet-stream"});
-        importLauncher.launch(Intent.createChooser(intent, getString(R.string.import_world)));
-    }
-
-    private void handleImport(Uri uri) {
-        if (contentType == TYPE_WORLDS) {
-            contentManager.importWorld(uri, new WorldManager.WorldOperationCallback() {
-                @Override
-                public void onSuccess(String message) {
-                    runOnUiThread(() -> Toast.makeText(ContentListActivity.this, message, Toast.LENGTH_SHORT).show());
-                }
-
-                @Override
-                public void onError(String error) {
-                    runOnUiThread(() -> Toast.makeText(ContentListActivity.this, error, Toast.LENGTH_LONG).show());
-                }
-
-                @Override
-                public void onProgress(int progress) {}
-            });
-        } else {
-            contentManager.importResourcePack(uri, new ResourcePackManager.PackOperationCallback() {
-                @Override
-                public void onSuccess(String message) {
-                    runOnUiThread(() -> Toast.makeText(ContentListActivity.this, message, Toast.LENGTH_SHORT).show());
-                }
-
-                @Override
-                public void onError(String error) {
-                    runOnUiThread(() -> Toast.makeText(ContentListActivity.this, error, Toast.LENGTH_LONG).show());
-                }
-
-                @Override
-                public void onProgress(int progress) {}
-            });
-        }
     }
 
     private void startWorldExport(WorldItem world) {
@@ -855,6 +794,12 @@ public class ContentListActivity extends BaseActivity {
         });
         
         dialog.show();
+
+        org.levimc.launcher.util.PersonalizationManager structPm = new org.levimc.launcher.util.PersonalizationManager(this);
+        int structAccent = structPm.getAccentColor();
+        if (structAccent != 0) {
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(structAccent);
+        }
     }
 
     private void startStructureExport(WorldItem world, StructureExtractor.StructureInfo structure) {
@@ -928,8 +873,15 @@ public class ContentListActivity extends BaseActivity {
             .setNegativeButton(R.string.cancel, null)
             .show();
         
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(getResources().getColor(R.color.accent_text, getTheme()));
-        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(getResources().getColor(R.color.accent_text, getTheme()));
+        org.levimc.launcher.util.PersonalizationManager twPm = new org.levimc.launcher.util.PersonalizationManager(this);
+        int twAccent = twPm.getAccentColor();
+        if (twAccent != 0) {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(twAccent);
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(twAccent);
+        } else {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(getResources().getColor(R.color.accent_text, getTheme()));
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(getResources().getColor(R.color.accent_text, getTheme()));
+        }
     }
 
     private void showTransferPackDialog(ResourcePackItem pack) {
@@ -967,8 +919,15 @@ public class ContentListActivity extends BaseActivity {
             .setNegativeButton(R.string.cancel, null)
             .show();
         
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(getResources().getColor(R.color.accent_text, getTheme()));
-        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(getResources().getColor(R.color.accent_text, getTheme()));
+        org.levimc.launcher.util.PersonalizationManager tpPm = new org.levimc.launcher.util.PersonalizationManager(this);
+        int tpAccent = tpPm.getAccentColor();
+        if (tpAccent != 0) {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(tpAccent);
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(tpAccent);
+        } else {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(getResources().getColor(R.color.accent_text, getTheme()));
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(getResources().getColor(R.color.accent_text, getTheme()));
+        }
     }
 
     private void transferWorld(WorldItem world, FeatureSettings.StorageType targetType) {

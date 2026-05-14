@@ -3,44 +3,35 @@ package org.levimc.launcher.ui.activities;
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.graphics.Color;
-import android.graphics.LinearGradient;
-import android.graphics.Shader;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.view.GestureDetector;
-import android.view.MotionEvent;
 import android.view.View;
 import android.widget.TextView;
 
 import androidx.activity.OnBackPressedCallback;
+import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.lifecycle.ViewModelProvider;
 
-import androidx.dynamicanimation.animation.SpringAnimation;
-import androidx.dynamicanimation.animation.SpringForce;
 import org.levimc.launcher.R;
 import org.levimc.launcher.core.minecraft.MinecraftLauncher;
 import org.levimc.launcher.core.mods.FileHandler;
 import org.levimc.launcher.core.mods.Mod;
 import org.levimc.launcher.core.mods.inbuilt.manager.InbuiltModManager;
-import org.levimc.launcher.core.mods.inbuilt.overlay.MascotEasterEggOverlay;
 import org.levimc.launcher.core.versions.GameVersion;
 import org.levimc.launcher.core.versions.VersionManager;
 import org.levimc.launcher.databinding.ActivityMainBinding;
 import org.levimc.launcher.settings.FeatureSettings;
-import org.levimc.launcher.ui.adapter.QuickActionsAdapter;
-import org.levimc.launcher.ui.animation.AnimationHelper;
+
 import org.levimc.launcher.ui.animation.DynamicAnim;
 import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
-import org.levimc.launcher.ui.dialogs.GameVersionSelectDialog;
 import org.levimc.launcher.ui.dialogs.PlayStoreValidationDialog;
-import org.levimc.launcher.ui.dialogs.gameversionselect.BigGroup;
-import org.levimc.launcher.ui.dialogs.gameversionselect.VersionUtil;
 import org.levimc.launcher.ui.views.MainViewModel;
 import org.levimc.launcher.ui.views.MainViewModelFactory;
 import org.levimc.launcher.util.ApkImportManager;
@@ -50,6 +41,7 @@ import org.levimc.launcher.util.PermissionsHandler;
 import org.levimc.launcher.util.PlayStoreValidator;
 import org.levimc.launcher.util.ResourcepackHandler;
 import org.levimc.launcher.util.UIHelper;
+import org.levimc.launcher.core.content.ContentManager;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -90,8 +82,11 @@ import okhttp3.OkHttpClient;
     private ActivityResultLauncher<Intent> permissionResultLauncher;
     private ActivityResultLauncher<Intent> apkImportResultLauncher;
 
-    private TextView externalModsCount;
-    private TextView inbuiltModsCount;
+    private LinearLayout modsListContainer;
+    private ContentManager contentManager;
+    private TextView worldsCountText;
+    private TextView resourcePacksCountText;
+    private TextView behaviorPacksCountText;
 
     private com.microsoft.xbox.idp.toolkit.CircleImageView accountAvatar;
     private View accountAvatarContainer;
@@ -103,20 +98,15 @@ import okhttp3.OkHttpClient;
     private LoadingDialog accountLoadingDialog;
     private ActivityResultLauncher<Intent> accountLoginLauncher;
     private OnBackPressedCallback onBackPressedCallback;
-    private MascotEasterEggOverlay mascotOverlay;
-    private GestureDetector mascotGestureDetector;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
-        applyHeaderAppNameGradient();
-        updateBetaBadge();
-        updateDebugBadge();
+        setupNavBar();
         setupManagersAndHandlers();
-        AnimationHelper.prepareInitialStates(binding);
-        AnimationHelper.runInitializationSequence(binding);
         setTextMinecraftVersion();
         updateViewModelVersion();
         checkResourcepack();
@@ -175,10 +165,10 @@ import okhttp3.OkHttpClient;
 
 
     private void initAccountHeader() {
-        signInButton = binding.signInButton;
-        accountAvatar = binding.accountAvatar;
-        accountAvatarContainer = binding.accountAvatarContainer;
-        avatarProgress = binding.avatarProgress;
+        signInButton = findViewById(R.id.nav_sign_in_button);
+        accountAvatar = findViewById(R.id.nav_account_avatar);
+        accountAvatarContainer = findViewById(R.id.nav_account_avatar_container);
+        avatarProgress = findViewById(R.id.nav_avatar_progress);
 
         if (signInButton != null) {
             signInButton.setOnClickListener(v -> {
@@ -490,13 +480,28 @@ import okhttp3.OkHttpClient;
     }
 
     private void initModsSection() {
-        externalModsCount = binding.externalModsCount;
-        inbuiltModsCount = binding.inbuiltModsCount;
-        
-        binding.modCard.setOnClickListener(v -> openModsFullscreen());
+        modsListContainer = binding.modsListContainer;
+
         binding.manageModsButton.setOnClickListener(v -> openModsFullscreen());
         DynamicAnim.applyPressScale(binding.manageModsButton);
-        
+
+        org.levimc.launcher.util.PersonalizationManager pm = new org.levimc.launcher.util.PersonalizationManager(this);
+        int accent = pm.getAccentColor();
+        if (accent != 0) {
+            binding.manageModsButton.setTextColor(accent);
+            android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+            gd.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+            gd.setColor(android.graphics.Color.argb(26, android.graphics.Color.red(accent), android.graphics.Color.green(accent), android.graphics.Color.blue(accent)));
+            gd.setCornerRadius(5 * getResources().getDisplayMetrics().density);
+            gd.setStroke((int)(1 * getResources().getDisplayMetrics().density),
+                    android.graphics.Color.argb(51, android.graphics.Color.red(accent), android.graphics.Color.green(accent), android.graphics.Color.blue(accent)));
+            binding.manageModsButton.setBackground(gd);
+
+            if (binding.minecraftTitleText != null) {
+                pm.applySubtleWhiteGradient(binding.minecraftTitleText, accent, 0.35f, true);
+            }
+        }
+
         viewModel.getModsLiveData().observe(this, this::updateModsUI);
     }
 
@@ -567,55 +572,15 @@ import okhttp3.OkHttpClient;
     protected void onResume() {
         super.onResume();
         setTextMinecraftVersion();
-        updateAbiLabel();
-        updateGenuineBadge();
         refreshAccountHeaderUI();
-        updateBetaBadge();
-        updateDebugBadge();
         viewModel.refreshMods();
+        refreshContentCounts();
     }
 
 
-    private void updateAbiLabel() {
-        if (binding == null) return;
-        TextView abiLabel = binding.abiLabel;
-        String abiList = (versionManager.getSelectedVersion() != null) ? versionManager.getSelectedVersion().abiList : null;
-        String abiToShow = "unknown";
-        if (!TextUtils.isEmpty(abiList) && !"unknown".equals(abiList)) {
-            abiToShow = abiList.split("\\n")[0].trim();
-        }
-        abiLabel.setText(abiToShow);
-        int bgRes = switch (abiToShow) {
-            case "arm64-v8a" -> R.drawable.bg_abi_arm64_v8a;
-            case "armeabi-v7a" -> R.drawable.bg_abi_armeabi_v7a;
-            case "x86" -> R.drawable.bg_abi_x86;
-            case "x86_64" -> R.drawable.bg_abi_x86_64;
-            default -> R.drawable.bg_abi_default;
-        };
-        abiLabel.setBackgroundResource(bgRes);
-    }
 
-    private void updateGenuineBadge() {
-        if (binding == null) return;
-        boolean verified = PlayStoreValidator.isMinecraftFromPlayStore(this);
-        binding.genuineLabel.setVisibility(verified ? View.GONE : View.VISIBLE);
-    }
 
-    private void updateBetaBadge() {
-        if (binding == null) return;
-        View beta = binding.betaLabel;
-        if (beta != null) {
-            beta.setVisibility(org.levimc.launcher.BuildConfig.IS_BETA ? View.VISIBLE : View.GONE);
-        }
-    }
 
-    private void updateDebugBadge() {
-        if (binding == null) return;
-        View debug = binding.debugLabel;
-        if (debug != null) {
-            debug.setVisibility(org.levimc.launcher.BuildConfig.DEBUG ? View.VISIBLE : View.GONE);
-        }
-    }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
@@ -632,115 +597,122 @@ import okhttp3.OkHttpClient;
         binding.selectVersionButton.setOnClickListener(v -> showVersionSelectDialog());
         DynamicAnim.applyPressScale(binding.selectVersionButton);
 
-        binding.settingsButton.setOnClickListener(v -> {
-            Intent intent = new Intent(this, SettingsActivity.class);
-            startActivity(intent);
-        });
-        DynamicAnim.applyPressScale(binding.settingsButton);
-        binding.deleteVersionButton.setOnClickListener(v -> showDeleteVersionDialog());
-        DynamicAnim.applyPressScale(binding.deleteVersionButton);
-
-        binding.genuineLabel.setOnClickListener(v -> {
-            PlayStoreValidationDialog.showNotFromPlayStoreDialog(this);
-        });
-        DynamicAnim.applyPressScale(binding.genuineLabel);
-
-        initQuickActionsRecycler();
-
         FeatureSettings.init(getApplicationContext());
-
-        setupMascotEasterEgg();
+        initContentManagementSection();
+        initMiscellaneousSection();
+        showRandomTip();
     }
 
-    @SuppressLint("ClickableViewAccessibility")
-    private void setupMascotEasterEgg() {
-        mascotGestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+    private void showRandomTip() {
+        String[] tips = getResources().getStringArray(R.array.launcher_tips);
+        if (tips.length == 0 || binding.tipText == null) return;
+        binding.tipText.setText(tips[new java.util.Random().nextInt(tips.length)]);
+        android.os.Handler handler = new android.os.Handler(getMainLooper());
+        Runnable rotateTip = new Runnable() {
             @Override
-            public boolean onDown(MotionEvent e) {
-                return isTouchOnDrawableIcon(e);
+            public void run() {
+                if (binding == null || binding.tipText == null) return;
+                binding.tipText.animate().alpha(0f).setDuration(300).withEndAction(() -> {
+                    if (binding == null || binding.tipText == null) return;
+                    binding.tipText.setText(tips[new java.util.Random().nextInt(tips.length)]);
+                    binding.tipText.animate().alpha(1f).setDuration(300).start();
+                }).start();
+                handler.postDelayed(this, 8000);
             }
-
-            @Override
-            public boolean onSingleTapConfirmed(MotionEvent e) {
-                if (!isTouchOnDrawableIcon(e)) return false;
-                if (mascotOverlay == null || !mascotOverlay.isActive()) {
-                    mascotOverlay = new MascotEasterEggOverlay(MainActivity.this);
-                    mascotOverlay.show(binding.textMinecraftVersion, binding.launchButton);
-                }
-                return true;
-            }
-
-            private boolean isTouchOnDrawableIcon(MotionEvent e) {
-                android.graphics.drawable.Drawable[] drawables = binding.textMinecraftVersion.getCompoundDrawables();
-                android.graphics.drawable.Drawable leftDrawable = drawables[0];
-                if (leftDrawable == null) return false;
-                int drawableWidth = leftDrawable.getBounds().width();
-                int drawablePadding = binding.textMinecraftVersion.getCompoundDrawablePadding();
-                int paddingStart = binding.textMinecraftVersion.getPaddingStart();
-                float touchX = e.getX();
-                return touchX <= paddingStart + drawableWidth + drawablePadding;
-            }
-        });
-
-        binding.textMinecraftVersion.setClickable(true);
-        binding.textMinecraftVersion.setOnTouchListener((v, event) -> {
-            return mascotGestureDetector.onTouchEvent(event);
-        });
+        };
+        handler.postDelayed(rotateTip, 8000);
     }
 
-    private void initQuickActionsRecycler() {
-        QuickActionsAdapter adapter = new QuickActionsAdapter(new ArrayList<>());
-        binding.quickActionsRecycler.setLayoutManager(new androidx.recyclerview.widget.GridLayoutManager(this, 5));
-        binding.quickActionsRecycler.setAdapter(adapter);
-        DynamicAnim.staggerRecyclerChildren(binding.quickActionsRecycler);
+    private void initContentManagementSection() {
+        worldsCountText = binding.contentWorldsCount;
+        resourcePacksCountText = binding.contentResourcePacksCount;
+        behaviorPacksCountText = binding.contentBehaviorPacksCount;
 
-        List<QuickActionsAdapter.QuickActionItem> items = new ArrayList<>();
-        items.add(new QuickActionsAdapter.QuickActionItem(
-                R.string.curseforge_title,
-                R.drawable.ic_qa_curseforge,
-                5
-        ));
-        items.add(new QuickActionsAdapter.QuickActionItem(
-                R.string.content_management,
-                R.drawable.ic_qa_content_mgmt,
-                1
-        ));
-        items.add(new QuickActionsAdapter.QuickActionItem(
-                R.string.import_apk,
-                R.drawable.ic_qa_import,
-                2
-        ));
-        items.add(new QuickActionsAdapter.QuickActionItem(
-                R.string.microsoft_accounts,
-                R.drawable.ic_qa_account,
-                3
-        ));
-        items.add(new QuickActionsAdapter.QuickActionItem(
-                R.string.quick_launch,
-                R.drawable.ic_qa_launch,
-                4
-        ));
-        adapter.updateItems(items);
-        DynamicAnim.staggerRecyclerChildren(binding.quickActionsRecycler);
-
-        adapter.setOnActionClickListener(actionId -> {
-            switch (actionId) {
-                case 1 -> openContentManagement();
-                case 2 -> startApkFilePicker();
-                case 3 -> {
-                    Intent intent = new Intent(this, AccountsActivity.class);
-                    startActivity(intent);
-                }
-                case 4 -> {
-                    Intent intent = new Intent(this, QuickLaunchActivity.class);
-                    startActivity(intent);
-                }
-                case 5 -> {
-                    Intent intent = new Intent(this, CurseForgeActivity.class);
-                    startActivity(intent);
-                }
-            }
+        contentManager = ContentManager.getInstance(this);
+        contentManager.getWorldsLiveData().observe(this, worlds -> {
+            if (worldsCountText != null)
+                worldsCountText.setText(String.valueOf(worlds != null ? worlds.size() : 0));
         });
+        contentManager.getResourcePacksLiveData().observe(this, packs -> {
+            if (resourcePacksCountText != null)
+                resourcePacksCountText.setText(String.valueOf(packs != null ? packs.size() : 0));
+        });
+        contentManager.getBehaviorPacksLiveData().observe(this, packs -> {
+            if (behaviorPacksCountText != null)
+                behaviorPacksCountText.setText(String.valueOf(packs != null ? packs.size() : 0));
+        });
+
+        binding.contentViewAll.setOnClickListener(v -> openContentManagement());
+        DynamicAnim.applyPressScale(binding.contentViewAll);
+
+        binding.contentWorldsRow.setOnClickListener(v -> openContentList(ContentListActivity.TYPE_WORLDS));
+        binding.contentResourcePacksRow.setOnClickListener(v -> openContentList(ContentListActivity.TYPE_RESOURCE_PACKS));
+        binding.contentBehaviorPacksRow.setOnClickListener(v -> openContentList(ContentListActivity.TYPE_BEHAVIOR_PACKS));
+
+        refreshContentCounts();
+    }
+
+    private void refreshContentCounts() {
+        if (versionManager == null || contentManager == null) return;
+        GameVersion currentVersion = versionManager.getSelectedVersion();
+        if (currentVersion == null) return;
+
+        android.content.SharedPreferences cmPrefs = getSharedPreferences("content_management", MODE_PRIVATE);
+        String savedType = cmPrefs.getString("storage_type", "INTERNAL");
+        org.levimc.launcher.settings.FeatureSettings.StorageType storageType;
+        try {
+            storageType = org.levimc.launcher.settings.FeatureSettings.StorageType.valueOf(savedType);
+        } catch (IllegalArgumentException e) {
+            storageType = org.levimc.launcher.settings.FeatureSettings.StorageType.INTERNAL;
+        }
+
+        java.io.File baseDir;
+        switch (storageType) {
+            case VERSION_ISOLATION:
+                if (currentVersion.versionDir != null) {
+                    baseDir = new java.io.File(currentVersion.versionDir, "games/com.mojang");
+                } else {
+                    baseDir = new java.io.File(getDataDir(), "games/com.mojang");
+                }
+                break;
+            case EXTERNAL:
+                java.io.File externalDir = getExternalFilesDir(null);
+                if (externalDir != null) {
+                    baseDir = new java.io.File(externalDir, "games/com.mojang");
+                } else {
+                    baseDir = new java.io.File(getDataDir(), "games/com.mojang");
+                }
+                break;
+            case INTERNAL:
+            default:
+                baseDir = new java.io.File(getDataDir(), "games/com.mojang");
+                break;
+        }
+
+        contentManager.setStorageDirectories(
+                new java.io.File(baseDir, "minecraftWorlds"),
+                new java.io.File(baseDir, "resource_packs"),
+                new java.io.File(baseDir, "behavior_packs"),
+                new java.io.File(baseDir, "skin_packs"),
+                new java.io.File(baseDir, "Screenshots"),
+                new java.io.File(baseDir, "minecraftpe"));
+    }
+
+    private void openContentList(int contentType) {
+        GameVersion currentVersion = versionManager != null ? versionManager.getSelectedVersion() : null;
+        if (currentVersion == null) {
+            Toast.makeText(this, getString(R.string.not_found_version), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Intent intent = new Intent(this, ContentListActivity.class);
+        intent.putExtra(ContentListActivity.EXTRA_CONTENT_TYPE, contentType);
+        startActivity(intent);
+    }
+
+    private void initMiscellaneousSection() {
+        binding.miscCurseforgeRow.setOnClickListener(v -> startActivity(new Intent(this, CurseForgeActivity.class)));
+        binding.miscAccountsRow.setOnClickListener(v -> startActivity(new Intent(this, AccountsActivity.class)));
+        binding.miscQuickLaunchRow.setOnClickListener(v -> startActivity(new Intent(this, QuickLaunchActivity.class)));
     }
 
     private void openModsFullscreen() {
@@ -748,16 +720,10 @@ import okhttp3.OkHttpClient;
         startActivity(intent);
     }
 
+
     private void launchGame() {
-        if (mascotOverlay != null && mascotOverlay.isActive()) {
-            boolean blocked = mascotOverlay.onLaunchButtonClicked(binding.launchButton, this::performActualLaunch);
-            if (blocked) {
-                return;
-            }
-        }
         performActualLaunch();
     }
-
     private void performActualLaunch() {
         binding.launchButton.setEnabled(false);
 
@@ -790,14 +756,14 @@ import okhttp3.OkHttpClient;
             }
         }
 
-        if (!version.isInstalled && !FeatureSettings.getInstance().isVersionIsolationEnabled()) {
+        if (!version.isInstalled && !version.versionIsolation) {
             binding.launchButton.setEnabled(true);
             new CustomAlertDialog(this)
                     .setTitleText(getString(R.string.dialog_title_version_isolation))
                     .setMessage(getString(R.string.dialog_message_version_isolation))
                     .setPositiveButton(getString(R.string.dialog_positive_enable), v -> {
-                        FeatureSettings.getInstance().setVersionIsolationEnabled(true);
-                        launchGame();
+                        VersionManager.get(this).setInstanceVersionIsolation(version, true);
+                        performActualLaunch();
                     })
                     .setNegativeButton(getString(R.string.dialog_negative_cancel), null)
                     .show();
@@ -829,45 +795,129 @@ import okhttp3.OkHttpClient;
         }).start();
     }
 
-    private boolean animateLaunchButton(View v, MotionEvent event) {
-        if (event.getAction() == MotionEvent.ACTION_DOWN) {
-            SpringAnimation sx = new SpringAnimation(v, SpringAnimation.SCALE_X, 0.95f);
-            SpringAnimation sy = new SpringAnimation(v, SpringAnimation.SCALE_Y, 0.95f);
-            SpringForce spring = new SpringForce(0.95f)
-                    .setDampingRatio(SpringForce.DAMPING_RATIO_NO_BOUNCY)
-                    .setStiffness(SpringForce.STIFFNESS_MEDIUM);
-            sx.setSpring(spring);
-            sy.setSpring(spring);
-            sx.start();
-            sy.start();
-        } else if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
-            SpringAnimation sx = new SpringAnimation(v, SpringAnimation.SCALE_X, 1f);
-            SpringAnimation sy = new SpringAnimation(v, SpringAnimation.SCALE_Y, 1f);
-            SpringForce spring = new SpringForce(1f)
-                    .setDampingRatio(SpringForce.DAMPING_RATIO_MEDIUM_BOUNCY)
-                    .setStiffness(SpringForce.STIFFNESS_LOW);
-            sx.setSpring(spring);
-            sy.setSpring(spring);
-            sx.start();
-            sy.start();
-        }
-        return false;
-    }
-
-    private void showVersionSelectDialog() {
+     private void showVersionSelectDialog() {
         if (versionManager == null) return;
         versionManager.loadAllVersions();
-        List<BigGroup> bigGroups = VersionUtil.buildBigGroups(
-                versionManager.getInstalledVersions(),
-                versionManager.getCustomVersions()
-        );
-        GameVersionSelectDialog dialog = new GameVersionSelectDialog(this, bigGroups);
-        dialog.setOnVersionSelectListener(version -> {
+
+        List<GameVersion> allVersions = new ArrayList<>();
+        List<GameVersion> installed = versionManager.getInstalledVersions();
+        List<GameVersion> custom = versionManager.getCustomVersions();
+        if (installed != null) allVersions.addAll(installed);
+        if (custom != null) allVersions.addAll(custom);
+
+        View popupView = LayoutInflater.from(this).inflate(R.layout.popup_instance_selector, null);
+        PopupWindow popup = new PopupWindow(popupView,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                true);
+        popup.setBackgroundDrawable(new ColorDrawable(android.graphics.Color.TRANSPARENT));
+        popup.setElevation(16f);
+        popup.setOutsideTouchable(true);
+
+        RecyclerView recycler = popupView.findViewById(R.id.recycler_instances);
+        recycler.setLayoutManager(new LinearLayoutManager(this));
+
+        GameVersion selectedVersion = versionManager.getSelectedVersion();
+        InstancePopupAdapter adapter = new InstancePopupAdapter(allVersions, selectedVersion);
+        recycler.setAdapter(adapter);
+
+        android.widget.EditText searchInput = popupView.findViewById(R.id.search_input);
+        searchInput.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                adapter.filter(s.toString());
+            }
+            @Override public void afterTextChanged(android.text.Editable s) {}
+        });
+
+        adapter.setOnItemClickListener(version -> {
             versionManager.selectVersion(version);
             viewModel.setCurrentVersion(version);
             setTextMinecraftVersion();
+            popup.dismiss();
         });
-        dialog.show();
+
+        popupView.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        int popupWidth = popupView.getMeasuredWidth();
+        int anchorWidth = binding.selectVersionButton.getWidth();
+        int xOffset = anchorWidth - popupWidth;
+        popup.showAsDropDown(binding.selectVersionButton, xOffset, 4);
+    }
+
+    private static class InstancePopupAdapter extends RecyclerView.Adapter<InstancePopupAdapter.VH> {
+        private final List<GameVersion> allVersions;
+        private List<GameVersion> filteredVersions;
+        private final GameVersion selectedVersion;
+        private OnItemClickListener listener;
+
+        interface OnItemClickListener {
+            void onClick(GameVersion version);
+        }
+
+        void setOnItemClickListener(OnItemClickListener l) { this.listener = l; }
+
+        InstancePopupAdapter(List<GameVersion> versions, GameVersion selected) {
+            this.allVersions = versions;
+            this.filteredVersions = new ArrayList<>(versions);
+            this.selectedVersion = selected;
+        }
+
+        void filter(String query) {
+            if (query == null || query.isEmpty()) {
+                filteredVersions = new ArrayList<>(allVersions);
+            } else {
+                String q = query.toLowerCase();
+                filteredVersions = new ArrayList<>();
+                for (GameVersion v : allVersions) {
+                    String name = v.displayName != null ? v.displayName.toLowerCase() : "";
+                    String code = v.versionCode != null ? v.versionCode.toLowerCase() : "";
+                    String dir = v.directoryName != null ? v.directoryName.toLowerCase() : "";
+                    if (name.contains(q) || code.contains(q) || dir.contains(q)) {
+                        filteredVersions.add(v);
+                    }
+                }
+            }
+            notifyDataSetChanged();
+        }
+
+        @NonNull @Override
+        public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_instance_popup, parent, false);
+            return new VH(v);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull VH holder, int position) {
+            GameVersion v = filteredVersions.get(position);
+            boolean isSelected = selectedVersion != null
+                    && selectedVersion.directoryName != null
+                    && selectedVersion.directoryName.equals(v.directoryName);
+
+            holder.name.setText(v.versionCode != null ? v.versionCode : v.directoryName);
+            holder.version.setText(v.versionCode != null ? v.versionCode : "");
+            holder.itemView.setActivated(isSelected);
+            holder.check.setVisibility(isSelected ? View.VISIBLE : View.GONE);
+            holder.tag.setVisibility(View.GONE);
+
+            holder.itemView.setOnClickListener(_v -> {
+                if (listener != null) listener.onClick(v);
+            });
+        }
+
+        @Override public int getItemCount() { return filteredVersions.size(); }
+
+        static class VH extends RecyclerView.ViewHolder {
+            TextView name, version, tag;
+            View check;
+            VH(View v) {
+                super(v);
+                name = v.findViewById(R.id.instance_name);
+                version = v.findViewById(R.id.instance_version);
+                tag = v.findViewById(R.id.instance_tag);
+                check = v.findViewById(R.id.instance_check);
+            }
+        }
     }
 
     private void startFilePicker(String type, ActivityResultLauncher<Intent> launcher) {
@@ -896,37 +946,11 @@ import okhttp3.OkHttpClient;
         startActivity(intent);
     }
 
-    private void showDeleteVersionDialog() {
-        new CustomAlertDialog(this)
-                .setTitleText(getString(R.string.dialog_title_delete_version))
-                .setMessage(getString(R.string.dialog_message_delete_version))
-                .setUseBorderedBackground(true)
-                .setBlurBackground(true)
-                .setPositiveButton(getString(R.string.dialog_positive_delete), v2 -> {
-                    VersionManager.get(this).deleteCustomVersion(versionManager.getSelectedVersion(), new VersionManager.OnDeleteVersionCallback() {
-                        @Override
-                        public void onDeleteCompleted(boolean success) {
-                            runOnUiThread(() -> {
-                                Toast.makeText(MainActivity.this, getString(R.string.toast_delete_success), Toast.LENGTH_SHORT).show();
-                                viewModel.setCurrentVersion(versionManager.getSelectedVersion());
-                                setTextMinecraftVersion();
-                            });
-                        }
 
-                        @Override
-                        public void onDeleteFailed(Exception e) {
-                            runOnUiThread(() -> Toast.makeText(MainActivity.this, getString(R.string.toast_delete_failed, e.getMessage()), Toast.LENGTH_SHORT).show());
-                        }
-                    });
-                })
-                .setNegativeButton(getString(R.string.dialog_negative_cancel), null)
-                .show();
-    }
-    public void setTextMinecraftVersion() {
+     public void setTextMinecraftVersion() {
         if (binding == null) return;
-        String display = versionManager.getSelectedVersion() != null ? versionManager.getSelectedVersion().displayName : getString(R.string.not_found_version);
-        binding.textMinecraftVersion.setText(TextUtils.isEmpty(display) ? getString(R.string.not_found_version) : display);
-        updateAbiLabel();
+        String version = versionManager.getSelectedVersion() != null ? versionManager.getSelectedVersion().versionCode : null;
+        binding.textMinecraftVersion.setText(TextUtils.isEmpty(version) ? getString(R.string.not_found_version) : version);
     }
 
     private void handleIncomingFiles() {
@@ -968,45 +992,48 @@ import okhttp3.OkHttpClient;
     }
 
     private void updateModsUI(List<Mod> mods) {
-        if (binding == null) return;
-        int externalCount = (mods != null) ? mods.size() : 0;
-        InbuiltModManager manager = InbuiltModManager.getInstance(this);
-        int internalCount = manager.isModMenuEnabled() ? 0 : manager.getAddedMods(this).size();
-        
-        if (externalModsCount != null) {
-            externalModsCount.setText(String.valueOf(externalCount));
+        if (binding == null || modsListContainer == null) return;
+        modsListContainer.removeAllViews();
+
+        // Add enabled external mods
+        if (mods != null) {
+            for (Mod mod : mods) {
+                if (mod.isEnabled()) {
+                    addModNameEntry(mod.getDisplayName());
+                }
+            }
         }
-        if (inbuiltModsCount != null) {
-            inbuiltModsCount.setText(String.valueOf(internalCount));
+
+        // Add enabled inbuilt mods
+        InbuiltModManager manager = InbuiltModManager.getInstance(this);
+        if (!manager.isModMenuEnabled()) {
+            for (org.levimc.launcher.core.mods.inbuilt.model.InbuiltMod inbuilt : manager.getAddedMods(this)) {
+                addModNameEntry(inbuilt.getName());
+            }
         }
     }
 
-    private void applyHeaderAppNameGradient() {
-        TextView appNameView = binding.headerAppName;
-        if (appNameView == null) return;
-        appNameView.post(() -> {
-            String text = appNameView.getText().toString();
-            float textWidth = appNameView.getPaint().measureText(text);
-            int green = Color.parseColor("#2ECC71");
-            int cyan = Color.parseColor("#00D9FF");
-            Shader shader = new LinearGradient(
-                0, 0, Math.max(1f, textWidth), 0,
-                new int[]{green, cyan},
-                new float[]{0f, 1f},
-                Shader.TileMode.CLAMP
-            );
-            appNameView.getPaint().setShader(shader);
-            appNameView.invalidate();
-        });
+    private void addModNameEntry(String name) {
+        TextView tv = new TextView(this);
+        tv.setText(name);
+        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12);
+        tv.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.on_surface));
+        tv.setFontFeatureSettings(null);
+        tv.setTypeface(getResources().getFont(R.font.misans));
+        tv.setPadding(0, (int)(3 * getResources().getDisplayMetrics().density), 0, (int)(3 * getResources().getDisplayMetrics().density));
+        tv.setMaxLines(1);
+        tv.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        modsListContainer.addView(tv);
+    }
+
+    private void setupNavBar() {
+        setActiveNavTab(R.id.nav_tab_launch);
+        findViewById(R.id.nav_tab_launch).setOnClickListener(v -> {});
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (mascotOverlay != null) {
-            mascotOverlay.hide();
-            mascotOverlay = null;
-        }
     }
 
  }

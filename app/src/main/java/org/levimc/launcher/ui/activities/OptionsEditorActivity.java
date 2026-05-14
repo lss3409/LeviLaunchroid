@@ -64,8 +64,6 @@ public class OptionsEditorActivity extends BaseActivity {
     }
 
     private void setupUI(String storageType) {
-        binding.backButton.setOnClickListener(v -> onBackPressed());
-        
         String title = getString(R.string.edit_options);
         if (storageType != null) {
             title += " (" + storageType + ")";
@@ -215,6 +213,12 @@ public class OptionsEditorActivity extends BaseActivity {
                     .show();
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.WHITE);
             dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.WHITE);
+            org.levimc.launcher.util.PersonalizationManager pm = new org.levimc.launcher.util.PersonalizationManager(this);
+            int accent = pm.getAccentColor();
+            if (accent != 0) {
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(accent);
+                dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(accent);
+            }
         } else {
             super.onBackPressed();
         }

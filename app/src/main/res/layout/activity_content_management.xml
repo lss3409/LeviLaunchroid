@@ -5,34 +5,17 @@
     android:layout_height="match_parent"
     android:background="@color/background">
 
-    <org.levimc.launcher.ui.views.AmoledGlowView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
-
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:padding="16dp">
 
-    <!-- Header -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@drawable/header_background"
         android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:padding="16dp">
-
-        <ImageButton
-            android:id="@+id/back_button"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_marginEnd="12dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_arrow_down"
-            android:rotation="90"
-            app:tint="@color/on_surface" />
+        android:orientation="horizontal">
 
         <LinearLayout
             android:layout_width="0dp"
@@ -45,18 +28,19 @@
                 android:layout_height="wrap_content"
                 android:fontFamily="@font/misans"
                 android:text="@string/content_management"
-                android:textColor="@color/on_surface"
-                android:textSize="20sp"
+                android:textColor="@color/primary"
+                android:textSize="22sp"
                 android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/version_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
                 android:fontFamily="@font/misans"
                 android:text="@string/not_found_version"
-                android:textColor="@color/on_surface"
-                android:textSize="14sp" />
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
 
         </LinearLayout>
 
@@ -69,7 +53,12 @@
             android:fontFamily="@font/misans"
             android:text="@string/import_content"
             android:textColor="@color/on_primary"
-            android:textSize="12sp" />
+            android:textSize="12sp"
+            app:icon="@drawable/ic_upload"
+            app:iconGravity="start"
+            app:iconPadding="6dp"
+            app:iconTint="@android:color/white"
+            app:cornerRadius="8dp" />
 
         <ImageButton
             android:id="@+id/edit_options_button"
@@ -78,7 +67,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_settings"
             android:contentDescription="@string/edit_options"
-            app:tint="@color/on_surface" />
+            app:tint="@color/text_secondary" />
 
     </LinearLayout>
 
@@ -135,12 +124,11 @@
                 android:clickable="true"
                 android:focusable="true">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="@font/misans"
-                    android:text="🌍"
-                    android:textSize="24sp" />
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_world"
+                    app:tint="@color/on_surface" />
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -166,12 +154,11 @@
                 android:clickable="true"
                 android:focusable="true">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="@font/misans"
-                    android:text="👤"
-                    android:textSize="24sp" />
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_tshirt"
+                    app:tint="@color/on_surface" />
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -197,12 +184,11 @@
                 android:clickable="true"
                 android:focusable="true">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="@font/misans"
-                    android:text="📸"
-                    android:textSize="24sp" />
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_screenshot"
+                    app:tint="@color/on_surface" />
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -236,12 +222,11 @@
                 android:clickable="true"
                 android:focusable="true">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="@font/misans"
-                    android:text="📦"
-                    android:textSize="24sp" />
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_photo"
+                    app:tint="@color/on_surface" />
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -267,12 +252,11 @@
                 android:clickable="true"
                 android:focusable="true">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="@font/misans"
-                    android:text="⚙️"
-                    android:textSize="24sp" />
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_behavior"
+                    app:tint="@color/on_surface" />
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -298,12 +282,11 @@
                 android:clickable="true"
                 android:focusable="true">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="@font/misans"
-                    android:text="🌐"
-                    android:textSize="24sp" />
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_server"
+                    app:tint="@color/on_surface" />
 
                 <TextView
                     android:layout_width="wrap_content"
