@@ -242,43 +242,94 @@ public class SettingsActivity extends BaseActivity {
     private void setupPersonalizeSection() {
         ThemeManager themeManager = new ThemeManager(this);
 
-        String[] themeOptions = {
-                getString(R.string.theme_follow_system),
-                getString(R.string.theme_light),
-                getString(R.string.theme_dark)
-        };
+        View itemSystem = findViewById(R.id.theme_item_system);
+        View itemLight = findViewById(R.id.theme_item_light);
+        View itemDark = findViewById(R.id.theme_item_dark);
 
-        Spinner themeSpinner = findViewById(R.id.theme_spinner);
-        ArrayAdapter<String> themeAdapter = new ArrayAdapter<>(this, R.layout.spinner_item, themeOptions);
-        themeAdapter.setDropDownViewResource(R.layout.spinner_dropdown_item);
-        themeSpinner.setAdapter(themeAdapter);
-        themeSpinner.setPopupBackgroundResource(R.drawable.bg_popup_menu_rounded);
-        themeSpinner.setSelection(themeManager.getCurrentMode());
-        themeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                themeManager.setThemeMode(position);
-            }
+        refreshThemeSelectionUI();
 
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-            }
-        });
+        if (itemSystem != null && itemLight != null && itemDark != null) {
+            itemSystem.setOnClickListener(v -> { themeManager.setThemeMode(0); });
+            itemLight.setOnClickListener(v -> { themeManager.setThemeMode(1); });
+            itemDark.setOnClickListener(v -> { themeManager.setThemeMode(2); });
+        }
 
         setupColorPicker();
         setupBackgroundImagePicker();
+    }
+
+    private void refreshThemeSelectionUI() {
+        ThemeManager themeManager = new ThemeManager(this);
+        int currentMode = themeManager.getCurrentMode();
+
+        TextView textSystem = findViewById(R.id.theme_text_system);
+        TextView textLight = findViewById(R.id.theme_text_light);
+        TextView textDark = findViewById(R.id.theme_text_dark);
+
+        ImageView iconSystem = findViewById(R.id.theme_icon_system);
+        ImageView iconLight = findViewById(R.id.theme_icon_light);
+        ImageView iconDark = findViewById(R.id.theme_icon_dark);
+
+        int accent = personalizationManager.getAccentColor();
+        int selectedColor = accent != 0 ? accent : getColor(R.color.on_surface);
+        int unselectedColor = getColor(R.color.text_secondary);
+
+        if (textSystem != null) {
+            textSystem.setTypeface(null, currentMode == 0 ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+            textSystem.setTextColor(currentMode == 0 ? selectedColor : getColor(R.color.on_surface));
+        }
+        if (textLight != null) {
+            textLight.setTypeface(null, currentMode == 1 ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+            textLight.setTextColor(currentMode == 1 ? selectedColor : getColor(R.color.on_surface));
+        }
+        if (textDark != null) {
+            textDark.setTypeface(null, currentMode == 2 ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+            textDark.setTextColor(currentMode == 2 ? selectedColor : getColor(R.color.on_surface));
+        }
+
+        if (iconSystem != null) iconSystem.setImageTintList(android.content.res.ColorStateList.valueOf(currentMode == 0 ? selectedColor : unselectedColor));
+        if (iconLight != null) iconLight.setImageTintList(android.content.res.ColorStateList.valueOf(currentMode == 1 ? selectedColor : unselectedColor));
+        if (iconDark != null) iconDark.setImageTintList(android.content.res.ColorStateList.valueOf(currentMode == 2 ? selectedColor : unselectedColor));
     }
 
     private void setupColorPicker() {
         colorGridContainer = findViewById(R.id.color_preset_grid);
         moreColorsContainer = findViewById(R.id.color_more_grid);
 
-        if (colorGridContainer == null || moreColorsContainer == null) return;
+        if (colorGridContainer != null && moreColorsContainer != null) {
+            int currentAccent = personalizationManager.getAccentColor();
+            buildColorGrid(colorGridContainer, PersonalizationManager.PRESET_COLORS, currentAccent);
+            buildColorGrid(moreColorsContainer, PersonalizationManager.MORE_COLORS, currentAccent);
+        }
 
-        int currentAccent = personalizationManager.getAccentColor();
-
-        buildColorGrid(colorGridContainer, PersonalizationManager.PRESET_COLORS, currentAccent);
-        buildColorGrid(moreColorsContainer, PersonalizationManager.MORE_COLORS, currentAccent);
+        android.widget.EditText inputCustomColor = findViewById(R.id.input_custom_color);
+        Button btnApplyColor = findViewById(R.id.btn_apply_color);
+        if (inputCustomColor != null && btnApplyColor != null) {
+            btnApplyColor.setOnClickListener(v -> {
+                String input = inputCustomColor.getText().toString().trim();
+                try {
+                    int color;
+                    if (input.startsWith("#")) {
+                        color = Color.parseColor(input);
+                    } else if (input.contains(",")) {
+                        String[] parts = input.split(",");
+                        if (parts.length == 3) {
+                            color = Color.rgb(Integer.parseInt(parts[0].trim()),
+                                    Integer.parseInt(parts[1].trim()),
+                                    Integer.parseInt(parts[2].trim()));
+                        } else {
+                            throw new IllegalArgumentException("Invalid RGB format");
+                        }
+                    } else {
+                        color = Color.parseColor("#" + input);
+                    }
+                    personalizationManager.setAccentColor(color);
+                    refreshColorPickerInPlace();
+                } catch (Exception e) {
+                    Toast.makeText(this, "Invalid color format", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
     }
 
     private void buildColorGrid(LinearLayout container, int[] colors, int selectedColor) {
@@ -352,6 +403,8 @@ public class SettingsActivity extends BaseActivity {
         int accent = pm.getAccentColor();
         
         pm.applyToActivity(this);
+
+        refreshThemeSelectionUI();
         
         TextView[] tabs = {tabBasic, tabPersonalize, tabUpdates, tabAbout};
         selectTab(tabs[selectedTabIndex]);

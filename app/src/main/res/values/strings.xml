@@ -147,8 +147,8 @@
 
     <string name="theme_title">Theme Mode</string>
     <string name="theme_follow_system">Follow System</string>
-    <string name="theme_light">Force Day Mode</string>
-    <string name="theme_dark">Force Night Mode</string>
+    <string name="theme_light">Light Mode</string>
+    <string name="theme_dark">Dark Mode</string>
 
     <string name="error_no_browser">No browser available</string>
 

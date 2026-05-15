@@ -273,13 +273,109 @@
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
 
-                        <Spinner
-                            android:id="@+id/theme_spinner"
-                            android:layout_width="wrap_content"
-                            android:layout_height="36dp"
+                        <LinearLayout
+                            android:id="@+id/theme_list"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
                             android:layout_marginTop="12dp"
-                            android:minWidth="160dp"
-                            android:background="@drawable/bg_spinner_outline" />
+                            android:background="@drawable/bg_spinner_outline"
+                            android:orientation="horizontal">
+
+                            <LinearLayout
+                                android:id="@+id/theme_item_system"
+                                android:layout_width="0dp"
+                                android:layout_height="40dp"
+                                android:layout_weight="1"
+                                android:gravity="center"
+                                android:orientation="horizontal"
+                                android:background="?attr/selectableItemBackground"
+                                android:clickable="true"
+                                android:focusable="true">
+                                <ImageView
+                                    android:id="@+id/theme_icon_system"
+                                    android:layout_width="16dp"
+                                    android:layout_height="16dp"
+                                    android:src="@drawable/ic_monitor"
+                                    app:tint="@color/text_secondary" />
+                                <TextView
+                                    android:id="@+id/theme_text_system"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="6dp"
+                                    android:text="@string/theme_follow_system"
+                                    android:fontFamily="@font/misans"
+                                    android:textColor="@color/on_surface"
+                                    android:textSize="12sp" />
+                            </LinearLayout>
+
+                            <View
+                                android:layout_width="1dp"
+                                android:layout_height="match_parent"
+                                android:layout_marginVertical="8dp"
+                                android:background="@color/divider"
+                                android:alpha="0.3" />
+
+                            <LinearLayout
+                                android:id="@+id/theme_item_light"
+                                android:layout_width="0dp"
+                                android:layout_height="40dp"
+                                android:layout_weight="1"
+                                android:gravity="center"
+                                android:orientation="horizontal"
+                                android:background="?attr/selectableItemBackground"
+                                android:clickable="true"
+                                android:focusable="true">
+                                <ImageView
+                                    android:id="@+id/theme_icon_light"
+                                    android:layout_width="16dp"
+                                    android:layout_height="16dp"
+                                    android:src="@drawable/ic_sun"
+                                    app:tint="@color/text_secondary" />
+                                <TextView
+                                    android:id="@+id/theme_text_light"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="6dp"
+                                    android:text="@string/theme_light"
+                                    android:fontFamily="@font/misans"
+                                    android:textColor="@color/on_surface"
+                                    android:textSize="12sp" />
+                            </LinearLayout>
+
+                            <View
+                                android:layout_width="1dp"
+                                android:layout_height="match_parent"
+                                android:layout_marginVertical="8dp"
+                                android:background="@color/divider"
+                                android:alpha="0.3" />
+
+                            <LinearLayout
+                                android:id="@+id/theme_item_dark"
+                                android:layout_width="0dp"
+                                android:layout_height="40dp"
+                                android:layout_weight="1"
+                                android:gravity="center"
+                                android:orientation="horizontal"
+                                android:background="?attr/selectableItemBackground"
+                                android:clickable="true"
+                                android:focusable="true">
+                                <ImageView
+                                    android:id="@+id/theme_icon_dark"
+                                    android:layout_width="16dp"
+                                    android:layout_height="16dp"
+                                    android:src="@drawable/ic_moon"
+                                    app:tint="@color/text_secondary" />
+                                <TextView
+                                    android:id="@+id/theme_text_dark"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="6dp"
+                                    android:text="@string/theme_dark"
+                                    android:fontFamily="@font/misans"
+                                    android:textColor="@color/on_surface"
+                                    android:textSize="12sp" />
+                            </LinearLayout>
+                        </LinearLayout>
                     </LinearLayout>
 
                     <LinearLayout
@@ -355,6 +451,45 @@
                                 android:layout_height="wrap_content"
                                 android:orientation="vertical" />
                         </HorizontalScrollView>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:text="Custom Color (HEX/RGB)"
+                            android:fontFamily="@font/misans"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+                            <EditText
+                                android:id="@+id/input_custom_color"
+                                android:layout_width="0dp"
+                                android:layout_height="40dp"
+                                android:layout_weight="1"
+                                android:background="@drawable/bg_spinner_outline"
+                                android:paddingHorizontal="12dp"
+                                android:hint="#RRGGBB or R,G,B"
+                                android:fontFamily="@font/misans"
+                                android:textSize="13sp"
+                                android:textColor="@color/on_surface" />
+                            <Button
+                                android:id="@+id/btn_apply_color"
+                                android:layout_width="wrap_content"
+                                android:layout_height="40dp"
+                                android:layout_marginStart="8dp"
+                                android:text="Apply"
+                                android:textAllCaps="false"
+                                android:fontFamily="@font/misans"
+                                android:textSize="12sp"
+                                android:textColor="@color/on_primary"
+                                android:backgroundTint="@color/primary" />
+                        </LinearLayout>
                     </LinearLayout>
 
                     <LinearLayout
