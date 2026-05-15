@@ -174,6 +174,12 @@ public class ModsFullscreenActivity extends BaseActivity {
             }
 
             @Override
+            public void clearView(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
+                super.clearView(recyclerView, viewHolder);
+                modsAdapter.commitReorder();
+            }
+
+            @Override
             public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
                 int pos = viewHolder.getAdapterPosition();
                 Mod mod = modsAdapter.getItem(pos);
@@ -191,7 +197,9 @@ public class ModsFullscreenActivity extends BaseActivity {
                         .show();
             }
         };
-        new ItemTouchHelper(simpleCallback).attachToRecyclerView(modsRecycler);
+        ItemTouchHelper itemTouchHelper = new ItemTouchHelper(simpleCallback);
+        itemTouchHelper.attachToRecyclerView(modsRecycler);
+        modsAdapter.setItemTouchHelper(itemTouchHelper);
     }
 
     private void setupInbuiltModsRecycler() {
