@@ -18,6 +18,7 @@ public class GameVersion implements Parcelable {
     public boolean isExtractFalse;
     public String abiList;
     public boolean versionIsolation;
+    public boolean launchVertically;
     public final File modsDir;
 
     public GameVersion(String directoryName, String displayName, String versionCode, File versionDir, boolean isOfficial, String packageName, String abiList) {
@@ -33,6 +34,7 @@ public class GameVersion implements Parcelable {
         this.isExtractFalse = false;
         this.abiList = abiList;
         this.versionIsolation = false;
+        this.launchVertically = false;
         this.modsDir = versionDir == null ? null : new File(versionDir, "mods");
     }
 
@@ -50,6 +52,7 @@ public class GameVersion implements Parcelable {
         isExtractFalse = in.readByte()!= 0;
         abiList = in.readString();
         versionIsolation = in.readByte() != 0;
+        launchVertically = in.readByte() != 0;
         String modsDirPath = in.readString();
         modsDir = modsDirPath == null ? null : new File(modsDirPath);
     }
@@ -68,6 +71,7 @@ public class GameVersion implements Parcelable {
         dest.writeByte((byte) (isExtractFalse? 1 : 0));
         dest.writeString(abiList);
         dest.writeByte((byte) (versionIsolation ? 1 : 0));
+        dest.writeByte((byte) (launchVertically ? 1 : 0));
         dest.writeString(modsDir == null ? null : modsDir.getAbsolutePath());
     }
 

@@ -63,6 +63,12 @@ class MinecraftActivity : MainActivity() {
             return
         }
         super.onCreate(savedInstanceState)
+        
+        val launchVertically = intent.getBooleanExtra("LAUNCH_VERTICALLY", false)
+        if (launchVertically) {
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+        
         org.levimc.launcher.preloader.PreloaderInput.setActivity(this)
         MinecraftActivityState.onCreated(this)
     }

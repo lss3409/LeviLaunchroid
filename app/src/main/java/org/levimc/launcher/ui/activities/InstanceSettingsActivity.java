@@ -25,6 +25,7 @@ public class InstanceSettingsActivity extends BaseActivity {
 
     private EditText editName;
     private SwitchMaterial switchIsolation;
+    private SwitchMaterial switchLaunchVertically;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,6 +60,7 @@ public class InstanceSettingsActivity extends BaseActivity {
 
         editName = findViewById(R.id.edit_instance_name);
         switchIsolation = findViewById(R.id.switch_version_isolation);
+        switchLaunchVertically = findViewById(R.id.switch_launch_vertically);
 
         tabGeneral.setOnClickListener(v -> selectTab(tabGeneral));
         tabLaunchOptions.setOnClickListener(v -> selectTab(tabLaunchOptions));
@@ -97,6 +99,7 @@ public class InstanceSettingsActivity extends BaseActivity {
         editName.setText(currentName);
 
         switchIsolation.setChecked(version.versionIsolation);
+        switchLaunchVertically.setChecked(version.launchVertically);
     }
 
     private void selectTab(TextView selectedTab) {
@@ -152,6 +155,7 @@ public class InstanceSettingsActivity extends BaseActivity {
         }
 
         versionManager.setInstanceVersionIsolation(version, switchIsolation.isChecked());
+        versionManager.setInstanceLaunchVertically(version, switchLaunchVertically.isChecked());
 
         setResult(RESULT_OK);
         finish();
