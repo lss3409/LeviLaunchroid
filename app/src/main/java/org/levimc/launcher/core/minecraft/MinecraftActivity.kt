@@ -23,9 +23,8 @@ class MinecraftActivity : MainActivity() {
             val versionCode = intent.getStringExtra("MINECRAFT_VERSION") ?: ""
             val versionDirName = intent.getStringExtra("MINECRAFT_VERSION_DIR") ?: ""
             val isInstalled = intent.getBooleanExtra("IS_INSTALLED", false)
-            val isIsolated = FeatureSettings.getInstance().isVersionIsolationEnabled()
 
-            val version = if (isIsolated && !versionDir.isNullOrEmpty()) {
+            val version = if (!versionDir.isNullOrEmpty()) {
                 GameVersion(
                     versionDirName,
                     versionCode,
@@ -40,8 +39,8 @@ class MinecraftActivity : MainActivity() {
                     versionDirName,
                     versionCode,
                     versionCode,
-                    File(versionDir ?: ""),
-                    true,
+                    null,
+                    isInstalled,
                     MinecraftLauncher.MC_PACKAGE_NAME,
                     ""
                 )
@@ -191,9 +190,8 @@ class MinecraftActivity : MainActivity() {
 
     override fun getFilesDir(): File {
         val mcPath = intent.getStringExtra("MC_PATH")
-        val isVersionIsolationEnabled = FeatureSettings.getInstance().isVersionIsolationEnabled()
 
-        return if (isVersionIsolationEnabled && !mcPath.isNullOrEmpty()) {
+        return if (!mcPath.isNullOrEmpty()) {
             val filesDir = File(mcPath, "games/com.mojang")
             if (!filesDir.exists()) {
                 filesDir.mkdirs()
@@ -211,9 +209,8 @@ class MinecraftActivity : MainActivity() {
 
     override fun getDataDir(): File {
         val mcPath = intent.getStringExtra("MC_PATH")
-        val isVersionIsolationEnabled = FeatureSettings.getInstance().isVersionIsolationEnabled()
 
-        return if (isVersionIsolationEnabled && !mcPath.isNullOrEmpty()) {
+        return if (!mcPath.isNullOrEmpty()) {
             val dataDir = File(mcPath)
             if (!dataDir.exists()) {
                 dataDir.mkdirs()
@@ -226,9 +223,8 @@ class MinecraftActivity : MainActivity() {
 
     override fun getExternalFilesDir(type: String?): File? {
         val mcPath = intent.getStringExtra("MC_PATH")
-        val isVersionIsolationEnabled = FeatureSettings.getInstance().isVersionIsolationEnabled()
 
-        return if (isVersionIsolationEnabled && !mcPath.isNullOrEmpty()) {
+        return if (!mcPath.isNullOrEmpty()) {
             val externalDir = if (type != null) {
                 File(mcPath, "games/com.mojang/$type")
             } else {
@@ -245,9 +241,8 @@ class MinecraftActivity : MainActivity() {
 
     override fun getDatabasePath(name: String): File {
         val mcPath = intent.getStringExtra("MC_PATH")
-        val isVersionIsolationEnabled = FeatureSettings.getInstance().isVersionIsolationEnabled()
 
-        return if (isVersionIsolationEnabled && !mcPath.isNullOrEmpty()) {
+        return if (!mcPath.isNullOrEmpty()) {
             val dbDir = File(mcPath, "databases")
             if (!dbDir.exists()) {
                 dbDir.mkdirs()
@@ -260,9 +255,8 @@ class MinecraftActivity : MainActivity() {
 
     override fun getCacheDir(): File {
         val mcPath = intent.getStringExtra("MC_PATH")
-        val isVersionIsolationEnabled = FeatureSettings.getInstance().isVersionIsolationEnabled()
 
-        return if (isVersionIsolationEnabled && !mcPath.isNullOrEmpty()) {
+        return if (!mcPath.isNullOrEmpty()) {
             val cacheDir = File(mcPath, "cache")
             if (!cacheDir.exists()) {
                 cacheDir.mkdirs()
