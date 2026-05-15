@@ -379,7 +379,7 @@ public class ContentDetailsActivity extends BaseActivity {
         File behaviorPacksDir = getPackDirectory("behavior_packs");
         File skinPacksDir = getPackDirectory("skin_packs");
 
-        contentImporter.importContent(uri, resourcePacksDir, behaviorPacksDir, skinPacksDir, worldsDir,
+        contentImporter.importContent(java.util.Collections.singletonList(uri), resourcePacksDir, behaviorPacksDir, skinPacksDir, worldsDir,
             new ContentImporter.ImportCallback() {
                 @Override
                 public void onSuccess(String message) {

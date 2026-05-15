@@ -49,66 +49,86 @@ public class ContentImporter {
         this.executor = Executors.newSingleThreadExecutor();
     }
 
-    public void importContent(Uri uri, File resourcePacksDir, File behaviorPacksDir, 
+    public void importContent(List<Uri> uris, File resourcePacksDir, File behaviorPacksDir, 
                               File skinPacksDir, File worldsDir, ImportCallback callback) {
         executor.execute(() -> {
             try {
-                String fileName = getFileName(uri);
-                if (fileName == null || fileName.isEmpty()) {
-                    fileName = "content.mcpack";
-                }
-                String lowerName = fileName.toLowerCase();
-                Log.d(TAG, "Importing file: " + fileName);
+                ImportResult totalResult = new ImportResult();
+                StringBuilder errors = new StringBuilder();
 
-                InputStream inputStream = context.getContentResolver().openInputStream(uri);
-                if (inputStream == null) {
-                    callback.onError("Cannot open file");
-                    return;
-                }
+                for (Uri uri : uris) {
+                    try {
+                        String fileName = getFileName(uri);
+                        if (fileName == null || fileName.isEmpty()) {
+                            fileName = "content.mcpack";
+                        }
+                        String lowerName = fileName.toLowerCase();
+                        Log.d(TAG, "Importing file: " + fileName);
 
-                File tempFile = new File(context.getCacheDir(), "temp_import_" + System.currentTimeMillis());
-                copyStreamToFile(inputStream, tempFile);
-                inputStream.close();
+                        InputStream inputStream = context.getContentResolver().openInputStream(uri);
+                        if (inputStream == null) {
+                            errors.append("Cannot open file: ").append(fileName).append("\n");
+                            continue;
+                        }
 
-                ImportResult result = new ImportResult();
+                        File tempFile = new File(context.getCacheDir(), "temp_import_" + System.currentTimeMillis());
+                        copyStreamToFile(inputStream, tempFile);
+                        inputStream.close();
 
-                if (lowerName.endsWith(".mcworld")) {
-                    importMcworld(tempFile, worldsDir, result);
-                } else if (lowerName.endsWith(".mcaddon")) {
-                    importMcaddon(tempFile, resourcePacksDir, behaviorPacksDir, skinPacksDir, result);
-                } else if (lowerName.endsWith(".mcpack")) {
-                    importMcpack(tempFile, resourcePacksDir, behaviorPacksDir, skinPacksDir, result);
-                } else {
-                    importMcpack(tempFile, resourcePacksDir, behaviorPacksDir, skinPacksDir, result);
-                    if (result.resourcePacksImported == 0 && result.behaviorPacksImported == 0 && result.skinPacksImported == 0) {
-                        importMcaddon(tempFile, resourcePacksDir, behaviorPacksDir, skinPacksDir, result);
+                        ImportResult result = new ImportResult();
+
+                        if (lowerName.endsWith(".mcworld")) {
+                            importMcworld(tempFile, worldsDir, result);
+                        } else if (lowerName.endsWith(".mcaddon")) {
+                            importMcaddon(tempFile, resourcePacksDir, behaviorPacksDir, skinPacksDir, result);
+                        } else if (lowerName.endsWith(".mcpack")) {
+                            importMcpack(tempFile, resourcePacksDir, behaviorPacksDir, skinPacksDir, result);
+                        } else {
+                            importMcpack(tempFile, resourcePacksDir, behaviorPacksDir, skinPacksDir, result);
+                            if (result.resourcePacksImported == 0 && result.behaviorPacksImported == 0 && result.skinPacksImported == 0) {
+                                importMcaddon(tempFile, resourcePacksDir, behaviorPacksDir, skinPacksDir, result);
+                            }
+                            if (result.resourcePacksImported == 0 && result.behaviorPacksImported == 0 && 
+                                result.skinPacksImported == 0 && result.worldsImported == 0) {
+                                importMcworld(tempFile, worldsDir, result);
+                            }
+                        }
+
+                        totalResult.resourcePacksImported += result.resourcePacksImported;
+                        totalResult.behaviorPacksImported += result.behaviorPacksImported;
+                        totalResult.skinPacksImported += result.skinPacksImported;
+                        totalResult.worldsImported += result.worldsImported;
+
+                        tempFile.delete();
+
+                    } catch (Exception e) {
+                        Log.e(TAG, "Import failed for uri: " + uri, e);
+                        errors.append("Failed for ").append(uri.getLastPathSegment()).append(": ").append(e.getMessage()).append("\n");
                     }
-                    if (result.resourcePacksImported == 0 && result.behaviorPacksImported == 0 && 
-                        result.skinPacksImported == 0 && result.worldsImported == 0) {
-                        importMcworld(tempFile, worldsDir, result);
-                    }
                 }
-
-                tempFile.delete();
 
                 StringBuilder message = new StringBuilder();
-                if (result.worldsImported > 0) {
-                    message.append("Worlds: ").append(result.worldsImported).append(" ");
+                if (totalResult.worldsImported > 0) {
+                    message.append("Worlds: ").append(totalResult.worldsImported).append(" ");
                 }
-                if (result.resourcePacksImported > 0) {
-                    message.append("Resource Packs: ").append(result.resourcePacksImported).append(" ");
+                if (totalResult.resourcePacksImported > 0) {
+                    message.append("Resource Packs: ").append(totalResult.resourcePacksImported).append(" ");
                 }
-                if (result.behaviorPacksImported > 0) {
-                    message.append("Behavior Packs: ").append(result.behaviorPacksImported).append(" ");
+                if (totalResult.behaviorPacksImported > 0) {
+                    message.append("Behavior Packs: ").append(totalResult.behaviorPacksImported).append(" ");
                 }
-                if (result.skinPacksImported > 0) {
-                    message.append("Skin Packs: ").append(result.skinPacksImported).append(" ");
+                if (totalResult.skinPacksImported > 0) {
+                    message.append("Skin Packs: ").append(totalResult.skinPacksImported).append(" ");
                 }
 
                 if (message.length() == 0) {
-                    callback.onError("No content was imported");
+                    callback.onError(errors.length() > 0 ? errors.toString().trim() : "No content was imported");
                 } else {
-                    callback.onSuccess("Imported: " + message.toString().trim());
+                    String finalMessage = "Imported: " + message.toString().trim();
+                    if (errors.length() > 0) {
+                        finalMessage += "\nErrors:\n" + errors.toString().trim();
+                    }
+                    callback.onSuccess(finalMessage);
                 }
 
             } catch (Exception e) {

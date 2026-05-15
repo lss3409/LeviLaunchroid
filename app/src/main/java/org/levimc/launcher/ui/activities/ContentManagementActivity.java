@@ -22,7 +22,8 @@ import org.levimc.launcher.settings.FeatureSettings;
 import org.levimc.launcher.ui.animation.DynamicAnim;
 
 import java.io.File;
-
+import java.util.ArrayList;
+import java.util.List;
 public class ContentManagementActivity extends BaseActivity {
     
     private static final String PREFS_NAME = "content_management";
@@ -55,9 +56,18 @@ public class ContentManagementActivity extends BaseActivity {
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                    Uri uri = result.getData().getData();
-                    if (uri != null) {
-                        handleImport(uri);
+                    Intent data = result.getData();
+                    List<Uri> uris = new ArrayList<>();
+                    if (data.getClipData() != null) {
+                        int count = data.getClipData().getItemCount();
+                        for (int i = 0; i < count; i++) {
+                            uris.add(data.getClipData().getItemAt(i).getUri());
+                        }
+                    } else if (data.getData() != null) {
+                        uris.add(data.getData());
+                    }
+                    if (!uris.isEmpty()) {
+                        handleImport(uris);
                     }
                 }
             }
@@ -93,10 +103,11 @@ public class ContentManagementActivity extends BaseActivity {
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.setType("*/*");
         intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"application/zip", "application/octet-stream"});
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
         importLauncher.launch(Intent.createChooser(intent, getString(R.string.import_content_title)));
     }
 
-    private void handleImport(Uri uri) {
+    private void handleImport(List<Uri> uris) {
         GameVersion currentVersion = versionManager.getSelectedVersion();
         if (currentVersion == null) {
             Toast.makeText(this, R.string.not_found_version, Toast.LENGTH_SHORT).show();
@@ -108,7 +119,7 @@ public class ContentManagementActivity extends BaseActivity {
         File behaviorPacksDir = getPackDirectory("behavior_packs");
         File skinPacksDir = getPackDirectory("skin_packs");
 
-        contentImporter.importContent(uri, resourcePacksDir, behaviorPacksDir, skinPacksDir, worldsDir,
+        contentImporter.importContent(uris, resourcePacksDir, behaviorPacksDir, skinPacksDir, worldsDir,
             new ContentImporter.ImportCallback() {
                 @Override
                 public void onSuccess(String message) {
