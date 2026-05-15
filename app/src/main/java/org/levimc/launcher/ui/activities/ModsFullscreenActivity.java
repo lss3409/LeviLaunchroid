@@ -17,6 +17,8 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.SimpleItemAnimator;
 import androidx.core.view.ViewCompat;
 import androidx.core.app.ActivityOptionsCompat;
+import androidx.core.widget.NestedScrollView;
+import android.graphics.Canvas;
 import org.levimc.launcher.R;
 import org.levimc.launcher.core.mods.FileHandler;
 import org.levimc.launcher.core.mods.Mod;
@@ -164,7 +166,10 @@ public class ModsFullscreenActivity extends BaseActivity {
             }
         });
         
+        NestedScrollView nestedScrollView = findViewById(R.id.nested_scroll_view);
         ItemTouchHelper.SimpleCallback simpleCallback = new ItemTouchHelper.SimpleCallback(ItemTouchHelper.UP | ItemTouchHelper.DOWN, ItemTouchHelper.LEFT) {
+            private long lastScrollTime = 0;
+
             @Override
             public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder, @NonNull RecyclerView.ViewHolder target) {
                 int fromPosition = viewHolder.getAdapterPosition();
@@ -177,6 +182,41 @@ public class ModsFullscreenActivity extends BaseActivity {
             public void clearView(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
                 super.clearView(recyclerView, viewHolder);
                 modsAdapter.commitReorder();
+            }
+
+            @Override
+            public void onChildDraw(@NonNull Canvas c, @NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder, float dX, float dY, int actionState, boolean isCurrentlyActive) {
+                super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive);
+                if (actionState == ItemTouchHelper.ACTION_STATE_DRAG && isCurrentlyActive && nestedScrollView != null) {
+                    long now = System.currentTimeMillis();
+                    if (now - lastScrollTime > 16) {
+                        int[] location = new int[2];
+                        viewHolder.itemView.getLocationOnScreen(location);
+                        int y = location[1];
+
+                        nestedScrollView.getLocationOnScreen(location);
+                        int svY = location[1];
+                        int svHeight = nestedScrollView.getHeight();
+
+                        int scrollZone = (int) (80 * recyclerView.getResources().getDisplayMetrics().density);
+                        int scrollAmount = 0;
+                        int maxScrollSpeed = 15;
+
+                        if (y < svY + scrollZone) {
+                            float ratio = 1.0f - Math.max(0, y - svY) / (float) scrollZone;
+                            scrollAmount = (int) (-maxScrollSpeed * ratio);
+                        } else if (y + viewHolder.itemView.getHeight() > svY + svHeight - scrollZone) {
+                            float ratio = 1.0f - Math.max(0, svY + svHeight - (y + viewHolder.itemView.getHeight())) / (float) scrollZone;
+                            scrollAmount = (int) (maxScrollSpeed * ratio);
+                        }
+
+                        if (scrollAmount != 0) {
+                            nestedScrollView.scrollBy(0, scrollAmount);
+                            lastScrollTime = now;
+                            recyclerView.invalidate();
+                        }
+                    }
+                }
             }
 
             @Override
