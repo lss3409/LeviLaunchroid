@@ -158,6 +158,98 @@
                         android:clickable="true"
                         android:focusable="true" />
                 </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginBottom="2dp"
+                    android:background="#1A000000" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <com.microsoft.xbox.idp.toolkit.CircleImageView
+                        android:id="@+id/maintainer_avatar"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:src="@drawable/ic_qa_account"
+                        android:scaleType="centerCrop" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:orientation="vertical">
+
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="MrPokeG"
+                                android:fontFamily="@font/misans"
+                                android:textColor="@color/on_surface"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/maintainer_badge"
+                                android:layout_width="wrap_content"
+                                android:layout_height="18dp"
+                                android:layout_marginStart="8dp"
+                                android:paddingHorizontal="8dp"
+                                android:gravity="center"
+                                android:text="Maintainer"
+                                android:fontFamily="@font/misans"
+                                android:textColor="@color/on_primary"
+                                android:textSize="9sp"
+                                android:textStyle="bold"
+                                android:background="@drawable/bg_author_badge" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Maintainer"
+                            android:fontFamily="@font/misans"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/btn_youtube_maintainer"
+                        android:layout_width="wrap_content"
+                        android:layout_height="28dp"
+                        android:paddingHorizontal="14dp"
+                        android:gravity="center"
+                        android:text="YouTube"
+                        android:fontFamily="@font/misans"
+                        android:textColor="#FF0000"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:background="@drawable/bg_link_chip_pink"
+                        android:drawableStart="@drawable/ic_youtube"
+                        android:drawablePadding="6dp"
+                        android:clickable="true"
+                        android:focusable="true" />
+                </LinearLayout>
             </LinearLayout>
 
             <LinearLayout

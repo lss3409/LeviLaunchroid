@@ -25,6 +25,8 @@ public class AboutActivity extends BaseActivity {
     private static final String URL_REPO = "https://github.com/LiteLDev/LeviLaunchroid";
     private static final String URL_ORG = "https://github.com/LiteLDev";
     private static final String URL_ISSUES = "https://github.com/LiteLDev/LeviLaunchroid/issues";
+    private static final String MAINTAINER_AVATAR_URL = "https://yt3.googleusercontent.com/ft4khqXZ_fQn-DbSLg91kQy3_JUQ_73rbg18nOcmMtunX5bq25jzrThWQAk9YsFkTKFesUL7sg8=s160-c-k-c0x00ffffff-no-rj";
+    private static final String URL_YOUTUBE = "https://www.youtube.com/c/mrpokeg";
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final OkHttpClient client = new OkHttpClient();
@@ -35,16 +37,16 @@ public class AboutActivity extends BaseActivity {
         setContentView(R.layout.activity_about);
         setupNavBar();
 
-        loadAuthorAvatar();
+        loadAvatars();
         setupLinks();
-        styleAuthorBadge();
+        styleBadges();
 
         DynamicAnim.applyPressScaleRecursively(findViewById(android.R.id.content));
     }
 
-    private void styleAuthorBadge() {
-        TextView badge = findViewById(R.id.author_badge);
-        if (badge == null) return;
+    private void styleBadges() {
+        TextView authorBadge = findViewById(R.id.author_badge);
+        TextView maintainerBadge = findViewById(R.id.maintainer_badge);
 
         org.levimc.launcher.util.PersonalizationManager pm = new org.levimc.launcher.util.PersonalizationManager(this);
         int accent = pm.getAccentColor();
@@ -53,8 +55,14 @@ public class AboutActivity extends BaseActivity {
             gd.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
             gd.setColor(accent);
             gd.setCornerRadius(4 * getResources().getDisplayMetrics().density);
-            badge.setBackground(gd);
-            badge.setTextColor(android.graphics.Color.WHITE);
+            if (authorBadge != null) {
+                authorBadge.setBackground(gd);
+                authorBadge.setTextColor(android.graphics.Color.WHITE);
+            }
+            if (maintainerBadge != null) {
+                maintainerBadge.setBackground(gd);
+                maintainerBadge.setTextColor(android.graphics.Color.WHITE);
+            }
         }
     }
 
@@ -63,18 +71,32 @@ public class AboutActivity extends BaseActivity {
         findViewById(R.id.nav_tab_about).setOnClickListener(v -> {});
     }
 
-    private void loadAuthorAvatar() {
+    private void loadAvatars() {
         com.microsoft.xbox.idp.toolkit.CircleImageView avatar = findViewById(R.id.author_avatar);
-        if (avatar == null) return;
+        com.microsoft.xbox.idp.toolkit.CircleImageView maintainerAvatar = findViewById(R.id.maintainer_avatar);
 
         executor.execute(() -> {
             try {
-                Response resp = client.newCall(new Request.Builder().url(AVATAR_URL).build()).execute();
-                if (resp.isSuccessful() && resp.body() != null) {
-                    Bitmap bmp = BitmapFactory.decodeStream(resp.body().byteStream());
-                    runOnUiThread(() -> {
-                        if (bmp != null) avatar.setImageBitmap(bmp);
-                    });
+                if (avatar != null) {
+                    Response resp = client.newCall(new Request.Builder().url(AVATAR_URL).build()).execute();
+                    if (resp.isSuccessful() && resp.body() != null) {
+                        Bitmap bmp = BitmapFactory.decodeStream(resp.body().byteStream());
+                        runOnUiThread(() -> {
+                            if (bmp != null) avatar.setImageBitmap(bmp);
+                        });
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            try {
+                if (maintainerAvatar != null) {
+                    Response resp = client.newCall(new Request.Builder().url(MAINTAINER_AVATAR_URL).build()).execute();
+                    if (resp.isSuccessful() && resp.body() != null) {
+                        Bitmap bmp = BitmapFactory.decodeStream(resp.body().byteStream());
+                        runOnUiThread(() -> {
+                            if (bmp != null) maintainerAvatar.setImageBitmap(bmp);
+                        });
+                    }
                 }
             } catch (Exception ignored) {}
         });
@@ -87,6 +109,7 @@ public class AboutActivity extends BaseActivity {
         setupLinkButton(R.id.btn_github_org, URL_ORG);
         setupLinkButton(R.id.btn_issues, URL_ISSUES);
         setupLinkButton(R.id.btn_star_fork, URL_REPO);
+        setupLinkButton(R.id.btn_youtube_maintainer, URL_YOUTUBE);
     }
 
     private void setupLinkButton(int viewId, String url) {

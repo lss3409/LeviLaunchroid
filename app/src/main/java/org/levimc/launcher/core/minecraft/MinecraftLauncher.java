@@ -137,6 +137,7 @@ public class MinecraftLauncher {
                 sourceIntent.putExtra("MINECRAFT_VERSION", version.versionCode);
                 sourceIntent.putExtra("MINECRAFT_VERSION_DIR", version.directoryName);
                 sourceIntent.putExtra("LAUNCH_VERTICALLY", version.launchVertically);
+                sourceIntent.putExtra("VERSION_ISOLATION", version.versionIsolation);
 
                 if (shouldLoadHttpClient(version)) {
                     gameManager.loadLibrary("c++_shared");
