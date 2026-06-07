@@ -11,7 +11,7 @@
     <string name="current_instance">現在のインスタンス</string>
 
     <!-- Mods -->
-    <string name="mods_title">🧩 モッド (%d)</string>
+    <string name="mods_title">モッド (%d)</string>
     <string name="mods_section_title">モッド</string>
     <string name="external_mods_label">外部モッド</string>
     <string name="inbuilt_mods_label">内蔵モッド</string>

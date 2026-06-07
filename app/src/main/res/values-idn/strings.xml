@@ -7,8 +7,8 @@
     <string name="debug_badge">Debug</string>
 
     <!-- Mods -->
-    <string name="mods_title">🧩 Mods (%d)</string>
-    <string name="mods_section_title">🧩 Mods</string>
+    <string name="mods_title">Mods (%d)</string>
+    <string name="mods_section_title">Mods</string>
     <string name="external_mods_label">Mods Eksternal</string>
     <string name="inbuilt_mods_label">Mods Bawaan</string>
     <string name="manage_mods">Kelola Mods</string>
@@ -272,7 +272,7 @@
     <string name="genuine_badge_label">Lisensi tidak ter-verifikasi</string>
     <string name="invalid_license_detected_toast">Minecraft palsu terdeteksi. Pastikan Minecraft Anda berasal dari Google Play Store.</string>
 
-    <string name="full_mods_title">🧩 Mods </string>
+    <string name="full_mods_title">Mods </string>
     <string name="total_mods">Total Mods:</string>
     <string name="enabled_mods">Aktif:</string>
     <string name="add_mod">Tambahkan Mod</string>
