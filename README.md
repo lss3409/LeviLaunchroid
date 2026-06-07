@@ -12,7 +12,7 @@
 [![License: Apache 2.0](https://img.shields.io/github/license/LiteLDev/LeviLaunchroid)](https://github.com/LiteLDev/LeviLaunchroid/blob/main/LICENSE)
 [![Issues](https://img.shields.io/github/issues/LiteLDev/LeviLaunchroid?style=flat-square&color=red)](https://github.com/LiteLDev/LeviLaunchroid/issues)
 [![Stars](https://img.shields.io/github/stars/LiteLDev/LeviLaunchroid?style=flat-square&color=yellow)](https://github.com/LiteLDev/LeviLaunchroid)
-[![Android](https://img.shields.io/badge/Android-7.0%2B-green?style=flat-square&logo=android)](https://www.android.com/)
+[![Android](https://img.shields.io/badge/Android-9.0%2B-green?style=flat-square&logo=android)](https://www.android.com/)
 
 </div>
 
@@ -38,13 +38,13 @@ LeviLauncher enables you to import your official Minecraft APK and run it direct
 
 Before installing LeviLauncher, ensure your device meets the following minimum specifications:
 
-- **Operating System:** Android 8.0 (API 26) or higher
+- **Operating System:** Android 9.0 (API 28) or higher
 - **Device Architecture:** ARM64 (v8a)
 - **RAM:** Minimum 1 GB available RAM (2 GB or more recommended)
 - **Storage:** At least 2 GB of available storage for Minecraft and game data
 - **License Requirement:** You must own a licensed copy of Minecraft Bedrock Edition purchased from Google Play
 
-> **Note:** For optimal performance and stability, we recommend Android 8.0 or higher with at least 3 GB of available RAM and 5 GB of free storage.
+> **Note:** For optimal performance and stability, we recommend Android 9.0 or higher with at least 3 GB of available RAM and 5 GB of free storage.
 
 ---
 
@@ -76,7 +76,7 @@ If you want to build LeviLauncher from source or contribute to development, foll
 - Git installed on your system
 - Android Studio (latest version recommended)
 - Java Development Kit (JDK) 21 or higher
-- Android SDK with API level 24 or higher
+- Android SDK with API level 28 or higher
 
 ### Setup Instructions
 
@@ -92,7 +92,7 @@ If you want to build LeviLauncher from source or contribute to development, foll
 
 4. Wait for Gradle to complete the initial sync process
 
-5. Connect your Android device or start an emulator (API 24+)
+5. Connect your Android device or start an emulator (API 28+)
 
 6. Click the "Run" button in Android Studio to build and deploy to your device
 
@@ -168,7 +168,6 @@ LeviLauncher would not be possible without the contributions and support of many
 
 - **LeviMC Organization** – For maintaining the LeviLauncher project and providing infrastructure support
 - **Android Community** – For excellent documentation, libraries, and tools that made this launcher possible
-- **UnpairedCore Library** – For providing essential utilities and components used in LeviLauncher. See [Kitsuri Studios - UnpairCore](https://github.com/Kitsuri-Studios/unpaircore)
 - **Open Source Community** – For all the libraries, frameworks, and tools that power this project
 - **Contributors** – A heartfelt thank you to all [contributors](https://github.com/LiteLDev/LeviLaunchroid/graphs/contributors) who have continuously improved and maintained LeviLauncher through their time and expertise
 
@@ -192,7 +191,7 @@ LeviLauncher would not be possible without the contributions and support of many
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Issues](https://img.shields.io/github/issues/LiteLDev/LeviLaunchroid?style=flat-square&color=red)](https://github.com/LiteLDev/LeviLaunchroid/issues)
 [![Stars](https://img.shields.io/github/stars/LiteLDev/LeviLaunchroid?style=flat-square&color=yellow)](https://github.com/LiteLDev/LeviLaunchroid)
-[![Android](https://img.shields.io/badge/Android-7.0%2B-green?style=flat-square&logo=android)](https://www.android.com/)
+[![Android](https://img.shields.io/badge/Android-9.0%2B-green?style=flat-square&logo=android)](https://www.android.com/)
 
 **Made with ❤️ by the LeviMC Community**
 
