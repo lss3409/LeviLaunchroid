@@ -40,6 +40,7 @@
     <string name="content_detected_message">今すぐゲームを起動しますか？\n\nファイル: %s</string>
     <string name="launch_now">今すぐ起動</string>
     <string name="launch_later">後で起動</string>
+    <string name="loading">読み込み中…</string>
 
     <string name="import_confirmation_title">モッドのインポート</string>
     <string name="import_confirmation_message">選択した %d 個のモッドファイルをインポートしてもよろしいですか？</string>
@@ -264,6 +265,15 @@
     <string name="confirm_delete_resource_pack">このパックを削除してもよろしいですか？この操作は元に戻せません。</string>
     <string name="confirm_delete_behavior_pack">このパックを削除してもよろしいですか？この操作は元に戻せません。</string>
     <string name="confirm_delete_skin_pack">このパックを削除してもよろしいですか？この操作は元に戻せません。</string>
+    <string name="importing_content">コンテンツをインポート中…</string>
+    <string name="exporting_world">ワールドをエクスポート中…</string>
+    <string name="exporting_pack">パックをエクスポート中…</string>
+    <string name="backing_up_world">ワールドをバックアップ中…</string>
+    <string name="deleting_world">ワールドを削除中…</string>
+    <string name="deleting_pack">パックを削除中…</string>
+    <string name="adding_server">サーバーを追加中…</string>
+    <string name="deleting_screenshot">スクリーンショットを削除中…</string>
+    <string name="deleting_server">サーバーを削除中…</string>
 
     <string name="edit_world">ワールドの編集</string>
     <string name="edit">編集</string>

@@ -40,6 +40,7 @@
     <string name="content_detected_message">क्या आप अभी गेम लॉन्च करना चाहते हैं?\n\nफ़ाइल: %s</string>
     <string name="launch_now">अभी लॉन्च करें</string>
     <string name="launch_later">बाद में लॉन्च करें</string>
+    <string name="loading">लोड हो रहा है…</string>
 
     <string name="import_confirmation_title">मॉड्स आयात करें</string>
     <string name="import_confirmation_message">क्या आप सुनिश्चित हैं कि आप चयनित %d मॉड फ़ाइलों को आयात करना चाहते हैं?</string>
@@ -270,6 +271,15 @@
     <string name="confirm_delete_resource_pack">क्या आप निश्चित रूप से इस रिसोर्स पैक को हटाना चाहते हैं? यह कार्रवाई पूर्ववत नहीं की जा सकती।</string>
     <string name="confirm_delete_behavior_pack">क्या आप निश्चित रूप से इस बिहेवियर पैक को हटाना चाहते हैं? यह कार्रवाई पूर्ववत नहीं की जा सकती।</string>
     <string name="confirm_delete_skin_pack">क्या आप निश्चित रूप से इस स्किन पैक को हटाना चाहते हैं? यह कार्रवाई पूर्ववत नहीं की जा सकती।</string>
+    <string name="importing_content">सामग्री आयात की जा रही है…</string>
+    <string name="exporting_world">वर्ल्ड निर्यात किया जा रहा है…</string>
+    <string name="exporting_pack">पैक निर्यात किया जा रहा है…</string>
+    <string name="backing_up_world">वर्ल्ड का बैकअप लिया जा रहा है…</string>
+    <string name="deleting_world">वर्ल्ड हटाया जा रहा है…</string>
+    <string name="deleting_pack">पैक हटाया जा रहा है…</string>
+    <string name="adding_server">सर्वर जोड़ा जा रहा है…</string>
+    <string name="deleting_screenshot">स्क्रीनशॉट हटाया जा रहा है…</string>
+    <string name="deleting_server">सर्वर हटाया जा रहा है…</string>
 
     <!-- World Editor -->
     <string name="edit_world">वर्ल्ड संपादित करें</string>

@@ -40,6 +40,7 @@
     <string name="content_detected_message">Você quer iniciar o jogo agora?\n\nArquivo: %s</string>
     <string name="launch_now">Iniciar Agora</string>
     <string name="launch_later">Iniciar Depois</string>
+    <string name="loading">Carregando…</string>
 
     <string name="import_confirmation_title">Importar Mods</string>
     <string name="import_confirmation_message">Tem certeza de que deseja importar os %d arquivos de mods selecionados?</string>
@@ -264,6 +265,15 @@
     <string name="confirm_delete_resource_pack">Deseja realmente excluir este pacote? Essa ação não pode ser desfeita.</string>
     <string name="confirm_delete_behavior_pack">Deseja realmente excluir este pacote? Essa ação não pode ser desfeita.</string>
     <string name="confirm_delete_skin_pack">Deseja realmente excluir este pacote? Essa ação não pode ser desfeita.</string>
+    <string name="importing_content">Importando conteúdo…</string>
+    <string name="exporting_world">Exportando mundo…</string>
+    <string name="exporting_pack">Exportando pacote…</string>
+    <string name="backing_up_world">Fazendo backup do mundo…</string>
+    <string name="deleting_world">Excluindo mundo…</string>
+    <string name="deleting_pack">Excluindo pacote…</string>
+    <string name="adding_server">Adicionando servidor…</string>
+    <string name="deleting_screenshot">Excluindo captura de tela…</string>
+    <string name="deleting_server">Excluindo servidor…</string>
 
     <string name="edit_world">Editar Mundo</string>
     <string name="edit">Editar</string>

@@ -32,6 +32,7 @@
     <string name="content_detected_message">是否立即启动游戏？\n\n文件：%s</string>
     <string name="launch_now">立即启动</string>
     <string name="launch_later">稍后启动</string>
+    <string name="loading">加载中…</string>
 
     <string name="import_confirmation_title">导入模组</string>
     <string name="import_confirmation_message">确定要导入所选的 %d 个模组文件吗？</string>
@@ -226,6 +227,15 @@
     <string name="confirm_delete_resource_pack">您确定要删除这个资源包吗？此操作无法撤销。</string>
     <string name="confirm_delete_behavior_pack">您确定要删除这个行为包吗？此操作无法撤销。</string>
     <string name="confirm_delete_skin_pack">您确定要删除这个皮肤包吗？此操作无法撤销。</string>
+    <string name="importing_content">正在导入内容…</string>
+    <string name="exporting_world">正在导出世界…</string>
+    <string name="exporting_pack">正在导出包…</string>
+    <string name="backing_up_world">正在备份世界…</string>
+    <string name="deleting_world">正在删除世界…</string>
+    <string name="deleting_pack">正在删除包…</string>
+    <string name="adding_server">正在添加服务器…</string>
+    <string name="deleting_screenshot">正在删除截图…</string>
+    <string name="deleting_server">正在删除服务器…</string>
 
     <!-- World Editor -->
     <string name="edit_world">编辑世界</string>

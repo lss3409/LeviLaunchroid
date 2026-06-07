@@ -33,6 +33,7 @@
     <string name="content_detected_message">Хотите запустить игру сейчас?\n\nФайл: %s</string>
     <string name="launch_now">Запустить сейчас</string>
     <string name="launch_later">Запустить позже</string>
+    <string name="loading">Загрузка…</string>
 
     <string name="import_confirmation_title">Импортировать моды</string>
     <string name="import_confirmation_message">Вы уверены в том что хотите импортировать выбранные %d файлы модов?</string>
@@ -228,6 +229,15 @@
     <string name="confirm_delete_resource_pack">Вы уверены, что хотите удалить этот набор ресурсов? Это действие необратимо.</string>
     <string name="confirm_delete_behavior_pack">Вы уверены, что хотите удалить этот набор поведений? Это действие необратимо.</string>
     <string name="confirm_delete_skin_pack">Вы уверены, что хотите удалить этот скин-пак? Это действие необратимо.</string>
+    <string name="importing_content">Импорт контента…</string>
+    <string name="exporting_world">Экспорт мира…</string>
+    <string name="exporting_pack">Экспорт набора…</string>
+    <string name="backing_up_world">Резервное копирование мира…</string>
+    <string name="deleting_world">Удаление мира…</string>
+    <string name="deleting_pack">Удаление набора…</string>
+    <string name="adding_server">Добавление сервера…</string>
+    <string name="deleting_screenshot">Удаление скриншота…</string>
+    <string name="deleting_server">Удаление сервера…</string>
 
     <!-- World Editor -->
     <string name="edit_world">Редактировать мир</string>

@@ -33,6 +33,7 @@
     <string name="content_detected_message">Apakah Anda ingin meluncurkan game sekarang?\n\nFile: %s</string>
     <string name="launch_now">Luncurkan Sekarang</string>
     <string name="launch_later">Luncurkan Nanti</string>
+    <string name="loading">Memuat…</string>
 
     <string name="import_confirmation_title">Impor Mod</string>
     <string name="import_confirmation_message">Apakah Anda yakin ingin mengimpor %d file mod yang dipilih?</string>
@@ -233,6 +234,15 @@
     <string name="confirm_delete_resource_pack">Apakah Anda yakin ingin menghapus paket sumber daya ini? Tindakan ini tidak dapat dibatalkan.</string>
     <string name="confirm_delete_behavior_pack">Apakah Anda yakin ingin menghapus paket perilaku ini? Tindakan ini tidak dapat dibatalkan.</string>
     <string name="confirm_delete_skin_pack">Apakah Anda yakin ingin menghapus paket kulit(skin) ini? Tindakan ini tidak dapat dibatalkan.</string>
+    <string name="importing_content">Mengimpor konten…</string>
+    <string name="exporting_world">Mengekspor dunia…</string>
+    <string name="exporting_pack">Mengekspor paket…</string>
+    <string name="backing_up_world">Mencadangkan dunia…</string>
+    <string name="deleting_world">Menghapus dunia…</string>
+    <string name="deleting_pack">Menghapus paket…</string>
+    <string name="adding_server">Menambahkan server…</string>
+    <string name="deleting_screenshot">Menghapus tangkapan layar…</string>
+    <string name="deleting_server">Menghapus server…</string>
 
     <!-- World Editor -->
     <string name="edit_world">Edit Dunia</string>

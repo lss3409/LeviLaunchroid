@@ -40,6 +40,7 @@
     <string name="content_detected_message">Voulez-vous lancer le jeu maintenant ?\n\nFichier : %s</string>
     <string name="launch_now">Lancer maintenant</string>
     <string name="launch_later">Lancer plus tard</string>
+    <string name="loading">Chargement…</string>
 
     <string name="import_confirmation_title">Importer des Mods</string>
     <string name="import_confirmation_message">Êtes-vous sûr de vouloir importer les %d fichiers mods sélectionnés ?</string>
@@ -264,6 +265,15 @@
     <string name="confirm_delete_resource_pack">Voulez-vous vraiment supprimer ce pack ? Cette action est irréversible.</string>
     <string name="confirm_delete_behavior_pack">Voulez-vous vraiment supprimer ce pack ? Cette action est irréversible.</string>
     <string name="confirm_delete_skin_pack">Voulez-vous vraiment supprimer ce pack ? Cette action est irréversible.</string>
+    <string name="importing_content">Importation du contenu…</string>
+    <string name="exporting_world">Exportation du monde…</string>
+    <string name="exporting_pack">Exportation du pack…</string>
+    <string name="backing_up_world">Sauvegarde du monde…</string>
+    <string name="deleting_world">Suppression du monde…</string>
+    <string name="deleting_pack">Suppression du pack…</string>
+    <string name="adding_server">Ajout du serveur…</string>
+    <string name="deleting_screenshot">Suppression de la capture d\'écran…</string>
+    <string name="deleting_server">Suppression du serveur…</string>
 
     <string name="edit_world">Éditer le monde</string>
     <string name="edit">Éditer</string>
