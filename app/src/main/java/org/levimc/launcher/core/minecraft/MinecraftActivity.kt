@@ -19,6 +19,14 @@ class MinecraftActivity : MainActivity() {
     private var overlayManager: InbuiltOverlayManager? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        if (savedInstanceState != null) {
+            finish()
+            val intent = Intent(applicationContext, org.levimc.launcher.ui.activities.MainActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            startActivity(intent)
+            return
+        }
+
         try {
             val versionDir = intent.getStringExtra("MC_PATH")
             val versionCode = intent.getStringExtra("MINECRAFT_VERSION") ?: ""
@@ -54,6 +62,10 @@ class MinecraftActivity : MainActivity() {
             try {
                 System.loadLibrary("preloader")
             } catch (e: Exception) {}
+
+            gameManager.loadLibrary("c++_shared")
+            gameManager.loadLibrary("fmod")
+            gameManager.loadLibrary("MediaDecoders_Android")
 
             if (!gameManager.loadLibrary("minecraftpe")) {
                 throw RuntimeException("Failed to load libminecraftpe.so")
