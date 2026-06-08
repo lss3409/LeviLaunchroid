@@ -18,13 +18,26 @@ import java.util.zip.ZipInputStream;
 
 public class ApkUtils {
     public static String extractMinecraftVersionNameFromUri(Context context, Uri uri) {
+        if ("file".equals(uri.getScheme()) && uri.getPath() != null) {
+            PackageManager pm = context.getPackageManager();
+            PackageInfo info = pm.getPackageArchiveInfo(uri.getPath(), 0);
+            if (info != null) {
+                String packageName = info.packageName;
+                String versionName = info.versionName;
+                if ("com.mojang.minecraftpe".equals(packageName) && versionName != null && !versionName.isEmpty()) {
+                    return "Minecraft_" + versionName;
+                }
+            }
+            return "Error Apk";
+        }
+
         File tempFile = null;
         try (InputStream is = context.getContentResolver().openInputStream(uri)) {
             if (is == null) return "Error Apk";
 
             tempFile = new File(context.getCacheDir(), "temp_apk_" + System.currentTimeMillis() + ".apk");
             try (OutputStream os = new FileOutputStream(tempFile)) {
-                byte[] buffer = new byte[8192];
+                byte[] buffer = new byte[131072];
                 int len;
                 while ((len = is.read(buffer)) != -1) {
                     os.write(buffer, 0, len);
@@ -51,27 +64,16 @@ public class ApkUtils {
     }
 
     public static String extractMinecraftVersionNameFromApksUri(Context context, Uri uri) {
-        File tempApksFile = null;
         File tempApkFile = null;
-        try {
-            tempApksFile = new File(context.getCacheDir(), "temp_apks_" + System.currentTimeMillis() + ".apks");
-            try (InputStream is = context.getContentResolver().openInputStream(uri);
-                 OutputStream os = new FileOutputStream(tempApksFile)) {
-                if (is == null) return "Error Apk";
-                byte[] buffer = new byte[8192];
-                int len;
-                while ((len = is.read(buffer)) != -1) {
-                    os.write(buffer, 0, len);
-                }
-            }
-
-            try (ZipInputStream zis = new ZipInputStream(new BufferedInputStream(new FileInputStream(tempApksFile)))) {
+        try (InputStream is = context.getContentResolver().openInputStream(uri)) {
+            if (is == null) return "Error Apk";
+            try (ZipInputStream zis = new ZipInputStream(new BufferedInputStream(is))) {
                 ZipEntry entry;
                 while ((entry = zis.getNextEntry()) != null) {
-                    if (!entry.isDirectory() && entry.getName().equals("base.apk")) {
+                    if (!entry.isDirectory() && (entry.getName().equals("base.apk") || entry.getName().endsWith("/base.apk"))) {
                         tempApkFile = new File(context.getCacheDir(), "temp_base_" + System.currentTimeMillis() + ".apk");
                         try (OutputStream os = new FileOutputStream(tempApkFile)) {
-                            byte[] buffer = new byte[8192];
+                            byte[] buffer = new byte[131072];
                             int len;
                             while ((len = zis.read(buffer)) != -1) {
                                 os.write(buffer, 0, len);
@@ -95,9 +97,6 @@ public class ApkUtils {
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
-            if (tempApksFile != null && tempApksFile.exists()) {
-                tempApksFile.delete();
-            }
             if (tempApkFile != null && tempApkFile.exists()) {
                 tempApkFile.delete();
             }
@@ -131,7 +130,7 @@ public class ApkUtils {
                 File parent = outFile.getParentFile();
                 if (!parent.exists()) parent.mkdirs();
                 try (FileOutputStream fos = new FileOutputStream(outFile)) {
-                    byte[] buffer = new byte[8192];
+                    byte[] buffer = new byte[131072];
                     int len;
                     while ((len = zis.read(buffer)) != -1) {
                         fos.write(buffer, 0, len);

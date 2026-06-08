@@ -38,7 +38,7 @@ public class VersionManager {
     private static final String KEY_SELECTED_TYPE = "selected_type";
     private static final String KEY_SELECTED_PACKAGE = "selected_package";
     private static final String KEY_SELECTED_DIR = "selected_dir";
-    private static final int BUFFER_SIZE = 8192;
+    private static final int BUFFER_SIZE = 131072;
 
     private static VersionManager instance;
     private final Context context;

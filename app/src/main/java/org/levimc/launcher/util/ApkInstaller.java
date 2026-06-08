@@ -37,7 +37,7 @@ public class ApkInstaller {
     }
 
     private static final String APK_FILE_NAME = "base.apk.levi";
-    private static final int BUFFER_SIZE = 8192;
+    private static final int BUFFER_SIZE = 131072;
 
     private final Context context;
     private final ExecutorService executor;
@@ -208,44 +208,6 @@ public class ApkInstaller {
         new Handler(Looper.getMainLooper()).post(() -> {
             if (callback != null) callback.onError(error);
         });
-    }
-
-    private VersionAbi extractVersionAndAbi(Uri apkOrApksUri) throws Exception {
-        File tempFile = new File(context.getCacheDir(), "temp_apk_" + System.currentTimeMillis() + ".apk");
-        String fileName = getFileName(apkOrApksUri);
-        try {
-            if (fileName != null && fileName.toLowerCase().endsWith(".apks")) {
-                try (InputStream apksIs = context.getContentResolver().openInputStream(apkOrApksUri);
-                     ZipInputStream zis = new ZipInputStream(new BufferedInputStream(apksIs))) {
-                    boolean found = false;
-                    ZipEntry entry;
-                    while ((entry = zis.getNextEntry()) != null) {
-                        if (!entry.isDirectory() && entry.getName().endsWith(".apk")) {
-                            boolean isBase = entry.getName().equals("base.apk") || entry.getName().endsWith("/base.apk");
-                            if (isBase || !found) {
-                                try (OutputStream os = new FileOutputStream(tempFile)) {
-                                    copyStream(zis, os);
-                                }
-                                found = true;
-                                if (isBase) break;
-                            }
-                        }
-                        zis.closeEntry();
-                    }
-                    if (!found) throw new FileNotFoundException("apks no base.apk!");
-                }
-            } else {
-                try (InputStream is = context.getContentResolver().openInputStream(apkOrApksUri);
-                     OutputStream os = new FileOutputStream(tempFile)) {
-                    if (is == null) throw new FileNotFoundException("打开apk失败");
-                    copyStream(is, os);
-                }
-            }
-            String versionName = extractApkVersionName(tempFile);
-            return new VersionAbi(versionName);
-        } finally {
-            tempFile.delete();
-        }
     }
 
     private String extractApkVersionName(File apkFile) {
