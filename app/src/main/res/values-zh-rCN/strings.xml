@@ -628,4 +628,6 @@
     <string name="select_image">选择图片</string>
     <string name="clear">清除</string>
 
+    <string name="unsupported_version_title">不支持的版本</string>
+    <string name="unsupported_version_msg">此启动器不支持早于 1.21.80 的 Minecraft 版本。</string>
 </resources>

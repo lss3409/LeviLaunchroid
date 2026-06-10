@@ -606,4 +606,6 @@
     <string name="select_image">画像を選択</string>
     <string name="clear">クリア</string>
 
+    <string name="unsupported_version_title">サポートされていないバージョン</string>
+    <string name="unsupported_version_msg">このランチャーは1.21.80より前のMinecraftバージョンをサポートしていません。</string>
 </resources>

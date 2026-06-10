@@ -635,4 +635,6 @@
     <string name="select_image">Select Image</string>
     <string name="clear">Clear</string>
 
+    <string name="unsupported_version_title">Unsupported Version</string>
+    <string name="unsupported_version_msg">This launcher does not support Minecraft versions older than 1.21.80.</string>
 </resources>

@@ -630,4 +630,6 @@
     <string name="select_image">Выбрать изображение</string>
     <string name="clear">Очистить</string>
 
+    <string name="unsupported_version_title">Неподдерживаемая версия</string>
+    <string name="unsupported_version_msg">Этот лаунчер не поддерживает версии Minecraft старше 1.21.80.</string>
 </resources>

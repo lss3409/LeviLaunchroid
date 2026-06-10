@@ -94,9 +94,9 @@ public class MinecraftLauncher {
                         if (major < 1 || (major == 1 && minor < 21) || (major == 1 && minor == 21 && patch < 80)) {
                             activity.runOnUiThread(() -> {
                                 new org.levimc.launcher.ui.dialogs.CustomAlertDialog(activity)
-                                        .setTitleText("Unsupported Version")
-                                        .setMessage("This launcher does not support Minecraft versions older than 1.21.80.")
-                                        .setPositiveButton("Back", null)
+                                        .setTitleText(activity.getString(org.levimc.launcher.R.string.unsupported_version_title))
+                                        .setMessage(activity.getString(org.levimc.launcher.R.string.unsupported_version_msg))
+                                        .setPositiveButton(activity.getString(org.levimc.launcher.R.string.back), null)
                                         .show();
                             });
                             notifyLaunchFailed(callback, new IllegalStateException("Unsupported version"));

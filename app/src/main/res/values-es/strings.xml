@@ -606,4 +606,6 @@
     <string name="select_image">Seleccionar Imagen</string>
     <string name="clear">Limpiar</string>
 
+    <string name="unsupported_version_title">Versión no soportada</string>
+    <string name="unsupported_version_msg">Este lanzador no soporta versiones de Minecraft anteriores a 1.21.80.</string>
 </resources>

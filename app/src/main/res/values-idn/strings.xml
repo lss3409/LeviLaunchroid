@@ -629,4 +629,6 @@
     <string name="select_image">Pilih Gambar</string>
     <string name="clear">Bersihkan</string>
 
+    <string name="unsupported_version_title">Versi Tidak Didukung</string>
+    <string name="unsupported_version_msg">Peluncur ini tidak mendukung versi Minecraft yang lebih lama dari 1.21.80.</string>
 </resources>

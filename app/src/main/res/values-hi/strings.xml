@@ -633,4 +633,6 @@
     <string name="select_image">छवि चुनें</string>
     <string name="clear">साफ़ करें</string>
 
+    <string name="unsupported_version_title">असमर्थित संस्करण</string>
+    <string name="unsupported_version_msg">यह लॉन्चर 1.21.80 से पुराने Minecraft संस्करणों का समर्थन नहीं करता है।</string>
 </resources>
