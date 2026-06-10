@@ -40,12 +40,14 @@ object CrashReporter {
     private const val KEY_PENDING_EMERGENCY = "pending_emergency"
     private const val KEY_HANDLED_JAVA_CRASH_TIMESTAMP = "handled_java_crash_timestamp"
     private const val KEY_HANDLED_EXIT_TIMESTAMP = "handled_exit_timestamp"
+    private const val KEY_NORMAL_MINECRAFT_EXIT_TIMESTAMP = "normal_minecraft_exit_timestamp"
     private const val KEY_RECOVERY_ARMED_TIMESTAMP = "recovery_armed_timestamp"
     private const val KEY_RECOVERY_ARMED_REASON = "recovery_armed_reason"
     private const val MAX_EXIT_TRACE_LENGTH = 80_000
     private const val MAX_EXIT_TRACE_BYTES = 160_000
     private const val MAX_CRASHLYTICS_VALUE_LENGTH = 1024
     private const val JAVA_CRASH_EXIT_DEDUP_WINDOW_MS = 5 * 60 * 1000L
+    private const val NORMAL_MINECRAFT_EXIT_DEDUP_WINDOW_MS = 5 * 60 * 1000L
     private const val CRASH_ACTIVITY_DELAY_MS = 1500L
     private const val RECOVERY_ALARM_DELAY_MS = 1800L
     private const val RECOVERY_ALARM_HEARTBEAT_MS = 900L
@@ -149,6 +151,14 @@ object CrashReporter {
             .remove(KEY_RECOVERY_ARMED_REASON)
             .commit()
         cancelRecoveryAlarm(appContext)
+    }
+
+    @JvmStatic
+    fun markNormalMinecraftExit(context: Context) {
+        context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putLong(KEY_NORMAL_MINECRAFT_EXIT_TIMESTAMP, System.currentTimeMillis())
+            .commit()
     }
 
     @JvmStatic
@@ -541,6 +551,13 @@ object CrashReporter {
             return
         }
 
+        if (isNormalMinecraftExit(prefs, exitInfo, context.packageName)) {
+            prefs.edit()
+                .putLong(KEY_HANDLED_EXIT_TIMESTAMP, exitInfo.timestamp)
+                .commit()
+            return
+        }
+
         prefs.edit()
             .putLong(KEY_HANDLED_EXIT_TIMESTAMP, exitInfo.timestamp)
             .commit()
@@ -571,6 +588,22 @@ object CrashReporter {
 
         return kotlin.math.abs(exitInfo.timestamp - handledJavaCrashTimestamp) <=
             JAVA_CRASH_EXIT_DEDUP_WINDOW_MS
+    }
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    private fun isNormalMinecraftExit(
+        prefs: android.content.SharedPreferences,
+        exitInfo: ApplicationExitInfo,
+        packageName: String
+    ): Boolean {
+        val processName = exitInfo.processName
+        if (processName != "$packageName:minecraft") return false
+
+        val normalExitTimestamp = prefs.getLong(KEY_NORMAL_MINECRAFT_EXIT_TIMESTAMP, 0L)
+        if (normalExitTimestamp <= 0L) return false
+
+        return kotlin.math.abs(exitInfo.timestamp - normalExitTimestamp) <=
+            NORMAL_MINECRAFT_EXIT_DEDUP_WINDOW_MS
     }
 
     @RequiresApi(Build.VERSION_CODES.R)

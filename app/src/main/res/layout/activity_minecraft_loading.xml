@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background"
+    android:paddingHorizontal="32dp"
+    android:paddingVertical="24dp"
+    tools:context=".core.minecraft.MinecraftLoadingActivity">
+
+    <ImageView
+        android:id="@+id/minecraftLaunchLogo"
+        android:layout_width="58dp"
+        android:layout_height="58dp"
+        android:contentDescription="@string/splash_logo_desc"
+        android:src="@drawable/ic_leaf_logo"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/minecraftLaunchTitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="18dp"
+        android:includeFontPadding="false"
+        android:text="@string/minecraft_loading_title"
+        android:textColor="@color/on_background"
+        android:textSize="26sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toTopOf="@id/minecraftLaunchSubtitle"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/minecraftLaunchLogo"
+        app:layout_constraintTop_toTopOf="@id/minecraftLaunchLogo"
+        app:layout_constraintVertical_chainStyle="packed" />
+
+    <TextView
+        android:id="@+id/minecraftLaunchSubtitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="18dp"
+        android:layout_marginTop="6dp"
+        android:includeFontPadding="false"
+        android:text="@string/minecraft_loading_subtitle"
+        android:textColor="@color/text_secondary"
+        android:textSize="13sp"
+        app:layout_constraintBottom_toBottomOf="@id/minecraftLaunchLogo"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/minecraftLaunchLogo"
+        app:layout_constraintTop_toBottomOf="@id/minecraftLaunchTitle" />
+
+    <TextView
+        android:id="@+id/minecraftLaunchStatus"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="28dp"
+        android:includeFontPadding="false"
+        android:text="@string/minecraft_loading_status_preparing"
+        android:textColor="@color/on_background"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/minecraftLaunchLogo" />
+
+    <ProgressBar
+        android:id="@+id/minecraftLaunchProgress"
+        style="@android:style/Widget.ProgressBar.Horizontal"
+        android:layout_width="0dp"
+        android:layout_height="5dp"
+        android:layout_marginTop="12dp"
+        android:indeterminate="false"
+        android:max="100"
+        android:progress="0"
+        android:progressDrawable="@drawable/bg_loading_progress"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/minecraftLaunchStatus" />
+
+    <TextView
+        android:id="@+id/minecraftLaunchDetail"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:includeFontPadding="false"
+        android:minHeight="18dp"
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/minecraftLaunchProgress"
+        tools:text="Loading libminecraftpe.so" />
+
+    <TextView
+        android:id="@+id/minecraftLaunchLogTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:includeFontPadding="false"
+        android:text="@string/minecraft_loading_log_title"
+        android:textColor="@color/on_background"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/minecraftLaunchDetail" />
+
+    <ScrollView
+        android:id="@+id/minecraftLaunchLogScroll"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_minecraft_loading_terminal"
+        android:fadeScrollbars="false"
+        android:padding="14dp"
+        android:scrollbars="vertical"
+        app:layout_constraintBottom_toTopOf="@id/minecraftLaunchReturn"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/minecraftLaunchLogTitle"
+        app:layout_goneMarginBottom="0dp">
+
+        <TextView
+            android:id="@+id/minecraftLaunchLog"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:includeFontPadding="false"
+            android:lineSpacingExtra="3dp"
+            android:textColor="#EAF9F0"
+            android:textSize="11sp" />
+    </ScrollView>
+
+    <Button
+        android:id="@+id/minecraftLaunchReturn"
+        android:layout_width="wrap_content"
+        android:layout_height="44dp"
+        android:layout_marginTop="14dp"
+        android:background="@drawable/bg_launch_button"
+        android:minWidth="160dp"
+        android:paddingHorizontal="18dp"
+        android:text="@string/minecraft_loading_return"
+        android:textAllCaps="false"
+        android:textColor="@color/on_primary"
+        android:textSize="14sp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/minecraftLaunchLogScroll"
+        tools:visibility="visible" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -296,6 +296,14 @@
     
     <!-- 启动页 -->
     <string name="splash_logo_desc">叶子标志</string>
+    <string name="minecraft_loading_title">正在启动 Minecraft</string>
+    <string name="minecraft_loading_subtitle">准备原生库与已启用模组</string>
+    <string name="minecraft_loading_status_preparing">正在准备运行时</string>
+    <string name="minecraft_loading_log_title">启动日志</string>
+    <string name="minecraft_loading_complete">运行时已就绪</string>
+    <string name="minecraft_loading_entering_game">正在进入 Minecraft</string>
+    <string name="minecraft_loading_failed">启动失败</string>
+    <string name="minecraft_loading_return">返回启动器</string>
 
     <!-- 账户管理 -->
     <string name="accounts_title">账号</string>

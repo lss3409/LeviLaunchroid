@@ -21,6 +21,7 @@ import androidx.lifecycle.ViewModelProvider;
 
 import org.levimc.launcher.R;
 import org.levimc.launcher.core.minecraft.MinecraftLauncher;
+import org.levimc.launcher.core.minecraft.MinecraftReturnCoordinator;
 import org.levimc.launcher.core.mods.FileHandler;
 import org.levimc.launcher.core.mods.Mod;
 import org.levimc.launcher.core.mods.inbuilt.manager.InbuiltModManager;
@@ -161,6 +162,13 @@ import okhttp3.OkHttpClient;
         });
 
         initAccountHeader();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleMinecraftUriLaunch();
     }
 
 
@@ -571,10 +579,14 @@ import okhttp3.OkHttpClient;
     @Override
     protected void onResume() {
         super.onResume();
+        MinecraftReturnCoordinator.cancelLauncherReturnFallback(this);
         setTextMinecraftVersion();
         refreshAccountHeaderUI();
         viewModel.refreshMods();
         refreshContentCounts();
+        if (binding != null) {
+            binding.launchButton.setEnabled(true);
+        }
     }
 
 
@@ -778,9 +790,17 @@ import okhttp3.OkHttpClient;
 
         new Thread(() -> {
             try {
-                minecraftLauncher.launch(getIntent(), version);
-                runOnUiThread(() -> {
-                    binding.launchButton.setEnabled(true);
+                minecraftLauncher.launch(createMinecraftLaunchIntent(), version, new MinecraftLauncher.LaunchCallback() {
+                    @Override
+                    public void onLaunchStarted() {
+                    }
+
+                    @Override
+                    public void onLaunchFailed(Exception e) {
+                        runOnUiThread(() -> {
+                            if (binding != null) binding.launchButton.setEnabled(true);
+                        });
+                    }
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
@@ -793,6 +813,20 @@ import okhttp3.OkHttpClient;
                 });
             }
         }).start();
+    }
+
+    private Intent createMinecraftLaunchIntent() {
+        Intent launchIntent = new Intent();
+        Intent sourceIntent = getIntent();
+        if (sourceIntent == null) return launchIntent;
+
+        if (sourceIntent.hasExtra("MINECRAFT_URI")) {
+            launchIntent.putExtra("MINECRAFT_URI", sourceIntent.getStringExtra("MINECRAFT_URI"));
+        }
+        if (sourceIntent.hasExtra("MINECRAFT_URI_ACTION")) {
+            launchIntent.putExtra("MINECRAFT_URI_ACTION", sourceIntent.getStringExtra("MINECRAFT_URI_ACTION"));
+        }
+        return launchIntent;
     }
 
      private void showVersionSelectDialog() {
@@ -1018,6 +1052,8 @@ import okhttp3.OkHttpClient;
         Intent intent = getIntent();
         if (intent == null) return;
         if (intent.getBooleanExtra("LAUNCH_WITH_URI", false)) {
+            intent.removeExtra("LAUNCH_WITH_URI");
+            setIntent(intent);
             binding.getRoot().post(this::launchGame);
         }
     }

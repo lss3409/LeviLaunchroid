@@ -340,6 +340,14 @@
 
     <!-- Splash -->
     <string name="splash_logo_desc">पत्ती का लोगो</string>
+    <string name="minecraft_loading_title">Minecraft शुरू हो रहा है</string>
+    <string name="minecraft_loading_subtitle">नेटिव लाइब्रेरी और सक्षम मॉड तैयार हो रहे हैं</string>
+    <string name="minecraft_loading_status_preparing">रनटाइम तैयार हो रहा है</string>
+    <string name="minecraft_loading_log_title">लॉन्च लॉग</string>
+    <string name="minecraft_loading_complete">रनटाइम तैयार है</string>
+    <string name="minecraft_loading_entering_game">Minecraft में प्रवेश हो रहा है</string>
+    <string name="minecraft_loading_failed">लॉन्च विफल</string>
+    <string name="minecraft_loading_return">लॉन्चर पर वापस जाएं</string>
 
     <!-- Accounts & Microsoft Login -->
     <string name="accounts_title">खाते</string>

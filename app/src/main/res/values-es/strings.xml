@@ -328,6 +328,14 @@
     <string name="back">Atrás</string>
 
     <string name="splash_logo_desc">Logo de hoja</string>
+    <string name="minecraft_loading_title">Iniciando Minecraft</string>
+    <string name="minecraft_loading_subtitle">Preparando bibliotecas nativas y mods habilitados</string>
+    <string name="minecraft_loading_status_preparing">Preparando entorno</string>
+    <string name="minecraft_loading_log_title">Registro de inicio</string>
+    <string name="minecraft_loading_complete">Entorno listo</string>
+    <string name="minecraft_loading_entering_game">Entrando a Minecraft</string>
+    <string name="minecraft_loading_failed">Error al iniciar</string>
+    <string name="minecraft_loading_return">Volver al launcher</string>
 
     <string name="accounts_title">Cuentas</string>
     <string name="microsoft_accounts">Cuentas de Microsoft</string>

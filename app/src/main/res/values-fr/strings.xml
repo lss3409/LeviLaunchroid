@@ -328,6 +328,14 @@
     <string name="back">Retour</string>
 
     <string name="splash_logo_desc">Logo de la feuille</string>
+    <string name="minecraft_loading_title">Lancement de Minecraft</string>
+    <string name="minecraft_loading_subtitle">Preparation des bibliotheques natives et des mods actives</string>
+    <string name="minecraft_loading_status_preparing">Preparation du runtime</string>
+    <string name="minecraft_loading_log_title">Journal de lancement</string>
+    <string name="minecraft_loading_complete">Environnement pret</string>
+    <string name="minecraft_loading_entering_game">Entree dans Minecraft</string>
+    <string name="minecraft_loading_failed">Echec du lancement</string>
+    <string name="minecraft_loading_return">Retour au lanceur</string>
 
     <string name="accounts_title">Comptes</string>
     <string name="microsoft_accounts">Comptes Microsoft</string>

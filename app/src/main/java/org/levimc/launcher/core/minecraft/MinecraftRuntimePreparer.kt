@@ -1,0 +1,281 @@
+package org.levimc.launcher.core.minecraft
+
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.os.Build
+import org.levimc.launcher.core.mods.Mod
+import org.levimc.launcher.core.mods.ModManager
+import org.levimc.launcher.core.mods.ModNativeLoader
+import org.levimc.launcher.core.versions.GameVersion
+import java.io.File
+
+object MinecraftRuntimePreparer {
+    data class PreparedRuntime(
+        val version: GameVersion?,
+        val gameManager: GamePackageManager
+    )
+
+    interface ProgressListener {
+        fun onProgress(progress: Int, status: String, detail: String? = null)
+        fun onLog(message: String)
+    }
+
+    private val noopListener = object : ProgressListener {
+        override fun onProgress(progress: Int, status: String, detail: String?) = Unit
+        override fun onLog(message: String) = Unit
+    }
+
+    fun prepare(
+        context: Context,
+        launchIntent: Intent,
+        listener: ProgressListener = noopListener
+    ): PreparedRuntime {
+        listener.onProgress(4, "Resolving Minecraft version")
+        val version = resolveGameVersion(launchIntent)
+            ?: throw IllegalArgumentException("No Minecraft version specified")
+        listener.onLog("Selected version: ${version.directoryName} (${version.versionCode})")
+
+        listener.onProgress(12, "Initializing game package")
+        val gameManager = GamePackageManager.getInstance(context.applicationContext, version)
+        listener.onLog("Game package manager is ready")
+
+        listener.onProgress(26, "Preparing launch intent")
+        prepareMinecraftIntent(context, launchIntent, gameManager, version)
+        listener.onLog("Injected MC_SRC and MC_SPLIT_SRC")
+
+        listener.onProgress(34, "Preparing mod state")
+        val modManager = ModManager.getInstance()
+        modManager.setCurrentVersion(version)
+        listener.onLog("ModManager current version is set in minecraft process")
+
+        listener.onProgress(40, "Loading preloader")
+        try {
+            System.loadLibrary("preloader")
+            listener.onLog("preloader loaded")
+        } catch (error: UnsatisfiedLinkError) {
+            listener.onLog("preloader is not available yet: ${error.message ?: error.javaClass.simpleName}")
+        }
+
+        loadMinecraftLibraries(gameManager, version, listener)
+
+        listener.onProgress(78, "Loading native mods")
+        loadNativeMods(context, launchIntent, modManager, listener)
+
+        listener.onProgress(100, "Runtime ready", "Entering Minecraft")
+        listener.onLog("Minecraft runtime is ready")
+        return PreparedRuntime(version, gameManager)
+    }
+
+    @JvmStatic
+    fun resolveGameVersion(intent: Intent): GameVersion? {
+        val parcelableVersion = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(MinecraftLauncher.EXTRA_GAME_VERSION, GameVersion::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra<GameVersion>(MinecraftLauncher.EXTRA_GAME_VERSION)
+        }
+        if (parcelableVersion != null) {
+            return parcelableVersion
+        }
+
+        val versionDir = intent.getStringExtra("MC_PATH")
+        val versionCode = intent.getStringExtra("MINECRAFT_VERSION") ?: ""
+        val versionDirName = intent.getStringExtra("MINECRAFT_VERSION_DIR") ?: ""
+        val isInstalled = intent.getBooleanExtra("IS_INSTALLED", false)
+
+        return if (!versionDir.isNullOrEmpty()) {
+            GameVersion(
+                versionDirName,
+                versionCode,
+                versionCode,
+                File(versionDir),
+                isInstalled,
+                MinecraftLauncher.MC_PACKAGE_NAME,
+                ""
+            )
+        } else if (versionCode.isNotEmpty()) {
+            GameVersion(
+                versionDirName,
+                versionCode,
+                versionCode,
+                null,
+                isInstalled,
+                MinecraftLauncher.MC_PACKAGE_NAME,
+                ""
+            )
+        } else {
+            null
+        }
+    }
+
+    private fun prepareMinecraftIntent(
+        context: Context,
+        launchIntent: Intent,
+        gameManager: GamePackageManager,
+        version: GameVersion
+    ) {
+        if (!version.isInstalled || version.versionIsolation) {
+            version.versionDir?.let { launchIntent.putExtra("MC_PATH", it.absolutePath) }
+            launchIntent.putExtra("IS_INSTALLED", version.isInstalled)
+        } else {
+            launchIntent.putExtra("MC_PATH", "")
+            launchIntent.putExtra("IS_INSTALLED", version.isInstalled)
+        }
+
+        val mcInfo: ApplicationInfo = if (version.isInstalled) {
+            gameManager.getPackageContext().applicationInfo
+        } else {
+            MinecraftLauncher(context).createFakeApplicationInfo(version, MinecraftLauncher.MC_PACKAGE_NAME)
+        }
+        launchIntent.putExtra("MC_SRC", mcInfo.sourceDir)
+        val splitSourceDirs = mcInfo.splitSourceDirs
+        if (splitSourceDirs != null) {
+            launchIntent.putExtra("MC_SPLIT_SRC", arrayListOf(*splitSourceDirs))
+        }
+        launchIntent.putExtra("MINECRAFT_VERSION", version.versionCode)
+        launchIntent.putExtra("MINECRAFT_VERSION_DIR", version.directoryName)
+        launchIntent.putExtra("LAUNCH_VERTICALLY", version.launchVertically)
+        launchIntent.putExtra("VERSION_ISOLATION", version.versionIsolation)
+    }
+
+    private fun loadMinecraftLibraries(
+        gameManager: GamePackageManager,
+        version: GameVersion,
+        listener: ProgressListener
+    ) {
+        listener.onProgress(46, "Loading Minecraft libraries")
+
+        if (shouldLoadHttpClient(version)) {
+            loadLibrary(gameManager, "c++_shared", 48, false, listener)
+            loadLibrary(gameManager, "HttpClient.Android", 52, false, listener)
+        }
+
+        if (shouldLoadMaesdk(version)) {
+            val excludeLibs = HashSet<String>()
+            if (shouldLoadHttpClient(version)) {
+                excludeLibs.add("c++_shared")
+                excludeLibs.add("HttpClient.Android")
+            }
+            if (!shouldLoadPlayFab(version)) {
+                excludeLibs.add("PlayFabMultiplayer")
+            }
+            listener.onProgress(64, "Loading MAESDK library set")
+            listener.onLog("Loading MAESDK-era library set")
+            gameManager.loadAllLibraries(excludeLibs)
+            listener.onLog("MAESDK-era library load requested")
+        } else {
+            if (!shouldLoadHttpClient(version)) {
+                loadLibrary(gameManager, "c++_shared", 50, false, listener)
+            }
+            loadLibrary(gameManager, "fmod", 56, false, listener)
+            loadLibrary(gameManager, "MediaDecoders_Android", 62, false, listener)
+            loadLibrary(gameManager, "minecraftpe", 70, true, listener)
+            loadLibrary(gameManager, "gxcore", 74, false, listener)
+        }
+    }
+
+    private fun loadLibrary(
+        gameManager: GamePackageManager,
+        name: String,
+        progress: Int,
+        required: Boolean,
+        listener: ProgressListener
+    ) {
+        listener.onProgress(progress, "Loading lib$name.so")
+        listener.onLog("Loading lib$name.so")
+        val loaded = gameManager.loadLibrary(name)
+        if (!loaded && required) {
+            throw RuntimeException("Failed to load lib$name.so")
+        }
+        listener.onLog(if (loaded) "Loaded lib$name.so" else "Skipped lib$name.so")
+    }
+
+    private fun loadNativeMods(
+        context: Context,
+        launchIntent: Intent,
+        modManager: ModManager,
+        listener: ProgressListener
+    ) {
+        val cacheDir = resolveMinecraftCacheDir(context, launchIntent)
+        ModNativeLoader.loadEnabledSoMods(
+            modManager,
+            cacheDir,
+            object : ModNativeLoader.LoadListener {
+                override fun onScanStarted(totalEnabled: Int) {
+                    if (totalEnabled == 0) {
+                        listener.onLog("No enabled native mods")
+                    } else {
+                        listener.onLog("Found $totalEnabled enabled native mod(s)")
+                    }
+                }
+
+                override fun onModLoadStarted(mod: Mod, index: Int, total: Int) {
+                    val progress = 80 + ((index - 1) * 15 / total.coerceAtLeast(1))
+                    listener.onProgress(progress, "Loading native mods", "$index/$total ${mod.displayName}")
+                    listener.onLog("Loading mod $index/$total: ${mod.displayName}")
+                }
+
+                override fun onModLoadFinished(mod: Mod) {
+                    listener.onLog("Loaded mod: ${mod.displayName}")
+                }
+
+                override fun onModLoadFailed(mod: Mod, error: Throwable) {
+                    listener.onLog("Failed to load mod ${mod.displayName}: ${error.message ?: error.javaClass.simpleName}")
+                }
+
+                override fun onMessage(message: String) {
+                    listener.onLog(message)
+                }
+            }
+        )
+        listener.onProgress(96, "Native mods ready")
+    }
+
+    private fun resolveMinecraftCacheDir(context: Context, launchIntent: Intent): File {
+        val mcPath = launchIntent.getStringExtra("MC_PATH")
+        val isIsolated = launchIntent.getBooleanExtra("VERSION_ISOLATION", false)
+        return if (isIsolated && !mcPath.isNullOrEmpty()) {
+            File(mcPath, "cache").also { it.mkdirs() }
+        } else {
+            context.cacheDir
+        }
+    }
+
+    private fun shouldLoadMaesdk(version: GameVersion): Boolean {
+        val versionCode = version.versionCode
+        val targetVersion = if (versionCode.contains("beta")) "1.21.110.22" else "1.21.110"
+        return isVersionAtLeast(versionCode, targetVersion)
+    }
+
+    private fun shouldLoadHttpClient(version: GameVersion): Boolean {
+        val versionCode = version.versionCode
+        val targetVersion = if (versionCode.contains("beta")) "1.21.130.20" else "1.21.130"
+        return isVersionAtLeast(versionCode, targetVersion)
+    }
+
+    private fun shouldLoadPlayFab(version: GameVersion): Boolean {
+        val versionCode = version.versionCode
+        val targetVersion = if (versionCode.contains("beta")) "1.21.130.20" else "1.21.130"
+        return isVersionAtLeast(versionCode, targetVersion)
+    }
+
+    private fun isVersionAtLeast(currentVersion: String, targetVersion: String): Boolean {
+        return try {
+            val current = currentVersion.replace(Regex("[^0-9.]"), "").split(".")
+            val target = targetVersion.split(".")
+            val maxLength = maxOf(current.size, target.size)
+
+            for (i in 0 until maxLength) {
+                val currentPart = current.getOrNull(i)?.toIntOrNull() ?: 0
+                val targetPart = target.getOrNull(i)?.toIntOrNull() ?: 0
+
+                if (currentPart > targetPart) return true
+                if (currentPart < targetPart) return false
+            }
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+}

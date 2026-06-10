@@ -9,68 +9,25 @@ import android.widget.Toast
 import com.mojang.minecraftpe.MainActivity
 import org.levimc.launcher.core.crash.CrashReporter
 import org.levimc.launcher.core.mods.inbuilt.overlay.InbuiltOverlayManager
-import org.levimc.launcher.core.versions.GameVersion
-import org.levimc.launcher.settings.FeatureSettings
 import java.io.File
 
 class MinecraftActivity : MainActivity() {
 
     private lateinit var gameManager: GamePackageManager
     private var overlayManager: InbuiltOverlayManager? = null
+    private var normalExitPrepared = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         if (savedInstanceState != null) {
             super.onCreate(null)
             finish()
-            val intent = Intent(applicationContext, org.levimc.launcher.ui.activities.MainActivity::class.java)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-            startActivity(intent)
             return
         }
 
         try {
-            val versionDir = intent.getStringExtra("MC_PATH")
-            val versionCode = intent.getStringExtra("MINECRAFT_VERSION") ?: ""
-            val versionDirName = intent.getStringExtra("MINECRAFT_VERSION_DIR") ?: ""
-            val isInstalled = intent.getBooleanExtra("IS_INSTALLED", false)
-
-            val version = if (!versionDir.isNullOrEmpty()) {
-                GameVersion(
-                    versionDirName,
-                    versionCode,
-                    versionCode,
-                    File(versionDir),
-                    isInstalled,
-                    MinecraftLauncher.MC_PACKAGE_NAME,
-                    ""
-                )
-            } else if (!versionCode.isNullOrEmpty()) {
-                GameVersion(
-                    versionDirName,
-                    versionCode,
-                    versionCode,
-                    null,
-                    isInstalled,
-                    MinecraftLauncher.MC_PACKAGE_NAME,
-                    ""
-                )
-            } else {
-                null
-            }
-
-            gameManager = GamePackageManager.getInstance(applicationContext, version)
-
-            try {
-                System.loadLibrary("preloader")
-            } catch (e: Exception) {}
-
-            gameManager.loadLibrary("c++_shared")
-            gameManager.loadLibrary("fmod")
-            gameManager.loadLibrary("MediaDecoders_Android")
-
-            if (!gameManager.loadLibrary("minecraftpe")) {
-                throw RuntimeException("Failed to load libminecraftpe.so")
-            }
+            val preparedRuntime = MinecraftLaunchSession.getPreparedRuntime()
+                ?: MinecraftRuntimePreparer.prepare(applicationContext, intent)
+            gameManager = preparedRuntime.gameManager
         } catch (e: Exception) {
             Toast.makeText(this, "Failed to load game: ${e.message}", Toast.LENGTH_LONG).show()
             finish()
@@ -107,6 +64,10 @@ class MinecraftActivity : MainActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (!isFinishing) {
+            normalExitPrepared = false
+            MinecraftReturnCoordinator.cancelLauncherReturnFallback(this)
+        }
         MinecraftActivityState.onResumed()
 
         if (overlayManager == null) {
@@ -185,25 +146,40 @@ class MinecraftActivity : MainActivity() {
     }
 
     override fun onPause() {
+        if (isFinishing) {
+            prepareNormalExitReturn()
+        }
         MinecraftActivityState.onPaused()
         super.onPause()
     }
 
     override fun onDestroy() {
+        val shouldKillGameProcess = isFinishing && !CrashReporter.isHandlingCrash() && !CrashReporter.hasPendingCrash(this)
+        if (shouldKillGameProcess) {
+            prepareNormalExitReturn()
+        }
+
         org.levimc.launcher.preloader.PreloaderInput.clearActivity()
         MinecraftActivityState.onDestroyed()
+        MinecraftLaunchSession.clear()
         stopInbuiltModServices()
-        super.onDestroy()
 
-        if (isFinishing && !CrashReporter.isHandlingCrash() && !CrashReporter.hasPendingCrash(this)) {
-            CrashReporter.disarmRecovery(this)
-            val intent = Intent(applicationContext, org.levimc.launcher.ui.activities.MainActivity::class.java)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-            startActivity(intent)
-
-            finishAndRemoveTask()
-            android.os.Process.killProcess(android.os.Process.myPid())
+        try {
+            super.onDestroy()
+        } finally {
+            if (shouldKillGameProcess) {
+                android.os.Process.killProcess(android.os.Process.myPid())
+            }
         }
+    }
+
+    private fun prepareNormalExitReturn() {
+        if (normalExitPrepared) return
+        normalExitPrepared = true
+
+        CrashReporter.disarmRecovery(this)
+        CrashReporter.markNormalMinecraftExit(this)
+        MinecraftReturnCoordinator.scheduleLauncherReturnFallback(this)
     }
 
     override fun getAssets(): AssetManager {

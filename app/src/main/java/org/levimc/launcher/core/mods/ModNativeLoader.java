@@ -15,27 +15,58 @@ public class ModNativeLoader {
     private static final String TAG = "ModNativeLoader";
 
     public static void loadEnabledSoMods(ModManager modManager, File cacheDir) {
+        loadEnabledSoMods(modManager, cacheDir, null);
+    }
+
+    public interface LoadListener {
+        void onScanStarted(int totalEnabled);
+        void onModLoadStarted(Mod mod, int index, int total);
+        void onModLoadFinished(Mod mod);
+        void onModLoadFailed(Mod mod, Throwable error);
+        void onMessage(String message);
+    }
+
+    public static void loadEnabledSoMods(ModManager modManager, File cacheDir, LoadListener listener) {
         if (modManager.getCurrentVersion() == null || modManager.getCurrentVersion().modsDir == null) {
+            notifyMessage(listener, "Native mod directory is not configured");
             return;
         }
 
         List<Mod> mods = modManager.getMods();
+        int totalEnabled = 0;
+        for (Mod mod : mods) {
+            if (mod.isEnabled()) {
+                totalEnabled++;
+            }
+        }
+        if (listener != null) {
+            listener.onScanStarted(totalEnabled);
+        }
+
         File cacheModsDir = new File(cacheDir, "mods");
         if (!cacheModsDir.exists() && !cacheModsDir.mkdirs()) {
             Log.e(TAG, "Failed to create cache mod directory: " + cacheModsDir.getAbsolutePath());
+            notifyMessage(listener, "Failed to create cache mod directory: " + cacheModsDir.getAbsolutePath());
             return;
         }
 
         Set<String> stagedModIds = new HashSet<>();
+        int currentIndex = 0;
         for (Mod mod : mods) {
             if (!mod.isEnabled()) {
                 continue;
+            }
+            currentIndex++;
+            if (listener != null) {
+                listener.onModLoadStarted(mod, currentIndex, totalEnabled);
             }
 
             try {
                 File targetFile = prepareCachedEntry(modManager, cacheModsDir, mod);
                 if (targetFile == null || !targetFile.isFile()) {
-                    Log.e(TAG, "Entry not found after copy: " + (targetFile == null ? "<null>" : targetFile.getAbsolutePath()));
+                    IOException error = new IOException("Entry not found after copy: " + (targetFile == null ? "<null>" : targetFile.getAbsolutePath()));
+                    Log.e(TAG, error.getMessage());
+                    notifyFailure(listener, mod, error);
                     continue;
                 }
 
@@ -46,15 +77,32 @@ public class ModNativeLoader {
                 if (ModManager.ensurePreloaderLoaded()) {
                     if (!ModManager.initializeLoadedMod(targetFile.getAbsolutePath(), mod)) {
                         Log.e(TAG, "Failed to finish native initialization for " + mod.getDisplayName());
+                        notifyFailure(listener, mod, new UnsatisfiedLinkError("Failed to finish native initialization"));
                         continue;
                     }
                 }
+                if (listener != null) {
+                    listener.onModLoadFinished(mod);
+                }
             } catch (IOException | UnsatisfiedLinkError e) {
                 Log.e(TAG, "Can't load " + mod.getDisplayName() + ": " + e.getMessage(), e);
+                notifyFailure(listener, mod, e);
             }
         }
 
         pruneStaleCachedMods(cacheModsDir, stagedModIds);
+    }
+
+    private static void notifyFailure(LoadListener listener, Mod mod, Throwable error) {
+        if (listener != null) {
+            listener.onModLoadFailed(mod, error);
+        }
+    }
+
+    private static void notifyMessage(LoadListener listener, String message) {
+        if (listener != null) {
+            listener.onMessage(message);
+        }
     }
 
     private static File prepareCachedEntry(ModManager modManager, File cacheModsDir, Mod mod) throws IOException {

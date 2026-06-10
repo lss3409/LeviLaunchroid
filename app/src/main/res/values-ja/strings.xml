@@ -328,6 +328,14 @@
     <string name="back">戻る</string>
 
     <string name="splash_logo_desc">葉のロゴ</string>
+    <string name="minecraft_loading_title">Minecraft を起動中</string>
+    <string name="minecraft_loading_subtitle">ネイティブライブラリと有効な Mod を準備しています</string>
+    <string name="minecraft_loading_status_preparing">ランタイムを準備中</string>
+    <string name="minecraft_loading_log_title">起動ログ</string>
+    <string name="minecraft_loading_complete">ランタイムの準備完了</string>
+    <string name="minecraft_loading_entering_game">Minecraft に入っています</string>
+    <string name="minecraft_loading_failed">起動に失敗しました</string>
+    <string name="minecraft_loading_return">ランチャーに戻る</string>
 
     <string name="accounts_title">アカウント</string>
     <string name="microsoft_accounts">Microsoft アカウント</string>

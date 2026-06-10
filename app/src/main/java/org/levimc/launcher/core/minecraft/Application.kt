@@ -15,7 +15,8 @@ class LauncherApplication : Application() {
         context = applicationContext
         FeatureSettings.init(applicationContext)
         CrashReporter.init(this)
-        if (Application.getProcessName().endsWith(":crash")) return
+        val processName = Application.getProcessName()
+        if (processName.endsWith(":crash") || processName.endsWith(":minecraft")) return
 
         LogcatOverlayManager.init(this)
         preferences = PreferenceManager.getDefaultSharedPreferences(this)

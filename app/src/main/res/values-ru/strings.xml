@@ -297,6 +297,14 @@
 
     <!-- Заставка -->
     <string name="splash_logo_desc">Логотип листа</string>
+    <string name="minecraft_loading_title">Запуск Minecraft</string>
+    <string name="minecraft_loading_subtitle">Подготовка native-библиотек и включенных модов</string>
+    <string name="minecraft_loading_status_preparing">Подготовка runtime</string>
+    <string name="minecraft_loading_log_title">Журнал запуска</string>
+    <string name="minecraft_loading_complete">Runtime готов</string>
+    <string name="minecraft_loading_entering_game">Вход в Minecraft</string>
+    <string name="minecraft_loading_failed">Не удалось запустить</string>
+    <string name="minecraft_loading_return">Вернуться в лаунчер</string>
 
     <!-- Accounts & Microsoft Login -->
     <string name="accounts_title">Аккаунты</string>

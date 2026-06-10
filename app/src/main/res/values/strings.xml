@@ -342,6 +342,14 @@
 
     <!-- Splash -->
     <string name="splash_logo_desc">Leaf logo</string>
+    <string name="minecraft_loading_title">Starting Minecraft</string>
+    <string name="minecraft_loading_subtitle">Preparing native libraries and enabled mods</string>
+    <string name="minecraft_loading_status_preparing">Preparing runtime</string>
+    <string name="minecraft_loading_log_title">Launch Log</string>
+    <string name="minecraft_loading_complete">Runtime ready</string>
+    <string name="minecraft_loading_entering_game">Entering Minecraft</string>
+    <string name="minecraft_loading_failed">Launch failed</string>
+    <string name="minecraft_loading_return">Back to Launcher</string>
 
     <!-- Accounts & Microsoft Login -->
     <string name="accounts_title">Accounts</string>

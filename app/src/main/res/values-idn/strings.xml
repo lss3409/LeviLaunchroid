@@ -302,6 +302,14 @@
 
     <!-- Splash -->
     <string name="splash_logo_desc">Logo daun</string>
+    <string name="minecraft_loading_title">Memulai Minecraft</string>
+    <string name="minecraft_loading_subtitle">Menyiapkan library native dan mod yang aktif</string>
+    <string name="minecraft_loading_status_preparing">Menyiapkan runtime</string>
+    <string name="minecraft_loading_log_title">Log Peluncuran</string>
+    <string name="minecraft_loading_complete">Runtime siap</string>
+    <string name="minecraft_loading_entering_game">Masuk ke Minecraft</string>
+    <string name="minecraft_loading_failed">Gagal memulai</string>
+    <string name="minecraft_loading_return">Kembali ke Launcher</string>
 
     <!-- Accounts & Microsoft Login -->
     <string name="accounts_title">Akun</string>
