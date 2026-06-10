@@ -173,6 +173,7 @@ public class CpsDisplayOverlay {
             handler.post(updateRunnable);
             applyOpacity();
             updateLockState();
+            applySize();
         } catch (Exception e) {
             showFallback(startX, startY);
         }
@@ -203,6 +204,7 @@ public class CpsDisplayOverlay {
         handler.post(updateRunnable);
         applyOpacity();
         updateLockState();
+        applySize();
     }
 
     private void updateDisplay() {
@@ -214,7 +216,28 @@ public class CpsDisplayOverlay {
     private void applyOpacity() {
         if (overlayView != null) {
             int opacity = InbuiltModManager.getInstance(activity).getOverlayOpacity(ModIds.CPS_DISPLAY);
-            overlayView.setAlpha(opacity / 100f);
+            if (overlayView.getBackground() != null) {
+                overlayView.getBackground().mutate().setAlpha((int) (opacity * 2.55f));
+            }
+        }
+    }
+
+    private void applySize() {
+        if (statsText != null) {
+            int sizeDp = InbuiltModManager.getInstance(activity).getOverlayButtonSize(ModIds.CPS_DISPLAY);
+            float scale = sizeDp / 56f;
+            statsText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12 * scale);
+            
+            float density = activity.getResources().getDisplayMetrics().density;
+            int hPad = (int) (8 * scale * density);
+            int vPad = (int) (4 * scale * density);
+            statsText.setPadding(hPad, vPad, hPad, vPad);
+            
+            if (wmParams != null && windowManager != null && overlayView != null && isShowing) {
+                try {
+                    windowManager.updateViewLayout(overlayView, wmParams);
+                } catch (Exception ignored) {}
+            }
         }
     }
 
@@ -331,5 +354,6 @@ public class CpsDisplayOverlay {
         if (!isShowing || overlayView == null) return;
         applyOpacity();
         updateLockState();
+        applySize();
     }
 }
