@@ -34,6 +34,17 @@ import androidx.core.content.ContextCompat;
 
 import org.levimc.launcher.R;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.RandomAccessFile;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -62,6 +73,14 @@ public class LogcatOverlay extends FrameLayout {
 
     private final ArrayDeque<String> logBuffer = new ArrayDeque<>(2000);
     private static final int MAX_BUFFER_LINES = 2000;
+    private static final int HISTORY_TRIM_INTERVAL_LINES = 250;
+    private static final int MAX_BATCH_LINES = 200;
+    private static final String HISTORY_FILE_NAME = "logcat_overlay_history.txt";
+    private static final String HISTORY_LOCK_FILE_NAME = "logcat_overlay_history.lock";
+    private final Object historyLock = new Object();
+    private File historyFile;
+    private File historyLockFile;
+    private int pendingHistoryTrimLines = 0;
 
     private final ArrayBlockingQueue<String> pendingLines = new ArrayBlockingQueue<>(8192);
     private ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
@@ -118,15 +137,18 @@ public class LogcatOverlay extends FrameLayout {
         overlayContainer.setBackground(bg);
 
         SharedPreferences sp = ctx.getSharedPreferences("LogcatOverlaySPrefs", MODE_PRIVATE);
+        initHistoryFiles(ctx);
         setupUiListeners();
         restoreState(sp);
-        startBackgroundRenderLoop();
+        restorePersistedHistory();
         return sp;
     }
 
     private void setupUiListeners() {
         clearButton.setOnClickListener(v -> {
             synchronized (logBuffer) { logBuffer.clear(); }
+            pendingLines.clear();
+            clearPersistedHistory();
             if (logAdapter != null) logAdapter.clear();
         });
 
@@ -373,7 +395,9 @@ public class LogcatOverlay extends FrameLayout {
     public void start() {
         if (readerThread != null && readerThread.isAlive()) return;
         paused = false;
-        ioExecutor = Executors.newSingleThreadExecutor();
+        if (ioExecutor.isShutdown() || ioExecutor.isTerminated()) {
+            ioExecutor = Executors.newSingleThreadExecutor();
+        }
         startBackgroundRenderLoop();
         startReader();
     }
@@ -425,16 +449,26 @@ public class LogcatOverlay extends FrameLayout {
         renderLoopStarted = true;
         ioExecutor.submit(() -> {
             StringBuilder sb = new StringBuilder();
+            List<String> batch = new ArrayList<>(MAX_BATCH_LINES);
             while (true) {
                 try {
                     String ln = pendingLines.poll(100, java.util.concurrent.TimeUnit.MILLISECONDS);
                     if (ln != null) {
+                        batch.clear();
+                        batch.add(ln);
+                        pendingLines.drainTo(batch, MAX_BATCH_LINES - 1);
+
                         synchronized (logBuffer) {
-                            if (logBuffer.size() >= MAX_BUFFER_LINES) logBuffer.pollFirst();
-                            logBuffer.addLast(ln);
+                            for (String line : batch) {
+                                if (logBuffer.size() >= MAX_BUFFER_LINES) logBuffer.pollFirst();
+                                logBuffer.addLast(line);
+                            }
                         }
-                        if (passesFilter(ln)) {
-                            sb.append(ln).append("\n");
+                        appendPersistedHistory(batch);
+                        for (String line : batch) {
+                            if (passesFilter(line)) {
+                                sb.append(line).append("\n");
+                            }
                         }
                     }
 
@@ -676,6 +710,143 @@ public class LogcatOverlay extends FrameLayout {
         for (String s : csv.split("[,;\\s]+")) if (!s.isEmpty()) list.add(s);
         return list;
     }
+
+    private void initHistoryFiles(Context ctx) {
+        File dir = ctx.getApplicationContext().getNoBackupFilesDir();
+        historyFile = new File(dir, HISTORY_FILE_NAME);
+        historyLockFile = new File(dir, HISTORY_LOCK_FILE_NAME);
+    }
+
+    private void restorePersistedHistory() {
+        List<String> history = readPersistedHistory();
+        if (history.isEmpty()) return;
+
+        synchronized (logBuffer) {
+            logBuffer.clear();
+            for (String line : history) {
+                if (logBuffer.size() >= MAX_BUFFER_LINES) logBuffer.pollFirst();
+                logBuffer.addLast(line);
+            }
+        }
+
+        List<CharSequence> items = new ArrayList<>();
+        for (String line : history) {
+            if (passesFilter(line)) {
+                items.add(colorizeLine(line));
+            }
+        }
+        logAdapter.setItems(items);
+        if (autoScroll) recyclerView.post(this::smoothScrollToBottom);
+    }
+
+    private List<String> readPersistedHistory() {
+        if (historyFile == null || historyLockFile == null || !historyFile.exists()) {
+            return Collections.emptyList();
+        }
+
+        synchronized (historyLock) {
+            try {
+                ensureHistoryDirectory();
+                try (RandomAccessFile lockRaf = new RandomAccessFile(historyLockFile, "rw");
+                     FileChannel lockChannel = lockRaf.getChannel();
+                     FileLock ignored = lockChannel.lock()) {
+                    List<String> lines = readHistoryLinesFromDisk();
+                    if (lines.size() > MAX_BUFFER_LINES) {
+                        lines = new ArrayList<>(lines.subList(lines.size() - MAX_BUFFER_LINES, lines.size()));
+                    }
+                    return lines;
+                }
+            } catch (Exception ignored) {
+                return Collections.emptyList();
+            }
+        }
+    }
+
+    private void appendPersistedHistory(@NonNull List<String> lines) {
+        if (lines.isEmpty()) return;
+        if (historyFile == null || historyLockFile == null) return;
+
+        synchronized (historyLock) {
+            try {
+                ensureHistoryDirectory();
+                try (RandomAccessFile lockRaf = new RandomAccessFile(historyLockFile, "rw");
+                     FileChannel lockChannel = lockRaf.getChannel();
+                     FileLock ignored = lockChannel.lock()) {
+                    try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(
+                            new FileOutputStream(historyFile, true), StandardCharsets.UTF_8))) {
+                        for (String line : lines) {
+                            writer.write(sanitizeHistoryLine(line));
+                            writer.newLine();
+                        }
+                    }
+
+                    pendingHistoryTrimLines += lines.size();
+                    if (pendingHistoryTrimLines >= HISTORY_TRIM_INTERVAL_LINES) {
+                        trimPersistedHistoryLocked();
+                        pendingHistoryTrimLines = 0;
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private void clearPersistedHistory() {
+        if (historyFile == null || historyLockFile == null) return;
+
+        synchronized (historyLock) {
+            try {
+                ensureHistoryDirectory();
+                try (RandomAccessFile lockRaf = new RandomAccessFile(historyLockFile, "rw");
+                     FileChannel lockChannel = lockRaf.getChannel();
+                     FileLock ignored = lockChannel.lock()) {
+                    try (FileOutputStream outputStream = new FileOutputStream(historyFile, false)) {
+                        outputStream.getFD().sync();
+                    }
+                    pendingHistoryTrimLines = 0;
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private void trimPersistedHistoryLocked() throws java.io.IOException {
+        List<String> lines = readHistoryLinesFromDisk();
+        if (lines.size() <= MAX_BUFFER_LINES) return;
+
+        int fromIndex = lines.size() - MAX_BUFFER_LINES;
+        try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(
+                new FileOutputStream(historyFile, false), StandardCharsets.UTF_8))) {
+            for (int i = fromIndex; i < lines.size(); i++) {
+                writer.write(lines.get(i));
+                writer.newLine();
+            }
+        }
+    }
+
+    private List<String> readHistoryLinesFromDisk() throws java.io.IOException {
+        if (!historyFile.exists()) return Collections.emptyList();
+
+        List<String> lines = new ArrayList<>();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                new FileInputStream(historyFile), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                lines.add(line);
+            }
+        }
+        return lines;
+    }
+
+    private void ensureHistoryDirectory() {
+        File parent = historyFile.getParentFile();
+        if (parent != null && !parent.exists()) {
+            parent.mkdirs();
+        }
+    }
+
+    private String sanitizeHistoryLine(@NonNull String line) {
+        return line.replace('\r', ' ').replace('\n', ' ');
+    }
+
     private void restoreState(SharedPreferences sp) {
         int x = sp.getInt("log_overlay_x", -1);
         int y = sp.getInt("log_overlay_y", -1);
