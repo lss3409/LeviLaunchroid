@@ -7,6 +7,7 @@ import android.widget.Button;
 import android.widget.ProgressBar;
 
 import org.levimc.launcher.R;
+import org.levimc.launcher.core.minecraft.MinecraftImportIntents;
 import org.levimc.launcher.core.minecraft.MinecraftLauncher;
 import org.levimc.launcher.core.versions.GameVersion;
 import org.levimc.launcher.core.versions.VersionManager;
@@ -29,26 +30,23 @@ public class ResourcepackHandler {
 
     public void checkIntentForResourcepack() {
         Intent intent = activity.getIntent();
+        if (!MinecraftImportIntents.isMinecraftResourceIntent(activity, intent)) {
+            return;
+        }
+        if (MinecraftImportIntents.forwardToRunningMinecraft(activity, intent)) {
+            return;
+        }
+
         Uri data = intent.getData();
         if (data != null) {
-            String path = data.getPath();
-            if (path != null && isMinecraftResourceFile(path)) {
-                new CustomAlertDialog(activity)
-                        .setTitleText(activity.getString(R.string.content_detected_title))
-                        .setMessage(activity.getString(R.string.content_detected_message, path))
-                        .setPositiveButton(activity.getString(R.string.launch_now), (d) -> launchMinecraft(intent))
-                        .setNegativeButton(activity.getString(R.string.launch_later), null)
-                        .show();
-            }
+            String displayPath = data.getPath() != null ? data.getPath() : data.toString();
+            new CustomAlertDialog(activity)
+                    .setTitleText(activity.getString(R.string.content_detected_title))
+                    .setMessage(activity.getString(R.string.content_detected_message, displayPath))
+                    .setPositiveButton(activity.getString(R.string.launch_now), (d) -> launchMinecraft(intent))
+                    .setNegativeButton(activity.getString(R.string.launch_later), null)
+                    .show();
         }
-    }
-
-    private boolean isMinecraftResourceFile(String path) {
-        String lowerPath = path.toLowerCase();
-        return lowerPath.endsWith(".mcworld") ||
-                lowerPath.endsWith(".mcpack") ||
-                lowerPath.endsWith(".mcaddon") ||
-                lowerPath.endsWith(".mctemplate");
     }
 
     private void launchMinecraft(Intent intent) {

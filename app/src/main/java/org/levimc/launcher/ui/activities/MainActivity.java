@@ -20,6 +20,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.lifecycle.ViewModelProvider;
 
 import org.levimc.launcher.R;
+import org.levimc.launcher.core.minecraft.MinecraftImportIntents;
 import org.levimc.launcher.core.minecraft.MinecraftLauncher;
 import org.levimc.launcher.core.minecraft.MinecraftReturnCoordinator;
 import org.levimc.launcher.core.mods.FileHandler;
@@ -110,8 +111,10 @@ import okhttp3.OkHttpClient;
         setupManagersAndHandlers();
         setTextMinecraftVersion();
         updateViewModelVersion();
-        checkResourcepack();
-        handleIncomingFiles();
+        if (!forwardIncomingMinecraftResourceToRunningGame()) {
+            checkResourcepack();
+            handleIncomingFiles();
+        }
         new GithubReleaseUpdater(this, "LiteLDev", "LeviLaunchroid", permissionResultLauncher).checkUpdateOnLaunch();
         repairNeededVersions();
         requestBasicPermissions();
@@ -168,6 +171,11 @@ import okhttp3.OkHttpClient;
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        if (forwardIncomingMinecraftResourceToRunningGame()) {
+            return;
+        }
+        checkResourcepack();
+        handleIncomingFiles();
         handleMinecraftUriLaunch();
     }
 
@@ -1021,6 +1029,9 @@ import okhttp3.OkHttpClient;
     private void handleIncomingFiles() {
         if (fileHandler == null) return;
         Intent intent = getIntent();
+        if (MinecraftImportIntents.isMinecraftResourceIntent(this, intent)) {
+            return;
+        }
         if (intent != null && intent.getData() != null) {
             Uri data = intent.getData();
             if ("minecraft".equals(data.getScheme())) {
@@ -1046,6 +1057,24 @@ import okhttp3.OkHttpClient;
                 if (binding != null) binding.progressLoader.setProgress(progress);
             }
         }, false);
+    }
+
+    private boolean forwardIncomingMinecraftResourceToRunningGame() {
+        Intent intent = getIntent();
+        if (!MinecraftImportIntents.isMinecraftResourceIntent(this, intent)) {
+            return false;
+        }
+        if (!MinecraftImportIntents.forwardToRunningMinecraft(this, intent)) {
+            return false;
+        }
+
+        clearIncomingIntent();
+        return true;
+    }
+
+    private void clearIncomingIntent() {
+        Intent cleanIntent = new Intent(this, MainActivity.class);
+        setIntent(cleanIntent);
     }
 
     private void handleMinecraftUriLaunch() {

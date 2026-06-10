@@ -59,6 +59,7 @@ class MinecraftActivity : MainActivity() {
     }
 
     override fun onNewIntent(intent: Intent) {
+        setIntent(intent)
         super.onNewIntent(intent)
     }
 
@@ -68,7 +69,7 @@ class MinecraftActivity : MainActivity() {
             normalExitPrepared = false
             MinecraftReturnCoordinator.cancelLauncherReturnFallback(this)
         }
-        MinecraftActivityState.onResumed()
+        MinecraftActivityState.onResumed(this)
 
         if (overlayManager == null) {
             startInbuiltModServices()
@@ -149,7 +150,7 @@ class MinecraftActivity : MainActivity() {
         if (isFinishing) {
             prepareNormalExitReturn()
         }
-        MinecraftActivityState.onPaused()
+        MinecraftActivityState.onPaused(this)
         super.onPause()
     }
 
@@ -160,7 +161,7 @@ class MinecraftActivity : MainActivity() {
         }
 
         org.levimc.launcher.preloader.PreloaderInput.clearActivity()
-        MinecraftActivityState.onDestroyed()
+        MinecraftActivityState.onDestroyed(this)
         MinecraftLaunchSession.clear()
         stopInbuiltModServices()
 
