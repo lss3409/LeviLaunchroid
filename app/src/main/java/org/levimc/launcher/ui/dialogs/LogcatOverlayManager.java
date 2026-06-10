@@ -5,6 +5,7 @@ import android.content.*;
 import android.os.*;
 import android.view.ViewGroup;
 import org.levimc.launcher.settings.FeatureSettings;
+import org.levimc.launcher.core.minecraft.MinecraftLoadingActivity;
 import org.levimc.launcher.ui.activities.SplashActivity;
 
 public class LogcatOverlayManager {
@@ -14,6 +15,7 @@ public class LogcatOverlayManager {
     private LogcatOverlay overlay;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private volatile boolean onSplash = false;
+    private volatile boolean onLoading = false;
 
     private LogcatOverlayManager(Application app) {
         this.app = app;
@@ -43,7 +45,7 @@ public class LogcatOverlayManager {
     }
 
     private void updateVisibility() {
-        boolean show = FeatureSettings.getInstance().isLogcatOverlayEnabled() && !onSplash;
+        boolean show = FeatureSettings.getInstance().isLogcatOverlayEnabled() && !onSplash && !onLoading;
         mainHandler.post(() -> {
             if (overlay == null) return;
             if (show) overlay.show(); else overlay.hide();
@@ -54,6 +56,7 @@ public class LogcatOverlayManager {
         app.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
             @Override public void onActivityResumed(Activity activity) {
                 onSplash = activity instanceof SplashActivity;
+                onLoading = activity instanceof MinecraftLoadingActivity;
                 attachTo(activity);
             }
             @Override public void onActivityCreated(Activity a, Bundle b) {}

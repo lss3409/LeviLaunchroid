@@ -197,7 +197,7 @@ object MinecraftRuntimePreparer {
         modManager: ModManager,
         listener: ProgressListener
     ) {
-        val cacheDir = resolveMinecraftCacheDir(context, launchIntent)
+        val cacheDir = resolveNativeModCacheDir(context, launchIntent)
         ModNativeLoader.loadEnabledSoMods(
             modManager,
             cacheDir,
@@ -232,14 +232,12 @@ object MinecraftRuntimePreparer {
         listener.onProgress(96, "Native mods ready")
     }
 
-    private fun resolveMinecraftCacheDir(context: Context, launchIntent: Intent): File {
-        val mcPath = launchIntent.getStringExtra("MC_PATH")
-        val isIsolated = launchIntent.getBooleanExtra("VERSION_ISOLATION", false)
-        return if (isIsolated && !mcPath.isNullOrEmpty()) {
-            File(mcPath, "cache").also { it.mkdirs() }
-        } else {
-            context.cacheDir
-        }
+    private fun resolveNativeModCacheDir(context: Context, launchIntent: Intent): File {
+        val versionDirName = launchIntent.getStringExtra("MINECRAFT_VERSION_DIR")
+            ?.takeIf { it.isNotBlank() }
+            ?.replace(Regex("[^A-Za-z0-9._-]"), "_")
+            ?: "default"
+        return File(context.cacheDir, "native_mods/$versionDirName").also { it.mkdirs() }
     }
 
     private fun shouldLoadMaesdk(version: GameVersion): Boolean {
