@@ -31,12 +31,14 @@ static EGLBoolean hook_eglSwapBuffers(EGLDisplay dpy, EGLSurface surf) {
 
     if (w < 500 || h < 500) return g_orig_eglSwapBuffers(dpy, surf);
 
-    if (g_targetContext == EGL_NO_CONTEXT) {
+    if (ctx != g_targetContext || surf != g_targetSurface) {
         EGLint buf = 0;
         eglQuerySurface(dpy, surf, EGL_RENDER_BUFFER, &buf);
         if (buf == EGL_BACK_BUFFER) {
             g_targetContext = ctx;
             g_targetSurface = surf;
+            g_frameCount = 0;
+            g_lastFpsTime = std::chrono::steady_clock::now();
         }
     }
 
