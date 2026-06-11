@@ -230,6 +230,11 @@ public class AccountsActivity extends BaseActivity {
         statusText.setText(isEmpty ? getString(R.string.not_signed_in) : getString(R.string.ms_login_success, statusName));
     }
 
+    @Override
+    protected void onNavAccountChanged() {
+        refreshUI();
+    }
+
     private void loadXboxAvatar(MsftAccountStore.MsftAccount active) {
         if (xboxAvatar == null) return;
         String url = AccountTextUtils.sanitizeUrl(active != null ? active.xboxAvatarUrl : null);

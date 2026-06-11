@@ -207,6 +207,7 @@ public class InstancesActivity extends BaseActivity {
             btnImport.setVisibility(View.GONE);
             return;
         }
+        btnImport.setVisibility(View.VISIBLE);
         btnImport.setSelected(true);
         PersonalizationManager pm = new PersonalizationManager(this);
         int accent = pm.getAccentColor();
@@ -269,6 +270,7 @@ public class InstancesActivity extends BaseActivity {
         super.onResume();
         versionManager.loadAllVersions();
         loadVersions();
+        setupImportButton();
         applyFilters();
     }
 

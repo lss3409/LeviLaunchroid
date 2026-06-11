@@ -251,6 +251,22 @@ import okhttp3.OkHttpClient;
             lastAvatarXuid = null;
             return;
         }
+
+        Object currentUrl = accountAvatar.getTag(R.id.nav_account_avatar);
+        if (url.equals(currentUrl) && accountAvatar.getDrawable() != null) {
+            if (avatarProgress != null) avatarProgress.setVisibility(View.GONE);
+            return;
+        }
+
+        Bitmap cached = AccountTextUtils.getCachedAvatar(url);
+        if (cached != null) {
+            accountAvatar.setTag(R.id.nav_account_avatar, url);
+            accountAvatar.setImageBitmap(cached);
+            if (avatarProgress != null) avatarProgress.setVisibility(View.GONE);
+            return;
+        }
+
+        accountAvatar.setTag(R.id.nav_account_avatar, url);
         accountAvatar.setImageDrawable(null);
         if (avatarProgress != null) avatarProgress.setVisibility(View.VISIBLE);
         accountExecutor.execute(() -> {
@@ -258,7 +274,9 @@ import okhttp3.OkHttpClient;
                 try (Response imgResp = avatarClient.newCall(new Request.Builder().url(url).build()).execute()) {
                     Bitmap bmp = (imgResp.isSuccessful() && imgResp.body() != null) ? android.graphics.BitmapFactory.decodeStream(imgResp.body().byteStream()) : null;
                     runOnUiThread(() -> {
+                        if (!url.equals(accountAvatar.getTag(R.id.nav_account_avatar))) return;
                         if (bmp != null) {
+                            AccountTextUtils.cacheAvatar(url, bmp);
                             accountAvatar.setImageBitmap(bmp);
                         }
                         if (avatarProgress != null) avatarProgress.setVisibility(View.GONE);

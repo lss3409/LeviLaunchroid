@@ -6,9 +6,11 @@ import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.content.res.Resources;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Pair;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -16,24 +18,43 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.widget.TextViewCompat;
 
 import org.levimc.launcher.R;
 import org.levimc.launcher.core.auth.MsftAccountStore;
+import org.levimc.launcher.core.auth.MsftAuthManager;
 import org.levimc.launcher.ui.animation.DynamicAnim;
+import org.levimc.launcher.ui.dialogs.LoadingDialog;
+import org.levimc.launcher.util.AccountTextUtils;
+import org.levimc.launcher.util.DialogUtils;
 import org.levimc.launcher.util.PersonalizationManager;
 import org.levimc.launcher.util.ThemeManager;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.Locale;
+
+import coelho.msftauth.api.oauth20.OAuth20Token;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 public class BaseActivity extends AppCompatActivity {
     private int appliedThemeGeneration = -1;
     private int appliedPersonalizationGeneration = -1;
     private boolean navBarInjected = false;
+    private final OkHttpClient navAvatarClient = new OkHttpClient();
+    private final ExecutorService navAccountExecutor = Executors.newSingleThreadExecutor();
+    private ActivityResultLauncher<Intent> navAccountLoginLauncher;
+    private LoadingDialog navAccountLoadingDialog;
 
     @Override
     protected void attachBaseContext(Context newBase) {
@@ -55,6 +76,9 @@ public class BaseActivity extends AppCompatActivity {
         appliedThemeGeneration = ThemeManager.getThemeChangeGeneration();
         appliedPersonalizationGeneration = PersonalizationManager.getChangeGeneration();
         super.onCreate(savedInstanceState);
+        navAccountLoginLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> handleNavAccountLoginResult(result.getResultCode(), result.getData()));
         hideSystemUI();
         getWindow().getDecorView().setOnSystemUiVisibilityChangeListener(
                 visibility -> getWindow().getDecorView().post(this::hideSystemUI));
@@ -165,6 +189,18 @@ public class BaseActivity extends AppCompatActivity {
             DynamicAnim.applyPressScale(backButton);
         }
 
+        View signIn = findViewById(R.id.nav_sign_in_button);
+        if (signIn != null) {
+            signIn.setOnClickListener(v -> navAccountLoginLauncher.launch(new Intent(this, MsftLoginActivity.class)));
+            DynamicAnim.applyPressScale(signIn);
+        }
+
+        View avatarContainer = findViewById(R.id.nav_account_avatar_container);
+        if (avatarContainer != null) {
+            avatarContainer.setOnClickListener(v -> startActivity(new Intent(this, AccountsActivity.class)));
+            DynamicAnim.applyPressScale(avatarContainer);
+        }
+
         findViewById(R.id.nav_tab_launch).setOnClickListener(v -> {
             if (!(this instanceof MainActivity)) {
                 Intent intent = new Intent(this, MainActivity.class);
@@ -201,10 +237,124 @@ public class BaseActivity extends AppCompatActivity {
         if (active == null) {
             if (signIn != null) signIn.setVisibility(View.VISIBLE);
             if (avatarContainer != null) avatarContainer.setVisibility(View.GONE);
+            clearNavAvatar();
         } else {
             if (signIn != null) signIn.setVisibility(View.GONE);
             if (avatarContainer != null) avatarContainer.setVisibility(View.VISIBLE);
+            loadNavXboxAvatar(active);
         }
+    }
+
+    private void clearNavAvatar() {
+        com.microsoft.xbox.idp.toolkit.CircleImageView avatar = findViewById(R.id.nav_account_avatar);
+        ProgressBar progress = findViewById(R.id.nav_avatar_progress);
+        if (avatar != null) avatar.setImageResource(R.drawable.ic_minecraft_cube);
+        if (progress != null) progress.setVisibility(View.GONE);
+    }
+
+    private void loadNavXboxAvatar(MsftAccountStore.MsftAccount active) {
+        com.microsoft.xbox.idp.toolkit.CircleImageView avatar = findViewById(R.id.nav_account_avatar);
+        ProgressBar progress = findViewById(R.id.nav_avatar_progress);
+        if (avatar == null) return;
+
+        String url = AccountTextUtils.sanitizeUrl(active != null ? active.xboxAvatarUrl : null);
+        if (url == null) {
+            avatar.setImageResource(R.drawable.ic_minecraft_cube);
+            if (progress != null) progress.setVisibility(View.GONE);
+            return;
+        }
+
+        Object currentUrl = avatar.getTag(R.id.nav_account_avatar);
+        if (url.equals(currentUrl) && avatar.getDrawable() != null) {
+            if (progress != null) progress.setVisibility(View.GONE);
+            return;
+        }
+
+        Bitmap cached = AccountTextUtils.getCachedAvatar(url);
+        if (cached != null) {
+            avatar.setTag(R.id.nav_account_avatar, url);
+            avatar.setImageBitmap(cached);
+            if (progress != null) progress.setVisibility(View.GONE);
+            return;
+        }
+
+        avatar.setTag(R.id.nav_account_avatar, url);
+        avatar.setImageResource(R.drawable.ic_minecraft_cube);
+        if (progress != null) progress.setVisibility(View.VISIBLE);
+        navAccountExecutor.execute(() -> {
+            Bitmap bmp = null;
+            try (Response imgResp = navAvatarClient.newCall(new Request.Builder().url(url).build()).execute()) {
+                if (imgResp.isSuccessful() && imgResp.body() != null) {
+                    bmp = android.graphics.BitmapFactory.decodeStream(imgResp.body().byteStream());
+                }
+            } catch (Exception ignored) {
+            }
+
+            final Bitmap loaded = bmp;
+            runOnUiThread(() -> {
+                if (!url.equals(avatar.getTag(R.id.nav_account_avatar))) return;
+                if (loaded != null) {
+                    AccountTextUtils.cacheAvatar(url, loaded);
+                    avatar.setImageBitmap(loaded);
+                }
+                if (progress != null) progress.setVisibility(View.GONE);
+            });
+        });
+    }
+
+    private void handleNavAccountLoginResult(int resultCode, Intent data) {
+        if (resultCode != RESULT_OK || data == null) {
+            refreshNavAccountUI();
+            return;
+        }
+
+        String code = data.getStringExtra("ms_auth_code");
+        String codeVerifier = data.getStringExtra("ms_code_verifier");
+        if (code == null || codeVerifier == null) {
+            refreshNavAccountUI();
+            return;
+        }
+
+        navAccountLoadingDialog = DialogUtils.ensure(this, navAccountLoadingDialog);
+        DialogUtils.showWithMessage(navAccountLoadingDialog, getString(R.string.ms_login_exchanging));
+
+        navAccountExecutor.execute(() -> {
+            OkHttpClient client = new OkHttpClient();
+            try {
+                OAuth20Token token = MsftAuthManager.exchangeCodeForToken(
+                        client,
+                        MsftAuthManager.DEFAULT_CLIENT_ID,
+                        code,
+                        codeVerifier,
+                        MsftAuthManager.DEFAULT_SCOPE + " offline_access");
+
+                runOnUiThread(() -> DialogUtils.showWithMessage(navAccountLoadingDialog, getString(R.string.ms_login_auth_xbox_device)));
+                MsftAuthManager.XboxAuthResult xbox = MsftAuthManager.performXboxAuth(client, token, this);
+
+                runOnUiThread(() -> DialogUtils.showWithMessage(navAccountLoadingDialog, getString(R.string.ms_login_fetch_minecraft_identity)));
+                Pair<String, String> nameAndXuid = MsftAuthManager.fetchMinecraftIdentity(client, xbox.xstsToken());
+                String minecraftUsername = nameAndXuid != null ? nameAndXuid.first : null;
+                String xuid = nameAndXuid != null ? nameAndXuid.second : null;
+                MsftAuthManager.saveAccount(this, token, xbox.gamertag(), minecraftUsername, xuid, xbox.avatarUrl());
+
+                runOnUiThread(() -> {
+                    DialogUtils.dismissQuietly(navAccountLoadingDialog);
+                    String statusName = minecraftUsername != null ? minecraftUsername : getString(R.string.not_signed_in);
+                    Toast.makeText(this, getString(R.string.ms_login_success, statusName), Toast.LENGTH_SHORT).show();
+                    refreshNavAccountUI();
+                    onNavAccountChanged();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    DialogUtils.dismissQuietly(navAccountLoadingDialog);
+                    Toast.makeText(this, getString(R.string.ms_login_failed_detail, e.getMessage()), Toast.LENGTH_LONG).show();
+                    refreshNavAccountUI();
+                });
+            }
+        });
+    }
+
+    protected void onNavAccountChanged() {
     }
 
     protected void setActiveNavTab(int activeTabId) {
@@ -254,6 +404,12 @@ public class BaseActivity extends AppCompatActivity {
     protected void onPause() {
         hideSystemUI();
         super.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        navAccountExecutor.shutdownNow();
+        super.onDestroy();
     }
 
     @Override
