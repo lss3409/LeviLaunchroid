@@ -6,10 +6,15 @@ import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.content.res.Resources;
+import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import android.view.WindowManager;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -51,6 +56,8 @@ public class BaseActivity extends AppCompatActivity {
         appliedPersonalizationGeneration = PersonalizationManager.getChangeGeneration();
         super.onCreate(savedInstanceState);
         hideSystemUI();
+        getWindow().getDecorView().setOnSystemUiVisibilityChangeListener(
+                visibility -> getWindow().getDecorView().post(this::hideSystemUI));
     }
 
     @Override
@@ -244,14 +251,49 @@ public class BaseActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onPause() {
+        hideSystemUI();
+        super.onPause();
+    }
+
+    @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         getDelegate().applyDayNight();
         hideSystemUI();
     }
 
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            hideSystemUI();
+        }
+    }
+
     private void hideSystemUI() {
-        getWindow().getDecorView().setSystemUiVisibility(
+        View decorView = getWindow().getDecorView();
+
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().setStatusBarColor(Color.TRANSPARENT);
+        getWindow().setNavigationBarColor(Color.TRANSPARENT);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            getWindow().setStatusBarContrastEnforced(false);
+            getWindow().setNavigationBarContrastEnforced(false);
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().setDecorFitsSystemWindows(false);
+            WindowInsetsController controller = decorView.getWindowInsetsController();
+            if (controller != null) {
+                controller.setSystemBarsBehavior(
+                        WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                controller.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
+            }
+        }
+
+        decorView.setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                         | View.SYSTEM_UI_FLAG_FULLSCREEN
                         | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
@@ -259,6 +301,10 @@ public class BaseActivity extends AppCompatActivity {
                         | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                         | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
         );
+    }
+
+    private boolean shouldSuppressTransition(Intent intent) {
+        return intent != null && (intent.getFlags() & Intent.FLAG_ACTIVITY_NO_ANIMATION) != 0;
     }
 
     @Override
@@ -270,13 +316,17 @@ public class BaseActivity extends AppCompatActivity {
     @Override
     public void startActivity(Intent intent) {
         super.startActivity(intent);
-        overridePendingTransition(R.anim.fade_in, R.anim.fade_out);
+        if (!shouldSuppressTransition(intent)) {
+            overridePendingTransition(R.anim.fade_in, R.anim.fade_out);
+        }
     }
 
     @Override
     public void startActivity(Intent intent, @Nullable Bundle options) {
         super.startActivity(intent, options);
-        overridePendingTransition(R.anim.fade_in, R.anim.fade_out);
+        if (!shouldSuppressTransition(intent)) {
+            overridePendingTransition(R.anim.fade_in, R.anim.fade_out);
+        }
     }
 
     @Override

@@ -2,6 +2,7 @@ package org.levimc.launcher.core.minecraft
 
 import android.content.Intent
 import android.content.res.AssetManager
+import android.graphics.Color
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -14,11 +15,17 @@ import java.io.File
 class MinecraftActivity : MainActivity() {
 
     private lateinit var gameManager: GamePackageManager
+    private lateinit var trace: LaunchTrace
     private var overlayManager: InbuiltOverlayManager? = null
     private var normalExitPrepared = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        trace = LaunchTrace.ensure(intent)
+        trace.mark("MinecraftActivity onCreate entered")
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(resolveLaunchBackgroundColor()))
+
         if (savedInstanceState != null) {
+            trace.mark("MinecraftActivity finishing restored instance")
             super.onCreate(null)
             finish()
             return
@@ -28,12 +35,16 @@ class MinecraftActivity : MainActivity() {
             val preparedRuntime = MinecraftLaunchSession.getPreparedRuntime()
                 ?: MinecraftRuntimePreparer.prepare(applicationContext, intent)
             gameManager = preparedRuntime.gameManager
+            trace.mark("Prepared runtime consumed")
         } catch (e: Exception) {
+            trace.mark("MinecraftActivity prepare failed", e.message)
             Toast.makeText(this, "Failed to load game: ${e.message}", Toast.LENGTH_LONG).show()
             finish()
             return
         }
+        trace.mark("Mojang MainActivity super.onCreate starting")
         super.onCreate(savedInstanceState)
+        trace.mark("Mojang MainActivity super.onCreate finished")
         
         val launchVertically = intent.getBooleanExtra("LAUNCH_VERTICALLY", false)
         if (launchVertically) {
@@ -46,6 +57,16 @@ class MinecraftActivity : MainActivity() {
             .edit()
             .putBoolean("game_verified", true)
             .apply()
+        trace.mark("MinecraftActivity onCreate finished")
+    }
+
+    private fun resolveLaunchBackgroundColor(): Int {
+        val typedValue = android.util.TypedValue()
+        return if (theme.resolveAttribute(android.R.attr.colorBackground, typedValue, true)) {
+            typedValue.data
+        } else {
+            Color.BLACK
+        }
     }
 
     private fun startInbuiltModServices() {

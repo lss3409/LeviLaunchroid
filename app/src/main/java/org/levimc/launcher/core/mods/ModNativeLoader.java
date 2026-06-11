@@ -5,14 +5,20 @@ import android.util.Log;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.HashSet;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Set;
 
 public class ModNativeLoader {
     private static final String TAG = "ModNativeLoader";
+    private static final int CACHE_MANIFEST_VERSION = 2;
 
     public static void loadEnabledSoMods(ModManager modManager, File cacheDir) {
         loadEnabledSoMods(modManager, cacheDir, null);
@@ -62,7 +68,7 @@ public class ModNativeLoader {
             }
 
             try {
-                File targetFile = prepareCachedEntry(modManager, cacheModsDir, mod);
+                File targetFile = prepareCachedEntry(modManager, cacheModsDir, mod, listener);
                 if (targetFile == null || !targetFile.isFile()) {
                     IOException error = new IOException("Entry not found after copy: " + (targetFile == null ? "<null>" : targetFile.getAbsolutePath()));
                     Log.e(TAG, error.getMessage());
@@ -105,20 +111,106 @@ public class ModNativeLoader {
         }
     }
 
-    private static File prepareCachedEntry(ModManager modManager, File cacheModsDir, Mod mod) throws IOException {
+    private static File prepareCachedEntry(ModManager modManager, File cacheModsDir, Mod mod, LoadListener listener) throws IOException {
         File sourceDirectory = new File(modManager.getCurrentVersion().modsDir, mod.getId());
         if (!sourceDirectory.isDirectory()) {
             throw new IOException("Mod package directory does not exist: " + sourceDirectory.getAbsolutePath());
         }
 
         File targetDirectory = new File(cacheModsDir, mod.getId());
+        String sourceFingerprint = buildManifest(sourceDirectory, mod);
+        File manifestFile = new File(targetDirectory, ".mod_cache_manifest");
+        if (targetDirectory.isDirectory() && manifestFile.isFile()) {
+            String cached = readFile(manifestFile);
+            File targetFile = new File(targetDirectory, mod.getEntryPath());
+            if (sourceFingerprint.equals(cached) && targetFile.isFile() && targetFile.length() > 0) {
+                ensureReadOnly(targetFile);
+                return targetFile;
+            }
+        }
+
+        File tempDirectory = new File(cacheModsDir, mod.getId() + ".tmp");
+        if (tempDirectory.exists() && !deleteRecursively(tempDirectory)) {
+            throw new IOException("Failed to clear temporary mod directory: " + tempDirectory.getAbsolutePath());
+        }
+        copyDirectory(sourceDirectory, tempDirectory);
+        writeManifest(new File(tempDirectory, ".mod_cache_manifest"), sourceFingerprint);
+
         if (targetDirectory.exists() && !deleteRecursively(targetDirectory)) {
+            deleteRecursively(tempDirectory);
             throw new IOException("Failed to clear cached mod directory: " + targetDirectory.getAbsolutePath());
         }
-        copyDirectory(sourceDirectory, targetDirectory);
+        if (!tempDirectory.renameTo(targetDirectory)) {
+            deleteRecursively(tempDirectory);
+            throw new IOException("Failed to promote cached mod directory: " + targetDirectory.getAbsolutePath());
+        }
+
         File targetFile = new File(targetDirectory, mod.getEntryPath());
         ensureReadOnly(targetFile);
         return targetFile;
+    }
+
+    private static String readFile(File file) {
+        try {
+            return new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            return "";
+        }
+    }
+
+    private static void writeManifest(File file, String data) throws IOException {
+        ensureParentDirectory(file);
+        try (FileWriter writer = new FileWriter(file)) {
+            writer.write(data);
+        }
+    }
+
+    private static String buildManifest(File sourceDirectory, Mod mod) throws IOException {
+        StringBuilder sb = new StringBuilder();
+        sb.append("loader=").append(CACHE_MANIFEST_VERSION).append('\n');
+        sb.append("id=").append(mod.getId()).append('\n');
+        sb.append("entry=").append(mod.getEntryPath()).append('\n');
+
+        List<File> files = new ArrayList<>();
+        collectFiles(sourceDirectory, files);
+        files.sort(Comparator.comparing(file -> relativePath(sourceDirectory, file)));
+        for (File file : files) {
+            sb.append("file=")
+                    .append(relativePath(sourceDirectory, file))
+                    .append('|')
+                    .append(file.length())
+                    .append('|')
+                    .append(file.lastModified())
+                    .append('\n');
+        }
+        return sb.toString();
+    }
+
+    private static void collectFiles(File root, List<File> files) throws IOException {
+        File[] children = root.listFiles();
+        if (children == null) {
+            throw new IOException("Failed to list mod directory: " + root.getAbsolutePath());
+        }
+
+        for (File child : children) {
+            if (child.isDirectory()) {
+                collectFiles(child, files);
+            } else if (child.isFile()) {
+                files.add(child);
+            }
+        }
+    }
+
+    private static String relativePath(File root, File file) {
+        String rootPath = root.getAbsolutePath();
+        String filePath = file.getAbsolutePath();
+        String relative = filePath.startsWith(rootPath)
+                ? filePath.substring(rootPath.length())
+                : file.getName();
+        while (relative.startsWith(File.separator)) {
+            relative = relative.substring(1);
+        }
+        return relative.replace(File.separatorChar, '/');
     }
 
     private static void copyFile(File src, File dst) throws IOException {
@@ -196,6 +288,10 @@ public class ModNativeLoader {
 
         for (File cachedEntry : cachedEntries) {
             if (stagedModIds.contains(cachedEntry.getName())) {
+                continue;
+            }
+            if (cachedEntry.getName().endsWith(".tmp")) {
+                deleteRecursively(cachedEntry);
                 continue;
             }
 

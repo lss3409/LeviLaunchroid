@@ -31,39 +31,46 @@ object MinecraftRuntimePreparer {
         launchIntent: Intent,
         listener: ProgressListener = noopListener
     ): PreparedRuntime {
-        listener.onProgress(4, "Resolving Minecraft version")
+        val trace = LaunchTrace.ensure(launchIntent)
+        trace.milestone("Runtime preparation started")
+        listener.onProgress(4, "Checking selected version")
         val version = resolveGameVersion(launchIntent)
             ?: throw IllegalArgumentException("No Minecraft version specified")
-        listener.onLog("Selected version: ${version.directoryName} (${version.versionCode})")
+        listener.onLog("Using ${version.directoryName} (${version.versionCode})")
+        trace.mark("Minecraft version resolved", "${version.directoryName} ${version.versionCode}")
 
-        listener.onProgress(12, "Initializing game package")
-        val gameManager = GamePackageManager.getInstance(context.applicationContext, version)
-        listener.onLog("Game package manager is ready")
+        listener.onProgress(12, "Preparing game files")
+        val gameManager = GamePackageManager.getInstance(context.applicationContext, version, trace, null)
+        trace.mark("GamePackageManager ready")
 
-        listener.onProgress(26, "Preparing launch intent")
+        listener.onProgress(26, "Preparing launch")
         prepareMinecraftIntent(context, launchIntent, gameManager, version)
-        listener.onLog("Injected MC_SRC and MC_SPLIT_SRC")
+        trace.mark("Launch intent prepared")
 
-        listener.onProgress(34, "Preparing mod state")
+        listener.onProgress(34, "Checking mods")
         val modManager = ModManager.getInstance()
         modManager.setCurrentVersion(version)
-        listener.onLog("ModManager current version is set in minecraft process")
+        trace.mark("ModManager state prepared")
 
-        listener.onProgress(40, "Loading preloader")
+        listener.onProgress(40, "Preparing game loader")
+        listener.onLog("Loading game loader")
         try {
+            trace.mark("System.loadLibrary(preloader) started")
             System.loadLibrary("preloader")
-            listener.onLog("preloader loaded")
+            trace.mark("System.loadLibrary(preloader) finished")
         } catch (error: UnsatisfiedLinkError) {
-            listener.onLog("preloader is not available yet: ${error.message ?: error.javaClass.simpleName}")
+            trace.mark("System.loadLibrary(preloader) skipped", error.message ?: error.javaClass.simpleName)
         }
 
-        loadMinecraftLibraries(gameManager, version, listener)
+        listener.onLog("Loading native libraries")
+        loadMinecraftLibraries(gameManager, version, listener, trace)
 
-        listener.onProgress(78, "Loading native mods")
-        loadNativeMods(context, launchIntent, modManager, listener)
+        listener.onProgress(78, "Loading enabled mods")
+        listener.onLog("Loading native mods")
+        loadNativeMods(context, launchIntent, modManager, listener, trace)
 
         listener.onProgress(100, "Runtime ready", "Entering Minecraft")
-        listener.onLog("Minecraft runtime is ready")
+        trace.milestone("Runtime preparation finished")
         return PreparedRuntime(version, gameManager)
     }
 
@@ -142,37 +149,44 @@ object MinecraftRuntimePreparer {
     private fun loadMinecraftLibraries(
         gameManager: GamePackageManager,
         version: GameVersion,
-        listener: ProgressListener
+        listener: ProgressListener,
+        trace: LaunchTrace
     ) {
-        listener.onProgress(46, "Loading Minecraft libraries")
+        listener.onProgress(46, "Loading native libraries")
+        trace.mark("Minecraft library loading started")
 
         if (shouldLoadHttpClient(version)) {
-            loadLibrary(gameManager, "c++_shared", 48, false, listener)
-            loadLibrary(gameManager, "HttpClient.Android", 52, false, listener)
+            loadLibrary(gameManager, "c++_shared", 48, false, listener, trace)
+            loadLibrary(gameManager, "HttpClient.Android", 52, false, listener, trace)
         }
 
         if (shouldLoadMaesdk(version)) {
             val excludeLibs = HashSet<String>()
+            val excludeReasons = HashMap<String, String>()
             if (shouldLoadHttpClient(version)) {
                 excludeLibs.add("c++_shared")
                 excludeLibs.add("HttpClient.Android")
+                excludeReasons["c++_shared"] = "already loaded before the bundle"
+                excludeReasons["HttpClient.Android"] = "already loaded before the bundle"
             }
             if (!shouldLoadPlayFab(version)) {
                 excludeLibs.add("PlayFabMultiplayer")
+                excludeReasons["PlayFabMultiplayer"] = "not required by this Minecraft version"
             }
-            listener.onProgress(64, "Loading MAESDK library set")
-            listener.onLog("Loading MAESDK-era library set")
-            gameManager.loadAllLibraries(excludeLibs)
-            listener.onLog("MAESDK-era library load requested")
+            listener.onProgress(56, "Loading native libraries")
+            trace.mark("Minecraft native library bundle loading started", "1.21.110+ layout")
+            gameManager.loadAllLibraries(excludeLibs, trace, listener, 56, 74, excludeReasons)
+            trace.mark("Minecraft native library bundle loading finished")
         } else {
             if (!shouldLoadHttpClient(version)) {
-                loadLibrary(gameManager, "c++_shared", 50, false, listener)
+                loadLibrary(gameManager, "c++_shared", 50, false, listener, trace)
             }
-            loadLibrary(gameManager, "fmod", 56, false, listener)
-            loadLibrary(gameManager, "MediaDecoders_Android", 62, false, listener)
-            loadLibrary(gameManager, "minecraftpe", 70, true, listener)
-            loadLibrary(gameManager, "gxcore", 74, false, listener)
+            loadLibrary(gameManager, "fmod", 56, false, listener, trace)
+            loadLibrary(gameManager, "MediaDecoders_Android", 62, false, listener, trace)
+            loadLibrary(gameManager, "minecraftpe", 70, true, listener, trace)
+            loadLibrary(gameManager, "gxcore", 74, false, listener, trace)
         }
+        trace.mark("Minecraft library loading finished")
     }
 
     private fun loadLibrary(
@@ -180,56 +194,90 @@ object MinecraftRuntimePreparer {
         name: String,
         progress: Int,
         required: Boolean,
-        listener: ProgressListener
+        listener: ProgressListener,
+        trace: LaunchTrace
     ) {
-        listener.onProgress(progress, "Loading lib$name.so")
-        listener.onLog("Loading lib$name.so")
-        val loaded = gameManager.loadLibrary(name)
-        if (!loaded && required) {
-            throw RuntimeException("Failed to load lib$name.so")
+        val fileName = toLibraryFileName(name)
+        listener.onProgress(progress, "Loading native libraries", fileName)
+        listener.onLog("Loading native library: $fileName")
+        trace.mark("System.load started", fileName)
+        val result = gameManager.loadLibraryDetailed(name)
+        if (!result.loaded && required) {
+            listener.onLog("Failed to load native library: ${result.fileName}")
+            trace.error(
+                "Required library load failed",
+                "${result.fileName} in ${result.durationMs}ms from ${result.source}" +
+                    (result.detail?.let { " - $it" } ?: "")
+            )
+            throw RuntimeException("Failed to load ${result.fileName}: ${result.detail ?: "unknown error"}")
         }
-        listener.onLog(if (loaded) "Loaded lib$name.so" else "Skipped lib$name.so")
+        if (result.loaded) {
+            listener.onLog("Loaded native library: ${result.fileName}")
+            trace.mark(
+                "System.load finished",
+                "${result.fileName} in ${result.durationMs}ms from ${result.source}" +
+                    (result.detail?.let { " - $it" } ?: "")
+            )
+        } else {
+            listener.onLog("Skipped native library: ${result.fileName}")
+            trace.mark(
+                "System.load skipped",
+                "${result.fileName} in ${result.durationMs}ms from ${result.source}" +
+                    (result.detail?.let { " - $it" } ?: "")
+            )
+        }
     }
 
     private fun loadNativeMods(
         context: Context,
         launchIntent: Intent,
         modManager: ModManager,
-        listener: ProgressListener
+        listener: ProgressListener,
+        trace: LaunchTrace
     ) {
         val cacheDir = resolveNativeModCacheDir(context, launchIntent)
+        trace.mark("Native mod loading started", cacheDir.absolutePath)
+        val modLoadLabels = java.util.IdentityHashMap<Mod, String>()
         ModNativeLoader.loadEnabledSoMods(
             modManager,
             cacheDir,
             object : ModNativeLoader.LoadListener {
                 override fun onScanStarted(totalEnabled: Int) {
-                    if (totalEnabled == 0) {
-                        listener.onLog("No enabled native mods")
+                    if (totalEnabled > 0) {
+                        listener.onLog("Loading $totalEnabled enabled mod(s)")
                     } else {
-                        listener.onLog("Found $totalEnabled enabled native mod(s)")
+                        listener.onLog("No enabled native mods")
                     }
                 }
 
                 override fun onModLoadStarted(mod: Mod, index: Int, total: Int) {
                     val progress = 80 + ((index - 1) * 15 / total.coerceAtLeast(1))
-                    listener.onProgress(progress, "Loading native mods", "$index/$total ${mod.displayName}")
-                    listener.onLog("Loading mod $index/$total: ${mod.displayName}")
+                    val label = "$index/$total"
+                    modLoadLabels[mod] = label
+                    listener.onProgress(progress, "Loading native mods", "$label ${mod.displayName}")
+                    trace.mark("Native mod load started", "$label ${mod.displayName}")
                 }
 
                 override fun onModLoadFinished(mod: Mod) {
-                    listener.onLog("Loaded mod: ${mod.displayName}")
+                    val label = modLoadLabels.remove(mod)?.let { "$it " }.orEmpty()
+                    listener.onLog("Loaded mod: $label${mod.displayName}")
+                    trace.mark("Native mod load finished", mod.displayName)
                 }
 
                 override fun onModLoadFailed(mod: Mod, error: Throwable) {
+                    trace.warning("Native mod load failed", "${mod.displayName}: ${error.message ?: error.javaClass.simpleName}")
                     listener.onLog("Failed to load mod ${mod.displayName}: ${error.message ?: error.javaClass.simpleName}")
                 }
 
                 override fun onMessage(message: String) {
                     listener.onLog(message)
+                    trace.warning("Native mod loader message", message)
                 }
             }
         )
         listener.onProgress(96, "Native mods ready")
+        listener.onLog("Native mods ready")
+        trace.mark("Native mod loading finished")
     }
 
     private fun resolveNativeModCacheDir(context: Context, launchIntent: Intent): File {
@@ -256,6 +304,10 @@ object MinecraftRuntimePreparer {
         val versionCode = version.versionCode
         val targetVersion = if (versionCode.contains("beta")) "1.21.130.20" else "1.21.130"
         return isVersionAtLeast(versionCode, targetVersion)
+    }
+
+    private fun toLibraryFileName(name: String): String {
+        return if (name.startsWith("lib") && name.endsWith(".so")) name else "lib${name.removePrefix("lib").removeSuffix(".so")}.so"
     }
 
     private fun isVersionAtLeast(currentVersion: String, targetVersion: String): Boolean {

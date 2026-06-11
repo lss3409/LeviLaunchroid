@@ -7,6 +7,7 @@ import android.content.pm.ApplicationInfo;
 import android.os.Build;
 import android.widget.Toast;
 
+import org.levimc.launcher.R;
 import org.levimc.launcher.core.versions.GameVersion;
 import android.util.Log;
 
@@ -148,6 +149,8 @@ public class MinecraftLauncher {
         Activity activity = (Activity) context;
 
         Intent launchIntent = sourceIntent == null ? new Intent() : new Intent(sourceIntent);
+        LaunchTrace trace = LaunchTrace.ensure(launchIntent);
+        trace.mark("Building MinecraftLoadingActivity intent");
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             launchIntent.putExtra("DISABLE_SPLASH_SCREEN", true);
         }
@@ -162,6 +165,8 @@ public class MinecraftLauncher {
         launchIntent.removeExtra("LAUNCH_WITH_URI");
 
         activity.startActivity(launchIntent);
+        activity.overridePendingTransition(R.anim.fade_in, R.anim.fade_out);
+        trace.mark("MinecraftLoadingActivity startActivity called");
     }
 
     private void showLaunchErrorOnUi(String message) {

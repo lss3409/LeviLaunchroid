@@ -21,6 +21,7 @@ import androidx.lifecycle.ViewModelProvider;
 
 import org.levimc.launcher.R;
 import org.levimc.launcher.core.minecraft.MinecraftImportIntents;
+import org.levimc.launcher.core.minecraft.LaunchTrace;
 import org.levimc.launcher.core.minecraft.MinecraftLauncher;
 import org.levimc.launcher.core.minecraft.MinecraftReturnCoordinator;
 import org.levimc.launcher.core.mods.FileHandler;
@@ -746,10 +747,13 @@ import okhttp3.OkHttpClient;
     }
     private void performActualLaunch() {
         binding.launchButton.setEnabled(false);
+        LaunchTrace trace = LaunchTrace.create(null);
+        trace.milestone("Launch requested");
 
         GameVersion version = versionManager != null ? versionManager.getSelectedVersion() : null;
 
         if (version == null) {
+            trace.warning("Launch cancelled", "No version selected");
             binding.launchButton.setEnabled(true);
             new CustomAlertDialog(this)
                     .setTitleText(getString(R.string.dialog_title_no_version))
@@ -760,9 +764,11 @@ import okhttp3.OkHttpClient;
         }
 
         if (FeatureSettings.getInstance().isLauncherManagedMcLoginEnabled()) {
+            trace.mark("Checking launcher-managed login");
             MsftAccountStore.MsftAccount active = getActiveAccount();
             boolean loggedIn = active != null && active.minecraftUsername != null && !active.minecraftUsername.isEmpty();
             if (!loggedIn) {
+                trace.warning("Launch cancelled", "Minecraft account is missing");
                 binding.launchButton.setEnabled(true);
                 new CustomAlertDialog(this)
                         .setTitleText(getString(R.string.dialog_title_login_required))
@@ -777,6 +783,7 @@ import okhttp3.OkHttpClient;
         }
 
         if (!version.isInstalled && !version.versionIsolation) {
+            trace.warning("Launch cancelled", "Version isolation must be enabled");
             binding.launchButton.setEnabled(true);
             new CustomAlertDialog(this)
                     .setTitleText(getString(R.string.dialog_title_version_isolation))
@@ -791,36 +798,41 @@ import okhttp3.OkHttpClient;
         }
 
         if (!PlayStoreValidator.isMinecraftFromPlayStore(this)) {
+            trace.warning("Launch cancelled", "Minecraft is not verified as Play Store install");
             binding.launchButton.setEnabled(true);
             PlayStoreValidationDialog.showNotFromPlayStoreDialog(this);
             return;
         }
 
-        new Thread(() -> {
-            try {
-                minecraftLauncher.launch(createMinecraftLaunchIntent(), version, new MinecraftLauncher.LaunchCallback() {
-                    @Override
-                    public void onLaunchStarted() {
-                    }
+        trace.mark("Launch validation completed", version.directoryName + " " + version.versionCode);
+        try {
+            Intent launchIntent = createMinecraftLaunchIntent();
+            launchIntent.putExtra(LaunchTrace.EXTRA_SESSION_ID, trace.getSessionId());
+            launchIntent.putExtra(LaunchTrace.EXTRA_STARTED_ELAPSED_MS,
+                    android.os.SystemClock.elapsedRealtime() - trace.elapsedMs());
+            minecraftLauncher.launch(launchIntent, version, new MinecraftLauncher.LaunchCallback() {
+                @Override
+                public void onLaunchStarted() {
+                    trace.milestone("Loading screen requested");
+                }
 
-                    @Override
-                    public void onLaunchFailed(Exception e) {
-                        runOnUiThread(() -> {
-                            if (binding != null) binding.launchButton.setEnabled(true);
-                        });
-                    }
-                });
-            } catch (Exception e) {
-                runOnUiThread(() -> {
-                    binding.launchButton.setEnabled(true);
-                    new CustomAlertDialog(this)
-                            .setTitleText(getString(R.string.dialog_title_launch_failed))
-                            .setMessage(getString(R.string.dialog_message_launch_failed, e.getMessage()))
-                            .setPositiveButton(getString(R.string.dialog_positive_ok), null)
-                            .show();
-                });
-            }
-        }).start();
+                @Override
+                public void onLaunchFailed(Exception e) {
+                    trace.error("Launch failed before loading screen", e.getMessage());
+                    runOnUiThread(() -> {
+                        if (binding != null) binding.launchButton.setEnabled(true);
+                    });
+                }
+            });
+        } catch (Exception e) {
+            trace.error("Launch failed before activity start", e.getMessage());
+            binding.launchButton.setEnabled(true);
+            new CustomAlertDialog(this)
+                    .setTitleText(getString(R.string.dialog_title_launch_failed))
+                    .setMessage(getString(R.string.dialog_message_launch_failed, e.getMessage()))
+                    .setPositiveButton(getString(R.string.dialog_positive_ok), null)
+                    .show();
+        }
     }
 
     private Intent createMinecraftLaunchIntent() {

@@ -20,6 +20,7 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.Switch;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import androidx.cardview.widget.CardView;
@@ -383,6 +384,14 @@ public class PersonalizationManager {
             try {
                 sb.setProgressTintList(ColorStateList.valueOf(accentColor));
                 sb.setThumbTintList(ColorStateList.valueOf(accentColor));
+            } catch (Exception ignored) {}
+        }
+
+        if (view instanceof ProgressBar) {
+            ProgressBar pb = (ProgressBar) view;
+            try {
+                pb.setProgressTintList(ColorStateList.valueOf(accentColor));
+                pb.setProgressBackgroundTintList(ColorStateList.valueOf(Color.argb(42, Color.red(accentColor), Color.green(accentColor), Color.blue(accentColor))));
             } catch (Exception ignored) {}
         }
 

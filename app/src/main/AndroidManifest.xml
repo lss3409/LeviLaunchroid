@@ -3,11 +3,6 @@
     xmlns:tools="http://schemas.android.com/tools"
     tools:ignore="MissingClass">
 
-    <uses-sdk
-        android:minSdkVersion="26"
-        android:targetSdkVersion="35"
-        tools:overrideLibrary="androidx.core.splashscreen" />
-
     <uses-feature
         android:glEsVersion="0x20000"
         android:required="true" />
@@ -279,7 +274,7 @@
             android:launchMode="standard"
             android:process=":minecraft"
             android:screenOrientation="sensorLandscape"
-            android:theme="@style/Base.Theme.FullScreen"
+            android:theme="@style/MinecraftLoadingTheme"
             tools:ignore="DiscouragedApi" />
 
         <activity
