@@ -635,6 +635,10 @@
     <string name="bg_image_desc">Select an image to use as background</string>
     <string name="bg_image_none">No image selected</string>
     <string name="bg_image_selected">Custom background active</string>
+    <string name="bg_image_blur">Blur</string>
+    <string name="bg_image_blur_value">%1$dpx</string>
+    <string name="bg_image_brightness">Brightness</string>
+    <string name="bg_image_brightness_value">%1$d%%</string>
     <string name="select_image">Select Image</string>
     <string name="clear">Clear</string>
 

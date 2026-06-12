@@ -19,6 +19,7 @@ import android.widget.GridLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -66,6 +67,8 @@ public class SettingsActivity extends BaseActivity {
     private LinearLayout colorGridContainer;
     private LinearLayout moreColorsContainer;
     private TextView bgImageStatus;
+    private TextView bgImageBlurValue;
+    private TextView bgImageBrightnessValue;
     private ImageView bgImagePreview;
 
     @Override
@@ -478,7 +481,7 @@ public class SettingsActivity extends BaseActivity {
         
         TextView navAppName = findViewById(R.id.nav_app_name);
         if (navAppName != null && accent != 0) {
-            pm.applySubtleWhiteGradient(navAppName, accent, 0.35f, false);
+            pm.applySolidAccentText(navAppName, accent);
         }
         
         Button navSignInBtn = findViewById(R.id.nav_sign_in_button);
@@ -506,6 +509,7 @@ public class SettingsActivity extends BaseActivity {
 
         if (btnSelectImage == null) return;
 
+        setupBackgroundImageControls();
         updateBgImageUI();
 
         btnSelectImage.setOnClickListener(v -> {
@@ -523,14 +527,101 @@ public class SettingsActivity extends BaseActivity {
         }
     }
 
+    private void setupBackgroundImageControls() {
+        SeekBar blurSeek = findViewById(R.id.seek_bg_image_blur);
+        SeekBar brightnessSeek = findViewById(R.id.seek_bg_image_brightness);
+        bgImageBlurValue = findViewById(R.id.bg_image_blur_value);
+        bgImageBrightnessValue = findViewById(R.id.bg_image_brightness_value);
+
+        if (blurSeek != null) {
+            blurSeek.setMax(PersonalizationManager.BG_BLUR_MAX);
+            blurSeek.setProgress(personalizationManager.getBackgroundImageBlur());
+            updateBgImageBlurValue(blurSeek.getProgress());
+            blurSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                @Override
+                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                    updateBgImageBlurValue(progress);
+                    if (!fromUser) return;
+                    personalizationManager.setBackgroundImageBlur(progress);
+                    if (personalizationManager.supportsRealtimeBackgroundBlur()) {
+                        refreshBackgroundImageEffects();
+                    }
+                }
+
+                @Override
+                public void onStartTrackingTouch(SeekBar seekBar) {
+                }
+
+                @Override
+                public void onStopTrackingTouch(SeekBar seekBar) {
+                    refreshBackgroundImageEffects();
+                }
+            });
+        }
+
+        if (brightnessSeek != null) {
+            brightnessSeek.setMin(PersonalizationManager.BG_BRIGHTNESS_MIN);
+            brightnessSeek.setMax(PersonalizationManager.BG_BRIGHTNESS_MAX);
+            brightnessSeek.setProgress(personalizationManager.getBackgroundImageBrightness());
+            updateBgImageBrightnessValue(brightnessSeek.getProgress());
+            brightnessSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                @Override
+                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                    updateBgImageBrightnessValue(progress);
+                    if (!fromUser) return;
+                    personalizationManager.setBackgroundImageBrightness(progress);
+                    refreshBackgroundImageColorEffects();
+                }
+
+                @Override
+                public void onStartTrackingTouch(SeekBar seekBar) {
+                }
+
+                @Override
+                public void onStopTrackingTouch(SeekBar seekBar) {
+                }
+            });
+        }
+    }
+
+    private void updateBgImageBlurValue(int blurRadius) {
+        if (bgImageBlurValue != null) {
+            bgImageBlurValue.setText(getString(R.string.bg_image_blur_value, blurRadius));
+        }
+    }
+
+    private void updateBgImageBrightnessValue(int brightnessPercent) {
+        if (bgImageBrightnessValue != null) {
+            bgImageBrightnessValue.setText(getString(R.string.bg_image_brightness_value, brightnessPercent));
+        }
+    }
+
+    private void refreshBackgroundImageEffects() {
+        personalizationManager.refreshBackgroundEffects(this);
+        if (bgImagePreview != null) {
+            personalizationManager.refreshBackgroundImageView(bgImagePreview);
+        }
+    }
+
+    private void refreshBackgroundImageColorEffects() {
+        personalizationManager.refreshBackgroundColorEffects(this);
+        if (bgImagePreview != null) {
+            personalizationManager.applyBackgroundImageEffects(bgImagePreview);
+        }
+    }
+
     private void updateBgImageUI() {
         if (bgImageStatus == null) return;
-        if (personalizationManager.hasBackgroundImage()) {
+        boolean hasBackgroundImage = personalizationManager.hasBackgroundImage();
+        View effectControls = findViewById(R.id.bg_image_effect_controls);
+        if (effectControls != null) {
+            effectControls.setVisibility(hasBackgroundImage ? View.VISIBLE : View.GONE);
+        }
+
+        if (hasBackgroundImage) {
             bgImageStatus.setText(R.string.bg_image_selected);
             if (bgImagePreview != null) {
-                android.graphics.Bitmap bmp = personalizationManager.loadBackgroundBitmap();
-                if (bmp != null) {
-                    bgImagePreview.setImageBitmap(bmp);
+                if (personalizationManager.applyBackgroundImageToView(bgImagePreview)) {
                     bgImagePreview.setVisibility(View.VISIBLE);
                 }
             }

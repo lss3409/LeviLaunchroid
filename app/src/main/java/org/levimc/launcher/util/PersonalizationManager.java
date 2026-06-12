@@ -7,13 +7,16 @@ import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.graphics.LinearGradient;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
+import android.graphics.RenderEffect;
 import android.graphics.Shader;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -36,6 +39,14 @@ public class PersonalizationManager {
     private static final String PREFS_NAME = "personalization_prefs";
     private static final String KEY_ACCENT_COLOR = "accent_color";
     private static final String KEY_BG_IMAGE_PATH = "bg_image_path";
+    private static final String KEY_BG_IMAGE_BLUR = "bg_image_blur";
+    private static final String KEY_BG_IMAGE_BRIGHTNESS = "bg_image_brightness";
+
+    public static final int BG_BLUR_MIN = 0;
+    public static final int BG_BLUR_MAX = 25;
+    public static final int BG_BRIGHTNESS_MIN = 40;
+    public static final int BG_BRIGHTNESS_MAX = 160;
+    public static final int BG_BRIGHTNESS_DEFAULT = 100;
 
     private static int sChangeGeneration = 0;
 
@@ -83,6 +94,29 @@ public class PersonalizationManager {
         String path = getBackgroundImagePath();
         if (path == null) return false;
         return new File(path).exists();
+    }
+
+    public int getBackgroundImageBlur() {
+        return clamp(prefs.getInt(KEY_BG_IMAGE_BLUR, BG_BLUR_MIN), BG_BLUR_MIN, BG_BLUR_MAX);
+    }
+
+    public void setBackgroundImageBlur(int blurRadius) {
+        int clamped = clamp(blurRadius, BG_BLUR_MIN, BG_BLUR_MAX);
+        if (getBackgroundImageBlur() == clamped) return;
+        prefs.edit().putInt(KEY_BG_IMAGE_BLUR, clamped).apply();
+        sChangeGeneration++;
+    }
+
+    public int getBackgroundImageBrightness() {
+        return clamp(prefs.getInt(KEY_BG_IMAGE_BRIGHTNESS, BG_BRIGHTNESS_DEFAULT),
+                BG_BRIGHTNESS_MIN, BG_BRIGHTNESS_MAX);
+    }
+
+    public void setBackgroundImageBrightness(int brightnessPercent) {
+        int clamped = clamp(brightnessPercent, BG_BRIGHTNESS_MIN, BG_BRIGHTNESS_MAX);
+        if (getBackgroundImageBrightness() == clamped) return;
+        prefs.edit().putInt(KEY_BG_IMAGE_BRIGHTNESS, clamped).apply();
+        sChangeGeneration++;
     }
 
     public void setBackgroundImage(Uri sourceUri, Context activityContext) {
@@ -170,7 +204,7 @@ public class PersonalizationManager {
     private void applyNavBarAccent(Activity activity, int accent) {
         TextView appName = activity.findViewById(R.id.nav_app_name);
         if (appName != null) {
-            applySubtleWhiteGradient(appName, accent, 0.35f, false);
+            applySolidAccentText(appName, accent);
         }
 
         View signInBtn = activity.findViewById(R.id.nav_sign_in_button);
@@ -181,40 +215,13 @@ public class PersonalizationManager {
         }
     }
 
-    public void applySubtleWhiteGradient(TextView textView, int accentColor, float whiteRatio, boolean whiteOnLeft) {
-        textView.post(() -> {
-            String text = textView.getText().toString();
-            float textWidth = textView.getPaint().measureText(text);
-            if (textWidth <= 0) textWidth = 1f;
-
-            int blendedWhite = blendColors(accentColor, Color.WHITE, whiteRatio);
-
-            int leftColor = whiteOnLeft ? blendedWhite : accentColor;
-            int rightColor = whiteOnLeft ? accentColor : blendedWhite;
-
-            Shader shader = new LinearGradient(
-                    0, 0, textWidth, 0,
-                    new int[]{leftColor, rightColor},
-                    new float[]{0f, 1f},
-                    Shader.TileMode.CLAMP
-            );
-            textView.getPaint().setShader(shader);
-            textView.invalidate();
-        });
-    }
-
-    private int blendColors(int color1, int color2, float ratio) {
-        float inverseRatio = 1f - ratio;
-        int r = (int) (Color.red(color1) * inverseRatio + Color.red(color2) * ratio);
-        int g = (int) (Color.green(color1) * inverseRatio + Color.green(color2) * ratio);
-        int b = (int) (Color.blue(color1) * inverseRatio + Color.blue(color2) * ratio);
-        return Color.rgb(r, g, b);
+    public void applySolidAccentText(TextView textView, int accentColor) {
+        textView.getPaint().setShader(null);
+        textView.setTextColor(accentColor);
+        textView.invalidate();
     }
 
     private void applyBackgroundImage(Activity activity, ViewGroup rootView) {
-        Bitmap bmp = loadBackgroundBitmap();
-        if (bmp == null) return;
-
         ImageView bgView = rootView.findViewWithTag("personalization_bg");
         if (bgView == null) {
             bgView = new ImageView(activity);
@@ -225,9 +232,8 @@ public class PersonalizationManager {
             bgView.setScaleType(ImageView.ScaleType.CENTER_CROP);
             rootView.addView(bgView, 0);
         }
-        bgView.setImageBitmap(bmp);
+        if (!applyBackgroundImageToView(bgView)) return;
 
-        int baseMode = 0;
         View overlayView = rootView.findViewWithTag("personalization_overlay");
         if (overlayView == null) {
             overlayView = new View(activity);
@@ -244,6 +250,162 @@ public class PersonalizationManager {
         overlayView.setVisibility(View.VISIBLE);
 
         makeChildBackgroundsTranslucent(rootView, activity);
+    }
+
+    public void refreshBackgroundEffects(Activity activity) {
+        ViewGroup rootView = activity.findViewById(android.R.id.content);
+        if (rootView == null) return;
+        ImageView bgView = rootView.findViewWithTag("personalization_bg");
+        if (bgView != null) {
+            refreshBackgroundImageView(bgView);
+        }
+    }
+
+    public void refreshBackgroundColorEffects(Activity activity) {
+        ViewGroup rootView = activity.findViewById(android.R.id.content);
+        if (rootView == null) return;
+        ImageView bgView = rootView.findViewWithTag("personalization_bg");
+        if (bgView != null) {
+            applyBackgroundImageEffects(bgView);
+        }
+    }
+
+    public boolean supportsRealtimeBackgroundBlur() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.S;
+    }
+
+    public boolean applyBackgroundImageToView(ImageView bgView) {
+        Bitmap bmp = loadBackgroundBitmap();
+        if (bmp == null) return false;
+
+        Bitmap displayBitmap = bmp;
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S && getBackgroundImageBlur() > 0) {
+            Bitmap blurredBitmap = createBlurredBitmap(bmp, getBackgroundImageBlur());
+            if (blurredBitmap != null) {
+                displayBitmap = blurredBitmap;
+                if (displayBitmap != bmp) {
+                    bmp.recycle();
+                }
+            }
+        }
+
+        bgView.setImageBitmap(displayBitmap);
+        applyBackgroundImageEffects(bgView);
+        return true;
+    }
+
+    public void refreshBackgroundImageView(ImageView bgView) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            applyBackgroundImageToView(bgView);
+        } else {
+            applyBackgroundImageEffects(bgView);
+        }
+    }
+
+    public void applyBackgroundImageEffects(ImageView bgView) {
+        int blurRadius = getBackgroundImageBlur();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (blurRadius > 0) {
+                bgView.setRenderEffect(RenderEffect.createBlurEffect(
+                        blurRadius, blurRadius, Shader.TileMode.CLAMP));
+            } else {
+                bgView.setRenderEffect(null);
+            }
+        }
+
+        float brightness = getBackgroundImageBrightness() / 100f;
+        if (Math.abs(brightness - 1f) < 0.001f) {
+            bgView.clearColorFilter();
+            return;
+        }
+
+        ColorMatrix matrix = new ColorMatrix(new float[]{
+                brightness, 0, 0, 0, 0,
+                0, brightness, 0, 0, 0,
+                0, 0, brightness, 0, 0,
+                0, 0, 0, 1, 0
+        });
+        bgView.setColorFilter(new ColorMatrixColorFilter(matrix));
+    }
+
+    private Bitmap createBlurredBitmap(Bitmap source, int radius) {
+        if (source == null || radius <= 0) return source;
+        try {
+            int maxDim = 720;
+            int width = source.getWidth();
+            int height = source.getHeight();
+            float scale = Math.min(1f, (float) maxDim / Math.max(width, height));
+            int scaledWidth = Math.max(1, Math.round(width * scale));
+            int scaledHeight = Math.max(1, Math.round(height * scale));
+            Bitmap working = Bitmap.createScaledBitmap(source, scaledWidth, scaledHeight, true)
+                    .copy(Bitmap.Config.ARGB_8888, true);
+
+            int w = working.getWidth();
+            int h = working.getHeight();
+            int[] pixels = new int[w * h];
+            int[] temp = new int[w * h];
+            int[] output = new int[w * h];
+            working.getPixels(pixels, 0, w, 0, 0, w, h);
+
+            int windowSize = radius * 2 + 1;
+            for (int y = 0; y < h; y++) {
+                int row = y * w;
+                int a = 0;
+                int r = 0;
+                int g = 0;
+                int b = 0;
+                for (int i = -radius; i <= radius; i++) {
+                    int color = pixels[row + clamp(i, 0, w - 1)];
+                    a += Color.alpha(color);
+                    r += Color.red(color);
+                    g += Color.green(color);
+                    b += Color.blue(color);
+                }
+                for (int x = 0; x < w; x++) {
+                    temp[row + x] = Color.argb(a / windowSize, r / windowSize, g / windowSize, b / windowSize);
+
+                    int removeColor = pixels[row + clamp(x - radius, 0, w - 1)];
+                    int addColor = pixels[row + clamp(x + radius + 1, 0, w - 1)];
+                    a += Color.alpha(addColor) - Color.alpha(removeColor);
+                    r += Color.red(addColor) - Color.red(removeColor);
+                    g += Color.green(addColor) - Color.green(removeColor);
+                    b += Color.blue(addColor) - Color.blue(removeColor);
+                }
+            }
+
+            for (int x = 0; x < w; x++) {
+                int a = 0;
+                int r = 0;
+                int g = 0;
+                int b = 0;
+                for (int i = -radius; i <= radius; i++) {
+                    int color = temp[clamp(i, 0, h - 1) * w + x];
+                    a += Color.alpha(color);
+                    r += Color.red(color);
+                    g += Color.green(color);
+                    b += Color.blue(color);
+                }
+                for (int y = 0; y < h; y++) {
+                    output[y * w + x] = Color.argb(a / windowSize, r / windowSize, g / windowSize, b / windowSize);
+
+                    int removeColor = temp[clamp(y - radius, 0, h - 1) * w + x];
+                    int addColor = temp[clamp(y + radius + 1, 0, h - 1) * w + x];
+                    a += Color.alpha(addColor) - Color.alpha(removeColor);
+                    r += Color.red(addColor) - Color.red(removeColor);
+                    g += Color.green(addColor) - Color.green(removeColor);
+                    b += Color.blue(addColor) - Color.blue(removeColor);
+                }
+            }
+
+            working.setPixels(output, 0, w, 0, 0, w, h);
+            return working;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private int getGlassColor(boolean isDark) {
