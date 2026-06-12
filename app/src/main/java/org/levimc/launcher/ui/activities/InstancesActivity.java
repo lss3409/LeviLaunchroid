@@ -39,10 +39,10 @@ public class InstancesActivity extends BaseActivity {
 
     private static final int FILTER_ALL = 0;
     private static final int FILTER_CUSTOM = 1;
-    private static final int CARD_GLASS_ALPHA_LIGHT = 90;
-    private static final int CARD_GLASS_ALPHA_DARK = 96;
-    private static final int CARD_OUTLINE_ALPHA_LIGHT = 95;
-    private static final int CARD_OUTLINE_ALPHA_DARK = 120;
+    private static final int CARD_GLASS_ALPHA_LIGHT = 48;
+    private static final int CARD_GLASS_ALPHA_DARK = 58;
+    private static final int CARD_OUTLINE_ALPHA_LIGHT = 90;
+    private static final int CARD_OUTLINE_ALPHA_DARK = 86;
     private static final int CARD_TEXT_PRIMARY_LIGHT = Color.rgb(27, 31, 35);
     private static final int CARD_TEXT_SECONDARY_LIGHT = Color.rgb(68, 75, 82);
     private static final int CARD_TEXT_SECONDARY_DARK = Color.rgb(224, 228, 232);
@@ -376,7 +376,7 @@ public class InstancesActivity extends BaseActivity {
                 primaryTextColor = isDark ? Color.WHITE : CARD_TEXT_PRIMARY_LIGHT;
                 secondaryTextColor = isDark ? CARD_TEXT_SECONDARY_DARK : CARD_TEXT_SECONDARY_LIGHT;
                 outlineColor = Color.argb(isDark ? CARD_OUTLINE_ALPHA_DARK : CARD_OUTLINE_ALPHA_LIGHT,
-                        isDark ? 255 : 0, isDark ? 255 : 0, isDark ? 255 : 0);
+                        255, 255, 255);
             } else {
                 bgColor = androidx.core.content.ContextCompat.getColor(holder.itemView.getContext(), R.color.surface);
                 primaryTextColor = androidx.core.content.ContextCompat.getColor(holder.itemView.getContext(), R.color.on_surface);
@@ -453,7 +453,7 @@ public class InstancesActivity extends BaseActivity {
         private static GradientDrawable makeTagBackground(Context context, int color) {
             GradientDrawable tagBg = new GradientDrawable();
             tagBg.setShape(GradientDrawable.RECTANGLE);
-            tagBg.setColor(Color.argb(38, Color.red(color), Color.green(color), Color.blue(color)));
+            tagBg.setColor(Color.argb(28, Color.red(color), Color.green(color), Color.blue(color)));
             tagBg.setCornerRadius(4 * context.getResources().getDisplayMetrics().density);
             return tagBg;
         }
