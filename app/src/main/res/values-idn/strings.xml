@@ -310,6 +310,9 @@
     <string name="minecraft_loading_entering_game">Masuk ke Minecraft</string>
     <string name="minecraft_loading_failed">Gagal memulai</string>
     <string name="minecraft_loading_return">Kembali ke Launcher</string>
+    <string name="launcher_restart_title">Kembali ke Launcher</string>
+    <string name="launcher_restart_subtitle">Tunggu sebentar, kamu akan kembali ke halaman utama</string>
+    <string name="launcher_restart_status">Hampir selesai…</string>
 
     <!-- Accounts & Microsoft Login -->
     <string name="accounts_title">Akun</string>

@@ -336,6 +336,9 @@
     <string name="minecraft_loading_entering_game">Minecraft に入っています</string>
     <string name="minecraft_loading_failed">起動に失敗しました</string>
     <string name="minecraft_loading_return">ランチャーに戻る</string>
+    <string name="launcher_restart_title">ランチャーに戻ります</string>
+    <string name="launcher_restart_subtitle">少しお待ちください。まもなくメイン画面に戻ります</string>
+    <string name="launcher_restart_status">もう少しです…</string>
 
     <string name="accounts_title">アカウント</string>
     <string name="microsoft_accounts">Microsoft アカウント</string>

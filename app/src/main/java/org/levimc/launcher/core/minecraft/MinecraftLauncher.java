@@ -119,7 +119,6 @@ public class MinecraftLauncher {
 
             activity.runOnUiThread(() -> {
                 try {
-                    MinecraftReturnCoordinator.cancelLauncherReturnFallback(activity);
                     launchMinecraftActivity(sourceIntent, version, false);
                     notifyLaunchStarted(callback);
                 } catch (Exception e) {

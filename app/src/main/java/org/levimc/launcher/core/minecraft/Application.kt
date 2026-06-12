@@ -19,7 +19,6 @@ class LauncherApplication : Application() {
         if (processName.endsWith(":crash")) return
 
         LogcatOverlayManager.init(this)
-        if (processName.endsWith(":minecraft")) return
 
         preferences = PreferenceManager.getDefaultSharedPreferences(this)
     }

@@ -428,7 +428,8 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
         SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
         if (getResources() == null) {
-            Process.killProcess(Process.myPid());
+            finish();
+            return;
         }
         nativeWaitCrashManagementSetupComplete();
         initializeAppExitInfoHelper();

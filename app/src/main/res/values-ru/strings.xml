@@ -305,6 +305,9 @@
     <string name="minecraft_loading_entering_game">Вход в Minecraft</string>
     <string name="minecraft_loading_failed">Не удалось запустить</string>
     <string name="minecraft_loading_return">Вернуться в лаунчер</string>
+    <string name="launcher_restart_title">Возврат в лаунчер</string>
+    <string name="launcher_restart_subtitle">Подождите немного, скоро вы вернетесь на главный экран</string>
+    <string name="launcher_restart_status">Почти готово…</string>
 
     <!-- Accounts & Microsoft Login -->
     <string name="accounts_title">Аккаунты</string>

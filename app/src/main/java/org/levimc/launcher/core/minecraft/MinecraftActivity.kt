@@ -18,14 +18,18 @@ class MinecraftActivity : MainActivity() {
     private lateinit var trace: LaunchTrace
     private var overlayManager: InbuiltOverlayManager? = null
     private var normalExitPrepared = false
+    private var normalExitRestartScheduled = false
+    private var gameRuntimeStarted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         trace = LaunchTrace.ensure(intent)
         trace.mark("MinecraftActivity onCreate entered")
+        CrashReporter.disarmRecovery(this)
         window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(resolveLaunchBackgroundColor()))
 
         if (savedInstanceState != null) {
             trace.mark("MinecraftActivity finishing restored instance")
+            gameRuntimeStarted = true
             super.onCreate(null)
             finish()
             return
@@ -43,6 +47,7 @@ class MinecraftActivity : MainActivity() {
             return
         }
         trace.mark("Mojang MainActivity super.onCreate starting")
+        gameRuntimeStarted = true
         super.onCreate(savedInstanceState)
         trace.mark("Mojang MainActivity super.onCreate finished")
         
@@ -88,7 +93,7 @@ class MinecraftActivity : MainActivity() {
         super.onResume()
         if (!isFinishing) {
             normalExitPrepared = false
-            MinecraftReturnCoordinator.cancelLauncherReturnFallback(this)
+            normalExitRestartScheduled = false
         }
         MinecraftActivityState.onResumed(this)
 
@@ -168,17 +173,19 @@ class MinecraftActivity : MainActivity() {
     }
 
     override fun onPause() {
-        if (isFinishing) {
-            prepareNormalExitReturn()
+        val shouldRestartAfterNormalExit = shouldRestartAfterNormalExit()
+        if (shouldRestartAfterNormalExit) {
+            prepareNormalExitCleanup()
+            scheduleNormalExitProcessRestart()
         }
         MinecraftActivityState.onPaused(this)
         super.onPause()
     }
 
     override fun onDestroy() {
-        val shouldKillGameProcess = isFinishing && !CrashReporter.isHandlingCrash() && !CrashReporter.hasPendingCrash(this)
-        if (shouldKillGameProcess) {
-            prepareNormalExitReturn()
+        val shouldPrepareNormalExit = shouldRestartAfterNormalExit()
+        if (shouldPrepareNormalExit) {
+            prepareNormalExitCleanup()
         }
 
         org.levimc.launcher.preloader.PreloaderInput.clearActivity()
@@ -189,19 +196,28 @@ class MinecraftActivity : MainActivity() {
         try {
             super.onDestroy()
         } finally {
-            if (shouldKillGameProcess) {
-                android.os.Process.killProcess(android.os.Process.myPid())
+            if (shouldPrepareNormalExit) {
+                scheduleNormalExitProcessRestart()
             }
         }
     }
 
-    private fun prepareNormalExitReturn() {
+    private fun shouldRestartAfterNormalExit(): Boolean {
+        return gameRuntimeStarted && isFinishing && !CrashReporter.isHandlingCrash() && !CrashReporter.hasPendingCrash(this)
+    }
+
+    private fun prepareNormalExitCleanup() {
         if (normalExitPrepared) return
         normalExitPrepared = true
 
         CrashReporter.disarmRecovery(this)
-        CrashReporter.markNormalMinecraftExit(this)
-        MinecraftReturnCoordinator.scheduleLauncherReturnFallback(this)
+    }
+
+    private fun scheduleNormalExitProcessRestart() {
+        if (normalExitRestartScheduled) return
+        normalExitRestartScheduled = true
+
+        MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this)
     }
 
     override fun getAssets(): AssetManager {

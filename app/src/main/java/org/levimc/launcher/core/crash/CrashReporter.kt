@@ -40,14 +40,15 @@ object CrashReporter {
     private const val KEY_PENDING_EMERGENCY = "pending_emergency"
     private const val KEY_HANDLED_JAVA_CRASH_TIMESTAMP = "handled_java_crash_timestamp"
     private const val KEY_HANDLED_EXIT_TIMESTAMP = "handled_exit_timestamp"
-    private const val KEY_NORMAL_MINECRAFT_EXIT_TIMESTAMP = "normal_minecraft_exit_timestamp"
+    private const val KEY_PLANNED_PROCESS_RESTART_TIMESTAMP = "planned_process_restart_timestamp"
+    private const val KEY_PLANNED_PROCESS_RESTART_PID = "planned_process_restart_pid"
     private const val KEY_RECOVERY_ARMED_TIMESTAMP = "recovery_armed_timestamp"
     private const val KEY_RECOVERY_ARMED_REASON = "recovery_armed_reason"
     private const val MAX_EXIT_TRACE_LENGTH = 80_000
     private const val MAX_EXIT_TRACE_BYTES = 160_000
     private const val MAX_CRASHLYTICS_VALUE_LENGTH = 1024
     private const val JAVA_CRASH_EXIT_DEDUP_WINDOW_MS = 5 * 60 * 1000L
-    private const val NORMAL_MINECRAFT_EXIT_DEDUP_WINDOW_MS = 5 * 60 * 1000L
+    private const val PLANNED_PROCESS_RESTART_DEDUP_WINDOW_MS = 10 * 1000L
     private const val CRASH_ACTIVITY_DELAY_MS = 1500L
     private const val RECOVERY_ALARM_DELAY_MS = 1800L
     private const val RECOVERY_ALARM_HEARTBEAT_MS = 900L
@@ -154,10 +155,11 @@ object CrashReporter {
     }
 
     @JvmStatic
-    fun markNormalMinecraftExit(context: Context) {
+    fun markPlannedProcessRestart(context: Context, pid: Int = Process.myPid()) {
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
-            .putLong(KEY_NORMAL_MINECRAFT_EXIT_TIMESTAMP, System.currentTimeMillis())
+            .putLong(KEY_PLANNED_PROCESS_RESTART_TIMESTAMP, System.currentTimeMillis())
+            .putInt(KEY_PLANNED_PROCESS_RESTART_PID, pid)
             .commit()
     }
 
@@ -320,6 +322,10 @@ object CrashReporter {
             override fun onActivityStarted(activity: Activity) {
                 if (activity is CrashActivity) return
                 foregroundActivityCount++
+                if (isMinecraftActivity(activity)) {
+                    disarmRecovery(activity.applicationContext)
+                    return
+                }
                 armRecovery(activity.applicationContext, "FOREGROUND")
             }
 
@@ -336,6 +342,11 @@ object CrashReporter {
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
             override fun onActivityDestroyed(activity: Activity) {}
         })
+    }
+
+    private fun isMinecraftActivity(activity: Activity): Boolean {
+        return activity.javaClass.name == "org.levimc.launcher.core.minecraft.MinecraftActivity" ||
+            activity.javaClass.name == "org.levimc.launcher.core.minecraft.MinecraftLoadingActivity"
     }
 
     private fun armRecovery(context: Context, reason: String) {
@@ -562,9 +573,11 @@ object CrashReporter {
             return
         }
 
-        if (isNormalMinecraftExit(prefs, exitInfo, context.packageName)) {
+        if (isPlannedProcessRestart(prefs, exitInfo, context.packageName)) {
             prefs.edit()
                 .putLong(KEY_HANDLED_EXIT_TIMESTAMP, exitInfo.timestamp)
+                .remove(KEY_PLANNED_PROCESS_RESTART_TIMESTAMP)
+                .remove(KEY_PLANNED_PROCESS_RESTART_PID)
                 .commit()
             return
         }
@@ -608,19 +621,20 @@ object CrashReporter {
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
-    private fun isNormalMinecraftExit(
+    private fun isPlannedProcessRestart(
         prefs: android.content.SharedPreferences,
         exitInfo: ApplicationExitInfo,
         packageName: String
     ): Boolean {
-        val processName = exitInfo.processName
-        if (processName != "$packageName:minecraft") return false
+        if (exitInfo.processName != packageName) return false
 
-        val normalExitTimestamp = prefs.getLong(KEY_NORMAL_MINECRAFT_EXIT_TIMESTAMP, 0L)
-        if (normalExitTimestamp <= 0L) return false
+        val restartTimestamp = prefs.getLong(KEY_PLANNED_PROCESS_RESTART_TIMESTAMP, 0L)
+        if (restartTimestamp <= 0L) return false
+        val restartPid = prefs.getInt(KEY_PLANNED_PROCESS_RESTART_PID, 0)
+        if (restartPid > 0 && exitInfo.pid != restartPid) return false
 
-        return kotlin.math.abs(exitInfo.timestamp - normalExitTimestamp) <=
-            NORMAL_MINECRAFT_EXIT_DEDUP_WINDOW_MS
+        return kotlin.math.abs(exitInfo.timestamp - restartTimestamp) <=
+            PLANNED_PROCESS_RESTART_DEDUP_WINDOW_MS
     }
 
     @RequiresApi(Build.VERSION_CODES.R)

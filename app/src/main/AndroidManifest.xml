@@ -272,7 +272,6 @@
             android:excludeFromRecents="false"
             android:exported="false"
             android:launchMode="standard"
-            android:process=":minecraft"
             android:screenOrientation="sensorLandscape"
             android:theme="@style/MinecraftLoadingTheme"
             tools:ignore="DiscouragedApi" />
@@ -284,7 +283,6 @@
             android:excludeFromRecents="false"
             android:exported="false"
             android:launchMode="standard"
-            android:process=":minecraft"
             android:screenOrientation="sensorLandscape"
             android:theme="@style/AppFullScreenTheme"
             tools:ignore="DiscouragedApi">
@@ -292,6 +290,19 @@
                 android:name="android.app.lib_name"
                 android:value="preloader" />
         </activity>
+
+        <activity
+            android:name=".core.minecraft.LauncherRestartActivity"
+            android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:finishOnTaskLaunch="true"
+            android:launchMode="singleTask"
+            android:noHistory="true"
+            android:process=":crash"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@style/LauncherRestartTheme"
+            tools:ignore="DiscouragedApi" />
 
         <activity
             android:name="com.microsoft.xal.browser.IntentHandler"

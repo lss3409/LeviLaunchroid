@@ -336,6 +336,9 @@
     <string name="minecraft_loading_entering_game">Entrando a Minecraft</string>
     <string name="minecraft_loading_failed">Error al iniciar</string>
     <string name="minecraft_loading_return">Volver al launcher</string>
+    <string name="launcher_restart_title">Volver al launcher</string>
+    <string name="launcher_restart_subtitle">Espera un momento, volverás a la pantalla principal</string>
+    <string name="launcher_restart_status">Ya casi…</string>
 
     <string name="accounts_title">Cuentas</string>
     <string name="microsoft_accounts">Cuentas de Microsoft</string>

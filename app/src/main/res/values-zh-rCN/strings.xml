@@ -304,6 +304,9 @@
     <string name="minecraft_loading_entering_game">正在进入 Minecraft</string>
     <string name="minecraft_loading_failed">启动失败</string>
     <string name="minecraft_loading_return">返回启动器</string>
+    <string name="launcher_restart_title">返回启动器</string>
+    <string name="launcher_restart_subtitle">请稍等，马上回到主页面</string>
+    <string name="launcher_restart_status">马上就好…</string>
 
     <!-- 账户管理 -->
     <string name="accounts_title">账号</string>

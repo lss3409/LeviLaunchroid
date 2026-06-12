@@ -55,7 +55,6 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
         super.onCreate(savedInstanceState)
         trace = LaunchTrace.ensure(intent)
         trace.mark("MinecraftLoadingActivity onCreate")
-        MinecraftReturnCoordinator.cancelLauncherReturnFallback(this)
         applyLaunchOrientation()
         hideSystemUi()
         window.decorView.setOnSystemUiVisibilityChangeListener {
@@ -256,9 +255,6 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
         }
         startActivity(launcherIntent)
         finish()
-        mainHandler.postDelayed({
-            android.os.Process.killProcess(android.os.Process.myPid())
-        }, RETURN_KILL_DELAY_MS)
     }
 
     override fun onDestroy() {
@@ -299,7 +295,6 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
 
     private companion object {
         private const val FIRST_FRAME_FALLBACK_MS = 240L
-        private const val RETURN_KILL_DELAY_MS = 250L
         private const val PROGRESS_ANIMATION_MS = 140L
         private const val TRACK_ALPHA = 42
         private const val MAX_VISIBLE_LOG_LINES = 48

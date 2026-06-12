@@ -27,7 +27,6 @@ import org.levimc.launcher.R;
 import org.levimc.launcher.core.minecraft.MinecraftImportIntents;
 import org.levimc.launcher.core.minecraft.LaunchTrace;
 import org.levimc.launcher.core.minecraft.MinecraftLauncher;
-import org.levimc.launcher.core.minecraft.MinecraftReturnCoordinator;
 import org.levimc.launcher.core.mods.FileHandler;
 import org.levimc.launcher.core.mods.Mod;
 import org.levimc.launcher.core.mods.inbuilt.manager.InbuiltModManager;
@@ -611,7 +610,6 @@ import okhttp3.OkHttpClient;
     @Override
     protected void onResume() {
         super.onResume();
-        MinecraftReturnCoordinator.cancelLauncherReturnFallback(this);
         setTextMinecraftVersion();
         refreshAccountHeaderUI();
         viewModel.refreshMods();

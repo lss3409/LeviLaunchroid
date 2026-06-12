@@ -348,6 +348,9 @@
     <string name="minecraft_loading_entering_game">Minecraft में प्रवेश हो रहा है</string>
     <string name="minecraft_loading_failed">लॉन्च विफल</string>
     <string name="minecraft_loading_return">लॉन्चर पर वापस जाएं</string>
+    <string name="launcher_restart_title">लॉन्चर पर वापस</string>
+    <string name="launcher_restart_subtitle">कृपया थोड़ा इंतज़ार करें, आप मुख्य पेज पर लौट रहे हैं</string>
+    <string name="launcher_restart_status">लगभग हो गया…</string>
 
     <!-- Accounts & Microsoft Login -->
     <string name="accounts_title">खाते</string>
