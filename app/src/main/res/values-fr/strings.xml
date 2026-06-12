@@ -606,6 +606,10 @@
     <string name="bg_image_desc">Sélectionnez une image de fond</string>
     <string name="bg_image_none">Aucune image sélectionnée</string>
     <string name="bg_image_selected">Fond personnalisé actif</string>
+    <string name="bg_image_blur">Flou</string>
+    <string name="bg_image_blur_value">%1$dpx</string>
+    <string name="bg_image_brightness">Luminosité</string>
+    <string name="bg_image_brightness_value">%1$d%%</string>
     <string name="select_image">Sélectionner une image</string>
     <string name="clear">Effacer</string>
 

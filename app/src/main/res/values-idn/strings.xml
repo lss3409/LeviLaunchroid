@@ -629,6 +629,10 @@
     <string name="bg_image_desc">Pilih gambar untuk digunakan sebagai latar belakang</string>
     <string name="bg_image_none">Tidak ada gambar yang dipilih</string>
     <string name="bg_image_selected">Latar belakang kustom aktif</string>
+    <string name="bg_image_blur">Keburaman</string>
+    <string name="bg_image_blur_value">%1$dpx</string>
+    <string name="bg_image_brightness">Kecerahan</string>
+    <string name="bg_image_brightness_value">%1$d%%</string>
     <string name="select_image">Pilih Gambar</string>
     <string name="clear">Bersihkan</string>
 

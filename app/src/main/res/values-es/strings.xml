@@ -606,6 +606,10 @@
     <string name="bg_image_desc">Selecciona una imagen como fondo</string>
     <string name="bg_image_none">Ninguna imagen seleccionada</string>
     <string name="bg_image_selected">Fondo personalizado activo</string>
+    <string name="bg_image_blur">Desenfoque</string>
+    <string name="bg_image_blur_value">%1$dpx</string>
+    <string name="bg_image_brightness">Brillo</string>
+    <string name="bg_image_brightness_value">%1$d%%</string>
     <string name="select_image">Seleccionar Imagen</string>
     <string name="clear">Limpiar</string>
 

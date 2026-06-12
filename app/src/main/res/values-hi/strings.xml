@@ -633,6 +633,10 @@
     <string name="bg_image_desc">पृष्ठभूमि के रूप में उपयोग करने के लिए एक छवि चुनें</string>
     <string name="bg_image_none">कोई छवि नहीं चुनी गई</string>
     <string name="bg_image_selected">कस्टम पृष्ठभूमि सक्रिय</string>
+    <string name="bg_image_blur">धुंधलापन</string>
+    <string name="bg_image_blur_value">%1$dpx</string>
+    <string name="bg_image_brightness">चमक</string>
+    <string name="bg_image_brightness_value">%1$d%%</string>
     <string name="select_image">छवि चुनें</string>
     <string name="clear">साफ़ करें</string>
 

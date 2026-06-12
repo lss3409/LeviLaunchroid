@@ -630,6 +630,10 @@
     <string name="bg_image_desc">Выберите изображение для фона</string>
     <string name="bg_image_none">Изображение не выбрано</string>
     <string name="bg_image_selected">Пользовательский фон активен</string>
+    <string name="bg_image_blur">Размытие</string>
+    <string name="bg_image_blur_value">%1$dpx</string>
+    <string name="bg_image_brightness">Яркость</string>
+    <string name="bg_image_brightness_value">%1$d%%</string>
     <string name="select_image">Выбрать изображение</string>
     <string name="clear">Очистить</string>
 
