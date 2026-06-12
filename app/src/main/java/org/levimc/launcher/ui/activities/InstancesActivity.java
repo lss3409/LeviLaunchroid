@@ -1,7 +1,12 @@
 package org.levimc.launcher.ui.activities;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
+import android.content.res.ColorStateList;
+import android.content.res.Configuration;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.text.Editable;
@@ -34,6 +39,13 @@ public class InstancesActivity extends BaseActivity {
 
     private static final int FILTER_ALL = 0;
     private static final int FILTER_CUSTOM = 1;
+    private static final int CARD_GLASS_ALPHA_LIGHT = 90;
+    private static final int CARD_GLASS_ALPHA_DARK = 96;
+    private static final int CARD_OUTLINE_ALPHA_LIGHT = 95;
+    private static final int CARD_OUTLINE_ALPHA_DARK = 120;
+    private static final int CARD_TEXT_PRIMARY_LIGHT = Color.rgb(27, 31, 35);
+    private static final int CARD_TEXT_SECONDARY_LIGHT = Color.rgb(68, 75, 82);
+    private static final int CARD_TEXT_SECONDARY_DARK = Color.rgb(224, 228, 232);
 
     private VersionManager versionManager;
     private RecyclerView recyclerView;
@@ -213,7 +225,7 @@ public class InstancesActivity extends BaseActivity {
         int accent = pm.getAccentColor();
         if (accent != 0) {
             android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
-            gd.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+            gd.setShape(GradientDrawable.RECTANGLE);
             gd.setColor(accent);
             gd.setCornerRadius(20 * getResources().getDisplayMetrics().density);
             btnImport.setBackground(gd);
@@ -350,39 +362,66 @@ public class InstancesActivity extends BaseActivity {
 
             PersonalizationManager pm = new PersonalizationManager(holder.itemView.getContext());
             int accent = pm.getAccentColor();
+            boolean hasBackgroundImage = pm.hasBackgroundImage();
+            boolean isDark = isDarkMode(holder.itemView.getContext());
             
             int bgColor;
-            if (pm.hasBackgroundImage()) {
-                bgColor = pm.getEffectiveSurfaceColor();
+            int primaryTextColor;
+            int secondaryTextColor;
+            int outlineColor;
+            if (hasBackgroundImage) {
+                bgColor = isDark
+                        ? Color.argb(CARD_GLASS_ALPHA_DARK, 18, 20, 24)
+                        : Color.argb(CARD_GLASS_ALPHA_LIGHT, 255, 255, 255);
+                primaryTextColor = isDark ? Color.WHITE : CARD_TEXT_PRIMARY_LIGHT;
+                secondaryTextColor = isDark ? CARD_TEXT_SECONDARY_DARK : CARD_TEXT_SECONDARY_LIGHT;
+                outlineColor = Color.argb(isDark ? CARD_OUTLINE_ALPHA_DARK : CARD_OUTLINE_ALPHA_LIGHT,
+                        isDark ? 255 : 0, isDark ? 255 : 0, isDark ? 255 : 0);
             } else {
                 bgColor = androidx.core.content.ContextCompat.getColor(holder.itemView.getContext(), R.color.surface);
+                primaryTextColor = androidx.core.content.ContextCompat.getColor(holder.itemView.getContext(), R.color.on_surface);
+                secondaryTextColor = androidx.core.content.ContextCompat.getColor(holder.itemView.getContext(), R.color.text_secondary);
+                outlineColor = androidx.core.content.ContextCompat.getColor(holder.itemView.getContext(), R.color.outline);
             }
             
-            android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
-            gd.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+            GradientDrawable gd = new GradientDrawable();
+            gd.setShape(GradientDrawable.RECTANGLE);
             gd.setCornerRadius(12 * holder.itemView.getContext().getResources().getDisplayMetrics().density);
             gd.setColor(bgColor);
             
             if (isSelected && accent != 0) {
                 gd.setStroke((int)(2 * holder.itemView.getContext().getResources().getDisplayMetrics().density), accent);
             } else {
-                gd.setStroke((int)(1 * holder.itemView.getContext().getResources().getDisplayMetrics().density), 
-                    androidx.core.content.ContextCompat.getColor(holder.itemView.getContext(), R.color.outline));
+                gd.setStroke((int)(1 * holder.itemView.getContext().getResources().getDisplayMetrics().density), outlineColor);
             }
             
             holder.itemView.setBackground(gd);
 
             holder.versionCode.setText(v.versionCode != null ? v.versionCode : v.directoryName);
+            holder.versionCode.setTextColor(primaryTextColor);
+            holder.displayName.setTextColor(secondaryTextColor);
+            holder.settingsIcon.setImageTintList(ColorStateList.valueOf(secondaryTextColor));
 
             if (v.isInstalled) {
                 holder.typeTag.setText(R.string.tag_installed);
                 int tagColor = accent != 0 ? accent : holder.itemView.getContext().getResources().getColor(R.color.primary, holder.itemView.getContext().getTheme());
                 holder.typeTag.setTextColor(tagColor);
-                holder.typeTag.setBackgroundResource(R.drawable.bg_release_tag);
+                if (hasBackgroundImage) {
+                    holder.typeTag.setBackground(makeTagBackground(holder.itemView.getContext(), tagColor));
+                } else {
+                    holder.typeTag.setBackgroundResource(R.drawable.bg_release_tag);
+                }
             } else {
                 holder.typeTag.setText(R.string.tag_custom);
-                holder.typeTag.setTextColor(holder.itemView.getContext().getResources().getColor(R.color.text_secondary, holder.itemView.getContext().getTheme()));
-                holder.typeTag.setBackgroundResource(R.drawable.bg_preview_tag);
+                int tagColor = hasBackgroundImage
+                        ? secondaryTextColor
+                        : holder.itemView.getContext().getResources().getColor(R.color.text_secondary, holder.itemView.getContext().getTheme());
+                holder.typeTag.setTextColor(tagColor);
+                if (hasBackgroundImage) {
+                    holder.typeTag.setBackground(makeTagBackground(holder.itemView.getContext(), tagColor));
+                } else {
+                    holder.typeTag.setBackgroundResource(R.drawable.bg_preview_tag);
+                }
             }
             holder.typeTag.setVisibility(View.VISIBLE);
 
@@ -403,6 +442,20 @@ public class InstancesActivity extends BaseActivity {
             });
 
             DynamicAnim.applyPressScale(holder.itemView);
+        }
+
+        private static boolean isDarkMode(Context context) {
+            int nightModeFlags = context.getResources().getConfiguration().uiMode
+                    & Configuration.UI_MODE_NIGHT_MASK;
+            return nightModeFlags == Configuration.UI_MODE_NIGHT_YES;
+        }
+
+        private static GradientDrawable makeTagBackground(Context context, int color) {
+            GradientDrawable tagBg = new GradientDrawable();
+            tagBg.setShape(GradientDrawable.RECTANGLE);
+            tagBg.setColor(Color.argb(38, Color.red(color), Color.green(color), Color.blue(color)));
+            tagBg.setCornerRadius(4 * context.getResources().getDisplayMetrics().density);
+            return tagBg;
         }
 
         @Override
