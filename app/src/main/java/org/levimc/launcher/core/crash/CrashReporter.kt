@@ -248,8 +248,13 @@ object CrashReporter {
 
             try {
                 handlingCrash = true
-                val logFile = writeJavaCrashLog(appContext, thread, throwable)
-                logPath = logFile.absolutePath
+                val logFile = try {
+                    writeJavaCrashLog(appContext, thread, throwable)
+                } catch (logError: Throwable) {
+                    recordHandlerError(logError)
+                    null
+                }
+                logPath = logFile?.absolutePath
                 savePendingCrash(appContext, logPath, summary, CRASH_TYPE_JAVA_KOTLIN)
                 markJavaCrashHandled(appContext)
                 logJavaCrashToCrashlytics(
@@ -459,7 +464,7 @@ object CrashReporter {
     @RequiresApi(Build.VERSION_CODES.R)
     private fun logPreviousProcessExitToCrashlytics(
         reason: String,
-        logPath: String,
+        logPath: String?,
         exitInfo: ApplicationExitInfo
     ) {
         if (!isCrashlyticsEnabled()) return
@@ -467,7 +472,9 @@ object CrashReporter {
             FirebaseCrashlytics.getInstance().apply {
                 setCustomKey("last_crash_type", reason)
                 setCustomKey("last_process_exit_reason", reason)
-                setCustomKey("last_process_exit_log", logPath)
+                if (!logPath.isNullOrBlank()) {
+                    setCustomKey("last_process_exit_log", logPath)
+                }
                 setCustomKey("last_process_exit_pid", exitInfo.pid)
                 setCustomKey("last_process_exit_process", trimCrashlyticsValue(exitInfo.processName))
                 setCustomKey("last_process_exit_description", trimCrashlyticsValue(exitInfo.description ?: ""))
@@ -509,7 +516,7 @@ object CrashReporter {
 
     private fun savePendingCrash(
         context: Context,
-        logPath: String,
+        logPath: String?,
         summary: String?,
         crashType: String?
     ) {
@@ -531,7 +538,11 @@ object CrashReporter {
 
     private fun capturePreviousProcessExit(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
-        capturePreviousProcessExitApi30(context)
+        try {
+            capturePreviousProcessExitApi30(context)
+        } catch (error: Throwable) {
+            recordHandlerError(error)
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
@@ -565,9 +576,15 @@ object CrashReporter {
         val reason = reasonName(exitInfo.reason)
         if (hasConcretePendingCrash(prefs, reason)) return
 
-        val logFile = writeProcessExitLog(context, exitInfo)
-        savePendingCrash(context, logFile.absolutePath, buildProcessExitSummary(reason, exitInfo), reason)
-        logPreviousProcessExitToCrashlytics(reason, logFile.absolutePath, exitInfo)
+        val summary = buildProcessExitSummary(reason, exitInfo)
+        val logFile = try {
+            writeProcessExitLog(context, exitInfo)
+        } catch (logError: Throwable) {
+            recordHandlerError(logError)
+            null
+        }
+        savePendingCrash(context, logFile?.absolutePath, summary, reason)
+        logPreviousProcessExitToCrashlytics(reason, logFile?.absolutePath, exitInfo)
     }
 
     private fun hasConcretePendingCrash(prefs: SharedPreferences, reason: String): Boolean {
@@ -759,16 +776,16 @@ object CrashReporter {
 
     private fun crashLogDir(context: Context): File {
         val primary = File(Environment.getExternalStorageDirectory(), "games/org.levimc/crash_logs")
-        if (ensureDir(primary)) return primary
+        if (canUsePublicExternalStorage() && ensureWritableDir(primary)) return primary
 
         val externalRoot = context.getExternalFilesDir(null)
         if (externalRoot != null) {
             val external = File(externalRoot, "crash_logs")
-            if (ensureDir(external)) return external
+            if (ensureWritableDir(external)) return external
         }
 
         val fallback = File(context.filesDir, "crash_logs")
-        ensureDir(fallback)
+        ensureWritableDir(fallback)
         return fallback
     }
 
@@ -802,6 +819,22 @@ object CrashReporter {
         } catch (_: Throwable) {
             false
         }
+    }
+
+    private fun ensureWritableDir(dir: File): Boolean {
+        if (!ensureDir(dir)) return false
+        return try {
+            val probe = File(dir, ".write_probe_${Process.myPid()}_${SystemClock.uptimeMillis()}")
+            if (!probe.createNewFile()) return false
+            probe.delete()
+            true
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    private fun canUsePublicExternalStorage(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
     }
 
     private fun formatTimestamp(timestamp: Long): String {
