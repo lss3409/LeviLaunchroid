@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.widget.Toast
 import com.mojang.minecraftpe.MainActivity
 import org.levimc.launcher.core.crash.CrashReporter
 import org.levimc.launcher.core.mods.inbuilt.overlay.InbuiltOverlayManager
@@ -17,7 +18,6 @@ class MinecraftActivity : MainActivity() {
     private lateinit var trace: LaunchTrace
     private var overlayManager: InbuiltOverlayManager? = null
     private var normalExitPrepared = false
-    private var minecraftRuntimeStarted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         trace = LaunchTrace.ensure(intent)
@@ -26,25 +26,25 @@ class MinecraftActivity : MainActivity() {
 
         if (savedInstanceState != null) {
             trace.mark("MinecraftActivity finishing restored instance")
-            initializeActivityWithoutMinecraftRuntime(null)
+            super.onCreate(null)
             finish()
             return
         }
 
-        val preparedRuntime = MinecraftLaunchSession.getPreparedRuntime()
-        if (preparedRuntime == null) {
-            trace.mark("MinecraftActivity missing prepared runtime")
-            initializeActivityWithoutMinecraftRuntime(null)
-            restartLoadingActivity()
+        try {
+            val preparedRuntime = MinecraftLaunchSession.getPreparedRuntime()
+                ?: MinecraftRuntimePreparer.prepare(applicationContext, intent)
+            gameManager = preparedRuntime.gameManager
+            trace.mark("Prepared runtime consumed")
+        } catch (e: Exception) {
+            trace.mark("MinecraftActivity prepare failed", e.message)
+            Toast.makeText(this, "Failed to load game: ${e.message}", Toast.LENGTH_LONG).show()
+            finish()
             return
         }
-        gameManager = preparedRuntime.gameManager
-        trace.mark("Prepared runtime consumed")
-
         trace.mark("Mojang MainActivity super.onCreate starting")
         super.onCreate(savedInstanceState)
         trace.mark("Mojang MainActivity super.onCreate finished")
-        minecraftRuntimeStarted = true
         
         val launchVertically = intent.getBooleanExtra("LAUNCH_VERTICALLY", false)
         if (launchVertically) {
@@ -58,13 +58,6 @@ class MinecraftActivity : MainActivity() {
             .putBoolean("game_verified", true)
             .apply()
         trace.mark("MinecraftActivity onCreate finished")
-    }
-
-    private fun restartLoadingActivity() {
-        startActivity(Intent(intent).apply {
-            setClass(this@MinecraftActivity, MinecraftLoadingActivity::class.java)
-        })
-        finish()
     }
 
     private fun resolveLaunchBackgroundColor(): Int {
@@ -93,9 +86,6 @@ class MinecraftActivity : MainActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (!minecraftRuntimeStarted) {
-            return
-        }
         if (!isFinishing) {
             normalExitPrepared = false
             MinecraftReturnCoordinator.cancelLauncherReturnFallback(this)
@@ -178,29 +168,22 @@ class MinecraftActivity : MainActivity() {
     }
 
     override fun onPause() {
-        if (minecraftRuntimeStarted && isFinishing) {
+        if (isFinishing) {
             prepareNormalExitReturn()
         }
-        if (minecraftRuntimeStarted) {
-            MinecraftActivityState.onPaused(this)
-        }
+        MinecraftActivityState.onPaused(this)
         super.onPause()
     }
 
     override fun onDestroy() {
-        val shouldKillGameProcess = minecraftRuntimeStarted &&
-            isFinishing &&
-            !CrashReporter.isHandlingCrash() &&
-            !CrashReporter.hasPendingCrash(this)
+        val shouldKillGameProcess = isFinishing && !CrashReporter.isHandlingCrash() && !CrashReporter.hasPendingCrash(this)
         if (shouldKillGameProcess) {
             prepareNormalExitReturn()
         }
 
         org.levimc.launcher.preloader.PreloaderInput.clearActivity()
-        if (minecraftRuntimeStarted) {
-            MinecraftActivityState.onDestroyed(this)
-            MinecraftLaunchSession.clear()
-        }
+        MinecraftActivityState.onDestroyed(this)
+        MinecraftLaunchSession.clear()
         stopInbuiltModServices()
 
         try {

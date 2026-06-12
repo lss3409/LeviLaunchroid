@@ -110,7 +110,6 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
     private long mFileDialogCallback = 0;
     private float mVolume = 1.0f;
     private boolean mIsRunningInAppCenter = false;
-    private boolean mSkipNativeLifecycle = false;
     public boolean mPauseTextboxUIUpdates = false;
     public AtomicInteger mCaretPositionMirror = new AtomicInteger(0);
     public AtomicReference<String> mCurrentTextMirror = new AtomicReference<>("");
@@ -425,7 +424,6 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
     @SuppressLint("ResourceType")
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        mSkipNativeLifecycle = false;
         mMainThread = Thread.currentThread();
         SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
@@ -512,11 +510,6 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
                     }
         });
         this.textInputWidget = createTextWidget();
-    }
-
-    protected void initializeActivityWithoutMinecraftRuntime(Bundle savedInstanceState) {
-        mSkipNativeLifecycle = true;
-        super.onCreate(savedInstanceState);
     }
 
 
@@ -1557,9 +1550,6 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
     @Override
     protected void onStart() {
         super.onStart();
-        if (mSkipNativeLifecycle) {
-            return;
-        }
         if (_fromOnCreate) {
             _fromOnCreate = false;
             processIntent(getIntent());
@@ -1570,10 +1560,6 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
 
     @Override
     public void onPause() {
-        if (mSkipNativeLifecycle) {
-            super.onPause();
-            return;
-        }
         nativeSuspend();
         super.onPause();
         if (isFinishing()) {
@@ -1583,10 +1569,6 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
 
     @Override
     protected void onStop() {
-        if (mSkipNativeLifecycle) {
-            super.onStop();
-            return;
-        }
         nativeStopThis();
         super.onStop();
 
@@ -1597,10 +1579,6 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
 
     @Override
     protected void onDestroy() {
-        if (mSkipNativeLifecycle) {
-            super.onDestroy();
-            return;
-        }
         if (isChangingConfigurations()) {
         }
         System.out.println("onDestroy");
@@ -1617,9 +1595,6 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
     @Override
     public void onNewIntent(Intent intent) {
         setIntent(intent);
-        if (mSkipNativeLifecycle) {
-            return;
-        }
         processIntent(intent);
     }
 
