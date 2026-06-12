@@ -3,10 +3,14 @@ package org.levimc.launcher.ui.activities;
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.ColorStateList;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.activity.OnBackPressedCallback;
@@ -41,6 +45,7 @@ import org.levimc.launcher.util.ApkImportManager;
 import org.levimc.launcher.util.GithubReleaseUpdater;
 import org.levimc.launcher.util.LanguageManager;
 import org.levimc.launcher.util.PermissionsHandler;
+import org.levimc.launcher.util.PersonalizationManager;
 import org.levimc.launcher.util.PlayStoreValidator;
 import org.levimc.launcher.util.ResourcepackHandler;
 import org.levimc.launcher.util.UIHelper;
@@ -878,6 +883,7 @@ import okhttp3.OkHttpClient;
         if (custom != null) allVersions.addAll(custom);
 
         View popupView = LayoutInflater.from(this).inflate(R.layout.popup_instance_selector, null);
+        new PersonalizationManager(this).applyAccentToView(popupView, this);
         PopupWindow popup = new PopupWindow(popupView,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -973,17 +979,41 @@ import okhttp3.OkHttpClient;
             holder.itemView.setActivated(isSelected);
             holder.check.setVisibility(isSelected ? View.VISIBLE : View.GONE);
             holder.tag.setVisibility(View.GONE);
+            applyInstanceSelectionStyle(holder, isSelected);
 
             holder.itemView.setOnClickListener(_v -> {
                 if (listener != null) listener.onClick(v);
             });
         }
 
+        private static void applyInstanceSelectionStyle(@NonNull VH holder, boolean isSelected) {
+            android.content.Context context = holder.itemView.getContext();
+            PersonalizationManager pm = new PersonalizationManager(context);
+            int accent = pm.getAccentColor();
+            if (accent == 0) {
+                accent = ContextCompat.getColor(context, R.color.primary);
+            }
+
+            float density = context.getResources().getDisplayMetrics().density;
+            GradientDrawable background = new GradientDrawable();
+            background.setShape(GradientDrawable.RECTANGLE);
+            background.setCornerRadius(10 * density);
+            if (isSelected) {
+                background.setColor(Color.argb(26, Color.red(accent), Color.green(accent), Color.blue(accent)));
+                background.setStroke(Math.max(1, (int) (1 * density)), accent);
+            } else {
+                background.setColor(Color.TRANSPARENT);
+                background.setStroke(0, Color.TRANSPARENT);
+            }
+            holder.itemView.setBackground(background);
+            holder.check.setImageTintList(ColorStateList.valueOf(accent));
+        }
+
         @Override public int getItemCount() { return filteredVersions.size(); }
 
         static class VH extends RecyclerView.ViewHolder {
             TextView name, version, tag;
-            View check;
+            ImageView check;
             VH(View v) {
                 super(v);
                 name = v.findViewById(R.id.instance_name);

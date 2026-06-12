@@ -2,6 +2,7 @@ package org.levimc.launcher.ui.dialogs;
 
 import android.app.Dialog;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
@@ -13,6 +14,7 @@ import android.widget.TextView;
 
 import org.levimc.launcher.R;
 import org.levimc.launcher.ui.animation.DynamicAnim;
+import org.levimc.launcher.util.PersonalizationManager;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -38,6 +40,7 @@ public class LibsRepairDialog extends Dialog {
         progressText = findViewById(R.id.progress_text);
         titleText = findViewById(R.id.title);
         statusText = findViewById(R.id.status_text);
+        applyPersonalization();
 
         Window window = Objects.requireNonNull(getWindow());
         window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
@@ -66,6 +69,20 @@ public class LibsRepairDialog extends Dialog {
 
     public void setIndeterminate(boolean indeterminate) {
         progressBar.setIndeterminate(indeterminate);
+    }
+
+    private void applyPersonalization() {
+        try {
+            PersonalizationManager pm = new PersonalizationManager(getContext());
+            View content = findViewById(android.R.id.content);
+            if (content != null) {
+                pm.applyAccentToView(content, getContext());
+            }
+            int accent = pm.getAccentColor();
+            if (accent != 0 && progressBar != null) {
+                progressBar.setIndeterminateTintList(ColorStateList.valueOf(accent));
+            }
+        } catch (Exception ignored) {}
     }
 
     public void setTitleText(String text) {
