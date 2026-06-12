@@ -1,5 +1,8 @@
 package org.levimc.launcher.ui.adapter;
 
+import android.content.Context;
+import android.content.res.ColorStateList;
+import android.graphics.Color;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -7,11 +10,13 @@ import android.widget.Button;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.levimc.launcher.R;
 import org.levimc.launcher.core.auth.MsftAccountStore;
 import org.levimc.launcher.util.AccountTextUtils;
+import org.levimc.launcher.util.PersonalizationManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -60,6 +65,23 @@ public class AccountsAdapter extends RecyclerView.Adapter<AccountsAdapter.Accoun
         holder.btnDelete.setOnClickListener(v -> {
             if (listener != null) listener.onDelete(a);
         });
+
+        new PersonalizationManager(holder.itemView.getContext())
+                .applyAccentToView(holder.itemView, holder.itemView.getContext());
+        applyButtonAccent(holder);
+    }
+
+    private void applyButtonAccent(@NonNull AccountViewHolder holder) {
+        Context context = holder.itemView.getContext();
+        int accent = new PersonalizationManager(context).getAccentColor();
+        if (accent == 0) {
+            accent = ContextCompat.getColor(context, R.color.primary);
+        }
+        ColorStateList tint = ColorStateList.valueOf(accent);
+        holder.btnUse.setBackgroundTintList(tint);
+        holder.btnDelete.setBackgroundTintList(tint);
+        holder.btnUse.setTextColor(Color.WHITE);
+        holder.btnDelete.setTextColor(Color.WHITE);
     }
 
     @Override

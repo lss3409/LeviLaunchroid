@@ -392,6 +392,7 @@ public class PersonalizationManager {
             try {
                 pb.setProgressTintList(ColorStateList.valueOf(accentColor));
                 pb.setProgressBackgroundTintList(ColorStateList.valueOf(Color.argb(42, Color.red(accentColor), Color.green(accentColor), Color.blue(accentColor))));
+                pb.setIndeterminateTintList(ColorStateList.valueOf(accentColor));
             } catch (Exception ignored) {}
         }
 

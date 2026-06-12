@@ -1,6 +1,8 @@
 package org.levimc.launcher.ui.activities;
 
 import android.content.Intent;
+import android.content.res.ColorStateList;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ImageButton;
@@ -21,6 +23,7 @@ import org.levimc.launcher.ui.adapter.AccountsAdapter;
 import org.levimc.launcher.ui.animation.DynamicAnim;
 import org.levimc.launcher.ui.dialogs.LoadingDialog;
 import org.levimc.launcher.util.AccountTextUtils;
+import org.levimc.launcher.util.PersonalizationManager;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -76,6 +79,7 @@ public class AccountsActivity extends BaseActivity {
         xboxAvatar = findViewById(R.id.xbox_avatar);
         avatarProgress = findViewById(R.id.avatar_progress);
         rightCardContainer = findViewById(R.id.right_card_container);
+        applyAccountAccent();
 
         loginLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
             if (result.getResultCode() == RESULT_OK && result.getData() != null) {
@@ -190,6 +194,21 @@ public class AccountsActivity extends BaseActivity {
         accountsRecyclerView.post(() -> DynamicAnim.staggerRecyclerChildren(accountsRecyclerView));
 
         refreshUI();
+    }
+
+    private void applyAccountAccent() {
+        PersonalizationManager pm = new PersonalizationManager(this);
+        int accent = pm.getAccentColor();
+        if (accent == 0) {
+            accent = getColor(R.color.primary);
+        }
+        if (avatarProgress != null) {
+            avatarProgress.setIndeterminateTintList(ColorStateList.valueOf(accent));
+        }
+        if (bottomAddButton != null) {
+            bottomAddButton.setBackgroundTintList(ColorStateList.valueOf(accent));
+            bottomAddButton.setTextColor(Color.WHITE);
+        }
     }
 
     private MsftAccountStore.MsftAccount getActiveAccount() {
