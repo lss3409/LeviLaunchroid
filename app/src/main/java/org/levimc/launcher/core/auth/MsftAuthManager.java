@@ -11,7 +11,9 @@ import com.google.gson.JsonParser;
 
 import org.cloudburstmc.protocol.bedrock.util.EncryptionUtils;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
 import java.util.Collections;
 import android.util.Log;
 import java.util.Map;
@@ -42,6 +44,7 @@ import okhttp3.Response;
 import okhttp3.HttpUrl;
 
 public class MsftAuthManager {
+    private static final String TAG = "MsftAuthManager";
 
     public static final String DEFAULT_CLIENT_ID = "0000000048183522";
     public static final String DEFAULT_SCOPE = "service::user.auth.xboxlive.com::mbi_ssl";
@@ -154,18 +157,34 @@ public class MsftAuthManager {
         String identityToken = xstsToken.toIdentityToken();
 
         JsonObject data = new JsonObject();
-        data.addProperty("identityPublicKey",
-                Base64.encodeToString(EncryptionUtils.createKeyPair().getPublic().getEncoded(), Base64.NO_WRAP));
+        data.addProperty("identityPublicKey", createMinecraftIdentityPublicKey());
 
         Request.Builder builder = new Request.Builder().url("https://multiplayer.minecraft.net/authentication");
         builder.get();
         builder.addHeader("Client-Version", "1.21.110");
         builder.addHeader("Authorization", identityToken);
         builder.post(RequestBody.create(data.toString(), MediaType.parse("application/json")));
-        Response response = client.newCall(builder.build()).execute();
 
-        String respBody = response.body().string();
-        return parseUsernameAndXuidFromChain(respBody);
+        try (Response response = client.newCall(builder.build()).execute()) {
+            if (response.body() == null) {
+                throw new IOException("Minecraft identity response is empty");
+            }
+            String respBody = response.body().string();
+            if (!response.isSuccessful()) {
+                throw new IOException("Minecraft identity request failed: HTTP " + response.code());
+            }
+            return parseUsernameAndXuidFromChain(respBody);
+        }
+    }
+
+    private static String createMinecraftIdentityPublicKey() throws IOException {
+        try {
+            KeyPair keyPair = EncryptionUtils.createKeyPair();
+            return Base64.encodeToString(keyPair.getPublic().getEncoded(), Base64.NO_WRAP);
+        } catch (AssertionError | ExceptionInInitializerError | NoClassDefFoundError error) {
+            Log.w(TAG, "Failed to initialize Minecraft identity encryption", error);
+            throw new IOException("Minecraft identity service is temporarily unavailable. Check your network and try again.", error);
+        }
     }
 
    public static void saveAccount(Context ctx, OAuth20Token token, String gamertag, String minecraftUsername, String xuid, String avatarUrl) {
