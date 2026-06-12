@@ -427,7 +427,7 @@ public class BaseActivity extends AppCompatActivity {
         }
     }
 
-    private void hideSystemUI() {
+    protected void hideSystemUI() {
         View decorView = getWindow().getDecorView();
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);

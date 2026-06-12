@@ -6,19 +6,21 @@ import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.content.Intent;
+import android.content.res.ColorStateList;
+import android.content.res.Configuration;
 import android.graphics.Color;
-import android.graphics.LinearGradient;
-import android.graphics.Shader;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.LinearInterpolator;
-import android.widget.TextView;
 
 import androidx.interpolator.view.animation.LinearOutSlowInInterpolator;
 
+import org.levimc.launcher.R;
 import org.levimc.launcher.databinding.ActivitySplashBinding;
+import org.levimc.launcher.util.PersonalizationManager;
 
 import java.util.Locale;
 
@@ -40,6 +42,8 @@ public class SplashActivity extends BaseActivity {
         super.onCreate(savedInstanceState);
         binding = ActivitySplashBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+
+        applySplashTheme();
 
         binding.imgLeaf.setAlpha(0f);
         binding.imgLeaf.setScaleX(0.8f);
@@ -131,7 +135,6 @@ public class SplashActivity extends BaseActivity {
             .start();
 
         binding.tvAppName.postDelayed(() -> {
-            applyTextGradient(binding.tvAppName);
             binding.tvAppName.animate()
                 .alpha(1f)
                 .translationY(0f)
@@ -149,19 +152,90 @@ public class SplashActivity extends BaseActivity {
         binding.logoGlow.postDelayed(this::startGlowPulse, 600);
     }
 
-    private void applyTextGradient(TextView textView) {
-        String text = textView.getText().toString();
-        float textWidth = textView.getPaint().measureText(text);
-        int green = Color.parseColor("#2ECC71");
-        int cyan = Color.parseColor("#00D9FF");
-        Shader shader = new LinearGradient(
-            0, 0, Math.max(1f, textWidth), 0,
-            new int[]{green, cyan},
-            new float[]{0f, 1f},
-            Shader.TileMode.CLAMP
+    private void applySplashTheme() {
+        int accent = resolveAccentColor();
+        binding.tvAppName.setTextColor(accent);
+        binding.logoGlow.setBackground(createRadialGlow(accent));
+        binding.orbitRing.setBackground(createOrbitRing(accent));
+        binding.orbitDot.setBackground(createOrbitDot(accent));
+        binding.loadingBar.setProgressTintList(ColorStateList.valueOf(accent));
+        binding.loadingBar.setProgressBackgroundTintList(ColorStateList.valueOf(withAlpha(accent, 42)));
+        binding.loadingBar.setIndeterminateTintList(ColorStateList.valueOf(accent));
+        binding.tvPreparing.setTextColor(blendColors(
+            getColor(R.color.text_secondary),
+            accent,
+            isDarkMode() ? 0.24f : 0.18f
+        ));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            binding.loadingBar.getProgressDrawable().setColorFilter(null);
+        }
+    }
+
+    private int resolveAccentColor() {
+        int accent = new PersonalizationManager(this).getAccentColor();
+        return accent != 0 ? accent : getColor(R.color.primary);
+    }
+
+    private GradientDrawable createRadialGlow(int accent) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setShape(GradientDrawable.OVAL);
+        drawable.setGradientType(GradientDrawable.RADIAL_GRADIENT);
+        drawable.setGradientRadius(dp(90));
+        drawable.setColors(new int[]{
+            withAlpha(accent, isDarkMode() ? 42 : 30),
+            withAlpha(accent, isDarkMode() ? 18 : 14),
+            Color.TRANSPARENT
+        });
+        return drawable;
+    }
+
+    private GradientDrawable createOrbitRing(int accent) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setShape(GradientDrawable.OVAL);
+        drawable.setColor(Color.TRANSPARENT);
+        drawable.setStroke(dp(1), withAlpha(accent, isDarkMode() ? 52 : 70));
+        return drawable;
+    }
+
+    private GradientDrawable createOrbitDot(int accent) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setShape(GradientDrawable.OVAL);
+        drawable.setGradientType(GradientDrawable.RADIAL_GRADIENT);
+        drawable.setGradientRadius(dp(8));
+        drawable.setColors(new int[]{
+            blendColors(accent, Color.WHITE, 0.28f),
+            withAlpha(accent, 190),
+            withAlpha(accent, 0)
+        });
+        return drawable;
+    }
+
+    private int withAlpha(int color, int alpha) {
+        return Color.argb(
+            Math.max(0, Math.min(alpha, 255)),
+            Color.red(color),
+            Color.green(color),
+            Color.blue(color)
         );
-        textView.getPaint().setShader(shader);
-        textView.invalidate();
+    }
+
+    private int blendColors(int from, int to, float ratio) {
+        float boundedRatio = Math.max(0f, Math.min(ratio, 1f));
+        float inverse = 1f - boundedRatio;
+        return Color.rgb(
+            (int) (Color.red(from) * inverse + Color.red(to) * boundedRatio),
+            (int) (Color.green(from) * inverse + Color.green(to) * boundedRatio),
+            (int) (Color.blue(from) * inverse + Color.blue(to) * boundedRatio)
+        );
+    }
+
+    private boolean isDarkMode() {
+        int mode = getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        return mode == Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    private int dp(float value) {
+        return Math.max(1, Math.round(value * getResources().getDisplayMetrics().density));
     }
 
     private void startOrbitAnimation() {

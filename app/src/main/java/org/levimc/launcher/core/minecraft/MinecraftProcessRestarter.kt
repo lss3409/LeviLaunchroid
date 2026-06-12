@@ -2,8 +2,10 @@ package org.levimc.launcher.core.minecraft
 
 import android.app.AlarmManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Color
@@ -17,12 +19,13 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import androidx.core.content.ContextCompat
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
-import androidx.core.content.ContextCompat
+import androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
 import org.levimc.launcher.R
 import org.levimc.launcher.core.crash.CrashReporter
 import org.levimc.launcher.ui.activities.BaseActivity
@@ -31,6 +34,10 @@ import org.levimc.launcher.util.PersonalizationManager
 import kotlin.system.exitProcess
 
 private const val EXTRA_OLD_MAIN_PROCESS_PID = "org.levimc.launcher.extra.OLD_MAIN_PROCESS_PID"
+const val EXTRA_CLOSE_RESTART_ACTIVITY_ON_FIRST_DRAW =
+    "org.levimc.launcher.extra.CLOSE_RESTART_ACTIVITY_ON_FIRST_DRAW"
+const val ACTION_MAIN_ACTIVITY_FIRST_DRAWN =
+    "org.levimc.launcher.action.MAIN_ACTIVITY_FIRST_DRAWN"
 private const val LEGACY_LAUNCHER_RESTART_REQUEST_CODE = 0x1E72
 private const val KILL_OLD_PROCESS_DELAY_MS = 300L
 private const val RELAUNCH_AFTER_KILL_DELAY_MS = 700L
@@ -88,11 +95,22 @@ object MinecraftProcessRestarter {
 
 class LauncherRestartActivity : BaseActivity() {
     private var handled = false
+    private var closeReceiverRegistered = false
+    private val closeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == ACTION_MAIN_ACTIVITY_FIRST_DRAWN) {
+                hideSystemUI()
+                finish()
+                overridePendingTransition(0, 0)
+            }
+        }
+    }
 
     override fun shouldSkipNavBar(): Boolean = true
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
+        registerCloseReceiver()
         setupRestartUi()
         restartLauncher(intent)
     }
@@ -109,21 +127,41 @@ class LauncherRestartActivity : BaseActivity() {
 
         val oldPid = sourceIntent?.getIntExtra(EXTRA_OLD_MAIN_PROCESS_PID, -1) ?: -1
         CrashReporter.disarmRecovery(this)
+        val mainHandler = Handler(Looper.getMainLooper())
 
-        Handler(Looper.getMainLooper()).postDelayed({
+        mainHandler.postDelayed({
+            hideSystemUI()
             if (oldPid > 0 && oldPid != Process.myPid()) {
                 CrashReporter.markPlannedProcessRestart(this, oldPid)
                 Process.killProcess(oldPid)
+                hideSystemUI()
             }
 
-            Handler(Looper.getMainLooper()).postDelayed({
+            mainHandler.postDelayed({ hideSystemUI() }, 120L)
+            mainHandler.postDelayed({ hideSystemUI() }, 360L)
+            mainHandler.postDelayed({
+                hideSystemUI()
                 startActivity(Intent(this, MainActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_NO_ANIMATION
+                    )
+                    putExtra(EXTRA_CLOSE_RESTART_ACTIVITY_ON_FIRST_DRAW, true)
                 })
-                finish()
                 overridePendingTransition(0, 0)
             }, RELAUNCH_AFTER_KILL_DELAY_MS)
         }, KILL_OLD_PROCESS_DELAY_MS)
+    }
+
+    private fun registerCloseReceiver() {
+        if (closeReceiverRegistered) return
+        closeReceiverRegistered = true
+        ContextCompat.registerReceiver(
+            this,
+            closeReceiver,
+            IntentFilter(ACTION_MAIN_ACTIVITY_FIRST_DRAWN),
+            RECEIVER_NOT_EXPORTED
+        )
     }
 
     private fun setupRestartUi() {
@@ -309,5 +347,13 @@ class LauncherRestartActivity : BaseActivity() {
 
     private fun dp(value: Int): Int {
         return (value * resources.displayMetrics.density + 0.5f).toInt()
+    }
+
+    override fun onDestroy() {
+        if (closeReceiverRegistered) {
+            unregisterReceiver(closeReceiver)
+            closeReceiverRegistered = false
+        }
+        super.onDestroy()
     }
 }

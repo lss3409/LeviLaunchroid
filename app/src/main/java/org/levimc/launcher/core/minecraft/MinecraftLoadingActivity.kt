@@ -4,7 +4,9 @@ import android.animation.ValueAnimator
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -18,6 +20,7 @@ import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import org.levimc.launcher.R
 import org.levimc.launcher.core.crash.CrashReporter
 import org.levimc.launcher.ui.activities.BaseActivity
@@ -75,7 +78,7 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
             returnToLauncher()
         }
 
-        applyProgressTheme()
+        applyLaunchTheme()
 
         MinecraftLaunchSession.clear()
         trace.milestone("Launch screen ready")
@@ -216,15 +219,55 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
         }
     }
 
-    private fun applyProgressTheme() {
-        val accent = PersonalizationManager(this).getAccentColor()
-        progressBar.progressTintList = ColorStateList.valueOf(accent)
-        progressBar.progressBackgroundTintList = ColorStateList.valueOf(
-            Color.argb(TRACK_ALPHA, Color.red(accent), Color.green(accent), Color.blue(accent))
-        )
+    private fun applyLaunchTheme() {
+        val configuredAccent = PersonalizationManager(this).getAccentColor()
+        val accent = if (configuredAccent != 0) configuredAccent else ContextCompat.getColor(this, R.color.primary)
+        val accentTint = ColorStateList.valueOf(accent)
+        val secondaryText = ContextCompat.getColor(this, R.color.text_secondary)
+
+        progressBar.progressTintList = accentTint
+        progressBar.progressBackgroundTintList = ColorStateList.valueOf(withAlpha(accent, TRACK_ALPHA))
+        progressBar.indeterminateTintList = accentTint
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             progressBar.progressDrawable?.colorFilter = null
         }
+
+        logScroll.background = GradientDrawable().apply {
+            cornerRadius = dp(8).toFloat()
+            setColor(if (isDarkMode()) Color.argb(238, 16, 20, 18) else ContextCompat.getColor(this@MinecraftLoadingActivity, R.color.surface))
+            setStroke(dp(1), withAlpha(accent, if (isDarkMode()) 88 else 120))
+        }
+        logView.setTextColor(blendColors(ContextCompat.getColor(this, R.color.on_background), accent, if (isDarkMode()) 0.10f else 0.18f))
+        detailView.setTextColor(blendColors(secondaryText, accent, 0.18f))
+        returnButton.backgroundTintList = accentTint
+    }
+
+    private fun isDarkMode(): Boolean {
+        val mode = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        return mode == Configuration.UI_MODE_NIGHT_YES
+    }
+
+    private fun withAlpha(color: Int, alpha: Int): Int {
+        return Color.argb(
+            alpha.coerceIn(0, 255),
+            Color.red(color),
+            Color.green(color),
+            Color.blue(color)
+        )
+    }
+
+    private fun blendColors(from: Int, to: Int, ratio: Float): Int {
+        val boundedRatio = ratio.coerceIn(0f, 1f)
+        val inverse = 1f - boundedRatio
+        return Color.rgb(
+            (Color.red(from) * inverse + Color.red(to) * boundedRatio).toInt(),
+            (Color.green(from) * inverse + Color.green(to) * boundedRatio).toInt(),
+            (Color.blue(from) * inverse + Color.blue(to) * boundedRatio).toInt()
+        )
+    }
+
+    private fun dp(value: Int): Int {
+        return (value * resources.displayMetrics.density + 0.5f).toInt()
     }
 
     private fun transitionToGame(gameIntent: Intent) {

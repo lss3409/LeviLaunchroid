@@ -64,6 +64,7 @@ import java.util.concurrent.Executors;
  import android.graphics.drawable.ColorDrawable;
  import android.util.TypedValue;
  import android.view.ViewGroup;
+ import android.view.ViewTreeObserver;
  import androidx.core.content.ContextCompat;
 
 import coelho.msftauth.api.oauth20.OAuth20Token;
@@ -76,6 +77,9 @@ import okhttp3.OkHttpClient;
  import org.levimc.launcher.ui.dialogs.LoadingDialog;
  import org.levimc.launcher.util.AccountTextUtils;
  import org.levimc.launcher.util.DialogUtils;
+
+ import static org.levimc.launcher.core.minecraft.MinecraftProcessRestarterKt.ACTION_MAIN_ACTIVITY_FIRST_DRAWN;
+ import static org.levimc.launcher.core.minecraft.MinecraftProcessRestarterKt.EXTRA_CLOSE_RESTART_ACTIVITY_ON_FIRST_DRAW;
 
  public class MainActivity extends BaseActivity {
     private ActivityMainBinding binding;
@@ -112,6 +116,7 @@ import okhttp3.OkHttpClient;
         super.onCreate(savedInstanceState);
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        closeLauncherRestartAfterFirstDraw();
         setupNavBar();
         setupManagersAndHandlers();
         setTextMinecraftVersion();
@@ -182,6 +187,30 @@ import okhttp3.OkHttpClient;
         checkResourcepack();
         handleIncomingFiles();
         handleMinecraftUriLaunch();
+    }
+
+    private void closeLauncherRestartAfterFirstDraw() {
+        Intent intent = getIntent();
+        if (intent == null || !intent.getBooleanExtra(EXTRA_CLOSE_RESTART_ACTIVITY_ON_FIRST_DRAW, false)) {
+            return;
+        }
+        intent.removeExtra(EXTRA_CLOSE_RESTART_ACTIVITY_ON_FIRST_DRAW);
+        setIntent(intent);
+
+        final View root = binding.getRoot();
+        root.getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
+            @Override
+            public boolean onPreDraw() {
+                if (root.getViewTreeObserver().isAlive()) {
+                    root.getViewTreeObserver().removeOnPreDrawListener(this);
+                }
+                root.post(() -> {
+                    hideSystemUI();
+                    sendBroadcast(new Intent(ACTION_MAIN_ACTIVITY_FIRST_DRAWN).setPackage(getPackageName()));
+                });
+                return true;
+            }
+        });
     }
 
 
@@ -537,7 +566,7 @@ import okhttp3.OkHttpClient;
             binding.manageModsButton.setBackground(gd);
 
             if (binding.minecraftTitleText != null) {
-                pm.applySubtleWhiteGradient(binding.minecraftTitleText, accent, 0.35f, true);
+                pm.applySolidAccentText(binding.minecraftTitleText, accent);
             }
         }
 

@@ -38,5 +38,9 @@
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 
+    <style name="MainActivityTheme" parent="Base.Theme.FullScreen">
+        <item name="android:windowDisablePreview">true</item>
+    </style>
+
     
 </resources>

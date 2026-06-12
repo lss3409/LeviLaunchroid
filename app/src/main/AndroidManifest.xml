@@ -62,6 +62,7 @@
             android:name="org.levimc.launcher.ui.activities.MainActivity"
             android:exported="true"
             android:screenOrientation="sensorLandscape"
+            android:theme="@style/MainActivityTheme"
             android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
             tools:ignore="DiscouragedApi" />
 
@@ -298,7 +299,6 @@
             android:exported="false"
             android:finishOnTaskLaunch="true"
             android:launchMode="singleTask"
-            android:noHistory="true"
             android:process=":crash"
             android:screenOrientation="sensorLandscape"
             android:theme="@style/LauncherRestartTheme"
