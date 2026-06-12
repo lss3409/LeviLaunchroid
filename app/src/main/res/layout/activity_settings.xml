@@ -634,8 +634,8 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
-                                android:min="40"
-                                android:max="160"
+                                android:min="1"
+                                android:max="150"
                                 android:progress="100"
                                 android:progressTint="@color/primary"
                                 android:thumbTint="@color/primary" />

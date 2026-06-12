@@ -44,8 +44,8 @@ public class PersonalizationManager {
 
     public static final int BG_BLUR_MIN = 0;
     public static final int BG_BLUR_MAX = 25;
-    public static final int BG_BRIGHTNESS_MIN = 40;
-    public static final int BG_BRIGHTNESS_MAX = 160;
+    public static final int BG_BRIGHTNESS_MIN = 1;
+    public static final int BG_BRIGHTNESS_MAX = 150;
     public static final int BG_BRIGHTNESS_DEFAULT = 100;
 
     private static int sChangeGeneration = 0;
