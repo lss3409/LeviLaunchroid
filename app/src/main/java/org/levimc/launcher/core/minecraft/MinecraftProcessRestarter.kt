@@ -27,7 +27,6 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
 import org.levimc.launcher.R
-import org.levimc.launcher.core.crash.CrashReporter
 import org.levimc.launcher.ui.activities.BaseActivity
 import org.levimc.launcher.ui.activities.MainActivity
 import org.levimc.launcher.util.PersonalizationManager
@@ -46,8 +45,6 @@ object MinecraftProcessRestarter {
     fun restartLauncherAfterMinecraftExit(context: Context) {
         val appContext = context.applicationContext
         val oldPid = Process.myPid()
-        CrashReporter.disarmRecovery(appContext)
-        CrashReporter.markPlannedProcessRestart(appContext, oldPid)
         cancelLegacyLauncherRestart(appContext)
 
         val intent = Intent(appContext, LauncherRestartActivity::class.java).apply {
@@ -126,13 +123,12 @@ class LauncherRestartActivity : BaseActivity() {
         handled = true
 
         val oldPid = sourceIntent?.getIntExtra(EXTRA_OLD_MAIN_PROCESS_PID, -1) ?: -1
-        CrashReporter.disarmRecovery(this)
+
         val mainHandler = Handler(Looper.getMainLooper())
 
         mainHandler.postDelayed({
             hideSystemUI()
             if (oldPid > 0 && oldPid != Process.myPid()) {
-                CrashReporter.markPlannedProcessRestart(this, oldPid)
                 Process.killProcess(oldPid)
                 hideSystemUI()
             }

@@ -57,9 +57,15 @@ object NativeBridgeHelper {
     }
 
     @JvmStatic
-    fun bootstrapGxCore() {
-        if (ensureGxCoreLoaded()) {
+    fun bootstrapGxCore(): Boolean {
+        if (!ensureGxCoreLoaded()) {
+            return false
+        }
+        return try {
             nativeBootstrapGxCore()
+            true
+        } catch (_: Throwable) {
+            false
         }
     }
 

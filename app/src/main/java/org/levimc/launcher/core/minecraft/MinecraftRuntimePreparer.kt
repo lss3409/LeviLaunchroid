@@ -156,8 +156,8 @@ object MinecraftRuntimePreparer {
         trace.mark("Minecraft library loading started")
 
         if (shouldLoadHttpClient(version)) {
-            loadLibrary(gameManager, "c++_shared", 48, false, listener, trace)
-            loadLibrary(gameManager, "HttpClient.Android", 52, false, listener, trace)
+            loadLibrary(gameManager, "c++_shared", 48, true, listener, trace)
+            loadLibrary(gameManager, "HttpClient.Android", 52, true, listener, trace)
         }
 
         if (shouldLoadMaesdk(version)) {
@@ -175,16 +175,25 @@ object MinecraftRuntimePreparer {
             }
             listener.onProgress(56, "Loading native libraries")
             trace.mark("Minecraft native library bundle loading started", "1.21.110+ layout")
-            gameManager.loadAllLibraries(excludeLibs, trace, listener, 56, 74, excludeReasons)
+            val failedLibraries = gameManager
+                .loadAllLibraries(excludeLibs, trace, listener, 56, 74, excludeReasons)
+                .filterNot { it.loaded }
+            if (failedLibraries.isNotEmpty()) {
+                val details = failedLibraries.joinToString(separator = "\n") { result ->
+                    "${result.fileName}: ${result.detail ?: "unknown error"}"
+                }
+                trace.error("Native library bundle load failed", details)
+                throw RuntimeException("Failed to load native libraries:\n$details")
+            }
             trace.mark("Minecraft native library bundle loading finished")
         } else {
             if (!shouldLoadHttpClient(version)) {
-                loadLibrary(gameManager, "c++_shared", 50, false, listener, trace)
+                loadLibrary(gameManager, "c++_shared", 50, true, listener, trace)
             }
-            loadLibrary(gameManager, "fmod", 56, false, listener, trace)
-            loadLibrary(gameManager, "MediaDecoders_Android", 62, false, listener, trace)
+            loadLibrary(gameManager, "fmod", 56, true, listener, trace)
+            loadLibrary(gameManager, "MediaDecoders_Android", 62, true, listener, trace)
             loadLibrary(gameManager, "minecraftpe", 70, true, listener, trace)
-            loadLibrary(gameManager, "gxcore", 74, false, listener, trace)
+            loadLibrary(gameManager, "gxcore", 74, true, listener, trace)
         }
         trace.mark("Minecraft library loading finished")
     }

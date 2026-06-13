@@ -22,9 +22,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import org.levimc.launcher.R
-import org.levimc.launcher.core.crash.CrashReporter
 import org.levimc.launcher.ui.activities.BaseActivity
-import org.levimc.launcher.ui.activities.MainActivity
 import org.levimc.launcher.util.PersonalizationManager
 import java.text.SimpleDateFormat
 import java.util.ArrayDeque
@@ -203,7 +201,7 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
         trace.error("Launch failed", message)
         appendLog("Launch failed")
         appendLog(message)
-        returnButton.visibility = android.view.View.VISIBLE
+        returnButton.visibility = View.VISIBLE
     }
 
     private fun animateProgressTo(targetProgress: Int) {
@@ -290,13 +288,8 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
         if (returningToLauncher) return
         returningToLauncher = true
 
-        CrashReporter.disarmRecovery(this)
         MinecraftLaunchSession.clear()
-
-        val launcherIntent = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        }
-        startActivity(launcherIntent)
+        MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this)
         finish()
     }
 

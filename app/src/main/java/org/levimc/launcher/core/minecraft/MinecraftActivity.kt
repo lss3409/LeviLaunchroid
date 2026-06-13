@@ -6,7 +6,6 @@ import android.graphics.Color
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.MotionEvent
-import android.widget.Toast
 import com.mojang.minecraftpe.MainActivity
 import org.levimc.launcher.core.crash.CrashReporter
 import org.levimc.launcher.core.mods.inbuilt.overlay.InbuiltOverlayManager
@@ -24,7 +23,6 @@ class MinecraftActivity : MainActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         trace = LaunchTrace.ensure(intent)
         trace.mark("MinecraftActivity onCreate entered")
-        CrashReporter.disarmRecovery(this)
         window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(resolveLaunchBackgroundColor()))
 
         if (savedInstanceState != null) {
@@ -40,15 +38,20 @@ class MinecraftActivity : MainActivity() {
                 ?: MinecraftRuntimePreparer.prepare(applicationContext, intent)
             gameManager = preparedRuntime.gameManager
             trace.mark("Prepared runtime consumed")
-        } catch (e: Exception) {
-            trace.mark("MinecraftActivity prepare failed", e.message)
-            Toast.makeText(this, "Failed to load game: ${e.message}", Toast.LENGTH_LONG).show()
-            finish()
+        } catch (throwable: Throwable) {
+            trace.error("MinecraftActivity prepare failed", formatLaunchFailure(throwable))
+            returnToLauncherAfterLaunchFailure()
             return
         }
         trace.mark("Mojang MainActivity super.onCreate starting")
-        gameRuntimeStarted = true
-        super.onCreate(savedInstanceState)
+        try {
+            gameRuntimeStarted = true
+            super.onCreate(savedInstanceState)
+        } catch (throwable: Throwable) {
+            trace.error("Mojang MainActivity super.onCreate failed", formatLaunchFailure(throwable))
+            returnToLauncherAfterLaunchFailure()
+            return
+        }
         trace.mark("Mojang MainActivity super.onCreate finished")
         
         val launchVertically = intent.getBooleanExtra("LAUNCH_VERTICALLY", false)
@@ -63,6 +66,17 @@ class MinecraftActivity : MainActivity() {
             .putBoolean("game_verified", true)
             .apply()
         trace.mark("MinecraftActivity onCreate finished")
+    }
+
+    private fun returnToLauncherAfterLaunchFailure() {
+        gameRuntimeStarted = false
+        MinecraftLaunchSession.clear()
+        MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this)
+        finish()
+    }
+
+    private fun formatLaunchFailure(throwable: Throwable): String {
+        return throwable.message ?: throwable.javaClass.simpleName
     }
 
     private fun resolveLaunchBackgroundColor(): Int {
@@ -203,14 +217,12 @@ class MinecraftActivity : MainActivity() {
     }
 
     private fun shouldRestartAfterNormalExit(): Boolean {
-        return gameRuntimeStarted && isFinishing && !CrashReporter.isHandlingCrash() && !CrashReporter.hasPendingCrash(this)
+        return gameRuntimeStarted && isFinishing && !CrashReporter.isHandlingCrash()
     }
 
     private fun prepareNormalExitCleanup() {
         if (normalExitPrepared) return
         normalExitPrepared = true
-
-        CrashReporter.disarmRecovery(this)
     }
 
     private fun scheduleNormalExitProcessRestart() {
