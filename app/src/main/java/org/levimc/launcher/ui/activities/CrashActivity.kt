@@ -21,19 +21,12 @@ class CrashActivity : BaseActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        CrashReporter.disarmRecovery(this)
-        CrashReporter.refreshPendingCrashFromPreviousExit(this)
-        CrashReporter.pendingCrashIntent(this)?.let { pendingIntent ->
-            intent = pendingIntent
-        }
-
         setContentView(R.layout.activity_crash)
 
         logPath = intent.getStringExtra("LOG_PATH")
         val summary = intent.getStringExtra("SUMMARY")
             ?: intent.getStringExtra("EMERGENCY")
         val crashType = intent.getStringExtra("CRASH_TYPE")
-        CrashReporter.clearPendingCrash(this)
         CrashReporter.sendUnsentReports()
 
         val tvTitle = findViewById<TextView>(R.id.crash_title)
@@ -117,7 +110,6 @@ class CrashActivity : BaseActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        CrashReporter.disarmRecovery(this)
     }
 
     private fun StringBuilder.appendHeader(crashType: String?, summary: String?) {
