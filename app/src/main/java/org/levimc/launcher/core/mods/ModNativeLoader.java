@@ -28,6 +28,7 @@ public class ModNativeLoader {
         void onScanStarted(int totalEnabled);
         void onModLoadStarted(Mod mod, int index, int total);
         void onModLoadFinished(Mod mod);
+        void onModLoadSkipped(Mod mod, String minecraftVersion);
         void onModLoadFailed(Mod mod, Throwable error);
         void onMessage(String message);
     }
@@ -39,6 +40,7 @@ public class ModNativeLoader {
         }
 
         List<Mod> mods = modManager.getMods();
+        String minecraftVersion = modManager.getCurrentVersion().versionCode;
         int totalEnabled = 0;
         for (Mod mod : mods) {
             if (mod.isEnabled()) {
@@ -65,6 +67,13 @@ public class ModNativeLoader {
             currentIndex++;
             if (listener != null) {
                 listener.onModLoadStarted(mod, currentIndex, totalEnabled);
+            }
+
+            if (!isCompatibleWithMinecraftVersion(mod, minecraftVersion)) {
+                Log.w(TAG, "Skipping incompatible mod " + mod.getDisplayName()
+                        + " for Minecraft " + minecraftVersion);
+                notifySkipped(listener, mod, minecraftVersion);
+                continue;
             }
 
             try {
@@ -97,6 +106,63 @@ public class ModNativeLoader {
         }
 
         pruneStaleCachedMods(cacheModsDir, stagedModIds);
+    }
+
+    public static boolean isCompatibleWithMinecraftVersion(Mod mod, String minecraftVersion) {
+        if (mod == null) {
+            return true;
+        }
+        return isCompatibleWithMinecraftVersion(mod.getMinecraftVersions(), minecraftVersion);
+    }
+
+    public static boolean isCompatibleWithMinecraftVersion(List<String> patterns, String minecraftVersion) {
+        if (patterns == null || patterns.isEmpty()) {
+            return true;
+        }
+
+        boolean hasValidPattern = false;
+        for (String pattern : patterns) {
+            if (pattern == null) {
+                continue;
+            }
+
+            String normalizedPattern = pattern.trim();
+            if (normalizedPattern.isEmpty()) {
+                continue;
+            }
+
+            hasValidPattern = true;
+            if (matchesMinecraftVersionPattern(normalizedPattern, minecraftVersion)) {
+                return true;
+            }
+        }
+        return !hasValidPattern;
+    }
+
+    public static boolean matchesMinecraftVersionPattern(String pattern, String minecraftVersion) {
+        if (pattern == null || minecraftVersion == null) {
+            return false;
+        }
+
+        String normalizedPattern = pattern.trim();
+        String normalizedVersion = minecraftVersion.trim();
+        if (normalizedPattern.isEmpty() || normalizedVersion.isEmpty()) {
+            return false;
+        }
+
+        int wildcardIndex = normalizedPattern.indexOf('*');
+        if (wildcardIndex < 0) {
+            return normalizedVersion.equals(normalizedPattern);
+        }
+
+        String prefix = normalizedPattern.substring(0, wildcardIndex);
+        return normalizedVersion.startsWith(prefix);
+    }
+
+    private static void notifySkipped(LoadListener listener, Mod mod, String minecraftVersion) {
+        if (listener != null) {
+            listener.onModLoadSkipped(mod, minecraftVersion);
+        }
     }
 
     private static void notifyFailure(LoadListener listener, Mod mod, Throwable error) {

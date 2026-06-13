@@ -7,6 +7,8 @@ import androidx.lifecycle.MutableLiveData;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
 
@@ -33,6 +35,7 @@ public class ModManager {
     private static final String TAG = "ModManager";
     private static final String MANIFEST_FILE_NAME = "manifest.json";
     private static final String PRELOAD_NATIVE_TYPE = "preload-native";
+    private static final String MINECRAFT_VERSIONS_FIELD = "minecraft_versions";
     private static final String DEFAULT_MOD_AUTHOR = "Unknown";
     private static final String DEFAULT_MOD_ICON = "";
     private static final String DEFAULT_MOD_VERSION = "1.0.0";
@@ -59,12 +62,14 @@ public class ModManager {
         final String fileName;
         final String entryPath;
         final String displayName;
+        final List<String> minecraftVersions;
 
-        ModDescriptor(String id, String fileName, String entryPath, String displayName) {
+        ModDescriptor(String id, String fileName, String entryPath, String displayName, List<String> minecraftVersions) {
             this.id = id;
             this.fileName = fileName;
             this.entryPath = entryPath;
             this.displayName = displayName;
+            this.minecraftVersions = minecraftVersions;
         }
     }
 
@@ -165,6 +170,7 @@ public class ModManager {
                     descriptor.fileName,
                     descriptor.entryPath,
                     descriptor.displayName,
+                    descriptor.minecraftVersions,
                     enabledMap.getOrDefault(modId, true),
                     i
             ));
@@ -486,11 +492,49 @@ public class ModManager {
                     modDirectory.getName(),
                     entryFile.getName(),
                     entryPath,
-                    displayName
+                    displayName,
+                    parseMinecraftVersions(manifest)
             );
         } catch (Exception e) {
             Log.w(TAG, "Failed to parse mod manifest: " + manifestFile.getAbsolutePath(), e);
             return null;
+        }
+    }
+
+    private List<String> parseMinecraftVersions(JsonObject manifest) {
+        List<String> versions = new ArrayList<>();
+        if (manifest == null || !manifest.has(MINECRAFT_VERSIONS_FIELD)) {
+            return versions;
+        }
+
+        JsonElement value = manifest.get(MINECRAFT_VERSIONS_FIELD);
+        if (value == null || value.isJsonNull()) {
+            return versions;
+        }
+
+        if (value.isJsonArray()) {
+            JsonArray array = value.getAsJsonArray();
+            for (JsonElement element : array) {
+                addMinecraftVersionPattern(versions, element);
+            }
+            return versions;
+        }
+
+        addMinecraftVersionPattern(versions, value);
+        return versions;
+    }
+
+    private void addMinecraftVersionPattern(List<String> versions, JsonElement element) {
+        if (element == null || !element.isJsonPrimitive()) {
+            return;
+        }
+
+        try {
+            String pattern = element.getAsString();
+            if (pattern != null && !pattern.trim().isEmpty()) {
+                versions.add(pattern.trim());
+            }
+        } catch (UnsupportedOperationException | IllegalStateException ignored) {
         }
     }
 
