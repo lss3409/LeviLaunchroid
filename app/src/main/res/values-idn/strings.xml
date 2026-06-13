@@ -131,7 +131,6 @@
     <string name="repair_preparing">Persiapan…</string>
     <string name="repair_processing">Mengekstrak pustaka…</string>
     <string name="repair_finalizing">Menyelesaikan perbaikan…</string>
-    <string name="repair_progress_label">Menjaga runtime Minecraft tetap konsisten</string>
 
     <string name="theme_title">Mode Tema</string>
     <string name="theme_follow_system">Ikuti Sistem</string>

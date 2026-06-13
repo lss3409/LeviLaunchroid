@@ -106,32 +106,6 @@
             android:max="100"
             android:progress="0"
             android:progressDrawable="@drawable/bg_libs_repair_progress" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <View
-                android:id="@+id/status_dot"
-                android:layout_width="8dp"
-                android:layout_height="8dp"
-                android:background="@drawable/bg_libs_repair_dot" />
-
-            <TextView
-                android:id="@+id/progress_label"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:text="@string/repair_progress_label"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:textSize="12sp" />
-        </LinearLayout>
     </LinearLayout>
         
 </LinearLayout>

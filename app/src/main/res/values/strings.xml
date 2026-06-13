@@ -149,7 +149,6 @@
     <string name="repair_preparing">Preparing…</string>
     <string name="repair_processing">Extracting libraries…</string>
     <string name="repair_finalizing">Finalizing repair…</string>
-    <string name="repair_progress_label">Keeping Minecraft runtime consistent</string>
 
     <string name="theme_title">Theme Mode</string>
     <string name="theme_follow_system">Follow System</string>

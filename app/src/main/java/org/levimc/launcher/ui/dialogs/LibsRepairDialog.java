@@ -27,7 +27,6 @@ public class LibsRepairDialog extends Dialog {
     private TextView titleText;
     private TextView statusText;
     private View iconContainer;
-    private View statusDot;
     private ValueAnimator progressAnimator;
     private int currentProgress;
     private boolean dismissing;
@@ -49,7 +48,6 @@ public class LibsRepairDialog extends Dialog {
         titleText = findViewById(R.id.title);
         statusText = findViewById(R.id.status_text);
         iconContainer = findViewById(R.id.icon_container);
-        statusDot = findViewById(R.id.status_dot);
         applyPersonalization();
 
         Window window = Objects.requireNonNull(getWindow());
@@ -130,9 +128,6 @@ public class LibsRepairDialog extends Dialog {
             }
             if (accent != 0 && iconContainer != null) {
                 iconContainer.setBackgroundTintList(ColorStateList.valueOf(withAlpha(accent, 34)));
-            }
-            if (accent != 0 && statusDot != null) {
-                statusDot.setBackgroundTintList(ColorStateList.valueOf(accent));
             }
         } catch (Exception ignored) {}
     }

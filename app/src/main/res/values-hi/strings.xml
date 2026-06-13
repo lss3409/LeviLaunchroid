@@ -147,7 +147,6 @@
     <string name="repair_preparing">तैयारी हो रही है…</string>
     <string name="repair_processing">लाइब्रेरीज़ निकाली जा रही हैं…</string>
     <string name="repair_finalizing">मरम्मत पूरी की जा रही है…</string>
-    <string name="repair_progress_label">Minecraft रनटाइम को संगत रखा जा रहा है</string>
 
     <string name="theme_title">थीम मोड</string>
     <string name="theme_follow_system">सिस्टम का पालन करें</string>

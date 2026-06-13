@@ -115,7 +115,6 @@
     <string name="repair_preparing">准备中…</string>
     <string name="repair_processing">正在提取库文件…</string>
     <string name="repair_finalizing">正在完成修复…</string>
-    <string name="repair_progress_label">保持 Minecraft 运行环境一致</string>
     
     <string name="theme_title">主题模式</string>
     <string name="theme_follow_system">跟随系统</string>

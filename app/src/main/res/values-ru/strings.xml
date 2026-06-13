@@ -131,7 +131,6 @@
     <string name="repair_preparing">Подготовка…</string>
     <string name="repair_processing">Извлечение библиотек…</string>
     <string name="repair_finalizing">Завершение восстановления…</string>
-    <string name="repair_progress_label">Согласование среды выполнения Minecraft</string>
 
     <string name="theme_title">Тема</string>
     <string name="theme_follow_system">Как в системе</string>
