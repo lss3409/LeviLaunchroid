@@ -114,6 +114,8 @@
     <string name="dialog_positive_enable">Activer</string>
     <string name="dialog_title_launch_failed">Échec du lancement</string>
     <string name="dialog_message_launch_failed">Échec du lancement de Minecraft : %1$s</string>
+    <string name="dialog_title_incompatible_mods">Mods incompatibles ignorés</string>
+    <string name="dialog_message_incompatible_mods">Certains mods activés sont incompatibles avec votre version actuelle de Minecraft %1$s et ont été ignorés :\n\n%2$s</string>
     <string name="dialog_title_disable_version_isolation">Désactiver l\'isolation de version</string>
     <string name="dialog_message_disable_version_isolation">Vous essayez de lancer une version installée avec l\'isolation de version activée. Veuillez désactiver l\'isolation de version pour continuer.</string>
     <string name="dialog_positive_disable">Désactiver</string>
@@ -141,8 +143,11 @@
     <string name="missing_libs_message">Fichiers de bibliothèque de jeu requis manquants. Voulez-vous les réparer maintenant ?</string>
     <string name="repair">Réparer</string>
     <string name="repair_libs_dialog_title">Réparation des bibliothèques de jeu</string>
+    <string name="repair_libs_dialog_subtitle">Préparation des bibliothèques natives Minecraft</string>
     <string name="repair_preparing">Préparation…</string>
     <string name="repair_processing">Extraction des bibliothèques…</string>
+    <string name="repair_finalizing">Finalisation de la réparation…</string>
+    <string name="repair_progress_label">Maintien de la cohérence du runtime Minecraft</string>
 
     <string name="theme_title">Mode Thème</string>
     <string name="theme_follow_system">Suivre le système</string>

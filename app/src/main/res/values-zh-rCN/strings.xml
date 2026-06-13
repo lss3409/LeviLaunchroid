@@ -111,8 +111,11 @@
     <string name="missing_libs_message">检测到缺少必要的游戏库文件，是否立即修复？</string>
     <string name="repair">修复</string>
     <string name="repair_libs_dialog_title">修复游戏库文件</string>
+    <string name="repair_libs_dialog_subtitle">正在准备 Minecraft 原生运行库</string>
     <string name="repair_preparing">准备中…</string>
     <string name="repair_processing">正在提取库文件…</string>
+    <string name="repair_finalizing">正在完成修复…</string>
+    <string name="repair_progress_label">保持 Minecraft 运行环境一致</string>
     
     <string name="theme_title">主题模式</string>
     <string name="theme_follow_system">跟随系统</string>
@@ -128,6 +131,8 @@
     <string name="dialog_positive_enable">启用</string>
     <string name="dialog_title_launch_failed">启动失败</string>
     <string name="dialog_message_launch_failed">无法启动Minecraft：%1$s</string>
+    <string name="dialog_title_incompatible_mods">已跳过不兼容模组</string>
+    <string name="dialog_message_incompatible_mods">部分已启用模组与当前 Minecraft 版本 %1$s 不兼容，已跳过加载：\n\n%2$s</string>
     <string name="dialog_title_disable_version_isolation">禁用版本隔离</string>
     <string name="dialog_message_disable_version_isolation">您尝试在启用版本隔离的情况下启动已安装的版本。请禁用版本隔离以继续。</string>
     <string name="dialog_positive_disable">禁用</string>

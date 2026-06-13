@@ -39,8 +39,12 @@ public class VersionManager {
     private static final String KEY_SELECTED_PACKAGE = "selected_package";
     private static final String KEY_SELECTED_DIR = "selected_dir";
     private static final int BUFFER_SIZE = 131072;
+    private static final int PROGRESS_MAX = 100;
+    private static final int PROGRESS_EXTRACT_MAX = 92;
+    private static final int PROGRESS_FINALIZING = 96;
 
     private static VersionManager instance;
+    private static boolean libsRepairFlowActive;
     private final Context context;
     private final List<GameVersion> installedVersions = new ArrayList<>();
     private final List<GameVersion> customVersions = new ArrayList<>();
@@ -168,7 +172,10 @@ public class VersionManager {
                 File dataDir = new File(context.getDataDir(), "minecraft/" + dataDirName);
 
                 if (onlyVersionTxt) {
+                    callback.onRepairProgress(PROGRESS_FINALIZING);
                     writeVersionTxt(apkFile, dataDir);
+                    loadAllVersions();
+                    callback.onRepairProgress(PROGRESS_MAX);
                     callback.onRepairCompleted(true);
                     return;
                 }
@@ -217,16 +224,15 @@ public class VersionManager {
                                         while ((len = zis.read(buffer)) != -1) {
                                             fos.write(buffer, 0, len);
                                             progress[0] += len;
+                                            int percent = (int) Math.min(PROGRESS_EXTRACT_MAX, (progress[0] * PROGRESS_EXTRACT_MAX) / totalSize);
+                                            if (percent != lastPercent[0]) {
+                                                callback.onRepairProgress(percent);
+                                                lastPercent[0] = percent;
+                                            }
                                         }
                                     }
                                     if (!NativeImageGuard.processRequired(outFile)) {
                                         throw new IOException("Failed to prepare native library: " + outFile.getName());
-                                    }
-
-                                    int percent = (int) ((progress[0] * 100) / totalSize);
-                                    if (percent != lastPercent[0]) {
-                                        callback.onRepairProgress(percent);
-                                        lastPercent[0] = percent;
                                     }
                                 }
                             }
@@ -234,7 +240,10 @@ public class VersionManager {
                     }
                 }
 
+                callback.onRepairProgress(PROGRESS_FINALIZING);
                 writeVersionTxt(apkFile, dataDir);
+                loadAllVersions();
+                callback.onRepairProgress(PROGRESS_MAX);
 
                 callback.onRepairCompleted(true);
 
@@ -533,6 +542,10 @@ public class VersionManager {
     }
 
     public static void attemptRepairLibs(Activity activity, GameVersion version) {
+        if (version == null || libsRepairFlowActive) {
+            return;
+        }
+        libsRepairFlowActive = true;
         LibsRepairDialog repairDialog = new LibsRepairDialog(activity);
         Handler mainHandler = new Handler(Looper.getMainLooper());
 
@@ -551,7 +564,11 @@ public class VersionManager {
             public void onRepairProgress(int progress) {
                 activity.runOnUiThread(() -> {
                     if (progress > 0) {
-                        repairDialog.setStatusText(activity.getString(R.string.repair_processing));
+                        repairDialog.setStatusText(activity.getString(
+                                progress >= PROGRESS_FINALIZING
+                                        ? R.string.repair_finalizing
+                                        : R.string.repair_processing
+                        ));
                         repairDialog.setIndeterminate(false);
                     }
                     repairDialog.updateProgress(progress);
@@ -561,23 +578,33 @@ public class VersionManager {
             @Override
             public void onRepairCompleted(boolean success) {
                 activity.runOnUiThread(() -> {
-                    repairDialog.dismiss();
-                    if (success) {
-                        new CustomAlertDialog(activity)
-                                .setTitleText(activity.getString(R.string.repair_completed))
-                                .setMessage(activity.getString(R.string.repair_libs_success_message))
-                                .setPositiveButton(activity.getString(R.string.confirm), null)
-                                .show();
-                        VersionManager.get(activity).reload();
-                        if (activity instanceof MainActivity) {
-                            ((MainActivity) activity).setTextMinecraftVersion();
+                    libsRepairFlowActive = false;
+                    Runnable showResult = () -> {
+                        if (activity.isFinishing()) {
+                            return;
                         }
+                        if (success) {
+                            new CustomAlertDialog(activity)
+                                    .setTitleText(activity.getString(R.string.repair_completed))
+                                    .setMessage(activity.getString(R.string.repair_libs_success_message))
+                                    .setPositiveButton(activity.getString(R.string.confirm), null)
+                                    .show();
+                            if (activity instanceof MainActivity) {
+                                ((MainActivity) activity).setTextMinecraftVersion();
+                            }
+                        } else {
+                            new CustomAlertDialog(activity)
+                                    .setTitleText(activity.getString(R.string.repair_failed))
+                                    .setMessage(activity.getString(R.string.repair_libs_failed_message))
+                                    .setPositiveButton(activity.getString(R.string.confirm), null)
+                                    .show();
+                        }
+                    };
+                    repairDialog.setOnDismissAnimationEndListener(showResult);
+                    if (repairDialog.isShowing()) {
+                        repairDialog.dismiss();
                     } else {
-                        new CustomAlertDialog(activity)
-                                .setTitleText(activity.getString(R.string.repair_failed))
-                                .setMessage(activity.getString(R.string.repair_libs_failed_message))
-                                .setPositiveButton(activity.getString(R.string.confirm), null)
-                                .show();
+                        showResult.run();
                     }
                 });
             }
@@ -585,27 +612,52 @@ public class VersionManager {
             @Override
             public void onRepairFailed(Exception e) {
                 activity.runOnUiThread(() -> {
-                    repairDialog.dismiss();
-                    new CustomAlertDialog(activity)
-                            .setTitleText(activity.getString(R.string.repair_error))
-                            .setMessage(String.format(activity.getString(R.string.repair_libs_error_message), e.getMessage()))
-                            .setPositiveButton(activity.getString(R.string.confirm), null)
-                            .show();
+                    libsRepairFlowActive = false;
+                    Runnable showError = () -> {
+                        if (activity.isFinishing()) {
+                            return;
+                        }
+                        new CustomAlertDialog(activity)
+                                .setTitleText(activity.getString(R.string.repair_error))
+                                .setMessage(String.format(activity.getString(R.string.repair_libs_error_message), e.getMessage()))
+                                .setPositiveButton(activity.getString(R.string.confirm), null)
+                                .show();
+                    };
+                    repairDialog.setOnDismissAnimationEndListener(showError);
+                    if (repairDialog.isShowing()) {
+                        repairDialog.dismiss();
+                    } else {
+                        showError.run();
+                    }
                 });
             }
         };
 
-        new CustomAlertDialog(activity)
+        boolean[] repairConfirmed = {false};
+        CustomAlertDialog confirmDialog = new CustomAlertDialog(activity)
                 .setTitleText(String.format(activity.getString(R.string.missing_libs_title), version.directoryName))
                 .setMessage(activity.getString(R.string.missing_libs_message))
                 .setPositiveButton(activity.getString(R.string.repair), v -> {
-                    mainHandler.postDelayed(() -> {
-                        repairDialog.show();
-                        VersionManager.get(activity).repairLibsAsync(version, callback);
-                    }, 180L);
+                    repairConfirmed[0] = true;
                 })
-                .setNegativeButton(activity.getString(R.string.cancel), null)
-                .show();
+                .setNegativeButton(activity.getString(R.string.cancel), null);
+        confirmDialog.setOnDismissAnimationEndListener(() -> {
+            if (!repairConfirmed[0] || activity.isFinishing()) {
+                libsRepairFlowActive = false;
+                return;
+            }
+            mainHandler.post(() -> {
+                if (activity.isFinishing()) {
+                    libsRepairFlowActive = false;
+                    return;
+                }
+                if (!repairDialog.isShowing()) {
+                    repairDialog.show();
+                }
+                VersionManager.get(activity).repairLibsAsync(version, callback);
+            });
+        });
+        confirmDialog.show();
     }
 
     public void renameCustomVersion(GameVersion version, String newDisplayName, OnRenameVersionCallback callback) {

@@ -13,7 +13,8 @@ import java.io.File
 object MinecraftRuntimePreparer {
     data class PreparedRuntime(
         val version: GameVersion?,
-        val gameManager: GamePackageManager
+        val gameManager: GamePackageManager,
+        val skippedIncompatibleMods: List<String> = emptyList()
     )
 
     interface ProgressListener {
@@ -67,11 +68,11 @@ object MinecraftRuntimePreparer {
 
         listener.onProgress(78, "Loading enabled mods")
         listener.onLog("Loading native mods")
-        loadNativeMods(context, launchIntent, modManager, listener, trace)
+        val skippedIncompatibleMods = loadNativeMods(context, launchIntent, modManager, listener, trace)
 
         listener.onProgress(100, "Runtime ready", "Entering Minecraft")
         trace.milestone("Runtime preparation finished")
-        return PreparedRuntime(version, gameManager)
+        return PreparedRuntime(version, gameManager, skippedIncompatibleMods)
     }
 
     @JvmStatic
@@ -243,10 +244,11 @@ object MinecraftRuntimePreparer {
         modManager: ModManager,
         listener: ProgressListener,
         trace: LaunchTrace
-    ) {
+    ): List<String> {
         val cacheDir = resolveNativeModCacheDir(context, launchIntent)
         trace.mark("Native mod loading started", cacheDir.absolutePath)
         val modLoadLabels = java.util.IdentityHashMap<Mod, String>()
+        val skippedIncompatibleMods = mutableListOf<String>()
         ModNativeLoader.loadEnabledSoMods(
             modManager,
             cacheDir,
@@ -273,6 +275,13 @@ object MinecraftRuntimePreparer {
                     trace.mark("Native mod load finished", mod.displayName)
                 }
 
+                override fun onModLoadSkipped(mod: Mod, minecraftVersion: String) {
+                    val label = modLoadLabels.remove(mod)?.let { "$it " }.orEmpty()
+                    skippedIncompatibleMods.add(mod.displayName)
+                    listener.onLog("Skipped incompatible mod ${label}${mod.displayName} for Minecraft $minecraftVersion")
+                    trace.warning("Native mod skipped as incompatible", "${mod.displayName}: $minecraftVersion")
+                }
+
                 override fun onModLoadFailed(mod: Mod, error: Throwable) {
                     trace.warning("Native mod load failed", "${mod.displayName}: ${error.message ?: error.javaClass.simpleName}")
                     listener.onLog("Failed to load mod ${mod.displayName}: ${error.message ?: error.javaClass.simpleName}")
@@ -287,6 +296,7 @@ object MinecraftRuntimePreparer {
         listener.onProgress(96, "Native mods ready")
         listener.onLog("Native mods ready")
         trace.mark("Native mod loading finished")
+        return skippedIncompatibleMods
     }
 
     private fun resolveNativeModCacheDir(context: Context, launchIntent: Intent): File {

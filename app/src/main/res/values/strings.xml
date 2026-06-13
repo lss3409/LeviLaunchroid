@@ -115,6 +115,8 @@
     <string name="dialog_positive_enable">Enable</string>
     <string name="dialog_title_launch_failed">Launch Failed</string>
     <string name="dialog_message_launch_failed">Failed to launch Minecraft: %1$s</string>
+    <string name="dialog_title_incompatible_mods">Incompatible Mods Skipped</string>
+    <string name="dialog_message_incompatible_mods">Some enabled mods are incompatible with your current Minecraft version %1$s and were skipped:\n\n%2$s</string>
     <string name="dialog_title_disable_version_isolation">Disable Version Isolation</string>
     <string name="dialog_message_disable_version_isolation">You are trying to launch an installed version with version isolation enabled. Please disable version isolation to proceed.</string>
     <string name="dialog_positive_disable">Disable</string>
@@ -143,8 +145,11 @@
     <string name="missing_libs_message">Required game library files are missing. Do you want to repair them now?</string>
     <string name="repair">Repair</string>
     <string name="repair_libs_dialog_title">Repairing Game Libraries</string>
+    <string name="repair_libs_dialog_subtitle">Preparing native runtime files</string>
     <string name="repair_preparing">Preparing…</string>
     <string name="repair_processing">Extracting libraries…</string>
+    <string name="repair_finalizing">Finalizing repair…</string>
+    <string name="repair_progress_label">Keeping Minecraft runtime consistent</string>
 
     <string name="theme_title">Theme Mode</string>
     <string name="theme_follow_system">Follow System</string>

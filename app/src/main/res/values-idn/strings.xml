@@ -97,6 +97,8 @@
     <string name="dialog_positive_enable">Aktifkan</string>
     <string name="dialog_title_launch_failed">Peluncuran Gagal</string>
     <string name="dialog_message_launch_failed">Gagal meluncurkan Minecraft: %1$s</string>
+    <string name="dialog_title_incompatible_mods">Mod Tidak Kompatibel Dilewati</string>
+    <string name="dialog_message_incompatible_mods">Beberapa mod yang aktif tidak kompatibel dengan versi Minecraft saat ini %1$s dan dilewati:\n\n%2$s</string>
     <string name="dialog_title_disable_version_isolation">Nonaktifkan Isolasi Versi</string>
     <string name="dialog_message_disable_version_isolation">Anda mencoba menjalankan versi yang sudah terpasang dengan isolasi versi diaktifkan. Harap nonaktifkan isolasi versi untuk melanjutkan..</string>
     <string name="dialog_positive_disable">Matikan</string>
@@ -125,8 +127,11 @@
     <string name="missing_libs_message">File pustaka game yang dibutuhkan hilang. Apakah Anda ingin memperbaikinya sekarang?</string>
     <string name="repair">Perbaiki</string>
     <string name="repair_libs_dialog_title">Memperbaiki Perpustakaan Game</string>
+    <string name="repair_libs_dialog_subtitle">Menyiapkan pustaka native Minecraft</string>
     <string name="repair_preparing">Persiapan…</string>
     <string name="repair_processing">Mengekstrak pustaka…</string>
+    <string name="repair_finalizing">Menyelesaikan perbaikan…</string>
+    <string name="repair_progress_label">Menjaga runtime Minecraft tetap konsisten</string>
 
     <string name="theme_title">Mode Tema</string>
     <string name="theme_follow_system">Ikuti Sistem</string>

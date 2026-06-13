@@ -23,6 +23,7 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import org.levimc.launcher.R
 import org.levimc.launcher.ui.activities.BaseActivity
+import org.levimc.launcher.ui.dialogs.CustomAlertDialog
 import org.levimc.launcher.util.PersonalizationManager
 import java.text.SimpleDateFormat
 import java.util.ArrayDeque
@@ -150,7 +151,7 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
                     updateProgress(100, getString(R.string.minecraft_loading_complete), getString(R.string.minecraft_loading_entering_game))
                     trace.milestone("Entering game")
                     appendLog("Entering Minecraft")
-                    transitionToGame(gameIntent)
+                    showSkippedIncompatibleModsIfNeeded(preparedRuntime, gameIntent)
                 }
             } catch (throwable: Throwable) {
                 mainHandler.post {
@@ -197,7 +198,8 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
     private fun showFailure(throwable: Throwable) {
         if (isFinishing || isDestroyed) return
         val message = throwable.message ?: throwable.javaClass.simpleName
-        updateProgress(100, getString(R.string.minecraft_loading_failed), message)
+        updateProgress(100, getString(R.string.minecraft_loading_failed), null)
+        detailView.visibility = View.GONE
         trace.error("Launch failed", message)
         appendLog("Launch failed")
         appendLog(message)
@@ -277,6 +279,31 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
         overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         finish()
         overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
+    }
+
+    private fun showSkippedIncompatibleModsIfNeeded(
+        preparedRuntime: MinecraftRuntimePreparer.PreparedRuntime,
+        gameIntent: Intent
+    ) {
+        val skippedMods = preparedRuntime.skippedIncompatibleMods
+        if (skippedMods.isEmpty()) {
+            transitionToGame(gameIntent)
+            return
+        }
+
+        val minecraftVersion = preparedRuntime.version?.versionCode
+            ?.takeIf { it.isNotBlank() }
+            ?: getString(R.string.minecraft)
+        val modList = skippedMods.joinToString(separator = "\n") { "- $it" }
+        val dialog = CustomAlertDialog(this)
+            .setTitleText(getString(R.string.dialog_title_incompatible_mods))
+            .setMessage(getString(R.string.dialog_message_incompatible_mods, minecraftVersion, modList))
+            .setBlurBackground(true)
+            .setPositiveButton(getString(R.string.dialog_positive_ok)) {
+                transitionToGame(gameIntent)
+            }
+        dialog.setCancelable(false)
+        dialog.show()
     }
 
     override fun onBackPressed() {

@@ -97,6 +97,8 @@
     <string name="dialog_positive_enable">Включить</string>
     <string name="dialog_title_launch_failed">Ошибка запуска</string>
     <string name="dialog_message_launch_failed">Не удалось запустить Minecraft: %1$s</string>
+    <string name="dialog_title_incompatible_mods">Несовместимые моды пропущены</string>
+    <string name="dialog_message_incompatible_mods">Некоторые включенные моды несовместимы с текущей версией Minecraft %1$s и были пропущены:\n\n%2$s</string>
     <string name="dialog_title_disable_version_isolation">Отключить изоляцию версии</string>
     <string name="dialog_message_disable_version_isolation">Вы пытаетесь запустить установленную версию с включенной изоляцией версии. Пожалуйста, отключите изоляцию версии, чтобы продолжить.</string>
     <string name="dialog_positive_disable">Отключить</string>
@@ -125,8 +127,11 @@
     <string name="missing_libs_message">Необходимые файлы библиотек игры отсутствуют. Хотите восстановить их сейчас?</string>
     <string name="repair">Восстановить</string>
     <string name="repair_libs_dialog_title">Восстановление библиотек игры</string>
+    <string name="repair_libs_dialog_subtitle">Подготовка нативных библиотек Minecraft</string>
     <string name="repair_preparing">Подготовка…</string>
     <string name="repair_processing">Извлечение библиотек…</string>
+    <string name="repair_finalizing">Завершение восстановления…</string>
+    <string name="repair_progress_label">Согласование среды выполнения Minecraft</string>
 
     <string name="theme_title">Тема</string>
     <string name="theme_follow_system">Как в системе</string>

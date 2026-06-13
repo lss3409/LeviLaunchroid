@@ -588,10 +588,9 @@ import okhttp3.OkHttpClient;
     }
 
     private void repairNeededVersions() {
-        for (GameVersion version : versionManager.getCustomVersions()) {
-            if (version.needsRepair) {
-                VersionManager.attemptRepairLibs(this, version);
-            }
+        GameVersion selectedVersion = versionManager != null ? versionManager.getSelectedVersion() : null;
+        if (selectedVersion != null && selectedVersion.needsRepair) {
+            VersionManager.attemptRepairLibs(this, selectedVersion);
         }
     }
 

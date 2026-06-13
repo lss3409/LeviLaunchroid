@@ -1,5 +1,6 @@
 package org.levimc.launcher.ui.dialogs;
 
+import android.animation.ValueAnimator;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.res.ColorStateList;
@@ -9,6 +10,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
@@ -24,6 +26,12 @@ public class LibsRepairDialog extends Dialog {
     private TextView progressText;
     private TextView titleText;
     private TextView statusText;
+    private View iconContainer;
+    private View statusDot;
+    private ValueAnimator progressAnimator;
+    private int currentProgress;
+    private boolean dismissing;
+    private Runnable dismissAnimationEndListener;
 
     public LibsRepairDialog(Context context) {
         super(context);
@@ -40,6 +48,8 @@ public class LibsRepairDialog extends Dialog {
         progressText = findViewById(R.id.progress_text);
         titleText = findViewById(R.id.title);
         statusText = findViewById(R.id.status_text);
+        iconContainer = findViewById(R.id.icon_container);
+        statusDot = findViewById(R.id.status_dot);
         applyPersonalization();
 
         Window window = Objects.requireNonNull(getWindow());
@@ -63,26 +73,72 @@ public class LibsRepairDialog extends Dialog {
     }
 
     public void updateProgress(int progress) {
-        progressBar.setProgress(progress);
-        progressText.setText(String.format(Locale.getDefault(), "%d%%", progress));
+        int targetProgress = Math.max(0, Math.min(100, progress));
+        if (progressBar.isIndeterminate()) {
+            progressBar.setProgress(targetProgress);
+            currentProgress = targetProgress;
+            updateProgressText(targetProgress);
+            return;
+        }
+        if (currentProgress == targetProgress) return;
+
+        if (progressAnimator != null) {
+            progressAnimator.cancel();
+            progressAnimator = null;
+        }
+
+        if (targetProgress == 100) {
+            progressBar.setProgress(targetProgress);
+            currentProgress = targetProgress;
+            updateProgressText(targetProgress);
+            return;
+        }
+        progressAnimator = ValueAnimator.ofInt(currentProgress, targetProgress);
+        progressAnimator.setDuration(160L);
+        progressAnimator.setInterpolator(new DecelerateInterpolator());
+        progressAnimator.addUpdateListener(animation -> {
+            int animatedProgress = (int) animation.getAnimatedValue();
+            progressBar.setProgress(animatedProgress);
+            currentProgress = animatedProgress;
+            updateProgressText(animatedProgress);
+        });
+        progressAnimator.start();
     }
 
     public void setIndeterminate(boolean indeterminate) {
         progressBar.setIndeterminate(indeterminate);
     }
 
+    private void updateProgressText(int progress) {
+        progressText.setText(String.format(Locale.getDefault(), "%d%%", progress));
+    }
+
     private void applyPersonalization() {
         try {
             PersonalizationManager pm = new PersonalizationManager(getContext());
-            View content = findViewById(android.R.id.content);
-            if (content != null) {
-                pm.applyAccentToView(content, getContext());
-            }
             int accent = pm.getAccentColor();
             if (accent != 0 && progressBar != null) {
+                progressBar.setProgressTintList(ColorStateList.valueOf(accent));
+                progressBar.setProgressBackgroundTintList(ColorStateList.valueOf(withAlpha(accent, 42)));
                 progressBar.setIndeterminateTintList(ColorStateList.valueOf(accent));
             }
+            if (accent != 0 && progressText != null) {
+                progressText.setTextColor(accent);
+            }
+            if (accent != 0 && titleText != null) {
+                titleText.setTextColor(accent);
+            }
+            if (accent != 0 && iconContainer != null) {
+                iconContainer.setBackgroundTintList(ColorStateList.valueOf(withAlpha(accent, 34)));
+            }
+            if (accent != 0 && statusDot != null) {
+                statusDot.setBackgroundTintList(ColorStateList.valueOf(accent));
+            }
         } catch (Exception ignored) {}
+    }
+
+    private int withAlpha(int color, int alpha) {
+        return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color));
     }
 
     public void setTitleText(String text) {
@@ -91,6 +147,10 @@ public class LibsRepairDialog extends Dialog {
 
     public void setStatusText(String text) {
         if (statusText != null) statusText.setText(text);
+    }
+
+    public void setOnDismissAnimationEndListener(Runnable listener) {
+        this.dismissAnimationEndListener = listener;
     }
 
     @Override
@@ -115,6 +175,14 @@ public class LibsRepairDialog extends Dialog {
 
     @Override
     public void dismiss() {
+        if (dismissing || !isShowing()) {
+            return;
+        }
+        dismissing = true;
+        if (progressAnimator != null) {
+            progressAnimator.cancel();
+            progressAnimator = null;
+        }
         Window window = getWindow();
         if (window != null) {
             window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
@@ -124,9 +192,27 @@ public class LibsRepairDialog extends Dialog {
         }
         View content = findViewById(android.R.id.content);
         if (content != null) {
-            DynamicAnim.animateDialogDismiss(content, () -> LibsRepairDialog.super.dismiss());
+            DynamicAnim.animateDialogDismiss(content, () -> {
+                try {
+                    LibsRepairDialog.super.dismiss();
+                } finally {
+                    notifyDismissAnimationEnd();
+                }
+            });
         } else {
-            super.dismiss();
+            try {
+                super.dismiss();
+            } finally {
+                notifyDismissAnimationEnd();
+            }
+        }
+    }
+
+    private void notifyDismissAnimationEnd() {
+        Runnable listener = dismissAnimationEndListener;
+        dismissAnimationEndListener = null;
+        if (listener != null) {
+            listener.run();
         }
     }
 }

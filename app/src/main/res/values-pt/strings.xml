@@ -114,6 +114,8 @@
     <string name="dialog_positive_enable">Ativar</string>
     <string name="dialog_title_launch_failed">Falha ao Iniciar</string>
     <string name="dialog_message_launch_failed">Falha ao iniciar o Minecraft: %1$s</string>
+    <string name="dialog_title_incompatible_mods">Mods incompatíveis ignorados</string>
+    <string name="dialog_message_incompatible_mods">Alguns mods ativados são incompatíveis com a versão atual do Minecraft %1$s e foram ignorados:\n\n%2$s</string>
     <string name="dialog_title_disable_version_isolation">Desativar Isolamento</string>
     <string name="dialog_message_disable_version_isolation">Desative o isolamento de versão para continuar com esta versão instalada.</string>
     <string name="dialog_positive_disable">Desativar</string>
@@ -141,8 +143,11 @@
     <string name="missing_libs_message">Arquivos obrigatórios do jogo estão ausentes. Deseja repará-los?</string>
     <string name="repair">Reparar</string>
     <string name="repair_libs_dialog_title">Reparando Bibliotecas do Jogo</string>
+    <string name="repair_libs_dialog_subtitle">Preparando bibliotecas nativas do Minecraft</string>
     <string name="repair_preparing">Preparando…</string>
     <string name="repair_processing">Extraindo bibliotecas…</string>
+    <string name="repair_finalizing">Finalizando reparo…</string>
+    <string name="repair_progress_label">Mantendo o runtime do Minecraft consistente</string>
 
     <string name="theme_title">Modo Tema</string>
     <string name="theme_follow_system">Seguir o Sistema</string>
