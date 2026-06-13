@@ -227,46 +227,131 @@
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
 
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/x-zip" />
+                <data android:mimeType="application/x-zip-compressed" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
+                <data android:pathPattern="/.*\\.zip" />
+                <data android:pathPattern="/.*\\..*\\.zip" />
+                <data android:pathPattern="/.*\\..*\\..*\\.zip" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\.zip" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.zip" />
+                <data android:pathPattern="/.*\\.levipack" />
+                <data android:pathPattern="/.*\\..*\\.levipack" />
+                <data android:pathPattern="/.*\\..*\\..*\\.levipack" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\.levipack" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.levipack" />
+                <data android:pathPattern="/.*\\.so" />
+                <data android:pathPattern="/.*\\..*\\.so" />
+                <data android:pathPattern="/.*\\..*\\..*\\.so" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\.so" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.so" />
+                <data android:pathPattern="/.*\\.mcworld" />
+                <data android:pathPattern="/.*\\..*\\.mcworld" />
+                <data android:pathPattern="/.*\\..*\\..*\\.mcworld" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\.mcworld" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.mcworld" />
+                <data android:pathPattern="/.*\\.mcpack" />
+                <data android:pathPattern="/.*\\..*\\.mcpack" />
+                <data android:pathPattern="/.*\\..*\\..*\\.mcpack" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\.mcpack" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.mcpack" />
+                <data android:pathPattern="/.*\\.mcaddon" />
+                <data android:pathPattern="/.*\\..*\\.mcaddon" />
+                <data android:pathPattern="/.*\\..*\\..*\\.mcaddon" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\.mcaddon" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.mcaddon" />
+                <data android:pathPattern="/.*\\.mctemplate" />
+                <data android:pathPattern="/.*\\..*\\.mctemplate" />
+                <data android:pathPattern="/.*\\..*\\..*\\.mctemplate" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\.mctemplate" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.mctemplate" />
+                <data android:pathSuffix=".zip" />
+                <data android:pathSuffix=".levipack" />
+                <data android:pathSuffix=".so" />
+                <data android:pathSuffix=".mcworld" />
+                <data android:pathSuffix=".mcpack" />
+                <data android:pathSuffix=".mcaddon" />
+                <data android:pathSuffix=".mctemplate" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="content" />
+                <data android:scheme="file" />
                 <data android:mimeType="*/*" />
                 <data android:host="*" />
+                <data android:pathPattern="/.*\\.zip" />
+                <data android:pathPattern="/.*\\..*\\.zip" />
+                <data android:pathPattern="/.*\\..*\\..*\\.zip" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\.zip" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.zip" />
+                <data android:pathPattern="/.*\\.levipack" />
+                <data android:pathPattern="/.*\\..*\\.levipack" />
+                <data android:pathPattern="/.*\\..*\\..*\\.levipack" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\.levipack" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.levipack" />
+                <data android:pathPattern="/.*\\.so" />
+                <data android:pathPattern="/.*\\..*\\.so" />
+                <data android:pathPattern="/.*\\..*\\..*\\.so" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\.so" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.so" />
+                <data android:pathPattern="/.*\\.mcworld" />
+                <data android:pathPattern="/.*\\..*\\.mcworld" />
+                <data android:pathPattern="/.*\\..*\\..*\\.mcworld" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\.mcworld" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.mcworld" />
+                <data android:pathPattern="/.*\\.mcpack" />
+                <data android:pathPattern="/.*\\..*\\.mcpack" />
+                <data android:pathPattern="/.*\\..*\\..*\\.mcpack" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\.mcpack" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.mcpack" />
+                <data android:pathPattern="/.*\\.mcaddon" />
+                <data android:pathPattern="/.*\\..*\\.mcaddon" />
+                <data android:pathPattern="/.*\\..*\\..*\\.mcaddon" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\.mcaddon" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.mcaddon" />
+                <data android:pathPattern="/.*\\.mctemplate" />
+                <data android:pathPattern="/.*\\..*\\.mctemplate" />
+                <data android:pathPattern="/.*\\..*\\..*\\.mctemplate" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\.mctemplate" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.mctemplate" />
+                <data android:pathSuffix=".zip" />
+                <data android:pathSuffix=".levipack" />
+                <data android:pathSuffix=".so" />
+                <data android:pathSuffix=".mcworld" />
+                <data android:pathSuffix=".mcpack" />
+                <data android:pathSuffix=".mcaddon" />
+                <data android:pathSuffix=".mctemplate" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
                 <data android:scheme="file" />
-                <data android:scheme="content" />
-                <data android:pathPattern=".*\\.zip" />
-                <data android:pathPattern=".*\\..*\\.zip" />
-                <data android:pathPattern=".*\\..*\\..*\\.zip" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\.zip" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.zip" />
-                <data android:pathPattern=".*\\.levipack" />
-                <data android:pathPattern=".*\\..*\\.levipack" />
-                <data android:pathPattern=".*\\..*\\..*\\.levipack" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\.levipack" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.levipack" />
-                <data android:pathPattern=".*\\.so" />
-                <data android:pathPattern=".*\\..*\\.so" />
-                <data android:pathPattern=".*\\..*\\..*\\.so" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\.so" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.so" />
-                <data android:pathPattern=".*\\.mcworld" />
-                <data android:pathPattern=".*\\..*\\.mcworld" />
-                <data android:pathPattern=".*\\..*\\..*\\.mcworld" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\.mcworld" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.mcworld" />
-                <data android:pathPattern=".*\\.mcpack" />
-                <data android:pathPattern=".*\\..*\\.mcpack" />
-                <data android:pathPattern=".*\\..*\\..*\\.mcpack" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\.mcpack" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.mcpack" />
-                <data android:pathPattern=".*\\.mcaddon" />
-                <data android:pathPattern=".*\\..*\\.mcaddon" />
-                <data android:pathPattern=".*\\..*\\..*\\.mcaddon" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\.mcaddon" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.mcaddon" />
-                <data android:pathPattern=".*\\.mctemplate" />
-                <data android:pathPattern=".*\\..*\\.mctemplate" />
-                <data android:pathPattern=".*\\..*\\..*\\.mctemplate" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\.mctemplate" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.mctemplate" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/x-zip" />
+                <data android:mimeType="application/x-zip-compressed" />
+                <data android:mimeType="application/octet-stream" />
             </intent-filter>
             <intent-filter>
                 <action android:name="xbox_live_game_invite" />

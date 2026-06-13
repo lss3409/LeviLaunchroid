@@ -75,7 +75,7 @@ public class ApkImportManager {
                         ApkInstaller installer = new ApkInstaller(activity, Executors.newSingleThreadExecutor(), new ApkInstaller.InstallCallback() {
                             @Override
                             public void onProgress(int progress) {
-
+                                activity.runOnUiThread(() -> progressDialog.setProgress(progress));
                             }
 
                             @Override
@@ -113,7 +113,7 @@ public class ApkImportManager {
     }
 
     void showProgress() {
-        //progressDialog.setProgress(0);
+        progressDialog.setProgress(0);
         if (!progressDialog.isShowing()) progressDialog.show();
     }
 

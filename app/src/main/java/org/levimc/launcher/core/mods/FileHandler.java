@@ -48,6 +48,7 @@ public class FileHandler {
     private static final String DEFAULT_MOD_AUTHOR = "Unknown";
     private static final String DEFAULT_MOD_ICON = "";
     private static final String DEFAULT_MOD_VERSION = "1.0.0";
+    private static final String FALLBACK_ZIP_FILE_NAME = "imported_mod.zip";
     private static final Gson GSON = new GsonBuilder()
             .setPrettyPrinting()
             .disableHtmlEscaping()
@@ -93,8 +94,8 @@ public class FileHandler {
         List<Uri> fileUris = extractFileUris(intent);
         List<Uri> supportedUris = new ArrayList<>();
         for (Uri uri : fileUris) {
-            String fileName = resolveFileName(uri);
-            if (isSupportedImportFile(fileName)) {
+            String fileName = resolveImportFileName(uri);
+            if (isSupportedImportFile(uri, fileName)) {
                 supportedUris.add(uri);
             }
         }
@@ -117,8 +118,8 @@ public class FileHandler {
             List<Uri> bareUris = new ArrayList<>();
             List<String> invalidZipNames = new ArrayList<>();
             for (Uri uri : supportedUris) {
-                String fileName = resolveFileName(uri);
-                if (isZipModPackageFile(fileName) && !isValidZipModPackage(uri)) {
+                String fileName = resolveImportFileName(uri);
+                if (isZipModPackageFile(uri, fileName) && !isValidZipModPackage(uri)) {
                     invalidZipNames.add(fileName);
                     continue;
                 }
@@ -174,6 +175,10 @@ public class FileHandler {
 
         String lowerName = fileName.toLowerCase(Locale.ROOT);
         return lowerName.endsWith(".zip") || lowerName.endsWith(".levipack");
+    }
+
+    private boolean isZipModPackageFile(Uri uri, String fileName) {
+        return isZipModPackageFile(fileName) || isZipMimeType(uri) || hasZipHeader(uri);
     }
 
     private void showInvalidZipPackageDialog(List<String> invalidZipNames, Runnable afterDismiss) {
@@ -406,8 +411,8 @@ public class FileHandler {
             for (Uri uri : fileUris) {
                 PreparedImport preparedImport = null;
                 try {
-                    String fileName = resolveFileName(uri);
-                    if (!isSupportedImportFile(fileName)) {
+                    String fileName = resolveImportFileName(uri);
+                    if (!isSupportedImportFile(uri, fileName)) {
                         throw new IOException("Unsupported mod import file: " + fileName);
                     }
 
@@ -457,7 +462,7 @@ public class FileHandler {
         if (lowerName.endsWith(".so")) {
             return prepareSoImport(uri, fileName, overrideName, overrideType, overrideVersion);
         }
-        if (isZipModPackageFile(fileName)) {
+        if (isZipModPackageFile(uri, fileName)) {
             return prepareZipImport(uri, fileName, overrideName, overrideType, overrideVersion);
         }
         throw new IOException("Unsupported mod import file: " + fileName);
@@ -1060,13 +1065,13 @@ public class FileHandler {
         new Handler(Looper.getMainLooper()).post(() -> callback.onError(message));
     }
 
-    private boolean isSupportedImportFile(String fileName) {
+    private boolean isSupportedImportFile(Uri uri, String fileName) {
         if (fileName == null) {
             return false;
         }
 
         String lowerName = fileName.toLowerCase(Locale.ROOT);
-        return lowerName.endsWith(".so") || isZipModPackageFile(fileName);
+        return lowerName.endsWith(".so") || isZipModPackageFile(uri, fileName);
     }
 
     private String getStringProperty(JsonObject object, String key) {
@@ -1074,6 +1079,65 @@ public class FileHandler {
             return null;
         }
         return object.get(key).getAsString();
+    }
+
+    private String resolveImportFileName(Uri uri) {
+        String fileName = resolveFileName(uri);
+        if (isZipModPackageFile(fileName) || hasSupportedPlainExtension(fileName)) {
+            return fileName;
+        }
+        if (isZipMimeType(uri) || hasZipHeader(uri)) {
+            return FALLBACK_ZIP_FILE_NAME;
+        }
+        return fileName;
+    }
+
+    private boolean hasSupportedPlainExtension(String fileName) {
+        if (fileName == null) {
+            return false;
+        }
+
+        return fileName.toLowerCase(Locale.ROOT).endsWith(".so");
+    }
+
+    private boolean isZipMimeType(Uri uri) {
+        String mimeType;
+        try {
+            mimeType = context.getContentResolver().getType(uri);
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to resolve MIME type", e);
+            return false;
+        }
+        if (mimeType == null) {
+            return false;
+        }
+
+        String lowerMimeType = mimeType.toLowerCase(Locale.ROOT);
+        return "application/zip".equals(lowerMimeType)
+                || "application/x-zip".equals(lowerMimeType)
+                || "application/x-zip-compressed".equals(lowerMimeType);
+    }
+
+    private boolean hasZipHeader(Uri uri) {
+        try (InputStream input = context.getContentResolver().openInputStream(uri)) {
+            if (input == null) {
+                return false;
+            }
+
+            byte[] header = new byte[4];
+            int read = input.read(header);
+            if (read < header.length) {
+                return false;
+            }
+
+            return header[0] == 0x50
+                    && header[1] == 0x4B
+                    && (header[2] == 0x03 || header[2] == 0x05 || header[2] == 0x07)
+                    && (header[3] == 0x04 || header[3] == 0x06 || header[3] == 0x08);
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to inspect zip header", e);
+            return false;
+        }
     }
 
     private List<Uri> extractFileUris(Intent intent) {

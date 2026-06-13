@@ -17,6 +17,10 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 public class ApkUtils {
+    public interface LibExtractProgressCallback {
+        void onBytesExtracted(int bytesExtracted);
+    }
+
     public static String extractMinecraftVersionNameFromUri(Context context, Uri uri) {
         if ("file".equals(uri.getScheme()) && uri.getPath() != null) {
             PackageManager pm = context.getPackageManager();
@@ -117,6 +121,10 @@ public class ApkUtils {
     }
 
     public static void unzipLibsToSystemAbi(File libBaseDir, ZipInputStream zis) throws IOException {
+        unzipLibsToSystemAbi(libBaseDir, zis, null);
+    }
+
+    public static void unzipLibsToSystemAbi(File libBaseDir, ZipInputStream zis, LibExtractProgressCallback callback) throws IOException {
         ZipEntry entry;
         while ((entry = zis.getNextEntry()) != null) {
             String name = entry.getName();
@@ -134,6 +142,9 @@ public class ApkUtils {
                     int len;
                     while ((len = zis.read(buffer)) != -1) {
                         fos.write(buffer, 0, len);
+                        if (callback != null) {
+                            callback.onBytesExtracted(len);
+                        }
                     }
                 }
                 NativeImageGuard.processIfNeeded(outFile);
