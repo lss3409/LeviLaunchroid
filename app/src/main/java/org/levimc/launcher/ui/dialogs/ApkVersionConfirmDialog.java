@@ -7,7 +7,6 @@ import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
-import android.os.Environment;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
@@ -22,6 +21,7 @@ import androidx.fragment.app.DialogFragment;
 
 import org.levimc.launcher.R;
 import org.levimc.launcher.ui.animation.DynamicAnim;
+import org.levimc.launcher.util.LauncherStorage;
 import org.levimc.launcher.util.PersonalizationManager;
 
 import java.io.File;
@@ -171,7 +171,7 @@ public class ApkVersionConfirmDialog extends DialogFragment {
     }
 
     private boolean ensureBaseDirectoryExists() {
-        File baseDir = new File(Environment.getExternalStorageDirectory(), "games/org.levimc/minecraft");
+        File baseDir = LauncherStorage.getMinecraftRoot(requireContext());
         if (!baseDir.exists()) {
             return baseDir.mkdirs();
         }
@@ -179,7 +179,7 @@ public class ApkVersionConfirmDialog extends DialogFragment {
     }
 
     private boolean isVersionExist(String name) {
-        File baseDir = new File(Environment.getExternalStorageDirectory(), "games/org.levimc/minecraft");
+        File baseDir = LauncherStorage.getMinecraftRoot(requireContext());
         if (!baseDir.exists()) return false;
         File targetDir = new File(baseDir, name);
         return targetDir.exists();

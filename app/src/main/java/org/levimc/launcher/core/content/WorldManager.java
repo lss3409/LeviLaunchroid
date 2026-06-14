@@ -5,6 +5,7 @@ import android.net.Uri;
 import android.util.Log;
 
 import org.levimc.launcher.core.versions.GameVersion;
+import org.levimc.launcher.util.LauncherStorage;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -319,8 +320,7 @@ public class WorldManager {
     }
 
     private String createBackup(WorldItem world) throws IOException {
-        File storageDir = android.os.Environment.getExternalStorageDirectory();
-        File backupDir = new File(storageDir, "games/org.levimc/backups/worlds");
+        File backupDir = LauncherStorage.getWorldBackupsDir(context);
         backupDir.mkdirs();
         
         String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());

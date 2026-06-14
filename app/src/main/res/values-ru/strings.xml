@@ -47,8 +47,8 @@
     <string name="local_custom">Доступные версии</string>
 
     <!-- Разрешения -->
-    <string name="storage_permission_title">Необходимо разрешение на доступ к хранилищу</string>
-    <string name="storage_permission_message">Пожалуйста выдайте доступ к хранилищу для доступа к папке модов и для определения модов.</string>
+    <string name="storage_permission_title">Разрешение для миграции хранилища</string>
+    <string name="storage_permission_message">Предоставьте доступ к хранилищу, чтобы LeviLauncher мог скопировать данные из старой папки games/org.levimc. Это разрешение нужно только для миграции.</string>
     <string name="grant_permission">Выдать</string>
     <string name="cancel">Отмена</string>
 
@@ -131,6 +131,30 @@
     <string name="repair_preparing">Подготовка…</string>
     <string name="repair_processing">Извлечение библиотек…</string>
     <string name="repair_finalizing">Завершение восстановления…</string>
+    <string name="storage_migration_title">Требуется миграция хранилища</string>
+    <string name="storage_migration_message">LeviLauncher перенесёт данные из games/org.levimc в %1$s.\n\nСтарая папка останется нетронутой, но совместимость с ней будет удалена в будущей версии.</string>
+    <string name="storage_migration_start">Перенести</string>
+    <string name="storage_migration_later">Позже</string>
+    <string name="storage_migration_permission_denied">Для чтения старой папки во время миграции требуется разрешение на доступ к хранилищу.</string>
+    <string name="storage_migration_progress_title">Миграция хранилища</string>
+    <string name="storage_migration_progress_subtitle">Копирование данных лаунчера в Android/media</string>
+    <string name="storage_migration_scanning">Сканирование старой папки…</string>
+    <string name="storage_migration_progress_detail">%1$d/%2$d файлов · %3$s</string>
+    <string name="storage_migration_eta_pending">Оценка оставшегося времени…</string>
+    <string name="storage_migration_eta_detail">Осталось около %1$s · завершение примерно в %2$s</string>
+    <string name="storage_migration_duration_hours_minutes">%1$d ч %2$d мин</string>
+    <string name="storage_migration_duration_minutes_seconds">%1$d мин %2$d с</string>
+    <string name="storage_migration_duration_seconds">%1$d с</string>
+    <string name="storage_migration_background_hint">Миграция может продолжаться в фоновом режиме. Можно покинуть этот экран, пока она выполняется.</string>
+    <string name="storage_migration_pause">Приостановить миграцию</string>
+    <string name="storage_migration_paused_title">Миграция приостановлена</string>
+    <string name="storage_migration_paused_message">Миграция приостановлена. Её можно продолжить в следующий раз.</string>
+    <string name="storage_migration_completed_title">Миграция завершена</string>
+    <string name="storage_migration_completed_message">Перенесено файлов: %1$d (%2$s). Уже актуальны: %3$d.\n\nСтарая папка games/org.levimc не была удалена.</string>
+    <string name="storage_migration_partial_title">Миграция не завершена</string>
+    <string name="storage_migration_partial_message">Не удалось скопировать %1$d из %2$d файлов. Старая папка сохранена. Можно повторить миграцию при следующем запуске.</string>
+    <string name="storage_migration_failed_title">Ошибка миграции</string>
+    <string name="storage_migration_failed_message">Миграция не может продолжиться: %1$s\n\nСтарая папка сохранена.</string>
 
     <string name="theme_title">Тема</string>
     <string name="theme_follow_system">Как в системе</string>

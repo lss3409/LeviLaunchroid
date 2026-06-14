@@ -59,8 +59,8 @@
     <string name="local_custom">ローカルカスタム</string>
 
     <!-- Permissions -->
-    <string name="storage_permission_title">ストレージ権限が必要です</string>
-    <string name="storage_permission_message">モッドディレクトリにアクセスしてモッドを検出するために、ストレージ権限を付与してください。</string>
+    <string name="storage_permission_title">ストレージ移行の権限</string>
+    <string name="storage_permission_message">古い games/org.levimc ディレクトリからデータをコピーするため、LeviLauncher にストレージ権限を付与してください。この権限は移行手順でのみ必要です。</string>
     <string name="grant_permission">許可する</string>
     <string name="cancel">キャンセル</string>
 
@@ -147,6 +147,30 @@
     <string name="repair_preparing">準備中…</string>
     <string name="repair_processing">ライブラリを展開中…</string>
     <string name="repair_finalizing">修復を完了しています…</string>
+    <string name="storage_migration_title">ストレージ移行が必要です</string>
+    <string name="storage_migration_message">LeviLauncher はデータを games/org.levimc から %1$s に移動します。\n\n古いディレクトリはそのまま保持されますが、今後のバージョンでは互換性が削除されます。</string>
+    <string name="storage_migration_start">移行</string>
+    <string name="storage_migration_later">後で</string>
+    <string name="storage_migration_permission_denied">移行のために古いディレクトリを読み取るには、ストレージ権限が必要です。</string>
+    <string name="storage_migration_progress_title">ストレージを移行中</string>
+    <string name="storage_migration_progress_subtitle">ランチャーデータを Android/media にコピーしています</string>
+    <string name="storage_migration_scanning">古いディレクトリをスキャン中…</string>
+    <string name="storage_migration_progress_detail">%1$d/%2$d ファイル · %3$s</string>
+    <string name="storage_migration_eta_pending">残り時間を推定中…</string>
+    <string name="storage_migration_eta_detail">残り約 %1$s · %2$s 頃に完了</string>
+    <string name="storage_migration_duration_hours_minutes">%1$d時間%2$d分</string>
+    <string name="storage_migration_duration_minutes_seconds">%1$d分%2$d秒</string>
+    <string name="storage_migration_duration_seconds">%1$d秒</string>
+    <string name="storage_migration_background_hint">移行はバックグラウンドで続行できます。実行中にこの画面を離れてもかまいません。</string>
+    <string name="storage_migration_pause">移行を一時停止</string>
+    <string name="storage_migration_paused_title">移行を一時停止しました</string>
+    <string name="storage_migration_paused_message">移行を一時停止しました。次回続行できます。</string>
+    <string name="storage_migration_completed_title">移行完了</string>
+    <string name="storage_migration_completed_message">%1$d 個のファイル (%2$s) を移行しました。%3$d 個のファイルは既に最新でした。\n\n古い games/org.levimc ディレクトリは削除されていません。</string>
+    <string name="storage_migration_partial_title">移行が完了していません</string>
+    <string name="storage_migration_partial_message">%1$d/%2$d 個のファイルをコピーできませんでした。古いディレクトリはそのまま保持されています。次回起動時に再試行できます。</string>
+    <string name="storage_migration_failed_title">移行失敗</string>
+    <string name="storage_migration_failed_message">移行を続行できませんでした: %1$s\n\n古いディレクトリはそのまま保持されています。</string>
 
     <string name="theme_title">テーマモード</string>
     <string name="theme_follow_system">システムに従う</string>

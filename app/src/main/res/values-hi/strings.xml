@@ -59,8 +59,8 @@
     <string name="local_custom">स्थानीय कस्टम</string>
 
     <!-- Permissions -->
-    <string name="storage_permission_title">स्टोरेज अनुमति आवश्यक है</string>
-    <string name="storage_permission_message">कृपया मॉड्स निर्देशिका तक पहुंचने और मॉड्स का पता लगाने के लिए स्टोरेज अनुमति प्रदान करें।</string>
+    <string name="storage_permission_title">स्टोरेज माइग्रेशन अनुमति</string>
+    <string name="storage_permission_message">कृपया LeviLauncher को पुराने games/org.levimc फ़ोल्डर से डेटा कॉपी करने के लिए स्टोरेज अनुमति दें। यह अनुमति केवल माइग्रेशन चरण के लिए आवश्यक है।</string>
     <string name="grant_permission">अनुमति दें</string>
     <string name="cancel">रद्द करें</string>
 
@@ -147,6 +147,36 @@
     <string name="repair_preparing">तैयारी हो रही है…</string>
     <string name="repair_processing">लाइब्रेरीज़ निकाली जा रही हैं…</string>
     <string name="repair_finalizing">मरम्मत पूरी की जा रही है…</string>
+    <string name="storage_migration_title">स्टोरेज माइग्रेशन आवश्यक है</string>
+    <string name="storage_migration_message">LeviLauncher डेटा को games/org.levimc से %1$s में ले जाएगा।
+
+पुराना फ़ोल्डर जस का तस रखा जाएगा, लेकिन भविष्य के संस्करण में उसके साथ संगतता हटाई जाएगी।</string>
+    <string name="storage_migration_start">माइग्रेट करें</string>
+    <string name="storage_migration_later">बाद में</string>
+    <string name="storage_migration_permission_denied">माइग्रेशन के लिए पुराने फ़ोल्डर को पढ़ने हेतु स्टोरेज अनुमति आवश्यक है।</string>
+    <string name="storage_migration_progress_title">स्टोरेज माइग्रेट हो रहा है</string>
+    <string name="storage_migration_progress_subtitle">लॉन्चर डेटा Android/media में कॉपी किया जा रहा है</string>
+    <string name="storage_migration_scanning">पुराना फ़ोल्डर स्कैन किया जा रहा है…</string>
+    <string name="storage_migration_progress_detail">%1$d/%2$d फ़ाइलें · %3$s</string>
+    <string name="storage_migration_eta_pending">शेष समय का अनुमान लगाया जा रहा है…</string>
+    <string name="storage_migration_eta_detail">लगभग %1$s शेष · %2$s तक पूरा होगा</string>
+    <string name="storage_migration_duration_hours_minutes">%1$d घं %2$d मि</string>
+    <string name="storage_migration_duration_minutes_seconds">%1$d मि %2$d से</string>
+    <string name="storage_migration_duration_seconds">%1$d से</string>
+    <string name="storage_migration_background_hint">माइग्रेशन बैकग्राउंड में जारी रह सकता है। इसके चलते समय आप इस स्क्रीन से बाहर जा सकते हैं।</string>
+    <string name="storage_migration_pause">माइग्रेशन रोकें</string>
+    <string name="storage_migration_paused_title">माइग्रेशन रुका हुआ है</string>
+    <string name="storage_migration_paused_message">माइग्रेशन रोक दिया गया है। आप अगली बार इसे जारी रख सकते हैं।</string>
+    <string name="storage_migration_completed_title">माइग्रेशन पूरा हुआ</string>
+    <string name="storage_migration_completed_message">%1$d फ़ाइलें माइग्रेट हुईं (%2$s)। %3$d फ़ाइलें पहले से अपडेट थीं।
+
+पुराना games/org.levimc फ़ोल्डर हटाया नहीं गया।</string>
+    <string name="storage_migration_partial_title">माइग्रेशन अधूरा है</string>
+    <string name="storage_migration_partial_message">%2$d में से %1$d फ़ाइलें कॉपी नहीं हो सकीं। पुराना फ़ोल्डर जस का तस रखा गया है। अगले लॉन्च पर फिर कोशिश कर सकते हैं।</string>
+    <string name="storage_migration_failed_title">माइग्रेशन विफल</string>
+    <string name="storage_migration_failed_message">माइग्रेशन जारी नहीं रह सका: %1$s
+
+पुराना फ़ोल्डर जस का तस रखा गया है।</string>
 
     <string name="theme_title">थीम मोड</string>
     <string name="theme_follow_system">सिस्टम का पालन करें</string>

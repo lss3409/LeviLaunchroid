@@ -11,6 +11,7 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.animation.DecelerateInterpolator;
+import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
@@ -25,7 +26,11 @@ public class LibsRepairDialog extends Dialog {
     private ProgressBar progressBar;
     private TextView progressText;
     private TextView titleText;
+    private TextView subtitleText;
     private TextView statusText;
+    private TextView etaText;
+    private TextView backgroundHintText;
+    private Button pauseButton;
     private View iconContainer;
     private ValueAnimator progressAnimator;
     private int currentProgress;
@@ -46,7 +51,11 @@ public class LibsRepairDialog extends Dialog {
         progressBar = findViewById(R.id.progress_bar);
         progressText = findViewById(R.id.progress_text);
         titleText = findViewById(R.id.title);
+        subtitleText = findViewById(R.id.subtitle);
         statusText = findViewById(R.id.status_text);
+        etaText = findViewById(R.id.eta_text);
+        backgroundHintText = findViewById(R.id.background_hint_text);
+        pauseButton = findViewById(R.id.pause_button);
         iconContainer = findViewById(R.id.icon_container);
         applyPersonalization();
 
@@ -126,6 +135,10 @@ public class LibsRepairDialog extends Dialog {
             if (accent != 0 && titleText != null) {
                 titleText.setTextColor(accent);
             }
+            if (accent != 0 && pauseButton != null) {
+                pauseButton.setBackgroundTintList(ColorStateList.valueOf(accent));
+                pauseButton.setTextColor(Color.WHITE);
+            }
             if (accent != 0 && iconContainer != null) {
                 iconContainer.setBackgroundTintList(ColorStateList.valueOf(withAlpha(accent, 34)));
             }
@@ -140,8 +153,32 @@ public class LibsRepairDialog extends Dialog {
         if (titleText != null) titleText.setText(text);
     }
 
+    public void setSubtitleText(String text) {
+        if (subtitleText != null) subtitleText.setText(text);
+    }
+
     public void setStatusText(String text) {
         if (statusText != null) statusText.setText(text);
+    }
+
+    public void setEtaText(String text) {
+        if (etaText == null) return;
+        etaText.setText(text);
+        etaText.setVisibility(text == null || text.isEmpty() ? View.GONE : View.VISIBLE);
+    }
+
+    public void setBackgroundHintText(String text) {
+        if (backgroundHintText == null) return;
+        backgroundHintText.setText(text);
+        backgroundHintText.setVisibility(text == null || text.isEmpty() ? View.GONE : View.VISIBLE);
+    }
+
+    public void setPauseButton(String text, View.OnClickListener listener) {
+        if (pauseButton == null) return;
+        pauseButton.setText(text);
+        pauseButton.setOnClickListener(listener);
+        pauseButton.setVisibility(listener == null ? View.GONE : View.VISIBLE);
+        DynamicAnim.applyPressScale(pauseButton);
     }
 
     public void setOnDismissAnimationEndListener(Runnable listener) {

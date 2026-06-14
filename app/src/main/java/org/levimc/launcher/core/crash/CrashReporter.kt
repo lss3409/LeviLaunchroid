@@ -3,8 +3,6 @@ package org.levimc.launcher.core.crash
 import android.app.Application
 import android.content.Context
 import android.content.Intent
-import android.os.Build
-import android.os.Environment
 import android.os.Process
 import android.os.SystemClock
 import com.google.firebase.FirebaseApp
@@ -12,6 +10,7 @@ import com.google.firebase.crashlytics.FirebaseCrashlytics
 import org.levimc.launcher.BuildConfig
 import org.levimc.launcher.settings.FeatureSettings
 import org.levimc.launcher.ui.activities.CrashActivity
+import org.levimc.launcher.util.LauncherStorage
 import xcrash.ICrashCallback
 import xcrash.XCrash
 import java.io.File
@@ -198,8 +197,8 @@ object CrashReporter {
     }
 
     private fun crashLogDir(context: Context): File {
-        val primary = File(Environment.getExternalStorageDirectory(), "games/org.levimc/crash_logs")
-        if (canUsePublicExternalStorage() && ensureWritableDir(primary)) return primary
+        val primary = LauncherStorage.getCrashLogsDir(context)
+        if (ensureWritableDir(primary)) return primary
 
         val externalRoot = context.getExternalFilesDir(null)
         if (externalRoot != null) {
@@ -230,10 +229,6 @@ object CrashReporter {
         } catch (_: Throwable) {
             false
         }
-    }
-
-    private fun canUsePublicExternalStorage(): Boolean {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
     }
 
     private fun buildCrashSummary(crashType: String, emergency: String?): String {

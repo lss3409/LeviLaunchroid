@@ -7,7 +7,6 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
-import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -19,6 +18,7 @@ import org.levimc.launcher.ui.activities.MainActivity;
 import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
 import org.levimc.launcher.ui.dialogs.LibsRepairDialog;
 import org.levimc.launcher.util.ApkUtils;
+import org.levimc.launcher.util.LauncherStorage;
 import org.levimc.launcher.util.NativeImageGuard;
 
 import java.io.BufferedInputStream;
@@ -333,7 +333,7 @@ public class VersionManager {
             installedVersions.add(gv);
         }
 
-        File baseDir = new File(Environment.getExternalStorageDirectory(), "games/org.levimc/minecraft/");
+        File baseDir = LauncherStorage.getMinecraftRoot(context);
         File[] dirs = baseDir.listFiles(File::isDirectory);
 
         if (dirs != null) {
@@ -364,8 +364,7 @@ public class VersionManager {
 
     @NonNull
     private File getVersionDirForPackage(String packageName) {
-        return new File(Environment.getExternalStorageDirectory(),
-                "games/org.levimc/minecraft/" + packageName);
+        return LauncherStorage.getVersionDir(context, packageName);
     }
 
     private boolean hasSoFilesInDir(File nativeLibDir) {
@@ -488,7 +487,8 @@ public class VersionManager {
             } else if (type.equals("custom")) {
                 String dir = prefs.getString(KEY_SELECTED_DIR, null);
                 for (GameVersion gv : customVersions) {
-                    if (gv.versionDir.getAbsolutePath().equals(dir)) {
+                    if (gv.versionDir.getAbsolutePath().equals(dir)
+                            || gv.directoryName.equals(new File(dir == null ? "" : dir).getName())) {
                         selectedVersion = gv;
                         break;
                     }

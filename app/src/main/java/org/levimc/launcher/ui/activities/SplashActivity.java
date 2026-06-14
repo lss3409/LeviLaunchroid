@@ -20,6 +20,7 @@ import androidx.interpolator.view.animation.LinearOutSlowInInterpolator;
 
 import org.levimc.launcher.R;
 import org.levimc.launcher.databinding.ActivitySplashBinding;
+import org.levimc.launcher.util.LauncherStorage;
 import org.levimc.launcher.util.PersonalizationManager;
 
 import java.util.Locale;
@@ -65,17 +66,7 @@ public class SplashActivity extends BaseActivity {
     }
 
     private void createNoMediaFile() {
-        try {
-            java.io.File baseDir = new java.io.File(
-                android.os.Environment.getExternalStorageDirectory(), 
-                "games/org.levimc"
-            );
-            if (!baseDir.exists()) baseDir.mkdirs();
-            java.io.File noMediaFile = new java.io.File(baseDir, ".nomedia");
-            if (!noMediaFile.exists()) noMediaFile.createNewFile();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        LauncherStorage.ensureNoMedia(this);
     }
 
     @Override

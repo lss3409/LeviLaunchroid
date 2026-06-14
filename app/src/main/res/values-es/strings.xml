@@ -59,8 +59,8 @@
     <string name="local_custom">Personalizado Local</string>
 
     <!-- Permissions -->
-    <string name="storage_permission_title">Permiso de almacenamiento requerido</string>
-    <string name="storage_permission_message">Concede permiso de almacenamiento para acceder al directorio de mods y detectarlos.</string>
+    <string name="storage_permission_title">Permiso para migrar almacenamiento</string>
+    <string name="storage_permission_message">Concede permiso de almacenamiento para que LeviLauncher copie los datos desde el antiguo directorio games/org.levimc. Este permiso solo se usa durante la migración.</string>
     <string name="grant_permission">Conceder</string>
     <string name="cancel">Cancelar</string>
 
@@ -147,6 +147,36 @@
     <string name="repair_preparing">Preparando…</string>
     <string name="repair_processing">Extrayendo bibliotecas…</string>
     <string name="repair_finalizing">Finalizando reparación…</string>
+    <string name="storage_migration_title">Migración de almacenamiento requerida</string>
+    <string name="storage_migration_message">LeviLauncher moverá los datos de games/org.levimc a %1$s.
+
+El directorio antiguo se conservará intacto, pero la compatibilidad con él se eliminará en una versión futura.</string>
+    <string name="storage_migration_start">Migrar</string>
+    <string name="storage_migration_later">Más tarde</string>
+    <string name="storage_migration_permission_denied">Se necesita permiso de almacenamiento para leer el directorio antiguo durante la migración.</string>
+    <string name="storage_migration_progress_title">Migrando almacenamiento</string>
+    <string name="storage_migration_progress_subtitle">Copiando datos del lanzador a Android/media</string>
+    <string name="storage_migration_scanning">Escaneando directorio antiguo…</string>
+    <string name="storage_migration_progress_detail">%1$d/%2$d archivos · %3$s</string>
+    <string name="storage_migration_eta_pending">Calculando tiempo restante…</string>
+    <string name="storage_migration_eta_detail">Quedan aprox. %1$s · termina sobre las %2$s</string>
+    <string name="storage_migration_duration_hours_minutes">%1$d h %2$d min</string>
+    <string name="storage_migration_duration_minutes_seconds">%1$d min %2$d s</string>
+    <string name="storage_migration_duration_seconds">%1$d s</string>
+    <string name="storage_migration_background_hint">La migración puede continuar en segundo plano. Puedes salir de esta pantalla mientras se ejecuta.</string>
+    <string name="storage_migration_pause">Pausar migración</string>
+    <string name="storage_migration_paused_title">Migración pausada</string>
+    <string name="storage_migration_paused_message">La migración se ha pausado. Puedes continuarla la próxima vez.</string>
+    <string name="storage_migration_completed_title">Migración completada</string>
+    <string name="storage_migration_completed_message">Se migraron %1$d archivos (%2$s). %3$d archivos ya estaban actualizados.
+
+El antiguo directorio games/org.levimc no fue eliminado.</string>
+    <string name="storage_migration_partial_title">Migración incompleta</string>
+    <string name="storage_migration_partial_message">No se pudieron copiar %1$d de %2$d archivos. El directorio antiguo se conservó intacto. Puedes reintentar la migración en el próximo inicio.</string>
+    <string name="storage_migration_failed_title">Migración fallida</string>
+    <string name="storage_migration_failed_message">La migración no pudo continuar: %1$s
+
+El directorio antiguo se conservó intacto.</string>
 
     <string name="theme_title">Modo de Tema</string>
     <string name="theme_follow_system">Seguir Sistema</string>

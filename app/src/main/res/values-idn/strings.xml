@@ -47,8 +47,8 @@
     <string name="local_custom">Paket Lokal</string>
 
     <!-- Permissions -->
-    <string name="storage_permission_title">Izin Penyimpanan Diperlukan</string>
-    <string name="storage_permission_message">Mohon berikan izin penyimpanan untuk mengakses direktori mod dan mendeteksi mod.</string>
+    <string name="storage_permission_title">Izin Migrasi Penyimpanan</string>
+    <string name="storage_permission_message">Berikan izin penyimpanan agar LeviLauncher dapat menyalin data dari folder lama games/org.levimc. Izin ini hanya diperlukan untuk proses migrasi.</string>
     <string name="grant_permission">Izinkan</string>
     <string name="cancel">Batal</string>
 
@@ -131,6 +131,36 @@
     <string name="repair_preparing">Persiapan…</string>
     <string name="repair_processing">Mengekstrak pustaka…</string>
     <string name="repair_finalizing">Menyelesaikan perbaikan…</string>
+    <string name="storage_migration_title">Migrasi Penyimpanan Diperlukan</string>
+    <string name="storage_migration_message">LeviLauncher akan memindahkan data dari games/org.levimc ke %1$s.
+
+Folder lama tetap dibiarkan, tetapi kompatibilitas dengannya akan dihapus pada versi mendatang.</string>
+    <string name="storage_migration_start">Migrasi</string>
+    <string name="storage_migration_later">Nanti</string>
+    <string name="storage_migration_permission_denied">Izin penyimpanan diperlukan untuk membaca folder lama saat migrasi.</string>
+    <string name="storage_migration_progress_title">Memigrasikan Penyimpanan</string>
+    <string name="storage_migration_progress_subtitle">Menyalin data launcher ke Android/media</string>
+    <string name="storage_migration_scanning">Memindai folder lama…</string>
+    <string name="storage_migration_progress_detail">%1$d/%2$d file · %3$s</string>
+    <string name="storage_migration_eta_pending">Memperkirakan sisa waktu…</string>
+    <string name="storage_migration_eta_detail">Sekitar %1$s tersisa · selesai sekitar %2$s</string>
+    <string name="storage_migration_duration_hours_minutes">%1$d jam %2$d mnt</string>
+    <string name="storage_migration_duration_minutes_seconds">%1$d mnt %2$d dtk</string>
+    <string name="storage_migration_duration_seconds">%1$d dtk</string>
+    <string name="storage_migration_background_hint">Migrasi dapat terus berjalan di latar belakang. Anda bisa meninggalkan layar ini saat migrasi berjalan.</string>
+    <string name="storage_migration_pause">Jeda Migrasi</string>
+    <string name="storage_migration_paused_title">Migrasi Dijeda</string>
+    <string name="storage_migration_paused_message">Migrasi telah dijeda. Anda dapat melanjutkannya lain kali.</string>
+    <string name="storage_migration_completed_title">Migrasi Selesai</string>
+    <string name="storage_migration_completed_message">Berhasil memigrasikan %1$d file (%2$s). %3$d file sudah terbaru.
+
+Folder lama games/org.levimc tidak dihapus.</string>
+    <string name="storage_migration_partial_title">Migrasi Belum Selesai</string>
+    <string name="storage_migration_partial_message">%1$d dari %2$d file tidak dapat disalin. Folder lama tetap dibiarkan. Anda dapat mencoba lagi saat peluncuran berikutnya.</string>
+    <string name="storage_migration_failed_title">Migrasi Gagal</string>
+    <string name="storage_migration_failed_message">Migrasi tidak dapat dilanjutkan: %1$s
+
+Folder lama tetap dibiarkan.</string>
 
     <string name="theme_title">Mode Tema</string>
     <string name="theme_follow_system">Ikuti Sistem</string>

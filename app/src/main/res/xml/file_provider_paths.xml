@@ -48,7 +48,4 @@
     <files-path
         name="files"
         path="."/>
-    <external-path
-        name="crash_logs"
-        path="games/org.levimc/crash_logs"/>
 </paths>
