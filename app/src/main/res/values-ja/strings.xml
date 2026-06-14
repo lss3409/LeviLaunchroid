@@ -153,7 +153,7 @@
     <string name="storage_migration_later">後で</string>
     <string name="storage_migration_permission_denied">移行のために古いディレクトリを読み取るには、ストレージ権限が必要です。</string>
     <string name="storage_migration_progress_title">ストレージを移行中</string>
-    <string name="storage_migration_progress_subtitle">ランチャーデータを Android/media にコピーしています</string>
+    <string name="storage_migration_progress_subtitle">ランチャーデータを Android/data にコピーしています</string>
     <string name="storage_migration_scanning">古いディレクトリをスキャン中…</string>
     <string name="storage_migration_progress_detail">%1$d/%2$d ファイル · %3$s</string>
     <string name="storage_migration_eta_pending">残り時間を推定中…</string>

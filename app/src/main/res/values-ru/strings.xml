@@ -137,7 +137,7 @@
     <string name="storage_migration_later">Позже</string>
     <string name="storage_migration_permission_denied">Для чтения старой папки во время миграции требуется разрешение на доступ к хранилищу.</string>
     <string name="storage_migration_progress_title">Миграция хранилища</string>
-    <string name="storage_migration_progress_subtitle">Копирование данных лаунчера в Android/media</string>
+    <string name="storage_migration_progress_subtitle">Копирование данных лаунчера в Android/data</string>
     <string name="storage_migration_scanning">Сканирование старой папки…</string>
     <string name="storage_migration_progress_detail">%1$d/%2$d файлов · %3$s</string>
     <string name="storage_migration_eta_pending">Оценка оставшегося времени…</string>

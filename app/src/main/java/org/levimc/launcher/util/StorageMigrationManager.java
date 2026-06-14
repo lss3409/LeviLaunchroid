@@ -107,10 +107,10 @@ public class StorageMigrationManager {
     public boolean shouldOfferMigration() {
         if (isMigrationCompleted() || running.get()) return false;
         File legacyRoot = LauncherStorage.getLegacyRoot();
-        if (!legacyRoot.exists() || !legacyRoot.isDirectory()) return false;
+        if (!LauncherStorage.shouldUseLegacyRoot(context)) return false;
         File targetRoot = LauncherStorage.getTargetAppRoot(context);
         if (samePath(legacyRoot, targetRoot)) return false;
-        return LauncherStorage.hasAnyChild(legacyRoot);
+        return true;
     }
 
     public boolean isMigrationCompleted() {
@@ -350,12 +350,13 @@ public class StorageMigrationManager {
 
     private void markCompleted(File sourceRoot, MigrationResult result) {
         prefs.edit()
-                .putBoolean(KEY_COMPLETED, true)
                 .putString(KEY_SOURCE_PATH, sourceRoot.getAbsolutePath())
                 .putLong(KEY_COMPLETED_AT, System.currentTimeMillis())
                 .putInt(KEY_TOTAL_FILES, result.totalFiles)
                 .putLong(KEY_TOTAL_BYTES, result.totalBytes)
                 .apply();
+        LauncherStorage.markMigrationCompleted(context);
+        LauncherStorage.invalidateCache();
     }
 
     private static boolean samePath(File a, File b) {

@@ -155,7 +155,7 @@ El directorio antiguo se conservará intacto, pero la compatibilidad con él se 
     <string name="storage_migration_later">Más tarde</string>
     <string name="storage_migration_permission_denied">Se necesita permiso de almacenamiento para leer el directorio antiguo durante la migración.</string>
     <string name="storage_migration_progress_title">Migrando almacenamiento</string>
-    <string name="storage_migration_progress_subtitle">Copiando datos del lanzador a Android/media</string>
+    <string name="storage_migration_progress_subtitle">Copiando datos del lanzador a Android/data</string>
     <string name="storage_migration_scanning">Escaneando directorio antiguo…</string>
     <string name="storage_migration_progress_detail">%1$d/%2$d archivos · %3$s</string>
     <string name="storage_migration_eta_pending">Calculando tiempo restante…</string>

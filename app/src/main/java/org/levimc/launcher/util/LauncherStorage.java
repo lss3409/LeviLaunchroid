@@ -9,13 +9,17 @@ public final class LauncherStorage {
     private static final String PREFS_NAME = "storage_migration";
     private static final String KEY_COMPLETED = "storage_migration_completed";
     private static final String LEGACY_ROOT_PATH = "games/org.levimc";
+    private static final String NO_MEDIA_FILE = ".nomedia";
     private static final String ANDROID_DIR = "Android";
     private static final String ANDROID_DATA_DIR = "data";
-    private static final String ANDROID_MEDIA_DIR = "media";
+    private static final String FILES_DIR = "files";
     private static final String MINECRAFT_DIR = "minecraft";
     private static final String CRASH_LOGS_DIR = "crash_logs";
     private static final String BACKUPS_DIR = "backups";
     private static final String WORLDS_DIR = "worlds";
+    private static final Object CACHE_LOCK = new Object();
+    private static volatile Boolean cachedUseLegacyRoot;
+    private static volatile File cachedTargetAppRoot;
 
     private LauncherStorage() {
     }
@@ -28,39 +32,34 @@ public final class LauncherStorage {
     }
 
     public static File getTargetAppRoot(Context context) {
-        File[] filesDirs = context.getExternalFilesDirs(null);
-        if (filesDirs != null) {
-            for (File filesDir : filesDirs) {
-                File appRoot = resolveAndroidMediaRoot(context, filesDir);
-                if (appRoot != null && ensureDir(appRoot)) {
-                    return appRoot;
-                }
-            }
+        File cached = cachedTargetAppRoot;
+        if (cached != null) {
+            return cached;
         }
 
+        synchronized (CACHE_LOCK) {
+            cached = cachedTargetAppRoot;
+            if (cached != null) {
+                return cached;
+            }
+            cachedTargetAppRoot = resolveTargetAppRoot(context);
+            return cachedTargetAppRoot;
+        }
+    }
+
+    private static File resolveTargetAppRoot(Context context) {
         File fallback = context.getExternalFilesDir(null);
         if (fallback != null && ensureDir(fallback)) {
             return fallback;
         }
 
-        File internalFallback = new File(context.getFilesDir(), "media");
+        File internalFallback = context.getFilesDir();
         ensureDir(internalFallback);
         return internalFallback;
     }
 
     public static String getTargetAppRootDisplayPath(Context context) {
-        return ANDROID_DIR + "/" + ANDROID_MEDIA_DIR + "/" + context.getPackageName();
-    }
-
-    private static File resolveAndroidMediaRoot(Context context, File externalFilesDir) {
-        if (externalFilesDir == null) return null;
-        File packageDir = externalFilesDir.getParentFile();
-        if (packageDir == null) return null;
-        File dataDir = packageDir.getParentFile();
-        if (dataDir == null || !ANDROID_DATA_DIR.equals(dataDir.getName())) return null;
-        File androidDir = dataDir.getParentFile();
-        if (androidDir == null || !ANDROID_DIR.equals(androidDir.getName())) return null;
-        return new File(new File(androidDir, ANDROID_MEDIA_DIR), context.getPackageName());
+        return ANDROID_DIR + "/" + ANDROID_DATA_DIR + "/" + context.getPackageName() + "/" + FILES_DIR;
     }
 
     public static File getLegacyRoot() {
@@ -73,8 +72,42 @@ public final class LauncherStorage {
     }
 
     public static boolean shouldUseLegacyRoot(Context context) {
-        File legacyRoot = getLegacyRoot();
-        return !isMigrationCompleted(context) && hasAnyChild(legacyRoot);
+        Boolean cached = cachedUseLegacyRoot;
+        if (cached != null) {
+            return cached;
+        }
+
+        synchronized (CACHE_LOCK) {
+            cached = cachedUseLegacyRoot;
+            if (cached != null) {
+                return cached;
+            }
+            if (isMigrationCompleted(context)) {
+                cachedUseLegacyRoot = false;
+                return false;
+            }
+            if (!getLegacyRoot().exists()) {
+                markMigrationCompleted(context);
+                cachedUseLegacyRoot = false;
+                return false;
+            }
+            cachedUseLegacyRoot = hasLegacyMarker();
+            return cachedUseLegacyRoot;
+        }
+    }
+
+    public static void markMigrationCompleted(Context context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean(KEY_COMPLETED, true)
+                .apply();
+    }
+
+    public static void invalidateCache() {
+        synchronized (CACHE_LOCK) {
+            cachedUseLegacyRoot = null;
+            cachedTargetAppRoot = null;
+        }
     }
 
     public static File getMinecraftRoot(Context context) {
@@ -109,7 +142,7 @@ public final class LauncherStorage {
 
     public static void ensureNoMedia(Context context) {
         try {
-            File noMediaFile = new File(getAppRoot(context), ".nomedia");
+            File noMediaFile = new File(getAppRoot(context), NO_MEDIA_FILE);
             File parent = noMediaFile.getParentFile();
             if (parent != null) ensureDir(parent);
             if (!noMediaFile.exists()) noMediaFile.createNewFile();
@@ -121,9 +154,7 @@ public final class LauncherStorage {
         return dir != null && (dir.exists() ? dir.isDirectory() : dir.mkdirs());
     }
 
-    public static boolean hasAnyChild(File dir) {
-        if (dir == null || !dir.exists() || !dir.isDirectory()) return false;
-        File[] children = dir.listFiles();
-        return children != null && children.length > 0;
+    public static boolean hasLegacyMarker() {
+        return new File(getLegacyRoot(), NO_MEDIA_FILE).isFile();
     }
 }

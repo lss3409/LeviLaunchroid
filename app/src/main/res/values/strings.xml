@@ -156,7 +156,7 @@
     <string name="storage_migration_later">Later</string>
     <string name="storage_migration_permission_denied">Storage permission is required to read the old directory for migration.</string>
     <string name="storage_migration_progress_title">Migrating Storage</string>
-    <string name="storage_migration_progress_subtitle">Copying launcher data to Android/media</string>
+    <string name="storage_migration_progress_subtitle">Copying launcher data to Android/data</string>
     <string name="storage_migration_scanning">Scanning old directory…</string>
     <string name="storage_migration_progress_detail">%1$d/%2$d files · %3$s</string>
     <string name="storage_migration_eta_pending">Estimating time remaining…</string>

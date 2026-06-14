@@ -155,7 +155,7 @@ L’ancien dossier restera intact, mais sa compatibilité sera supprimée dans u
     <string name="storage_migration_later">Plus tard</string>
     <string name="storage_migration_permission_denied">L’autorisation de stockage est nécessaire pour lire l’ancien dossier pendant la migration.</string>
     <string name="storage_migration_progress_title">Migration du stockage</string>
-    <string name="storage_migration_progress_subtitle">Copie des données du lanceur vers Android/media</string>
+    <string name="storage_migration_progress_subtitle">Copie des données du lanceur vers Android/data</string>
     <string name="storage_migration_scanning">Analyse de l’ancien dossier…</string>
     <string name="storage_migration_progress_detail">%1$d/%2$d fichiers · %3$s</string>
     <string name="storage_migration_eta_pending">Estimation du temps restant…</string>

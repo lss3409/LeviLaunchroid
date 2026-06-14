@@ -139,7 +139,7 @@ Folder lama tetap dibiarkan, tetapi kompatibilitas dengannya akan dihapus pada v
     <string name="storage_migration_later">Nanti</string>
     <string name="storage_migration_permission_denied">Izin penyimpanan diperlukan untuk membaca folder lama saat migrasi.</string>
     <string name="storage_migration_progress_title">Memigrasikan Penyimpanan</string>
-    <string name="storage_migration_progress_subtitle">Menyalin data launcher ke Android/media</string>
+    <string name="storage_migration_progress_subtitle">Menyalin data launcher ke Android/data</string>
     <string name="storage_migration_scanning">Memindai folder lama…</string>
     <string name="storage_migration_progress_detail">%1$d/%2$d file · %3$s</string>
     <string name="storage_migration_eta_pending">Memperkirakan sisa waktu…</string>

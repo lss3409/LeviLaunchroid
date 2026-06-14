@@ -155,7 +155,7 @@
     <string name="storage_migration_later">बाद में</string>
     <string name="storage_migration_permission_denied">माइग्रेशन के लिए पुराने फ़ोल्डर को पढ़ने हेतु स्टोरेज अनुमति आवश्यक है।</string>
     <string name="storage_migration_progress_title">स्टोरेज माइग्रेट हो रहा है</string>
-    <string name="storage_migration_progress_subtitle">लॉन्चर डेटा Android/media में कॉपी किया जा रहा है</string>
+    <string name="storage_migration_progress_subtitle">लॉन्चर डेटा Android/data में कॉपी किया जा रहा है</string>
     <string name="storage_migration_scanning">पुराना फ़ोल्डर स्कैन किया जा रहा है…</string>
     <string name="storage_migration_progress_detail">%1$d/%2$d फ़ाइलें · %3$s</string>
     <string name="storage_migration_eta_pending">शेष समय का अनुमान लगाया जा रहा है…</string>
