@@ -43,7 +43,7 @@ public class VersionManager {
     private static final int PROGRESS_EXTRACT_MAX = 92;
     private static final int PROGRESS_FINALIZING = 96;
 
-    private static VersionManager instance;
+    private static volatile VersionManager instance;
     private static boolean libsRepairFlowActive;
     private final Context context;
     private final List<GameVersion> installedVersions = new ArrayList<>();
@@ -73,9 +73,35 @@ public class VersionManager {
         void onRenameFailed(Exception e);
     }
 
+    public interface InitCallback {
+        void onReady(VersionManager manager);
+    }
+
     public static VersionManager get(Context ctx) {
-        if (instance == null) instance = new VersionManager(ctx.getApplicationContext());
+        VersionManager result = instance;
+        if (result == null) {
+            synchronized (VersionManager.class) {
+                result = instance;
+                if (result == null) {
+                    instance = result = new VersionManager(ctx.getApplicationContext());
+                }
+            }
+        }
+        return result;
+    }
+
+    public static VersionManager getIfInitialized() {
         return instance;
+    }
+
+    public static void initializeAsync(Context ctx, InitCallback callback) {
+        Context appContext = ctx.getApplicationContext();
+        new Thread(() -> {
+            VersionManager manager = get(appContext);
+            if (callback != null) {
+                callback.onReady(manager);
+            }
+        }, "version-manager-init").start();
     }
 
     public static String getSelectedModsDir(Context ctx) {
@@ -286,11 +312,12 @@ public class VersionManager {
 
         PackageManager pm = context.getPackageManager();
         List<PackageInfo> pkgs = pm.getInstalledPackages(0);
+        File baseDir = LauncherStorage.getMinecraftRoot(context);
 
         for (PackageInfo pi : pkgs) {
             if (!isMinecraftPackage(pi.packageName)) continue;
 
-            File versionDir = getVersionDirForPackage(pi.packageName);
+            File versionDir = getVersionDirForPackage(baseDir, pi.packageName);
             if (!versionDir.exists()) versionDir.mkdirs();
             
             File gamesDir = new File(versionDir, "games/com.mojang");
@@ -333,7 +360,6 @@ public class VersionManager {
             installedVersions.add(gv);
         }
 
-        File baseDir = LauncherStorage.getMinecraftRoot(context);
         File[] dirs = baseDir.listFiles(File::isDirectory);
 
         if (dirs != null) {
@@ -365,6 +391,13 @@ public class VersionManager {
     @NonNull
     private File getVersionDirForPackage(String packageName) {
         return LauncherStorage.getVersionDir(context, packageName);
+    }
+
+    @NonNull
+    private File getVersionDirForPackage(File baseDir, String packageName) {
+        File dir = new File(baseDir, packageName);
+        LauncherStorage.ensureDir(dir);
+        return dir;
     }
 
     private boolean hasSoFilesInDir(File nativeLibDir) {

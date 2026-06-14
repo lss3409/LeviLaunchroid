@@ -5,6 +5,7 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
@@ -19,6 +20,7 @@ import android.view.animation.LinearInterpolator;
 import androidx.interpolator.view.animation.LinearOutSlowInInterpolator;
 
 import org.levimc.launcher.R;
+import org.levimc.launcher.core.versions.VersionManager;
 import org.levimc.launcher.databinding.ActivitySplashBinding;
 import org.levimc.launcher.util.LauncherStorage;
 import org.levimc.launcher.util.PersonalizationManager;
@@ -60,13 +62,17 @@ public class SplashActivity extends BaseActivity {
         binding.loadingBar.setProgress(0);
         binding.tvPreparing.setAlpha(0f);
 
-        createNoMediaFile();
+        warmUpStorageAndVersions();
 
         binding.getRoot().post(this::startSplashSequence);
     }
 
-    private void createNoMediaFile() {
-        LauncherStorage.ensureNoMedia(this);
+    private void warmUpStorageAndVersions() {
+        Context appContext = getApplicationContext();
+        new Thread(() -> {
+            LauncherStorage.ensureNoMedia(appContext);
+            VersionManager.get(appContext);
+        }, "launcher-storage-warmup").start();
     }
 
     @Override

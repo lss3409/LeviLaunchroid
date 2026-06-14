@@ -126,10 +126,12 @@ import okhttp3.OkHttpClient;
     private ActivityResultLauncher<Intent> accountLoginLauncher;
     private OnBackPressedCallback onBackPressedCallback;
     private boolean migrationPromptShown;
+    private boolean migrationPromptCheckInFlight;
     private StorageMigrationService storageMigrationService;
     private boolean storageMigrationBound;
     private LibsRepairDialog storageMigrationDialog;
     private StorageMigrationService.MigrationState lastMigrationState;
+    private final ExecutorService storageMigrationExecutor = Executors.newSingleThreadExecutor();
 
     private final StorageMigrationService.MigrationListener storageMigrationListener =
             state -> runOnUiThread(() -> handleStorageMigrationState(state));
@@ -162,18 +164,10 @@ import okhttp3.OkHttpClient;
         closeLauncherRestartAfterFirstDraw();
         setupNavBar();
         setupManagersAndHandlers();
-        setTextMinecraftVersion();
-        updateViewModelVersion();
-        if (!forwardIncomingMinecraftResourceToRunningGame()) {
-            checkResourcepack();
-            handleIncomingFiles();
-        }
         new GithubReleaseUpdater(this, "LiteLDev", "LeviLaunchroid", permissionResultLauncher).checkUpdateOnLaunch();
-        repairNeededVersions();
         showEulaIfNeeded();
         initModsSection();
         setupOnBackPressedCallback();
-        handleMinecraftUriLaunch();
         binding.getRoot().post(this::showStorageMigrationPromptAfterEula);
 
         accountLoginLauncher = registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(), result -> {
@@ -218,18 +212,14 @@ import okhttp3.OkHttpClient;
         });
 
         initAccountHeader();
+        initializeVersionManager();
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        if (forwardIncomingMinecraftResourceToRunningGame()) {
-            return;
-        }
-        checkResourcepack();
-        handleIncomingFiles();
-        handleMinecraftUriLaunch();
+        handleVersionDependentIntent();
     }
 
     private void closeLauncherRestartAfterFirstDraw() {
@@ -566,12 +556,9 @@ import okhttp3.OkHttpClient;
         languageManager.applySavedLanguage();
         viewModel = new ViewModelProvider(this, new MainViewModelFactory(getApplication())).get(MainViewModel.class);
         viewModel.getModsLiveData().observe(this, this::updateModsUI);
-        versionManager = VersionManager.get(this);
-        versionManager.loadAllVersions();
         storageMigrationManager = new StorageMigrationManager(this);
         apkImportManager = new ApkImportManager(this, viewModel);
         minecraftLauncher = new MinecraftLauncher(this);
-        fileHandler = new FileHandler(this, viewModel, versionManager);
         permissionResultLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
@@ -594,6 +581,40 @@ import okhttp3.OkHttpClient;
         permissionsHandler = PermissionsHandler.getInstance();
         permissionsHandler.setActivity(this, permissionResultLauncher);
         initListeners();
+    }
+
+    private void initializeVersionManager() {
+        binding.launchButton.setEnabled(false);
+        versionManager = VersionManager.getIfInitialized();
+        if (versionManager != null) {
+            onVersionManagerReady();
+            return;
+        }
+        VersionManager.initializeAsync(this, manager -> runOnUiThread(() -> {
+            if (isFinishing() || isDestroyed()) return;
+            versionManager = manager;
+            onVersionManagerReady();
+        }));
+    }
+
+    private void onVersionManagerReady() {
+        if (versionManager == null || binding == null) return;
+        fileHandler = new FileHandler(this, viewModel, versionManager);
+        setTextMinecraftVersion();
+        updateViewModelVersion();
+        repairNeededVersions();
+        binding.launchButton.setEnabled(true);
+        handleVersionDependentIntent();
+        refreshContentCounts();
+    }
+
+    private void handleVersionDependentIntent() {
+        if (versionManager == null || fileHandler == null) return;
+        if (!forwardIncomingMinecraftResourceToRunningGame()) {
+            checkResourcepack();
+            handleIncomingFiles();
+        }
+        handleMinecraftUriLaunch();
     }
 
     private void initModsSection() {
@@ -670,12 +691,28 @@ import okhttp3.OkHttpClient;
     }
 
     private void showStorageMigrationPromptIfNeeded() {
-        if (migrationPromptShown || storageMigrationManager == null || isFinishing()) return;
+        if (migrationPromptShown || migrationPromptCheckInFlight || storageMigrationManager == null || isFinishing() || isDestroyed()) return;
         if (StorageMigrationService.isMigrationRunning(this)) {
             resumeStorageMigrationService();
             return;
         }
-        if (!storageMigrationManager.shouldOfferMigration()) return;
+        migrationPromptCheckInFlight = true;
+        storageMigrationExecutor.execute(() -> {
+            boolean shouldOfferMigration = false;
+            try {
+                shouldOfferMigration = storageMigrationManager.shouldOfferMigration();
+            } catch (Exception ignored) {
+            }
+            boolean finalShouldOfferMigration = shouldOfferMigration;
+            runOnUiThread(() -> {
+                migrationPromptCheckInFlight = false;
+                if (!finalShouldOfferMigration || migrationPromptShown || storageMigrationManager == null || isFinishing() || isDestroyed()) return;
+                showStorageMigrationPromptDialog();
+            });
+        });
+    }
+
+    private void showStorageMigrationPromptDialog() {
         migrationPromptShown = true;
 
         new CustomAlertDialog(this)
@@ -932,11 +969,13 @@ import okhttp3.OkHttpClient;
     @Override
     protected void onResume() {
         super.onResume();
-        setTextMinecraftVersion();
         refreshAccountHeaderUI();
-        viewModel.refreshMods();
-        refreshContentCounts();
-        if (binding != null) {
+        if (versionManager != null) {
+            setTextMinecraftVersion();
+            viewModel.refreshMods();
+            refreshContentCounts();
+        }
+        if (binding != null && versionManager != null) {
             binding.launchButton.setEnabled(true);
         }
         if (StorageMigrationService.isMigrationRunning(this)) {
@@ -1095,6 +1134,7 @@ import okhttp3.OkHttpClient;
 
 
     private void launchGame() {
+        if (!isVersionManagerReady()) return;
         performActualLaunch();
     }
     private void performActualLaunch() {
@@ -1202,8 +1242,7 @@ import okhttp3.OkHttpClient;
     }
 
      private void showVersionSelectDialog() {
-        if (versionManager == null) return;
-        versionManager.loadAllVersions();
+        if (!isVersionManagerReady()) return;
 
         List<GameVersion> allVersions = new ArrayList<>();
         List<GameVersion> installed = versionManager.getInstalledVersions();
@@ -1382,9 +1421,19 @@ import okhttp3.OkHttpClient;
 
      public void setTextMinecraftVersion() {
         if (binding == null) return;
+        if (versionManager == null) {
+            binding.textMinecraftVersion.setText(getString(R.string.not_found_version));
+            return;
+        }
         GameVersion selectedVersion = versionManager.getSelectedVersion();
         String instanceName = selectedVersion != null ? getInstanceDisplayName(selectedVersion) : null;
         binding.textMinecraftVersion.setText(TextUtils.isEmpty(instanceName) ? getString(R.string.not_found_version) : instanceName);
+    }
+
+    private boolean isVersionManagerReady() {
+        if (versionManager != null) return true;
+        Toast.makeText(this, R.string.loading, Toast.LENGTH_SHORT).show();
+        return false;
     }
 
     private static String getInstanceDisplayName(GameVersion version) {
@@ -1520,6 +1569,7 @@ import okhttp3.OkHttpClient;
     protected void onDestroy() {
         unbindStorageMigrationService();
         dismissStorageMigrationDialog(null);
+        storageMigrationExecutor.shutdownNow();
         super.onDestroy();
     }
 

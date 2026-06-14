@@ -59,6 +59,7 @@ public class InstancesActivity extends BaseActivity {
     private ApkImportManager apkImportManager;
     private ActivityResultLauncher<Intent> apkImportResultLauncher;
     private ActivityResultLauncher<Intent> instanceSettingsLauncher;
+    private boolean firstResume = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,7 +68,6 @@ public class InstancesActivity extends BaseActivity {
         setupNavBar();
 
         versionManager = VersionManager.get(this);
-        versionManager.loadAllVersions();
 
         apkImportManager = new ApkImportManager(this, null);
         apkImportManager.setOnImportCompleteListener(() -> {
@@ -280,8 +280,12 @@ public class InstancesActivity extends BaseActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        versionManager.loadAllVersions();
-        loadVersions();
+        if (firstResume) {
+            firstResume = false;
+        } else {
+            versionManager.loadAllVersions();
+            loadVersions();
+        }
         setupImportButton();
         applyFilters();
     }
