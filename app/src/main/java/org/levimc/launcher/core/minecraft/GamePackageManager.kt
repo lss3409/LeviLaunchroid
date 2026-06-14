@@ -29,11 +29,7 @@ class GamePackageManager private constructor(
     private val nativeLibDir: String
     private val applicationInfo: ApplicationInfo
 
-    private val knownPackages = arrayOf(
-        "com.mojang.minecraftpe",
-        "com.mojang.minecraftpe.beta",
-        "com.mojang.minecraftpe.preview"
-    )
+    private val knownPackages = arrayOf(MinecraftLauncher.MC_PACKAGE_NAME)
 
     private val requiredLibs = arrayOf(
         "libc++_shared.so",

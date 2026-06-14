@@ -30,10 +30,6 @@
         tools:ignore="AllFilesAccessPolicy,ScopedStorage" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"
         tools:ignore="RequestInstallPackagesPolicy" />
-    <uses-permission
-        android:name="android.permission.QUERY_ALL_PACKAGES"
-    tools:ignore="PackageVisibilityPolicy,QueryAllPackagesPermission" />
-
     <queries>
         <package android:name="com.mojang.minecraftpe" />
     </queries>

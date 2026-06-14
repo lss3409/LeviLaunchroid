@@ -13,6 +13,7 @@ import android.os.Looper;
 import androidx.annotation.NonNull;
 
 import org.levimc.launcher.R;
+import org.levimc.launcher.core.minecraft.MinecraftLauncher;
 import org.levimc.launcher.core.mods.ModManager;
 import org.levimc.launcher.ui.activities.MainActivity;
 import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
@@ -28,7 +29,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -114,10 +114,6 @@ public class VersionManager {
         this.context = ctx;
         this.prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         loadAllVersions();
-    }
-
-    private boolean isMinecraftPackage(String packageName) {
-        return packageName.equals("com.mojang.minecraftpe") || packageName.startsWith("com.mojang.");
     }
 
     private String readFileToString(File file) {
@@ -310,13 +306,11 @@ public class VersionManager {
         installedVersions.clear();
         customVersions.clear();
 
-        PackageManager pm = context.getPackageManager();
-        List<PackageInfo> pkgs = pm.getInstalledPackages(0);
         File baseDir = LauncherStorage.getMinecraftRoot(context);
 
-        for (PackageInfo pi : pkgs) {
-            if (!isMinecraftPackage(pi.packageName)) continue;
-
+        PackageManager pm = context.getPackageManager();
+        try {
+            PackageInfo pi = pm.getPackageInfo(MinecraftLauncher.MC_PACKAGE_NAME, 0);
             File versionDir = getVersionDirForPackage(baseDir, pi.packageName);
             if (!versionDir.exists()) versionDir.mkdirs();
             
@@ -358,6 +352,7 @@ public class VersionManager {
             }
 
             installedVersions.add(gv);
+        } catch (PackageManager.NameNotFoundException ignored) {
         }
 
         File[] dirs = baseDir.listFiles(File::isDirectory);
