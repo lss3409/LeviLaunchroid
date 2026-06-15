@@ -40,6 +40,16 @@
             android:textSize="14sp" />
 
         <RadioButton
+            android:id="@+id/radio_version_isolation_internal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/misans"
+            android:padding="8dp"
+            android:text="@string/storage_version_isolation"
+            android:textColor="@color/on_surface"
+            android:textSize="14sp" />
+
+        <RadioButton
             android:id="@+id/radio_version_isolation"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

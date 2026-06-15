@@ -45,7 +45,10 @@ public class WorldManager {
 
     public void setCurrentVersion(GameVersion version) {
         if (version != null && version.versionDir != null) {
-            this.worldsDirectory = new File(version.versionDir, "games/com.mojang/minecraftWorlds");
+            this.worldsDirectory = new File(
+                    LauncherStorage.getProfileGameDataDir(context, version.getStorageProfileId()),
+                    "minecraftWorlds"
+            );
             if (!worldsDirectory.exists()) {
                 worldsDirectory.mkdirs();
             }

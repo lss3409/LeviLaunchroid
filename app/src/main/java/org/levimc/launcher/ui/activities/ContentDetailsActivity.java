@@ -32,6 +32,8 @@ import org.levimc.launcher.core.curseforge.models.Content;
 import org.levimc.launcher.core.curseforge.models.ContentFile;
 import org.levimc.launcher.core.versions.GameVersion;
 import org.levimc.launcher.core.versions.VersionManager;
+import org.levimc.launcher.settings.FeatureSettings;
+import org.levimc.launcher.util.LauncherStorage;
 
 
 
@@ -406,60 +408,30 @@ public class ContentDetailsActivity extends BaseActivity {
             });
     }
     private File getPackDirectory(String packType) {
-        android.content.SharedPreferences prefs = getSharedPreferences("content_management", MODE_PRIVATE);
-        String savedType = prefs.getString("storage_type", "INTERNAL");
-        org.levimc.launcher.settings.FeatureSettings.StorageType currentStorageType = org.levimc.launcher.settings.FeatureSettings.StorageType.valueOf(savedType);
-        
-        GameVersion currentVersion = versionManager.getSelectedVersion();
-
-        switch (currentStorageType) {
-            case VERSION_ISOLATION:
-                if (currentVersion != null && currentVersion.versionDir != null) {
-                    File gameDataDir = new File(currentVersion.versionDir, "games/com.mojang");
-                    return new File(gameDataDir, packType);
-                }
-                break;
-            case EXTERNAL:
-                File externalDir = getExternalFilesDir(null);
-                if (externalDir != null) {
-                    File gameDataDir = new File(externalDir, "games/com.mojang");
-                    return new File(gameDataDir, packType);
-                }
-                break;
-            case INTERNAL:
-                File internalDir = new File(getDataDir(), "games/com.mojang");
-                return new File(internalDir, packType);
-        }
-        return null;
+        File gameDataDir = getGameDataDirForSavedStorageType();
+        return gameDataDir == null ? null : new File(gameDataDir, packType);
     }
 
     private File getWorldsDirectory() {
+        File gameDataDir = getGameDataDirForSavedStorageType();
+        return gameDataDir == null ? null : new File(gameDataDir, "minecraftWorlds");
+    }
+
+    private File getGameDataDirForSavedStorageType() {
         android.content.SharedPreferences prefs = getSharedPreferences("content_management", MODE_PRIVATE);
         String savedType = prefs.getString("storage_type", "INTERNAL");
-        org.levimc.launcher.settings.FeatureSettings.StorageType currentStorageType = org.levimc.launcher.settings.FeatureSettings.StorageType.valueOf(savedType);
-
+        FeatureSettings.StorageType currentStorageType = parseStorageType(savedType);
         GameVersion currentVersion = versionManager.getSelectedVersion();
         if (currentVersion == null) return null;
+        return LauncherStorage.getContentGameDataDir(this, currentVersion.getStorageProfileId(), currentStorageType);
+    }
 
-        switch (currentStorageType) {
-            case VERSION_ISOLATION:
-                if (currentVersion.versionDir != null) {
-                    File gameDataDir = new File(currentVersion.versionDir, "games/com.mojang");
-                    return new File(gameDataDir, "minecraftWorlds");
-                }
-                break;
-            case EXTERNAL:
-                File externalDir = getExternalFilesDir(null);
-                if (externalDir != null) {
-                    File gameDataDir = new File(externalDir, "games/com.mojang");
-                    return new File(gameDataDir, "minecraftWorlds");
-                }
-                break;
-            case INTERNAL:
-                File internalDir = new File(getDataDir(), "games/com.mojang");
-                return new File(internalDir, "minecraftWorlds");
+    private FeatureSettings.StorageType parseStorageType(String value) {
+        try {
+            return FeatureSettings.StorageType.valueOf(value);
+        } catch (Exception ignored) {
+            return FeatureSettings.StorageType.INTERNAL;
         }
-        return null;
     }
 
     private String getHexColor(int colorResId) {

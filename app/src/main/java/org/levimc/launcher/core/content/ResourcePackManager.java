@@ -7,6 +7,7 @@ import android.util.Log;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.levimc.launcher.core.versions.GameVersion;
+import org.levimc.launcher.util.LauncherStorage;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -47,7 +48,7 @@ public class ResourcePackManager {
 
     public void setCurrentVersion(GameVersion version) {
         if (version != null && version.versionDir != null) {
-            File gameDataDir = new File(version.versionDir, "games/com.mojang");
+            File gameDataDir = LauncherStorage.getProfileGameDataDir(context, version.getStorageProfileId());
             this.resourcePacksDirectory = new File(gameDataDir, "resource_packs");
             this.behaviorPacksDirectory = new File(gameDataDir, "behavior_packs");
             this.skinPacksDirectory = new File(gameDataDir, "skin_packs");

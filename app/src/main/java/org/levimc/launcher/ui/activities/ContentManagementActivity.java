@@ -20,6 +20,7 @@ import org.levimc.launcher.core.versions.VersionManager;
 import org.levimc.launcher.databinding.ActivityContentManagementBinding;
 import org.levimc.launcher.settings.FeatureSettings;
 import org.levimc.launcher.ui.animation.DynamicAnim;
+import org.levimc.launcher.util.LauncherStorage;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -99,7 +100,7 @@ public class ContentManagementActivity extends BaseActivity {
 
     private void loadStorageType() {
         String savedType = prefs.getString(KEY_STORAGE_TYPE, "INTERNAL");
-        currentStorageType = FeatureSettings.StorageType.valueOf(savedType);
+        currentStorageType = parseStorageType(savedType);
     }
 
     private void saveStorageType() {
@@ -162,34 +163,16 @@ public class ContentManagementActivity extends BaseActivity {
     }
 
     private File getPackDirectory(String packType) {
-        GameVersion currentVersion = versionManager.getSelectedVersion();
-
-        switch (currentStorageType) {
-            case VERSION_ISOLATION:
-                if (currentVersion != null && currentVersion.versionDir != null) {
-                    File gameDataDir = new File(currentVersion.versionDir, "games/com.mojang");
-                    return new File(gameDataDir, packType);
-                }
-                break;
-            case EXTERNAL:
-                File externalDir = getExternalFilesDir(null);
-                if (externalDir != null) {
-                    File gameDataDir = new File(externalDir, "games/com.mojang");
-                    return new File(gameDataDir, packType);
-                }
-                break;
-            case INTERNAL:
-                File internalDir = new File(getDataDir(), "games/com.mojang");
-                return new File(internalDir, packType);
-        }
-        return null;
+        File gameDataDir = getGameDataDirForType(currentStorageType);
+        return gameDataDir == null ? null : new File(gameDataDir, packType);
     }
 
     private void setupStorageSpinner() {
         String[] storageOptions = {
             getString(R.string.storage_internal),
             getString(R.string.storage_external),
-            getString(R.string.storage_version_isolation)
+            getString(R.string.storage_version_isolation) + " (" + getString(R.string.storage_internal) + ")",
+            getString(R.string.storage_version_isolation) + " (" + getString(R.string.storage_external) + ")"
         };
 
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, R.layout.spinner_item, storageOptions);
@@ -201,7 +184,8 @@ public class ContentManagementActivity extends BaseActivity {
         int currentSelection = switch (currentStorageType) {
             case INTERNAL -> 0;
             case EXTERNAL -> 1;
-            case VERSION_ISOLATION -> 2;
+            case VERSION_ISOLATION_INTERNAL -> 2;
+            case VERSION_ISOLATION, VERSION_ISOLATION_EXTERNAL -> 3;
         };
         binding.storageTypeSpinner.setSelection(currentSelection);
 
@@ -211,8 +195,9 @@ public class ContentManagementActivity extends BaseActivity {
                 FeatureSettings.StorageType newType = switch (position) {
                     case 0 -> FeatureSettings.StorageType.INTERNAL;
                     case 1 -> FeatureSettings.StorageType.EXTERNAL;
-                    case 2 -> FeatureSettings.StorageType.VERSION_ISOLATION;
-                    default -> FeatureSettings.StorageType.VERSION_ISOLATION;
+                    case 2 -> FeatureSettings.StorageType.VERSION_ISOLATION_INTERNAL;
+                    case 3 -> FeatureSettings.StorageType.VERSION_ISOLATION_EXTERNAL;
+                    default -> FeatureSettings.StorageType.VERSION_ISOLATION_EXTERNAL;
                 };
 
                 if (newType != currentStorageType) {
@@ -252,28 +237,8 @@ public class ContentManagementActivity extends BaseActivity {
     }
 
     private File getWorldsDirectory() {
-        GameVersion currentVersion = versionManager.getSelectedVersion();
-        if (currentVersion == null) return null;
-
-        switch (currentStorageType) {
-            case VERSION_ISOLATION:
-                if (currentVersion.versionDir != null) {
-                    File gameDataDir = new File(currentVersion.versionDir, "games/com.mojang");
-                    return new File(gameDataDir, "minecraftWorlds");
-                }
-                break;
-            case EXTERNAL:
-                File externalDir = getExternalFilesDir(null);
-                if (externalDir != null) {
-                    File gameDataDir = new File(externalDir, "games/com.mojang");
-                    return new File(gameDataDir, "minecraftWorlds");
-                }
-                break;
-            case INTERNAL:
-                File internalDir = new File(getDataDir(), "games/com.mojang");
-                return new File(internalDir, "minecraftWorlds");
-        }
-        return null;
+        File gameDataDir = getGameDataDirForType(currentStorageType);
+        return gameDataDir == null ? null : new File(gameDataDir, "minecraftWorlds");
     }
 
     private void loadCurrentVersion() {
@@ -298,64 +263,21 @@ public class ContentManagementActivity extends BaseActivity {
         File screenshotsDir;
         File minecraftPeDir;
 
-        switch (currentStorageType) {
-            case VERSION_ISOLATION:
-                if (currentVersion.versionDir != null) {
-                    File gameDataDir = new File(currentVersion.versionDir, "games/com.mojang");
-                    worldsDir = new File(gameDataDir, "minecraftWorlds");
-                    resourcePacksDir = new File(gameDataDir, "resource_packs");
-                    behaviorPacksDir = new File(gameDataDir, "behavior_packs");
-                    skinPacksDir = new File(gameDataDir, "skin_packs");
-                    screenshotsDir = new File(gameDataDir, "Screenshots");
-                    minecraftPeDir = new File(gameDataDir, "minecraftpe");
-                } else {
-                    worldsDir = null;
-                    resourcePacksDir = null;
-                    behaviorPacksDir = null;
-                    skinPacksDir = null;
-                    screenshotsDir = null;
-                    minecraftPeDir = null;
-                }
-                break;
-
-            case EXTERNAL:
-                File externalDir = getExternalFilesDir(null);
-                if (externalDir != null) {
-                    File gameDataDir = new File(externalDir, "games/com.mojang");
-                    worldsDir = new File(gameDataDir, "minecraftWorlds");
-                    resourcePacksDir = new File(gameDataDir, "resource_packs");
-                    behaviorPacksDir = new File(gameDataDir, "behavior_packs");
-                    skinPacksDir = new File(gameDataDir, "skin_packs");
-                    screenshotsDir = new File(gameDataDir, "Screenshots");
-                    minecraftPeDir = new File(gameDataDir, "minecraftpe");
-                } else {
-                    worldsDir = null;
-                    resourcePacksDir = null;
-                    behaviorPacksDir = null;
-                    skinPacksDir = null;
-                    screenshotsDir = null;
-                    minecraftPeDir = null;
-                }
-                break;
-
-            case INTERNAL:
-                File internalDir = new File(getDataDir(), "games/com.mojang");
-                worldsDir = new File(internalDir, "minecraftWorlds");
-                resourcePacksDir = new File(internalDir, "resource_packs");
-                behaviorPacksDir = new File(internalDir, "behavior_packs");
-                skinPacksDir = new File(internalDir, "skin_packs");
-                screenshotsDir = new File(internalDir, "Screenshots");
-                minecraftPeDir = new File(internalDir, "minecraftpe");
-                break;
-
-            default:
+        File gameDataDir = getGameDataDirForType(currentStorageType);
+        if (gameDataDir == null) {
                 worldsDir = null;
                 resourcePacksDir = null;
                 behaviorPacksDir = null;
                 skinPacksDir = null;
                 screenshotsDir = null;
                 minecraftPeDir = null;
-                break;
+        } else {
+                worldsDir = new File(gameDataDir, "minecraftWorlds");
+                resourcePacksDir = new File(gameDataDir, "resource_packs");
+                behaviorPacksDir = new File(gameDataDir, "behavior_packs");
+                skinPacksDir = new File(gameDataDir, "skin_packs");
+                screenshotsDir = new File(gameDataDir, "Screenshots");
+                minecraftPeDir = new File(gameDataDir, "minecraftpe");
         }
 
         contentManager.setStorageDirectories(worldsDir, resourcePacksDir, behaviorPacksDir, skinPacksDir, screenshotsDir, minecraftPeDir);
@@ -371,7 +293,8 @@ public class ContentManagementActivity extends BaseActivity {
         String storageLabel = switch (currentStorageType) {
             case INTERNAL -> getString(R.string.storage_internal);
             case EXTERNAL -> getString(R.string.storage_external);
-            case VERSION_ISOLATION -> getString(R.string.storage_version_isolation);
+            case VERSION_ISOLATION_INTERNAL -> getString(R.string.storage_version_isolation) + " (" + getString(R.string.storage_internal) + ")";
+            case VERSION_ISOLATION, VERSION_ISOLATION_EXTERNAL -> getString(R.string.storage_version_isolation) + " (" + getString(R.string.storage_external) + ")";
         };
 
         Intent intent = new Intent(this, OptionsEditorActivity.class);
@@ -383,25 +306,22 @@ public class ContentManagementActivity extends BaseActivity {
     private File getOptionsFile() {
         GameVersion currentVersion = versionManager.getSelectedVersion();
         
-        switch (currentStorageType) {
-            case VERSION_ISOLATION:
-                if (currentVersion != null && currentVersion.versionDir != null) {
-                    File gameDataDir = new File(currentVersion.versionDir, "games/com.mojang");
-                    return new File(gameDataDir, "minecraftpe/options.txt");
-                }
-                break;
-            case EXTERNAL:
-                File externalDir = getExternalFilesDir(null);
-                if (externalDir != null) {
-                    File gameDataDir = new File(externalDir, "games/com.mojang");
-                    return new File(gameDataDir, "minecraftpe/options.txt");
-                }
-                break;
-            case INTERNAL:
-                File internalDir = new File(getDataDir(), "games/com.mojang");
-                return new File(internalDir, "minecraftpe/options.txt");
+        File gameDataDir = getGameDataDirForType(currentStorageType);
+        return gameDataDir == null ? null : new File(gameDataDir, "minecraftpe/options.txt");
+    }
+
+    private File getGameDataDirForType(FeatureSettings.StorageType storageType) {
+        GameVersion currentVersion = versionManager.getSelectedVersion();
+        if (currentVersion == null) return null;
+        return LauncherStorage.getContentGameDataDir(this, currentVersion.getStorageProfileId(), storageType);
+    }
+
+    private FeatureSettings.StorageType parseStorageType(String value) {
+        try {
+            return FeatureSettings.StorageType.valueOf(value);
+        } catch (Exception ignored) {
+            return FeatureSettings.StorageType.INTERNAL;
         }
-        return null;
     }
 
     @Override
