@@ -6,7 +6,6 @@ import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -27,7 +26,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.ZipEntry;
@@ -50,6 +48,7 @@ public class VersionManager {
     private final List<GameVersion> customVersions = new ArrayList<>();
     private GameVersion selectedVersion;
     private final SharedPreferences prefs;
+    private final VersionProfileMetadataStore metadataStore = new VersionProfileMetadataStore();
 
     public interface LibsRepairCallback {
         void onRepairStarted();
@@ -116,29 +115,9 @@ public class VersionManager {
         loadAllVersions();
     }
 
-    private String readFileToString(File file) {
-        if (file == null || !file.exists()) return "";
-        try (FileInputStream in = new FileInputStream(file)) {
-            byte[] data = new byte[(int) file.length()];
-            int len = in.read(data);
-            return new String(data, 0, len, StandardCharsets.UTF_8).trim();
-        } catch (Exception e) {
-            return "";
-        }
-    }
-
-    private boolean writeStringToFile(File file, String data) {
-        try (FileOutputStream out = new FileOutputStream(file, false)) {
-            out.write(data.getBytes(StandardCharsets.UTF_8));
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
     private String inferAbiFromNativeLibDir(String nativeLibDir, GameVersion version) {
         if (version != null && !version.isInstalled) {
-            File libDir = new File(context.getDataDir(), "minecraft/" + version.directoryName + "/lib/");
+            File libDir = getRuntimeLibDir(version.directoryName);
             String[] abiDirs = {"arm64", "arm", "x86_64", "x86"};
             for (String abiDir : abiDirs) {
                 File soFile = new File(libDir, abiDir + "/libminecraftpe.so");
@@ -172,6 +151,49 @@ public class VersionManager {
         return "unknown";
     }
 
+    private VersionProfileMetadata loadMetadata(
+            String profileId,
+            VersionProfileMetadataStore.Defaults defaults
+    ) {
+        return loadMetadata(LauncherStorage.getProfileMetadataDir(context, profileId), defaults);
+    }
+
+    private VersionProfileMetadata loadMetadata(
+            File metadataDir,
+            VersionProfileMetadataStore.Defaults defaults
+    ) {
+        try {
+            return metadataStore.loadOrCreate(metadataDir, defaults);
+        } catch (IOException ignored) {
+            VersionProfileMetadata metadata = new VersionProfileMetadata();
+            metadata.profileId = defaults.profileId;
+            metadata.directoryName = defaults.directoryName;
+            metadata.versionName = defaults.versionName;
+            metadata.displayName = defaults.displayName;
+            metadata.versionIsolation = defaults.versionIsolation;
+            metadata.launchVertically = defaults.launchVertically;
+            metadata.installed = defaults.installed;
+            metadata.packageName = defaults.packageName;
+            return metadata;
+        }
+    }
+
+    private VersionProfileMetadataStore.Defaults metadataDefaults(
+            boolean installed,
+            String directoryName,
+            String packageName,
+            String versionName
+    ) {
+        if (installed) {
+            return VersionProfileMetadataStore.Defaults.installed(packageName, versionName);
+        }
+        return VersionProfileMetadataStore.Defaults.custom(directoryName, versionName);
+    }
+
+    private static String safeValue(String value, String fallback) {
+        return value == null || value.trim().isEmpty() ? fallback : value;
+    }
+
     public void repairLibsAsync(GameVersion version, LibsRepairCallback callback) {
         new Thread(() -> {
             callback.onRepairStarted();
@@ -191,11 +213,9 @@ public class VersionManager {
                 }
 
                 String dataDirName = isExtractFalse ? version.directoryName : dirName;
-                File dataDir = new File(context.getDataDir(), "minecraft/" + dataDirName);
-
                 if (onlyVersionTxt) {
                     callback.onRepairProgress(PROGRESS_FINALIZING);
-                    writeVersionTxt(apkFile, dataDir);
+                    writeVersionMetadata(apkFile, version, dataDirName);
                     loadAllVersions();
                     callback.onRepairProgress(PROGRESS_MAX);
                     callback.onRepairCompleted(true);
@@ -223,7 +243,7 @@ public class VersionManager {
                 }
                 if (totalSize == 0) totalSize = 1;
 
-                File libDir = new File(dataDir, "lib");
+                File libDir = getRuntimeLibDir(dataDirName);
                 if (libDir.exists()) {
                     deleteDir(libDir);
                 }
@@ -263,7 +283,7 @@ public class VersionManager {
                 }
 
                 callback.onRepairProgress(PROGRESS_FINALIZING);
-                writeVersionTxt(apkFile, dataDir);
+                writeVersionMetadata(apkFile, version, dataDirName);
                 loadAllVersions();
                 callback.onRepairProgress(PROGRESS_MAX);
 
@@ -275,10 +295,20 @@ public class VersionManager {
         }).start();
     }
 
-    private void writeVersionTxt(File apkFile, File dataDir) throws IOException {
+    private void writeVersionMetadata(File apkFile, GameVersion version, String directoryName) throws IOException {
         String versionName = getApkVersionName(apkFile);
-        if (!dataDir.exists()) dataDir.mkdirs();
-        writeStringToFile(new File(dataDir, "version.txt"), versionName);
+        File metadataDir = LauncherStorage.getProfileMetadataDir(context, directoryName);
+        VersionProfileMetadataStore.Defaults defaults = metadataDefaults(
+                version.isInstalled,
+                directoryName,
+                version.packageName,
+                versionName
+        );
+        metadataStore.update(metadataDir, defaults, metadata -> {
+            metadata.versionName = versionName;
+            metadata.installed = version.isInstalled;
+            metadata.packageName = version.isInstalled ? version.packageName : null;
+        });
     }
 
     private long getLibsTotalSize(File apkFile) throws IOException {
@@ -314,16 +344,24 @@ public class VersionManager {
             File versionDir = getVersionDirForPackage(baseDir, pi.packageName);
             if (!versionDir.exists()) versionDir.mkdirs();
             
-            File gamesDir = new File(versionDir, "games/com.mojang");
+            File gamesDir = LauncherStorage.getProfileGameDataDir(context, pi.packageName);
             if (!gamesDir.exists()) gamesDir.mkdirs();
 
-            String displayName = pi.applicationInfo.loadLabel(pm) + " (" + pi.versionName + ")";
+            String appLabel = String.valueOf(pi.applicationInfo.loadLabel(pm));
             boolean hasSoFiles = hasSoFilesInDir(new File(pi.applicationInfo.nativeLibraryDir));
+            VersionProfileMetadata metadata = loadMetadata(
+                    LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID,
+                    VersionProfileMetadataStore.Defaults.installed(pi.packageName, pi.versionName)
+            );
+            syncInstalledMetadata(pi.packageName, pi.versionName, metadata);
+            String versionName = safeValue(metadata.versionName, pi.versionName);
+            String displayBaseName = safeValue(metadata.displayName, appLabel);
+            String displayName = displayBaseName + " (" + versionName + ")";
 
             GameVersion gv = new GameVersion(
-                    pi.packageName + "_" + pi.versionCode,
+                    metadata.directoryName,
                     displayName,
-                    pi.versionName,
+                    versionName,
                     versionDir,
                     true,
                     pi.packageName,
@@ -333,23 +371,11 @@ public class VersionManager {
             gv.needsRepair = false;
             if (!hasSoFiles) {
                 gv.isExtractFalse = true;
-                boolean libOk = hasLibSoUnderLibDir(gv.directoryName);
-                if (!libOk) {
-                    gv.needsRepair = true;
-                }
             }
 
             gv.abiList = inferAbiFromNativeLibDir(pi.applicationInfo.nativeLibraryDir, gv);
-
-            File isoFile = new File(context.getDataDir(), "minecraft/" + gv.directoryName + "/version_isolation.txt");
-            if (isoFile.exists()) {
-                gv.versionIsolation = "true".equals(readFileToString(isoFile));
-            }
-            
-            File vertFile = new File(context.getDataDir(), "minecraft/" + gv.directoryName + "/launch_vertically.txt");
-            if (vertFile.exists()) {
-                gv.launchVertically = "true".equals(readFileToString(vertFile));
-            }
+            gv.versionIsolation = metadata.versionIsolation;
+            gv.launchVertically = metadata.launchVertically;
 
             installedVersions.add(gv);
         } catch (PackageManager.NameNotFoundException ignored) {
@@ -362,25 +388,49 @@ public class VersionManager {
                 File apk = new File(dir, "base.apk.levi");
                 if (!apk.exists()) continue;
 
-                boolean libOk = hasLibSoUnderLibDir(dir.getName());
-                boolean txtOk = hasValidVersionTxt(dir.getName());
-
                 GameVersion gv = getGameVersion(dir);
                 gv.needsRepair = false;
                 gv.onlyVersionTxt = false;
-
-                if (!libOk) {
-                    gv.needsRepair = true;
-                    appendRepairMark(gv);
-                } else if (!txtOk) {
-                    gv.needsRepair = true;
-                    gv.onlyVersionTxt = true;
-                    appendRepairMark(gv);
-                }
                 customVersions.add(gv);
             }
         }
         restoreSelectedVersion();
+    }
+
+    private void syncInstalledMetadata(String packageName, String versionName, VersionProfileMetadata metadata) {
+        boolean needsSync = !LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID.equals(metadata.profileId)
+                || !LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID.equals(metadata.directoryName)
+                || !safeValue(metadata.versionName, "").equals(versionName)
+                || !metadata.installed
+                || !safeValue(metadata.packageName, "").equals(packageName);
+        if (!needsSync) {
+            return;
+        }
+        try {
+            File metadataDir = LauncherStorage.getProfileMetadataDir(context, LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID);
+            metadataStore.update(
+                    metadataDir,
+                    VersionProfileMetadataStore.Defaults.installed(packageName, versionName),
+                    current -> {
+                        current.profileId = LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID;
+                        current.directoryName = LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID;
+                        current.versionName = versionName;
+                        current.installed = true;
+                        current.packageName = packageName;
+                        metadata.profileId = current.profileId;
+                        metadata.directoryName = current.directoryName;
+                        metadata.versionName = current.versionName;
+                        metadata.installed = current.installed;
+                        metadata.packageName = current.packageName;
+                    }
+            );
+        } catch (IOException ignored) {
+            metadata.profileId = LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID;
+            metadata.directoryName = LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID;
+            metadata.versionName = versionName;
+            metadata.installed = true;
+            metadata.packageName = packageName;
+        }
     }
 
     @NonNull
@@ -408,49 +458,34 @@ public class VersionManager {
         return false;
     }
 
-    private boolean hasLibSoUnderLibDir(String dirName) {
-        File libDir = new File(context.getDataDir(), "minecraft/" + dirName + "/lib");
-        return new File(libDir, "arm64/libminecraftpe.so").exists()
-                || new File(libDir, "arm/libminecraftpe.so").exists();
-    }
-
-    private boolean hasValidVersionTxt(String dirName) {
-        File versionTxt = new File(context.getDataDir(), "minecraft/" + dirName + "/version.txt");
-        return versionTxt.exists() && versionTxt.length() > 0;
-    }
-
-    private void appendRepairMark(GameVersion gv) {
-        if (!gv.displayName.endsWith(" ❌")) {
-            gv.displayName += " ❌";
-        }
-    }
-
     @NonNull
     private GameVersion getGameVersion(File dir) {
-        String versionCode = dir.getName();
-        String displayName = dir.getName();
-
-        // Read version code from version.txt
-        File versionTxt = new File(context.getDataDir(), "minecraft/" + dir.getName() + "/version.txt");
-        if (versionTxt.exists()) {
-            String txt = readFileToString(versionTxt);
-            if (!txt.isEmpty()) {
-                versionCode = txt;
+        File metadataDir = LauncherStorage.getProfileMetadataDir(context, dir.getName());
+        VersionProfileMetadata metadata = loadMetadata(
+                metadataDir,
+                VersionProfileMetadataStore.Defaults.custom(dir.getName(), getApkVersionName(new File(dir, "base.apk.levi")))
+        );
+        String directoryName = dir.getName();
+        String expectedProfileId = LauncherStorage.sanitizeProfileId(directoryName);
+        if (!directoryName.equals(metadata.directoryName) || !expectedProfileId.equals(metadata.profileId)) {
+            try {
+                metadataStore.update(
+                        metadataDir,
+                        VersionProfileMetadataStore.Defaults.custom(directoryName, metadata.versionName),
+                        current -> {
+                            current.directoryName = directoryName;
+                            current.profileId = expectedProfileId;
+                        }
+                );
+            } catch (IOException ignored) {
             }
         }
-
-        File displayNameTxt = new File(context.getDataDir(), "minecraft/" + dir.getName() + "/display_name.txt");
-        if (displayNameTxt.exists()) {
-            String customName = readFileToString(displayNameTxt);
-            if (!customName.isEmpty()) {
-                displayName = customName;
-            }
-        }
-
-        displayName = displayName + " (" + versionCode + ")";
+        String versionCode = safeValue(metadata.versionName, dir.getName());
+        String displayBaseName = safeValue(metadata.displayName, directoryName);
+        String displayName = displayBaseName + " (" + versionCode + ")";
 
         GameVersion gv = new GameVersion(
-                dir.getName(),
+                directoryName,
                 displayName,
                 versionCode,
                 dir,
@@ -460,19 +495,11 @@ public class VersionManager {
         );
 
         gv.isExtractFalse = false;
-        gv.directoryName = dir.getName();
+        gv.directoryName = directoryName;
 
         gv.abiList = inferAbiFromNativeLibDir(null, gv);
-
-        File isoFile = new File(context.getDataDir(), "minecraft/" + dir.getName() + "/version_isolation.txt");
-        if (isoFile.exists()) {
-            gv.versionIsolation = "true".equals(readFileToString(isoFile));
-        }
-        
-        File vertFile = new File(context.getDataDir(), "minecraft/" + dir.getName() + "/launch_vertically.txt");
-        if (vertFile.exists()) {
-            gv.launchVertically = "true".equals(readFileToString(vertFile));
-        }
+        gv.versionIsolation = metadata.versionIsolation;
+        gv.launchVertically = metadata.launchVertically;
 
         return gv;
     }
@@ -482,9 +509,12 @@ public class VersionManager {
         version.versionIsolation = enabled;
         new Thread(() -> {
             try {
-                File dataDir = new File(context.getDataDir(), "minecraft/" + version.directoryName);
-                if (!dataDir.exists()) dataDir.mkdirs();
-                writeStringToFile(new File(dataDir, "version_isolation.txt"), String.valueOf(enabled));
+                File metadataDir = LauncherStorage.getProfileMetadataDir(context, version.directoryName);
+                metadataStore.update(
+                        metadataDir,
+                        metadataDefaults(version.isInstalled, version.directoryName, version.packageName, version.versionCode),
+                        metadata -> metadata.versionIsolation = enabled
+                );
             } catch (Exception ignored) {}
         }).start();
     }
@@ -494,9 +524,12 @@ public class VersionManager {
         version.launchVertically = enabled;
         new Thread(() -> {
             try {
-                File dataDir = new File(context.getDataDir(), "minecraft/" + version.directoryName);
-                if (!dataDir.exists()) dataDir.mkdirs();
-                writeStringToFile(new File(dataDir, "launch_vertically.txt"), String.valueOf(enabled));
+                File metadataDir = LauncherStorage.getProfileMetadataDir(context, version.directoryName);
+                metadataStore.update(
+                        metadataDir,
+                        metadataDefaults(version.isInstalled, version.directoryName, version.packageName, version.versionCode),
+                        metadata -> metadata.launchVertically = enabled
+                );
             } catch (Exception ignored) {}
         }).start();
     }
@@ -703,22 +736,15 @@ public class VersionManager {
 
         new Thread(() -> {
             try {
-                File dataDir = new File(context.getDataDir(), "minecraft/" + version.directoryName);
-                if (!dataDir.exists()) {
-                    dataDir.mkdirs();
-                }
-
-                File displayNameFile = new File(dataDir, "display_name.txt");
-                boolean success = writeStringToFile(displayNameFile, newDisplayName.trim());
-
-                if (success) {
-                    reload();
-                    if (callback != null)
-                        callback.onRenameCompleted(true);
-                } else {
-                    if (callback != null)
-                        callback.onRenameFailed(new Exception("Failed to write display name file"));
-                }
+                File metadataDir = LauncherStorage.getProfileMetadataDir(context, version.directoryName);
+                metadataStore.update(
+                        metadataDir,
+                        VersionProfileMetadataStore.Defaults.custom(version.directoryName, version.versionCode),
+                        metadata -> metadata.displayName = newDisplayName.trim()
+                );
+                reload();
+                if (callback != null)
+                    callback.onRenameCompleted(true);
             } catch (Exception e) {
                 if (callback != null)
                     callback.onRenameFailed(e);
@@ -745,9 +771,9 @@ public class VersionManager {
             try {
                 File extDir = version.versionDir;
                 if (extDir != null && extDir.exists()) {
-                    File worldsDir = new File(extDir, "games/com.mojang/minecraftWorlds");
+                    File worldsDir = new File(LauncherStorage.getProfileGameDataDir(context, extDir.getName()), "minecraftWorlds");
                     if (worldsDir.exists() && worldsDir.isDirectory()) {
-                        String backupBase = context.getExternalFilesDir("backups").getAbsolutePath();
+                        String backupBase = LauncherStorage.getWorldBackupsDir(context).getAbsolutePath();
                         String timeStr = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault()).format(new java.util.Date());
                         File backupDir = new File(backupBase, timeStr);
                         backupDir.mkdirs();
@@ -763,15 +789,8 @@ public class VersionManager {
                     deleteDir(extDir);
                 }
 
-                File intBaseDir = new File(context.getDataDir(), "minecraft");
-                File intDir = new File(intBaseDir, (extDir != null ? extDir.getName() : ""));
-                File intLibDir = new File(intDir, "lib");
-                if (intLibDir.exists()) {
-                    deleteDir(intLibDir);
-                }
-                if (intDir.exists()) {
-                    deleteDir(intDir);
-                }
+                File runtimeLibDir = getRuntimeLibDir(extDir != null ? extDir.getName() : "");
+                if (runtimeLibDir.exists()) deleteDir(runtimeLibDir);
 
                 if (isSelected) {
                     selectedVersion = null;
@@ -820,5 +839,9 @@ public class VersionManager {
                     deleteDir(c);
         }
         return file.delete();
+    }
+
+    private File getRuntimeLibDir(String dirName) {
+        return MinecraftLauncher.getRuntimeLibDir(context, dirName);
     }
 }

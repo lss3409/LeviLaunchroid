@@ -11,16 +11,17 @@ import android.provider.OpenableColumns;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 
+import org.levimc.launcher.core.minecraft.MinecraftLauncher;
+import org.levimc.launcher.core.versions.VersionProfileMetadataStore;
+
 import java.io.BufferedInputStream;
 import java.io.FilterInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.Writer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -70,15 +71,15 @@ public class ApkInstaller {
             try {
                 lastPostedProgress = -1;
                 postProgress(0);
-                File internalDir = new File(context.getDataDir(), "minecraft/" + dirName);
-                if (internalDir.exists() && !deleteDir(internalDir))
+                File metadataDir = LauncherStorage.getProfileMetadataDir(context, dirName);
+                if (metadataDir.exists() && !deleteDir(metadataDir))
                     return;
                 File externalDir = LauncherStorage.getVersionDir(context, dirName);
                 if (externalDir.exists() && !deleteDir(externalDir))
                     return;
                 postProgress(5);
 
-                File libTargetDir = new File(internalDir, "lib");
+                File libTargetDir = MinecraftLauncher.getRuntimeLibDir(context, dirName);
                 if (libTargetDir.exists()) {
                     deleteDir(libTargetDir);
                 }
@@ -173,8 +174,7 @@ public class ApkInstaller {
 
                 String versionName = extractVersionName(apkOrApksUri, baseDir, dirName);
                 postProgress(PROGRESS_METADATA_DONE);
-                if (!internalDir.exists()) internalDir.mkdirs();
-                writeTextFile(new File(internalDir, "version.txt"), versionName);
+                writeProfileMetadata(metadataDir, dirName, versionName);
 
                 postProgress(PROGRESS_MAX);
                 postSuccess(versionName);
@@ -213,10 +213,9 @@ public class ApkInstaller {
         }
     }
 
-    private static void writeTextFile(File file, String content) throws IOException {
-        try (Writer writer = new FileWriter(file, false)) {
-            writer.write(content);
-        }
+    private static void writeProfileMetadata(File metadataDir, String dirName, String versionName) throws IOException {
+        VersionProfileMetadataStore store = new VersionProfileMetadataStore();
+        store.loadOrCreate(metadataDir, VersionProfileMetadataStore.Defaults.custom(dirName, versionName));
     }
 
     private void postProgress(int progress) {

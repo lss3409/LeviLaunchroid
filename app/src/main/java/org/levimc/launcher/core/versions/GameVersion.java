@@ -3,6 +3,8 @@ package org.levimc.launcher.core.versions;
 import android.os.Parcel;
 import android.os.Parcelable;
 
+import org.levimc.launcher.util.LauncherStorage;
+
 import java.io.File;
 
 public class GameVersion implements Parcelable {
@@ -33,9 +35,9 @@ public class GameVersion implements Parcelable {
         this.onlyAbiList = false;
         this.isExtractFalse = false;
         this.abiList = abiList;
-        this.versionIsolation = false;
+        this.versionIsolation = !isOfficial;
         this.launchVertically = false;
-        this.modsDir = versionDir == null ? null : new File(versionDir, "mods");
+        this.modsDir = versionDir == null ? null : new File(versionDir, LauncherStorage.PROFILE_MODS_DIR);
     }
 
     protected GameVersion(Parcel in) {
@@ -91,4 +93,9 @@ public class GameVersion implements Parcelable {
             return new GameVersion[size];
         }
     };
+
+    public String getStorageProfileId() {
+        if (isInstalled) return LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID;
+        return LauncherStorage.sanitizeProfileId(directoryName);
+    }
 }

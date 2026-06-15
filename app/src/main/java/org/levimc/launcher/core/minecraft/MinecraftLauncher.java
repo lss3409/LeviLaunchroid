@@ -9,6 +9,7 @@ import android.widget.Toast;
 
 import org.levimc.launcher.R;
 import org.levimc.launcher.core.versions.GameVersion;
+import org.levimc.launcher.util.LauncherStorage;
 import android.util.Log;
 
 import java.io.File;
@@ -19,6 +20,11 @@ public class MinecraftLauncher {
     private final Context context;
     public static final String MC_PACKAGE_NAME = "com.mojang.minecraftpe";
     public static final String EXTRA_GAME_VERSION = "org.levimc.launcher.extra.GAME_VERSION";
+    public static final String EXTRA_STORAGE_PROFILE_ID = "org.levimc.launcher.extra.STORAGE_PROFILE_ID";
+    public static final String EXTRA_STORAGE_FILES_DIR = "org.levimc.launcher.extra.STORAGE_FILES_DIR";
+    public static final String EXTRA_STORAGE_EXTERNAL_FILES_DIR = "org.levimc.launcher.extra.STORAGE_EXTERNAL_FILES_DIR";
+    public static final String EXTRA_STORAGE_DATA_DIR = "org.levimc.launcher.extra.STORAGE_DATA_DIR";
+    public static final String EXTRA_STORAGE_CACHE_DIR = "org.levimc.launcher.extra.STORAGE_CACHE_DIR";
 
     public interface LaunchCallback {
         void onLaunchStarted();
@@ -35,16 +41,24 @@ public class MinecraftLauncher {
         return abi;
     }
 
+    public static File getRuntimeLibDir(Context context, String profileId) {
+        return new File(context.getFilesDir(), "minecraft_libs/" + LauncherStorage.sanitizeProfileId(profileId));
+    }
+
+    public static File getRuntimeLibAbiDir(Context context, String profileId, String abi) {
+        return new File(getRuntimeLibDir(context, profileId), abiToSystemLibDir(abi));
+    }
+
     public ApplicationInfo createFakeApplicationInfo(GameVersion version, String packageName) {
         ApplicationInfo fakeInfo = new ApplicationInfo();
         File apkFile = new File(version.versionDir, "base.apk.levi");
         fakeInfo.sourceDir = apkFile.getAbsolutePath();
         fakeInfo.publicSourceDir = fakeInfo.sourceDir;
         String systemAbi = abiToSystemLibDir(Build.SUPPORTED_ABIS[0]);
-        File dstLibDir = new File(context.getDataDir(), "minecraft/" + version.directoryName + "/lib/" + systemAbi);
+        File dstLibDir = getRuntimeLibAbiDir(context, getStorageProfileId(version), systemAbi);
         fakeInfo.nativeLibraryDir = dstLibDir.getAbsolutePath();
         fakeInfo.packageName = packageName;
-        fakeInfo.dataDir = version.versionDir.getAbsolutePath();
+        fakeInfo.dataDir = LauncherStorage.getProfileDataRoot(context, getStorageProfileId(version)).getAbsolutePath();
 
         File splitsFolder = new File(version.versionDir, "splits");
         if (splitsFolder.exists() && splitsFolder.isDirectory()) {
@@ -134,14 +148,29 @@ public class MinecraftLauncher {
         }
     }
 
-    private void fillIntentWithMcPath(Intent sourceIntent, GameVersion version) {
-        if (!version.isInstalled || version.versionIsolation) {
-            sourceIntent.putExtra("MC_PATH", version.versionDir.getAbsolutePath());
-            sourceIntent.putExtra("IS_INSTALLED", version.isInstalled);
-        } else {
-            sourceIntent.putExtra("MC_PATH", "");
-            sourceIntent.putExtra("IS_INSTALLED", version.isInstalled);
-        }
+    public static String getStorageProfileId(GameVersion version) {
+        if (version == null) return LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID;
+        if (version.isInstalled) return LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID;
+        return LauncherStorage.sanitizeProfileId(version.directoryName);
+    }
+
+    private void fillIntentWithStoragePaths(Intent sourceIntent, GameVersion version) {
+        String profileId = getStorageProfileId(version);
+        boolean versionIsolation = version.versionIsolation;
+
+        File filesDir = LauncherStorage.getStorageFilesRoot(context, profileId, versionIsolation, false);
+        File externalFilesDir = LauncherStorage.getStorageFilesRoot(context, profileId, versionIsolation, true);
+        File dataDir = LauncherStorage.getStorageDataRoot(context, profileId, versionIsolation);
+        File cacheDir = LauncherStorage.getStorageCacheRoot(context, profileId, versionIsolation);
+
+        sourceIntent.putExtra("MC_PATH", version.versionDir == null ? "" : version.versionDir.getAbsolutePath());
+        sourceIntent.putExtra("IS_INSTALLED", version.isInstalled);
+        sourceIntent.putExtra("VERSION_ISOLATION", versionIsolation);
+        sourceIntent.putExtra(EXTRA_STORAGE_PROFILE_ID, profileId);
+        sourceIntent.putExtra(EXTRA_STORAGE_FILES_DIR, filesDir.getAbsolutePath());
+        sourceIntent.putExtra(EXTRA_STORAGE_EXTERNAL_FILES_DIR, externalFilesDir.getAbsolutePath());
+        sourceIntent.putExtra(EXTRA_STORAGE_DATA_DIR, dataDir.getAbsolutePath());
+        sourceIntent.putExtra(EXTRA_STORAGE_CACHE_DIR, cacheDir.getAbsolutePath());
     }
 
     private void launchMinecraftActivity(Intent sourceIntent, GameVersion version, boolean modsEnabled) {
@@ -153,7 +182,7 @@ public class MinecraftLauncher {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             launchIntent.putExtra("DISABLE_SPLASH_SCREEN", true);
         }
-        fillIntentWithMcPath(launchIntent, version);
+        fillIntentWithStoragePaths(launchIntent, version);
         launchIntent.setClass(context, MinecraftLoadingActivity.class);
         launchIntent.putExtra(EXTRA_GAME_VERSION, version);
         launchIntent.putExtra("MODS_ENABLED", modsEnabled);

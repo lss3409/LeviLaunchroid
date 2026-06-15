@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import org.levimc.launcher.core.versions.GameVersion
+import org.levimc.launcher.util.LauncherStorage
 import org.levimc.launcher.util.NativeBridgeHelper
 import org.levimc.launcher.util.NativeImageGuard
 import java.io.File
@@ -98,14 +99,14 @@ class GamePackageManager private constructor(
     }
 
     private fun resolveNativeLibDir(): String {
-        val cacheName = sanitizeCacheName(version?.directoryName ?: packageContext.packageName)
-        val cacheLibDir = File(context.filesDir, "minecraft_libs/$cacheName/${getDeviceAbi()}")
+        val profileId = if (version != null) {
+            MinecraftLauncher.getStorageProfileId(version)
+        } else {
+            LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID
+        }
+        val cacheLibDir = MinecraftLauncher.getRuntimeLibAbiDir(context, profileId, getDeviceAbi())
         cacheLibDir.mkdirs()
         return cacheLibDir.absolutePath
-    }
-
-    private fun sanitizeCacheName(value: String): String {
-        return value.replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "default" }
     }
 
     private fun getDeviceAbi(): String {

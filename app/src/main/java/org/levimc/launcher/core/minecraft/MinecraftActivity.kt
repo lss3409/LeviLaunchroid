@@ -241,18 +241,7 @@ class MinecraftActivity : MainActivity() {
     }
 
     override fun getFilesDir(): File {
-        val mcPath = intent?.getStringExtra("MC_PATH")
-        val isIsolated = intent?.getBooleanExtra("VERSION_ISOLATION", false) ?: false
-
-        return if (isIsolated && !mcPath.isNullOrEmpty()) {
-            val filesDir = File(mcPath, "games/com.mojang")
-            if (!filesDir.exists()) {
-                filesDir.mkdirs()
-            }
-            filesDir
-        } else {
-            super.getFilesDir()
-        }
+        return resolveStorageDir(MinecraftLauncher.EXTRA_STORAGE_FILES_DIR, super.getFilesDir())
     }
 
     override fun tick() {
@@ -261,67 +250,48 @@ class MinecraftActivity : MainActivity() {
     }
 
     override fun getDataDir(): File {
-        val mcPath = intent?.getStringExtra("MC_PATH")
-        val isIsolated = intent?.getBooleanExtra("VERSION_ISOLATION", false) ?: false
-
-        return if (isIsolated && !mcPath.isNullOrEmpty()) {
-            val dataDir = File(mcPath)
-            if (!dataDir.exists()) {
-                dataDir.mkdirs()
-            }
-            dataDir
-        } else {
-            super.getDataDir()
-        }
+        return resolveStorageDir(MinecraftLauncher.EXTRA_STORAGE_DATA_DIR, super.getDataDir())
     }
 
     override fun getExternalFilesDir(type: String?): File? {
-        val mcPath = intent?.getStringExtra("MC_PATH")
-        val isIsolated = intent?.getBooleanExtra("VERSION_ISOLATION", false) ?: false
-
-        return if (isIsolated && !mcPath.isNullOrEmpty()) {
-            val externalDir = if (type != null) {
-                File(mcPath, "games/com.mojang/$type")
-            } else {
-                File(mcPath, "games/com.mojang")
-            }
-            if (!externalDir.exists()) {
-                externalDir.mkdirs()
-            }
-            externalDir
+        val baseDir = resolveStorageDir(
+            MinecraftLauncher.EXTRA_STORAGE_EXTERNAL_FILES_DIR,
+            super.getExternalFilesDir(null)
+        )
+        return if (type.isNullOrEmpty()) {
+            baseDir
         } else {
-            super.getExternalFilesDir(type)
+            File(baseDir, type).also { it.mkdirs() }
         }
+    }
+
+    override fun getInternalStoragePath(): String {
+        return getFilesDir().absolutePath
+    }
+
+    override fun getExternalStoragePath(): String {
+        return (getExternalFilesDir(null) ?: getFilesDir()).absolutePath
+    }
+
+    private fun resolveStorageDir(extraName: String, fallback: File?): File {
+        val path = intent?.getStringExtra(extraName)
+        val dir = if (!path.isNullOrEmpty()) File(path) else fallback ?: super.getFilesDir()
+        if (!dir.exists()) {
+            dir.mkdirs()
+        }
+        return dir
     }
 
     override fun getDatabasePath(name: String): File {
-        val mcPath = intent?.getStringExtra("MC_PATH")
-        val isIsolated = intent?.getBooleanExtra("VERSION_ISOLATION", false) ?: false
-
-        return if (isIsolated && !mcPath.isNullOrEmpty()) {
-            val dbDir = File(mcPath, "databases")
-            if (!dbDir.exists()) {
-                dbDir.mkdirs()
-            }
-            File(dbDir, name)
-        } else {
-            super.getDatabasePath(name)
+        val dbDir = File(getDataDir(), "databases")
+        if (!dbDir.exists()) {
+            dbDir.mkdirs()
         }
+        return File(dbDir, name)
     }
 
     override fun getCacheDir(): File {
-        val mcPath = intent?.getStringExtra("MC_PATH")
-        val isIsolated = intent?.getBooleanExtra("VERSION_ISOLATION", false) ?: false
-
-        return if (isIsolated && !mcPath.isNullOrEmpty()) {
-            val cacheDir = File(mcPath, "cache")
-            if (!cacheDir.exists()) {
-                cacheDir.mkdirs()
-            }
-            cacheDir
-        } else {
-            super.getCacheDir()
-        }
+        return resolveStorageDir(MinecraftLauncher.EXTRA_STORAGE_CACHE_DIR, super.getCacheDir())
     }
 
     fun showSoftKeyboard() {

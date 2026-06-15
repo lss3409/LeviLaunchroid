@@ -8,6 +8,7 @@ import org.levimc.launcher.core.mods.Mod
 import org.levimc.launcher.core.mods.ModManager
 import org.levimc.launcher.core.mods.ModNativeLoader
 import org.levimc.launcher.core.versions.GameVersion
+import org.levimc.launcher.util.LauncherStorage
 import java.io.File
 
 object MinecraftRuntimePreparer {
@@ -123,13 +124,21 @@ object MinecraftRuntimePreparer {
         gameManager: GamePackageManager,
         version: GameVersion
     ) {
-        if (!version.isInstalled || version.versionIsolation) {
-            version.versionDir?.let { launchIntent.putExtra("MC_PATH", it.absolutePath) }
-            launchIntent.putExtra("IS_INSTALLED", version.isInstalled)
-        } else {
-            launchIntent.putExtra("MC_PATH", "")
-            launchIntent.putExtra("IS_INSTALLED", version.isInstalled)
-        }
+        val profileId = MinecraftLauncher.getStorageProfileId(version)
+        val versionIsolation = version.versionIsolation
+        val filesDir = LauncherStorage.getStorageFilesRoot(context, profileId, versionIsolation, false)
+        val externalFilesDir = LauncherStorage.getStorageFilesRoot(context, profileId, versionIsolation, true)
+        val dataDir = LauncherStorage.getStorageDataRoot(context, profileId, versionIsolation)
+        val cacheDir = LauncherStorage.getStorageCacheRoot(context, profileId, versionIsolation)
+
+        version.versionDir?.let { launchIntent.putExtra("MC_PATH", it.absolutePath) }
+        launchIntent.putExtra("IS_INSTALLED", version.isInstalled)
+        launchIntent.putExtra("VERSION_ISOLATION", versionIsolation)
+        launchIntent.putExtra(MinecraftLauncher.EXTRA_STORAGE_PROFILE_ID, profileId)
+        launchIntent.putExtra(MinecraftLauncher.EXTRA_STORAGE_FILES_DIR, filesDir.absolutePath)
+        launchIntent.putExtra(MinecraftLauncher.EXTRA_STORAGE_EXTERNAL_FILES_DIR, externalFilesDir.absolutePath)
+        launchIntent.putExtra(MinecraftLauncher.EXTRA_STORAGE_DATA_DIR, dataDir.absolutePath)
+        launchIntent.putExtra(MinecraftLauncher.EXTRA_STORAGE_CACHE_DIR, cacheDir.absolutePath)
 
         val mcInfo: ApplicationInfo = if (version.isInstalled) {
             gameManager.getPackageContext().applicationInfo
