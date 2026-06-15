@@ -54,6 +54,7 @@
     <string name="overwrite">Écraser</string>
     <string name="skip">Ignorer</string>
     <string name="confirm">Confirmer</string>
+    <string name="retry">Réessayer</string>
 
     <string name="installed_packages">Paquets installés</string>
     <string name="local_custom">Personnalisé local</string>
@@ -148,11 +149,12 @@
     <string name="repair_processing">Extraction des bibliothèques…</string>
     <string name="repair_finalizing">Finalisation de la réparation…</string>
     <string name="storage_migration_title">Migration du stockage requise</string>
-    <string name="storage_migration_message">LeviLauncher déplacera les données de games/org.levimc vers %1$s.
+    <string name="storage_migration_message">LeviLauncher doit migrer les données de games/org.levimc vers %1$s avant de continuer.
 
-L’ancien dossier restera intact, mais sa compatibilité sera supprimée dans une prochaine version.</string>
+Ce changement de stockage est nécessaire pour respecter les exigences de publication sur Google Play. L’ancien dossier restera intact, mais il ne sera plus utilisé après la migration.
+
+La migration peut prendre du temps. Vous pouvez laisser l’application en arrière-plan pendant son exécution ; le téléphone peut chauffer lors d’une copie importante de fichiers. Merci de votre compréhension.</string>
     <string name="storage_migration_start">Migrer</string>
-    <string name="storage_migration_later">Plus tard</string>
     <string name="storage_migration_permission_denied">L’autorisation de stockage est nécessaire pour lire l’ancien dossier pendant la migration.</string>
     <string name="storage_migration_progress_title">Migration du stockage</string>
     <string name="storage_migration_progress_subtitle">Copie des données du lanceur vers Android/data</string>
@@ -163,20 +165,17 @@ L’ancien dossier restera intact, mais sa compatibilité sera supprimée dans u
     <string name="storage_migration_duration_hours_minutes">%1$d h %2$d min</string>
     <string name="storage_migration_duration_minutes_seconds">%1$d min %2$d s</string>
     <string name="storage_migration_duration_seconds">%1$d s</string>
-    <string name="storage_migration_background_hint">La migration peut continuer en arrière-plan. Vous pouvez quitter cet écran pendant son exécution.</string>
-    <string name="storage_migration_pause">Suspendre la migration</string>
-    <string name="storage_migration_paused_title">Migration suspendue</string>
-    <string name="storage_migration_paused_message">La migration a été suspendue. Vous pourrez la reprendre la prochaine fois.</string>
+    <string name="storage_migration_background_hint">La migration peut continuer en arrière-plan. Gardez de préférence le téléphone chargé ; le téléphone peut chauffer pendant la copie de fichiers. Merci de votre compréhension.</string>
     <string name="storage_migration_completed_title">Migration terminée</string>
     <string name="storage_migration_completed_message">%1$d fichiers migrés (%2$s). %3$d fichiers étaient déjà à jour.
 
-L’ancien dossier games/org.levimc n’a pas été supprimé.</string>
+L’ancien dossier games/org.levimc n’a pas été supprimé et n’est plus utilisé.</string>
     <string name="storage_migration_partial_title">Migration incomplète</string>
-    <string name="storage_migration_partial_message">%1$d fichiers sur %2$d n’ont pas pu être copiés. L’ancien dossier a été conservé intact. Vous pourrez réessayer au prochain lancement.</string>
+    <string name="storage_migration_partial_message">%1$d fichiers sur %2$d n’ont pas pu être copiés. La migration doit être terminée avant de continuer avec LeviLauncher.</string>
     <string name="storage_migration_failed_title">Échec de la migration</string>
     <string name="storage_migration_failed_message">La migration ne peut pas continuer : %1$s
 
-L’ancien dossier a été conservé intact.</string>
+La migration doit être terminée avant de continuer avec LeviLauncher.</string>
 
     <string name="theme_title">Mode Thème</string>
     <string name="theme_follow_system">Suivre le système</string>

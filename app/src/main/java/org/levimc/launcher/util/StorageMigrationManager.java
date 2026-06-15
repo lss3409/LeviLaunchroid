@@ -26,13 +26,13 @@ public class StorageMigrationManager {
     private static final String KEY_TOTAL_BYTES = "storage_migration_total_bytes";
     private static final int BUFFER_SIZE = 262144;
     private static final long UI_THROTTLE_MS = 100L;
+    private static final long SAME_FILE_MTIME_TOLERANCE_MS = 2000L;
 
     private final Context context;
     private final SharedPreferences prefs;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final AtomicBoolean running = new AtomicBoolean(false);
     private volatile boolean cancelled;
-    private volatile boolean paused;
 
     public interface MigrationCallback {
         void onScanning();
@@ -107,9 +107,20 @@ public class StorageMigrationManager {
     public boolean shouldOfferMigration() {
         if (isMigrationCompleted() || running.get()) return false;
         File legacyRoot = LauncherStorage.getLegacyRoot();
-        if (!LauncherStorage.shouldUseLegacyRoot(context)) return false;
         File targetRoot = LauncherStorage.getTargetAppRoot(context);
         if (samePath(legacyRoot, targetRoot)) return false;
+        boolean hasReadableLegacyRoot = canReadLegacyRoot();
+        if (!hasReadableLegacyRoot && legacyRoot.exists()) return true;
+        if (!hasReadableLegacyRoot && !hasSharedLegacyData()) {
+            LauncherStorage.markMigrationCompleted(context);
+            LauncherStorage.invalidateCache();
+            return false;
+        }
+        if (hasReadableLegacyRoot && !LauncherStorage.legacyRootHasData() && !hasSharedLegacyData()) {
+            LauncherStorage.markMigrationCompleted(context);
+            LauncherStorage.invalidateCache();
+            return false;
+        }
         return true;
     }
 
@@ -129,10 +140,9 @@ public class StorageMigrationManager {
     public void startMigration(MigrationCallback callback) {
         if (!running.compareAndSet(false, true)) return;
         cancelled = false;
-        paused = false;
         executor.execute(() -> {
             try {
-                if (!canReadLegacyRoot()) {
+                if (!canReadLegacyRoot() && LauncherStorage.getLegacyRoot().exists()) {
                     throw new IOException("Legacy storage permission is not available");
                 }
                 if (callback != null) callback.onScanning();
@@ -190,8 +200,6 @@ public class StorageMigrationManager {
                             );
                             maybePostProgress(callback, state, lastUiAt, lastPercent);
                         });
-                    } catch (MigrationPausedException error) {
-                        throw error;
                     } catch (IOException error) {
                         failedFiles[0]++;
                     }
@@ -215,19 +223,70 @@ public class StorageMigrationManager {
         });
     }
 
+    private boolean hasSharedLegacyData() {
+        return hasAnyFile(new File(LauncherStorage.getTargetAppRoot(context), LauncherStorage.GAME_DATA_RELATIVE_PATH))
+                || hasAnyFile(new File(context.getFilesDir(), LauncherStorage.GAME_DATA_RELATIVE_PATH));
+    }
+
+    private static boolean hasAnyFile(File root) {
+        if (root == null || !root.isDirectory()) return false;
+        ArrayDeque<File> stack = new ArrayDeque<>();
+        stack.push(root);
+        while (!stack.isEmpty()) {
+            File current = stack.pop();
+            File[] children = current.listFiles();
+            if (children == null) continue;
+            for (File child : children) {
+                if (child.isFile()) return true;
+                if (child.isDirectory()) stack.push(child);
+            }
+        }
+        return false;
+    }
+
     public void cancel() {
         cancelled = true;
     }
 
-    public void pause() {
-        paused = true;
-    }
-
     private List<MigrationFile> scanFiles(File sourceRoot, File targetRoot) throws IOException {
         List<MigrationFile> result = new ArrayList<>();
+        scanFilesUnderRoot(
+                sourceRoot,
+                targetRoot,
+                relative -> new File(targetRoot, mapLegacyRootRelativePath(relative)),
+                result
+        );
+
+        File legacyExternalSharedGameData = new File(targetRoot, LauncherStorage.GAME_DATA_RELATIVE_PATH);
+        File newExternalSharedGameData = LauncherStorage.getSharedGameDataDir(context, true);
+        scanFilesUnderRoot(
+                legacyExternalSharedGameData,
+                newExternalSharedGameData,
+                relative -> new File(newExternalSharedGameData, relative),
+                result
+        );
+
+        File legacyInternalSharedGameData = new File(context.getFilesDir(), LauncherStorage.GAME_DATA_RELATIVE_PATH);
+        File newInternalSharedGameData = LauncherStorage.getSharedGameDataDir(context, false);
+        scanFilesUnderRoot(
+                legacyInternalSharedGameData,
+                newInternalSharedGameData,
+                relative -> new File(newInternalSharedGameData, relative),
+                result
+        );
+
+        scanLegacyMetadataFiles(result);
+        return result;
+    }
+
+    private void scanFilesUnderRoot(File sourceRoot, File targetRoot, TargetResolver resolver, List<MigrationFile> result) throws IOException {
+        if (sourceRoot == null || !sourceRoot.isDirectory()) return;
+        if (targetRoot != null && samePath(sourceRoot, targetRoot)) return;
+
         ArrayDeque<File> stack = new ArrayDeque<>();
         stack.push(sourceRoot);
         String sourceBase = sourceRoot.getCanonicalPath();
+        String targetBase = targetRoot == null ? null : targetRoot.getCanonicalPath();
 
         while (!stack.isEmpty()) {
             throwIfStopped();
@@ -237,6 +296,9 @@ public class StorageMigrationManager {
             for (File child : children) {
                 throwIfStopped();
                 if (child.isDirectory()) {
+                    if (targetBase != null && isWithinPath(child, targetBase)) {
+                        continue;
+                    }
                     stack.push(child);
                     continue;
                 }
@@ -249,27 +311,29 @@ public class StorageMigrationManager {
                     relative = relative.substring(1);
                 }
                 if (relative.isEmpty()) continue;
-                File target = new File(targetRoot, relative);
+                String normalizedRelative = relative.replace(File.separatorChar, '/');
+                File target = resolver.resolve(normalizedRelative);
+                if (target == null) continue;
                 result.add(new MigrationFile(child, target, relative.replace(File.separatorChar, '/')));
             }
         }
-
-        return result;
     }
 
     private boolean isAlreadyMigrated(MigrationFile file) {
         return file.target.exists()
                 && file.target.isFile()
-                && file.target.length() == file.size;
+                && file.target.length() == file.size
+                && hasSameLastModified(file.target, file.lastModified);
     }
 
     private void copyFile(MigrationFile file, byte[] buffer, CopyProgress progress) throws IOException {
-        File parent = file.target.getParentFile();
+        File target = resolveCopyTarget(file);
+        File parent = target.getParentFile();
         if (parent != null && !LauncherStorage.ensureDir(parent)) {
             throw new IOException("Cannot create directory: " + parent.getAbsolutePath());
         }
 
-        File temp = new File(file.target.getAbsolutePath() + ".tmp");
+        File temp = new File(target.getAbsolutePath() + ".tmp");
         if (temp.exists() && !temp.delete()) {
             throw new IOException("Cannot reset temp file: " + temp.getAbsolutePath());
         }
@@ -293,15 +357,12 @@ public class StorageMigrationManager {
                 throw new IOException(String.format(Locale.US, "Size mismatch for %s", file.relativePath));
             }
 
-            if (file.target.exists() && !file.target.delete()) {
-                throw new IOException("Cannot replace target file: " + file.target.getAbsolutePath());
-            }
-            if (!temp.renameTo(file.target)) {
-                throw new IOException("Cannot move temp file into place: " + file.target.getAbsolutePath());
+            if (!temp.renameTo(target)) {
+                throw new IOException("Cannot move temp file into place: " + target.getAbsolutePath());
             }
             moved = true;
             if (file.lastModified > 0L) {
-                file.target.setLastModified(file.lastModified);
+                target.setLastModified(file.lastModified);
             }
         } finally {
             if (!moved && temp.exists()) {
@@ -310,15 +371,173 @@ public class StorageMigrationManager {
         }
     }
 
-    private void throwIfStopped() throws IOException {
-        if (paused) throw new MigrationPausedException();
-        if (cancelled) throw new IOException("Migration cancelled");
+    static String mapLegacyRootRelativePath(String relativePath) {
+        String relative = normalizeRelativePath(relativePath);
+        if (relative.isEmpty()) {
+            return LauncherStorage.LEGACY_UNCLASSIFIED_DIR;
+        }
+        if (".nomedia".equals(relative)) {
+            return ".nomedia";
+        }
+        String crashLogsPrefix = LauncherStorage.CRASH_LOGS_DIR + "/";
+        if (relative.startsWith(crashLogsPrefix)) {
+            return LauncherStorage.CRASH_LOGS_DIR + "/" + relative.substring(crashLogsPrefix.length());
+        }
+        if (!relative.startsWith("minecraft/")) {
+            return LauncherStorage.MINECRAFT_DIR + "/" + LauncherStorage.LEGACY_UNCLASSIFIED_DIR + "/" + relative;
+        }
+
+        String rest = relative.substring("minecraft/".length());
+        int slash = rest.indexOf('/');
+        if (slash <= 0 || slash == rest.length() - 1) {
+            return LauncherStorage.MINECRAFT_DIR + "/" + LauncherStorage.LEGACY_UNCLASSIFIED_DIR + "/" + rest;
+        }
+
+        String profileId = mapLegacyProfileId(rest.substring(0, slash));
+        String profileRelative = rest.substring(slash + 1);
+        String profileRoot = LauncherStorage.MINECRAFT_DIR + "/" + profileId + "/";
+
+        if ("base.apk.levi".equals(profileRelative)) {
+            return profileRoot + "base.apk.levi";
+        }
+        if (profileRelative.startsWith("splits/")) {
+            return profileRoot + profileRelative;
+        }
+        if (profileRelative.startsWith("mods/")) {
+            return profileRoot + LauncherStorage.PROFILE_MODS_DIR + "/" + profileRelative.substring("mods/".length());
+        }
+        if (profileRelative.startsWith("cache/")) {
+            return profileRoot + LauncherStorage.PROFILE_CACHE_DIR + "/" + profileRelative.substring("cache/".length());
+        }
+        String gameDataPrefix = LauncherStorage.GAME_DATA_RELATIVE_PATH_UNIX + "/";
+        String nestedExternalGameDataPrefix = LauncherStorage.GAME_DATA_RELATIVE_PATH_UNIX
+                + "/"
+                + LauncherStorage.GAME_DATA_RELATIVE_PATH_UNIX
+                + "/";
+        if (profileRelative.startsWith(nestedExternalGameDataPrefix)) {
+            return profileRoot
+                    + LauncherStorage.EXTERNAL_STORAGE_DIR
+                    + "/"
+                    + LauncherStorage.GAME_DATA_RELATIVE_PATH_UNIX
+                    + "/"
+                    + profileRelative.substring(nestedExternalGameDataPrefix.length());
+        }
+        if (profileRelative.startsWith(gameDataPrefix)) {
+            return profileRoot
+                    + LauncherStorage.INTERNAL_STORAGE_DIR
+                    + "/"
+                    + LauncherStorage.GAME_DATA_RELATIVE_PATH_UNIX
+                    + "/"
+                    + profileRelative.substring(gameDataPrefix.length());
+        }
+        if (profileRelative.startsWith("games/")) {
+            return profileRoot + LauncherStorage.PROFILE_DATA_DIR + "/" + profileRelative;
+        }
+        return profileRoot + LauncherStorage.PROFILE_DATA_DIR + "/" + profileRelative;
     }
 
-    public static class MigrationPausedException extends IOException {
-        MigrationPausedException() {
-            super("Migration paused");
+    private void scanLegacyMetadataFiles(List<MigrationFile> result) throws IOException {
+        File metadataRoot = new File(context.getDataDir(), LauncherStorage.MINECRAFT_DIR);
+        if (!metadataRoot.isDirectory()) return;
+        File[] profileDirs = metadataRoot.listFiles(File::isDirectory);
+        if (profileDirs == null) return;
+
+        for (File profileDir : profileDirs) {
+            throwIfStopped();
+            String profileId = mapLegacyProfileId(profileDir.getName());
+            File metadataTargetDir = LauncherStorage.getProfileMetadataDir(context, profileId);
+            File unclassifiedTargetDir = new File(
+                    LauncherStorage.getLegacyUnclassifiedDir(context),
+                    "internal-metadata/" + LauncherStorage.sanitizeProfileId(profileDir.getName())
+            );
+
+            ArrayDeque<File> stack = new ArrayDeque<>();
+            stack.push(profileDir);
+            String profileBase = profileDir.getCanonicalPath();
+
+            while (!stack.isEmpty()) {
+                throwIfStopped();
+                File current = stack.pop();
+                File[] children = current.listFiles();
+                if (children == null) continue;
+                for (File child : children) {
+                    throwIfStopped();
+                    String childPath = child.getCanonicalPath();
+                    if (!childPath.startsWith(profileBase)) continue;
+                    String relative = childPath.substring(profileBase.length());
+                    while (relative.startsWith(File.separator)) {
+                        relative = relative.substring(1);
+                    }
+                    if (relative.isEmpty()) continue;
+                    String normalizedRelative = relative.replace(File.separatorChar, '/');
+                    if (normalizedRelative.equals("lib") || normalizedRelative.startsWith("lib/")) {
+                        continue;
+                    }
+                    if (child.isDirectory()) {
+                        stack.push(child);
+                        continue;
+                    }
+                    if (!child.isFile()) continue;
+
+                    File target;
+                    if (!normalizedRelative.contains("/") && child.getName().endsWith(".txt")) {
+                        target = new File(metadataTargetDir, child.getName());
+                    } else {
+                        target = new File(unclassifiedTargetDir, normalizedRelative);
+                    }
+
+                    result.add(new MigrationFile(
+                            child,
+                            target,
+                            "internal-metadata/" + profileDir.getName() + "/" + normalizedRelative
+                    ));
+                }
+            }
         }
+    }
+
+    private static String mapLegacyProfileId(String value) {
+        if (value == null) return LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID;
+        if (value.equals(LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID)
+                || value.startsWith(LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID + "_")) {
+            return LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID;
+        }
+        return LauncherStorage.sanitizeProfileId(value);
+    }
+
+    private static String normalizeRelativePath(String relativePath) {
+        if (relativePath == null) return "";
+        String normalized = relativePath.trim().replace('\\', '/');
+        while (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        while (normalized.contains("//")) {
+            normalized = normalized.replace("//", "/");
+        }
+        return normalized;
+    }
+
+    private File resolveCopyTarget(MigrationFile file) {
+        if (!file.target.exists()) return file.target;
+        if (isAlreadyMigrated(file)) return file.target;
+
+        String suffix = ".legacy-" + System.currentTimeMillis();
+        File candidate = new File(file.target.getParentFile(), file.target.getName() + suffix);
+        int index = 1;
+        while (candidate.exists()) {
+            candidate = new File(file.target.getParentFile(), file.target.getName() + suffix + "." + index);
+            index++;
+        }
+        return candidate;
+    }
+
+    private static boolean hasSameLastModified(File target, long sourceLastModified) {
+        if (sourceLastModified <= 0L) return true;
+        return Math.abs(target.lastModified() - sourceLastModified) <= SAME_FILE_MTIME_TOLERANCE_MS;
+    }
+
+    private void throwIfStopped() throws IOException {
+        if (cancelled) throw new IOException("Migration cancelled");
     }
 
     private void maybePostProgress(
@@ -367,8 +586,22 @@ public class StorageMigrationManager {
         }
     }
 
+    private static boolean isWithinPath(File file, String basePath) {
+        try {
+            String path = file.getCanonicalPath();
+            return path.equals(basePath) || path.startsWith(basePath + File.separator);
+        } catch (IOException ignored) {
+            String path = file.getAbsolutePath();
+            return path.equals(basePath) || path.startsWith(basePath + File.separator);
+        }
+    }
+
     private interface CopyProgress {
         void onCopied(long bytesCopied);
+    }
+
+    private interface TargetResolver {
+        File resolve(String relativePath);
     }
 
     private static class ProgressState {

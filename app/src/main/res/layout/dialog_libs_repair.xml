@@ -133,7 +133,7 @@
             android:layout_gravity="end"
             android:layout_marginTop="10dp"
             android:minWidth="96dp"
-            android:text="@string/storage_migration_pause"
+            android:text="@string/confirm"
             android:visibility="gone" />
     </LinearLayout>
         

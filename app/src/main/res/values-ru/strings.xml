@@ -42,6 +42,7 @@
     <string name="overwrite">Перезаписать</string>
     <string name="skip">Пропустить</string>
     <string name="confirm">Подтвердить</string>
+    <string name="retry">Повторить</string>
 
     <string name="installed_packages">Установленные пакеты</string>
     <string name="local_custom">Доступные версии</string>
@@ -132,9 +133,12 @@
     <string name="repair_processing">Извлечение библиотек…</string>
     <string name="repair_finalizing">Завершение восстановления…</string>
     <string name="storage_migration_title">Требуется миграция хранилища</string>
-    <string name="storage_migration_message">LeviLauncher перенесёт данные из games/org.levimc в %1$s.\n\nСтарая папка останется нетронутой, но совместимость с ней будет удалена в будущей версии.</string>
+    <string name="storage_migration_message">LeviLauncher должен перенести данные из games/org.levimc в %1$s перед продолжением.
+
+Это изменение хранилища необходимо для соответствия требованиям публикации в Google Play. Старая папка останется нетронутой, но после миграции больше не будет использоваться.
+
+Миграция может занять время. Можно оставить приложение в фоне; при интенсивном копировании файлов телефон может нагреваться. Благодарим за понимание.</string>
     <string name="storage_migration_start">Перенести</string>
-    <string name="storage_migration_later">Позже</string>
     <string name="storage_migration_permission_denied">Для чтения старой папки во время миграции требуется разрешение на доступ к хранилищу.</string>
     <string name="storage_migration_progress_title">Миграция хранилища</string>
     <string name="storage_migration_progress_subtitle">Копирование данных лаунчера в Android/data</string>
@@ -145,16 +149,17 @@
     <string name="storage_migration_duration_hours_minutes">%1$d ч %2$d мин</string>
     <string name="storage_migration_duration_minutes_seconds">%1$d мин %2$d с</string>
     <string name="storage_migration_duration_seconds">%1$d с</string>
-    <string name="storage_migration_background_hint">Миграция может продолжаться в фоновом режиме. Можно покинуть этот экран, пока она выполняется.</string>
-    <string name="storage_migration_pause">Приостановить миграцию</string>
-    <string name="storage_migration_paused_title">Миграция приостановлена</string>
-    <string name="storage_migration_paused_message">Миграция приостановлена. Её можно продолжить в следующий раз.</string>
+    <string name="storage_migration_background_hint">Миграция может продолжаться в фоне. Рекомендуется держать телефон заряженным; во время копирования файлов телефон может нагреваться. Благодарим за понимание.</string>
     <string name="storage_migration_completed_title">Миграция завершена</string>
-    <string name="storage_migration_completed_message">Перенесено файлов: %1$d (%2$s). Уже актуальны: %3$d.\n\nСтарая папка games/org.levimc не была удалена.</string>
+    <string name="storage_migration_completed_message">Перенесено файлов: %1$d (%2$s). Уже актуальны: %3$d.
+
+Старая папка games/org.levimc не была удалена и больше не используется.</string>
     <string name="storage_migration_partial_title">Миграция не завершена</string>
-    <string name="storage_migration_partial_message">Не удалось скопировать %1$d из %2$d файлов. Старая папка сохранена. Можно повторить миграцию при следующем запуске.</string>
+    <string name="storage_migration_partial_message">Не удалось скопировать %1$d из %2$d файлов. Миграция должна завершиться, прежде чем LeviLauncher сможет продолжить.</string>
     <string name="storage_migration_failed_title">Ошибка миграции</string>
-    <string name="storage_migration_failed_message">Миграция не может продолжиться: %1$s\n\nСтарая папка сохранена.</string>
+    <string name="storage_migration_failed_message">Миграция не может продолжиться: %1$s
+
+Миграция должна завершиться, прежде чем LeviLauncher сможет продолжить.</string>
 
     <string name="theme_title">Тема</string>
     <string name="theme_follow_system">Как в системе</string>

@@ -20,7 +20,6 @@ import android.view.animation.LinearInterpolator;
 import androidx.interpolator.view.animation.LinearOutSlowInInterpolator;
 
 import org.levimc.launcher.R;
-import org.levimc.launcher.core.versions.VersionManager;
 import org.levimc.launcher.databinding.ActivitySplashBinding;
 import org.levimc.launcher.util.LauncherStorage;
 import org.levimc.launcher.util.PersonalizationManager;
@@ -71,7 +70,6 @@ public class SplashActivity extends BaseActivity {
         Context appContext = getApplicationContext();
         new Thread(() -> {
             LauncherStorage.ensureNoMedia(appContext);
-            VersionManager.get(appContext);
         }, "launcher-storage-warmup").start();
     }
 

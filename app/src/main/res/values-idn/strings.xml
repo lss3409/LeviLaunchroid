@@ -42,6 +42,7 @@
     <string name="overwrite">Timpa</string>
     <string name="skip">Melewati</string>
     <string name="confirm">Konfirmasi</string>
+    <string name="retry">Coba Lagi</string>
 
     <string name="installed_packages">Paket Terinstal</string>
     <string name="local_custom">Paket Lokal</string>
@@ -132,11 +133,12 @@
     <string name="repair_processing">Mengekstrak pustaka…</string>
     <string name="repair_finalizing">Menyelesaikan perbaikan…</string>
     <string name="storage_migration_title">Migrasi Penyimpanan Diperlukan</string>
-    <string name="storage_migration_message">LeviLauncher akan memindahkan data dari games/org.levimc ke %1$s.
+    <string name="storage_migration_message">LeviLauncher harus memigrasikan data dari games/org.levimc ke %1$s sebelum melanjutkan.
 
-Folder lama tetap dibiarkan, tetapi kompatibilitas dengannya akan dihapus pada versi mendatang.</string>
+Perubahan penyimpanan ini diperlukan untuk memenuhi persyaratan rilis di Google Play. Folder lama tetap dibiarkan, tetapi tidak akan digunakan lagi setelah migrasi.
+
+Migrasi dapat memakan waktu. Anda bisa membiarkan aplikasi berjalan di latar belakang; ponsel mungkin terasa panas saat menyalin banyak file. Terima kasih atas pengertiannya.</string>
     <string name="storage_migration_start">Migrasi</string>
-    <string name="storage_migration_later">Nanti</string>
     <string name="storage_migration_permission_denied">Izin penyimpanan diperlukan untuk membaca folder lama saat migrasi.</string>
     <string name="storage_migration_progress_title">Memigrasikan Penyimpanan</string>
     <string name="storage_migration_progress_subtitle">Menyalin data launcher ke Android/data</string>
@@ -147,20 +149,17 @@ Folder lama tetap dibiarkan, tetapi kompatibilitas dengannya akan dihapus pada v
     <string name="storage_migration_duration_hours_minutes">%1$d jam %2$d mnt</string>
     <string name="storage_migration_duration_minutes_seconds">%1$d mnt %2$d dtk</string>
     <string name="storage_migration_duration_seconds">%1$d dtk</string>
-    <string name="storage_migration_background_hint">Migrasi dapat terus berjalan di latar belakang. Anda bisa meninggalkan layar ini saat migrasi berjalan.</string>
-    <string name="storage_migration_pause">Jeda Migrasi</string>
-    <string name="storage_migration_paused_title">Migrasi Dijeda</string>
-    <string name="storage_migration_paused_message">Migrasi telah dijeda. Anda dapat melanjutkannya lain kali.</string>
+    <string name="storage_migration_background_hint">Migrasi dapat terus berjalan di latar belakang. Disarankan menjaga baterai tetap cukup; ponsel mungkin terasa panas saat menyalin file. Terima kasih atas pengertiannya.</string>
     <string name="storage_migration_completed_title">Migrasi Selesai</string>
     <string name="storage_migration_completed_message">Berhasil memigrasikan %1$d file (%2$s). %3$d file sudah terbaru.
 
-Folder lama games/org.levimc tidak dihapus.</string>
+Folder lama games/org.levimc tidak dihapus dan tidak lagi digunakan.</string>
     <string name="storage_migration_partial_title">Migrasi Belum Selesai</string>
-    <string name="storage_migration_partial_message">%1$d dari %2$d file tidak dapat disalin. Folder lama tetap dibiarkan. Anda dapat mencoba lagi saat peluncuran berikutnya.</string>
+    <string name="storage_migration_partial_message">%1$d dari %2$d file tidak dapat disalin. Migrasi harus selesai sebelum LeviLauncher dapat melanjutkan.</string>
     <string name="storage_migration_failed_title">Migrasi Gagal</string>
     <string name="storage_migration_failed_message">Migrasi tidak dapat dilanjutkan: %1$s
 
-Folder lama tetap dibiarkan.</string>
+Migrasi harus selesai sebelum LeviLauncher dapat melanjutkan.</string>
 
     <string name="theme_title">Mode Tema</string>
     <string name="theme_follow_system">Ikuti Sistem</string>

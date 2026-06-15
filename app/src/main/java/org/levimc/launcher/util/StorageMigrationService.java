@@ -26,7 +26,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 public class StorageMigrationService extends Service {
     public static final String ACTION_START = "org.levimc.launcher.action.START_STORAGE_MIGRATION";
-    public static final String ACTION_PAUSE = "org.levimc.launcher.action.PAUSE_STORAGE_MIGRATION";
 
     private static final String CHANNEL_ID = "storage_migration";
     private static final int NOTIFICATION_ID = 4207;
@@ -51,7 +50,6 @@ public class StorageMigrationService extends Service {
     private StorageMigrationManager migrationManager;
     private PowerManager.WakeLock wakeLock;
     private volatile boolean migrationStarted;
-    private volatile boolean pauseRequested;
     private long lastNotificationAt;
     private int lastNotificationPercent = -1;
     private long fileProgressStartedAtElapsed;
@@ -60,7 +58,6 @@ public class StorageMigrationService extends Service {
         IDLE,
         SCANNING,
         RUNNING,
-        PAUSED,
         COMPLETED,
         PARTIAL,
         FAILED
@@ -173,26 +170,6 @@ public class StorageMigrationService extends Service {
             );
         }
 
-        static MigrationState paused(MigrationState previous) {
-            if (previous == null) {
-                return new MigrationState(Status.PAUSED, 0, 0, 0, 0L, 0L, "", 0, 0, "", -1L, -1L);
-            }
-            return new MigrationState(
-                    Status.PAUSED,
-                    previous.percent,
-                    previous.processedFiles,
-                    previous.totalFiles,
-                    previous.processedBytes,
-                    previous.totalBytes,
-                    previous.currentFile,
-                    previous.skippedFiles,
-                    previous.failedFiles,
-                    "",
-                    previous.estimatedRemainingMillis,
-                    previous.estimatedCompletionAtMillis
-            );
-        }
-
         static MigrationState failed(Exception error) {
             String message = error == null ? "" : error.getMessage();
             return new MigrationState(Status.FAILED, 0, 0, 0, 0L, 0L, "", 0, 0, message, -1L, -1L);
@@ -227,13 +204,6 @@ public class StorageMigrationService extends Service {
         }
     }
 
-    public static void pauseMigration(Context context) {
-        Context appContext = context.getApplicationContext();
-        Intent intent = new Intent(appContext, StorageMigrationService.class);
-        intent.setAction(ACTION_PAUSE);
-        appContext.startService(intent);
-    }
-
     public static MigrationState getLatestState() {
         return latestState;
     }
@@ -247,19 +217,6 @@ public class StorageMigrationService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        String action = intent == null ? null : intent.getAction();
-        if (ACTION_PAUSE.equals(action)) {
-            if (latestState != null && latestState.isActive()) {
-                startForeground(NOTIFICATION_ID, buildProgressNotification(latestState));
-                pauseMigration();
-                if (!migrationStarted) {
-                    handlePaused();
-                }
-            } else {
-                stopSelf(startId);
-            }
-            return START_NOT_STICKY;
-        }
         startForeground(NOTIFICATION_ID, buildProgressNotification(latestState));
         startMigrationIfNeeded();
         return START_REDELIVER_INTENT;
@@ -292,21 +249,9 @@ public class StorageMigrationService extends Service {
         return latestState;
     }
 
-    public void pauseMigration() {
-        MigrationState state = latestState;
-        if (state == null || !state.isActive()) return;
-        pauseRequested = true;
-        if (migrationManager != null) {
-            migrationManager.pause();
-        }
-        updateState(MigrationState.paused(state));
-        persistRunning(false);
-    }
-
     private void startMigrationIfNeeded() {
         if (migrationStarted) return;
         migrationStarted = true;
-        pauseRequested = false;
         fileProgressStartedAtElapsed = 0L;
         acquireWakeLock();
         updateState(MigrationState.scanning());
@@ -322,7 +267,6 @@ public class StorageMigrationService extends Service {
 
             @Override
             public void onProgress(StorageMigrationManager.MigrationProgress progress) {
-                if (pauseRequested) return;
                 updateState(createRunningState(progress));
                 updateForegroundNotification(latestState, false);
             }
@@ -339,10 +283,6 @@ public class StorageMigrationService extends Service {
 
             @Override
             public void onFailed(Exception error) {
-                if (error instanceof StorageMigrationManager.MigrationPausedException) {
-                    handlePaused();
-                    return;
-                }
                 MigrationState state = MigrationState.failed(error);
                 updateState(state);
                 persistRunning(false);
@@ -351,18 +291,6 @@ public class StorageMigrationService extends Service {
                 stopSelf();
             }
         });
-    }
-
-    private void handlePaused() {
-        updateState(MigrationState.paused(latestState));
-        persistRunning(false);
-        releaseWakeLock();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            stopForeground(STOP_FOREGROUND_REMOVE);
-        } else {
-            stopForeground(true);
-        }
-        stopSelf();
     }
 
     private void updateState(MigrationState state) {
@@ -507,9 +435,6 @@ public class StorageMigrationService extends Service {
                     shortenPath(state.currentFile)
             );
             return progress + "\n" + getEtaText(state);
-        }
-        if (state.status == Status.PAUSED) {
-            return getString(R.string.storage_migration_paused_message);
         }
         return getString(R.string.storage_migration_scanning) + "\n" + getString(R.string.storage_migration_eta_pending);
     }

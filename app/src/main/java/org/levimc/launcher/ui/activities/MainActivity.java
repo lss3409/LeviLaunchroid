@@ -127,6 +127,7 @@ import okhttp3.OkHttpClient;
     private OnBackPressedCallback onBackPressedCallback;
     private boolean migrationPromptShown;
     private boolean migrationPromptCheckInFlight;
+    private boolean postMigrationInitialized;
     private StorageMigrationService storageMigrationService;
     private boolean storageMigrationBound;
     private LibsRepairDialog storageMigrationDialog;
@@ -166,9 +167,7 @@ import okhttp3.OkHttpClient;
         setupManagersAndHandlers();
         new GithubReleaseUpdater(this, "LiteLDev", "LeviLaunchroid", permissionResultLauncher).checkUpdateOnLaunch();
         showEulaIfNeeded();
-        initModsSection();
         setupOnBackPressedCallback();
-        binding.getRoot().post(this::showStorageMigrationPromptAfterEula);
 
         accountLoginLauncher = registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(), result -> {
             if (result.getResultCode() == RESULT_OK && result.getData() != null) {
@@ -212,7 +211,7 @@ import okhttp3.OkHttpClient;
         });
 
         initAccountHeader();
-        initializeVersionManager();
+        binding.getRoot().post(this::showStorageMigrationPromptAfterEula);
     }
 
     @Override
@@ -554,11 +553,7 @@ import okhttp3.OkHttpClient;
     private void setupManagersAndHandlers() {
         languageManager = new LanguageManager(this);
         languageManager.applySavedLanguage();
-        viewModel = new ViewModelProvider(this, new MainViewModelFactory(getApplication())).get(MainViewModel.class);
-        viewModel.getModsLiveData().observe(this, this::updateModsUI);
         storageMigrationManager = new StorageMigrationManager(this);
-        apkImportManager = new ApkImportManager(this, viewModel);
-        minecraftLauncher = new MinecraftLauncher(this);
         permissionResultLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
@@ -581,6 +576,20 @@ import okhttp3.OkHttpClient;
         permissionsHandler = PermissionsHandler.getInstance();
         permissionsHandler.setActivity(this, permissionResultLauncher);
         initListeners();
+    }
+
+    private void initializeAfterMigrationGate() {
+        if (postMigrationInitialized || isFinishing() || isDestroyed()) return;
+        postMigrationInitialized = true;
+
+        minecraftLauncher = new MinecraftLauncher(this);
+        viewModel = new ViewModelProvider(this, new MainViewModelFactory(getApplication())).get(MainViewModel.class);
+        apkImportManager = new ApkImportManager(this, viewModel);
+
+        initModsSection();
+        initContentManagementSection();
+        initMiscellaneousSection();
+        initializeVersionManager();
     }
 
     private void initializeVersionManager() {
@@ -618,6 +627,7 @@ import okhttp3.OkHttpClient;
     }
 
     private void initModsSection() {
+        if (viewModel == null) return;
         modsListContainer = binding.modsListContainer;
 
         binding.manageModsButton.setOnClickListener(v -> openModsFullscreen());
@@ -644,6 +654,7 @@ import okhttp3.OkHttpClient;
     }
 
     private void updateViewModelVersion() {
+        if (viewModel == null) return;
         GameVersion selectedVersion = versionManager.getSelectedVersion();
         if (selectedVersion != null) {
             viewModel.setCurrentVersion(selectedVersion);
@@ -685,13 +696,17 @@ import okhttp3.OkHttpClient;
             public void onPermissionDenied(PermissionsHandler.PermissionType type, boolean permanentlyDenied) {
                 if (type == PermissionsHandler.PermissionType.STORAGE) {
                     Toast.makeText(MainActivity.this, R.string.storage_migration_permission_denied, Toast.LENGTH_LONG).show();
+                    showBlockingMigrationRetryDialog(
+                            getString(R.string.storage_migration_failed_title),
+                            getString(R.string.storage_migration_permission_denied)
+                    );
                 }
             }
         });
     }
 
     private void showStorageMigrationPromptIfNeeded() {
-        if (migrationPromptShown || migrationPromptCheckInFlight || storageMigrationManager == null || isFinishing() || isDestroyed()) return;
+        if (postMigrationInitialized || migrationPromptShown || migrationPromptCheckInFlight || storageMigrationManager == null || isFinishing() || isDestroyed()) return;
         if (StorageMigrationService.isMigrationRunning(this)) {
             resumeStorageMigrationService();
             return;
@@ -706,7 +721,12 @@ import okhttp3.OkHttpClient;
             boolean finalShouldOfferMigration = shouldOfferMigration;
             runOnUiThread(() -> {
                 migrationPromptCheckInFlight = false;
-                if (!finalShouldOfferMigration || migrationPromptShown || storageMigrationManager == null || isFinishing() || isDestroyed()) return;
+                if (isFinishing() || isDestroyed()) return;
+                if (!finalShouldOfferMigration) {
+                    initializeAfterMigrationGate();
+                    return;
+                }
+                if (migrationPromptShown || storageMigrationManager == null) return;
                 showStorageMigrationPromptDialog();
             });
         });
@@ -715,7 +735,7 @@ import okhttp3.OkHttpClient;
     private void showStorageMigrationPromptDialog() {
         migrationPromptShown = true;
 
-        new CustomAlertDialog(this)
+        CustomAlertDialog dialog = new CustomAlertDialog(this)
                 .setTitleText(getString(R.string.storage_migration_title))
                 .setMessage(getString(
                         R.string.storage_migration_message,
@@ -728,8 +748,9 @@ import okhttp3.OkHttpClient;
                         requestBasicPermissions();
                     }
                 })
-                .setNegativeButton(getString(R.string.storage_migration_later), null)
-                .show();
+                .setNegativeButton(getString(R.string.exit), v -> finishAffinity());
+        dialog.setCancelable(false);
+        dialog.show();
     }
 
     private void showStorageMigrationPromptAfterEula() {
@@ -791,7 +812,7 @@ import okhttp3.OkHttpClient;
             storageMigrationDialog.setStatusText(getString(R.string.storage_migration_scanning));
             storageMigrationDialog.setEtaText(getString(R.string.storage_migration_eta_pending));
             storageMigrationDialog.setBackgroundHintText(getString(R.string.storage_migration_background_hint));
-            storageMigrationDialog.setPauseButton(getString(R.string.storage_migration_pause), v -> pauseStorageMigration());
+            storageMigrationDialog.setPauseButton("", null);
             storageMigrationDialog.setIndeterminate(true);
             storageMigrationDialog.updateProgress(0);
             if (lastMigrationState != null) {
@@ -812,9 +833,6 @@ import okhttp3.OkHttpClient;
         if (state.isFinished()) {
             dismissStorageMigrationDialog(() -> showStorageMigrationResult(state));
             return;
-        }
-        if (state.status == StorageMigrationService.Status.PAUSED) {
-            dismissStorageMigrationDialog(null);
         }
     }
 
@@ -840,16 +858,6 @@ import okhttp3.OkHttpClient;
         storageMigrationDialog.updateProgress(state.percent);
     }
 
-    private void pauseStorageMigration() {
-        if (storageMigrationService != null) {
-            storageMigrationService.pauseMigration();
-        } else {
-            StorageMigrationService.pauseMigration(this);
-        }
-        dismissStorageMigrationDialog(null);
-        Toast.makeText(this, R.string.storage_migration_paused_message, Toast.LENGTH_LONG).show();
-    }
-
     private void dismissStorageMigrationDialog(Runnable afterDismiss) {
         LibsRepairDialog dialog = storageMigrationDialog;
         storageMigrationDialog = null;
@@ -868,7 +876,9 @@ import okhttp3.OkHttpClient;
     private void showStorageMigrationResult(StorageMigrationService.MigrationState state) {
         if (isFinishing()) return;
         if (state.status == StorageMigrationService.Status.COMPLETED) {
-            if (versionManager != null) {
+            boolean wasInitialized = postMigrationInitialized;
+            initializeAfterMigrationGate();
+            if (wasInitialized && versionManager != null) {
                 versionManager.reload();
                 setTextMinecraftVersion();
                 updateViewModelVersion();
@@ -886,22 +896,32 @@ import okhttp3.OkHttpClient;
                     .setPositiveButton(getString(R.string.confirm), null)
                     .show();
         } else if (state.status == StorageMigrationService.Status.PARTIAL) {
-            new CustomAlertDialog(MainActivity.this)
-                    .setTitleText(getString(R.string.storage_migration_partial_title))
-                    .setMessage(getString(
+            showBlockingMigrationRetryDialog(
+                    getString(R.string.storage_migration_partial_title),
+                    getString(
                             R.string.storage_migration_partial_message,
                             state.failedFiles,
                             state.totalFiles
-                    ))
-                    .setPositiveButton(getString(R.string.confirm), null)
-                    .show();
+                    )
+            );
         } else if (state.status == StorageMigrationService.Status.FAILED) {
-            new CustomAlertDialog(MainActivity.this)
-                    .setTitleText(getString(R.string.storage_migration_failed_title))
-                    .setMessage(getString(R.string.storage_migration_failed_message, state.errorMessage))
-                    .setPositiveButton(getString(R.string.confirm), null)
-                    .show();
+            showBlockingMigrationRetryDialog(
+                    getString(R.string.storage_migration_failed_title),
+                    getString(R.string.storage_migration_failed_message, state.errorMessage)
+            );
         }
+    }
+
+    private void showBlockingMigrationRetryDialog(String title, String message) {
+        if (isFinishing() || isDestroyed()) return;
+        migrationPromptShown = false;
+        CustomAlertDialog dialog = new CustomAlertDialog(MainActivity.this)
+                .setTitleText(title)
+                .setMessage(message)
+                .setPositiveButton(getString(R.string.retry), v -> showStorageMigrationPromptIfNeeded())
+                .setNegativeButton(getString(R.string.exit), v -> finishAffinity());
+        dialog.setCancelable(false);
+        dialog.show();
     }
 
     private String shortenMigrationPath(String path) {
@@ -970,6 +990,14 @@ import okhttp3.OkHttpClient;
     protected void onResume() {
         super.onResume();
         refreshAccountHeaderUI();
+        if (StorageMigrationService.isMigrationRunning(this)) {
+            resumeStorageMigrationService();
+            return;
+        }
+        if (!postMigrationInitialized) {
+            showStorageMigrationPromptAfterEula();
+            return;
+        }
         if (versionManager != null) {
             setTextMinecraftVersion();
             viewModel.refreshMods();
@@ -977,9 +1005,6 @@ import okhttp3.OkHttpClient;
         }
         if (binding != null && versionManager != null) {
             binding.launchButton.setEnabled(true);
-        }
-        if (StorageMigrationService.isMigrationRunning(this)) {
-            resumeStorageMigrationService();
         }
     }
 
@@ -1004,14 +1029,13 @@ import okhttp3.OkHttpClient;
 
     @SuppressLint({"ClickableViewAccessibility", "UnsafeIntentLaunch"})
     private void initListeners() {
+        binding.launchButton.setEnabled(false);
         binding.launchButton.setOnClickListener(v -> launchGame());
         DynamicAnim.applyPressScale(binding.launchButton);
         binding.selectVersionButton.setOnClickListener(v -> showVersionSelectDialog());
         DynamicAnim.applyPressScale(binding.selectVersionButton);
 
         FeatureSettings.init(getApplicationContext());
-        initContentManagementSection();
-        initMiscellaneousSection();
         showRandomTip();
     }
 
@@ -1078,28 +1102,11 @@ import okhttp3.OkHttpClient;
             storageType = org.levimc.launcher.settings.FeatureSettings.StorageType.INTERNAL;
         }
 
-        java.io.File baseDir;
-        switch (storageType) {
-            case VERSION_ISOLATION:
-                if (currentVersion.versionDir != null) {
-                    baseDir = new java.io.File(currentVersion.versionDir, "games/com.mojang");
-                } else {
-                    baseDir = new java.io.File(getDataDir(), "games/com.mojang");
-                }
-                break;
-            case EXTERNAL:
-                java.io.File externalDir = getExternalFilesDir(null);
-                if (externalDir != null) {
-                    baseDir = new java.io.File(externalDir, "games/com.mojang");
-                } else {
-                    baseDir = new java.io.File(getDataDir(), "games/com.mojang");
-                }
-                break;
-            case INTERNAL:
-            default:
-                baseDir = new java.io.File(getDataDir(), "games/com.mojang");
-                break;
-        }
+        java.io.File baseDir = LauncherStorage.getContentGameDataDir(
+                this,
+                currentVersion.getStorageProfileId(),
+                storageType
+        );
 
         contentManager.setStorageDirectories(
                 new java.io.File(baseDir, "minecraftWorlds"),
@@ -1172,21 +1179,6 @@ import okhttp3.OkHttpClient;
                         .show();
                 return;
             }
-        }
-
-        if (!version.isInstalled && !version.versionIsolation) {
-            trace.warning("Launch cancelled", "Version isolation must be enabled");
-            binding.launchButton.setEnabled(true);
-            new CustomAlertDialog(this)
-                    .setTitleText(getString(R.string.dialog_title_version_isolation))
-                    .setMessage(getString(R.string.dialog_message_version_isolation))
-                    .setPositiveButton(getString(R.string.dialog_positive_enable), v -> {
-                        VersionManager.get(this).setInstanceVersionIsolation(version, true);
-                        performActualLaunch();
-                    })
-                    .setNegativeButton(getString(R.string.dialog_negative_cancel), null)
-                    .show();
-            return;
         }
 
         if (!PlayStoreValidator.isMinecraftFromPlayStore(this)) {

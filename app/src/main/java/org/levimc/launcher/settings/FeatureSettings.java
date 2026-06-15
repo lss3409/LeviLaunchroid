@@ -13,7 +13,9 @@ public class FeatureSettings {
     public enum StorageType {
         INTERNAL,
         EXTERNAL,
-        VERSION_ISOLATION
+        VERSION_ISOLATION,
+        VERSION_ISOLATION_INTERNAL,
+        VERSION_ISOLATION_EXTERNAL
     }
 
     public static void init(Context context) {

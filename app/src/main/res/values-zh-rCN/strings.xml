@@ -41,6 +41,7 @@
     <string name="overwrite">覆盖</string>
     <string name="skip">跳过</string>
     <string name="confirm">确认</string>
+    <string name="retry">重试</string>
 
     <string name="installed_packages">已安装包</string>
     <string name="local_custom">本地自定义</string>
@@ -116,9 +117,12 @@
     <string name="repair_processing">正在提取库文件…</string>
     <string name="repair_finalizing">正在完成修复…</string>
     <string name="storage_migration_title">需要迁移存储目录</string>
-    <string name="storage_migration_message">LeviLauncher 会将数据从 games/org.levimc 迁移到 %1$s。\n\n旧目录会保持不变，但后续版本将移除对旧目录的兼容。</string>
+    <string name="storage_migration_message">LeviLauncher 必须先将数据从 games/org.levimc 迁移到 %1$s，才能继续使用。
+
+这次存储迁移是为了满足 Google Play 上架合规要求，不得不这么做。旧目录会保持不变，但迁移后不再作为运行目录使用。
+
+迁移可能需要一段时间，可以把应用挂在后台等待；大量复制文件期间手机可能会发烫，请您理解。</string>
     <string name="storage_migration_start">迁移</string>
-    <string name="storage_migration_later">稍后</string>
     <string name="storage_migration_permission_denied">需要存储权限才能读取旧目录并进行迁移。</string>
     <string name="storage_migration_progress_title">正在迁移存储</string>
     <string name="storage_migration_progress_subtitle">正在将启动器数据复制到 Android/data</string>
@@ -129,16 +133,17 @@
     <string name="storage_migration_duration_hours_minutes">%1$d 小时 %2$d 分钟</string>
     <string name="storage_migration_duration_minutes_seconds">%1$d 分 %2$d 秒</string>
     <string name="storage_migration_duration_seconds">%1$d 秒</string>
-    <string name="storage_migration_background_hint">迁移可以在后台继续运行，离开此页面不会中断迁移。</string>
-    <string name="storage_migration_pause">暂停迁移</string>
-    <string name="storage_migration_paused_title">迁移已暂停</string>
-    <string name="storage_migration_paused_message">迁移已暂停，下次可继续迁移。</string>
+    <string name="storage_migration_background_hint">迁移可以在后台继续运行。建议保持电量充足；复制大量文件时手机可能会发热，请您理解。</string>
     <string name="storage_migration_completed_title">迁移完成</string>
-    <string name="storage_migration_completed_message">已迁移 %1$d 个文件（%2$s）。%3$d 个文件已是最新。\n\n旧的 games/org.levimc 目录未被删除。</string>
+    <string name="storage_migration_completed_message">已迁移 %1$d 个文件（%2$s）。%3$d 个文件已是最新。
+
+旧的 games/org.levimc 目录未被删除，后续不再使用。</string>
     <string name="storage_migration_partial_title">迁移未完成</string>
-    <string name="storage_migration_partial_message">%1$d/%2$d 个文件未能复制。旧目录已保持不变。下次启动时可以重新尝试迁移。</string>
+    <string name="storage_migration_partial_message">%1$d/%2$d 个文件未能复制。必须完成迁移后才能继续使用 LeviLauncher。</string>
     <string name="storage_migration_failed_title">迁移失败</string>
-    <string name="storage_migration_failed_message">迁移无法继续：%1$s\n\n旧目录已保持不变。</string>
+    <string name="storage_migration_failed_message">迁移无法继续：%1$s
+
+必须完成迁移后才能继续使用 LeviLauncher。</string>
     
     <string name="theme_title">主题模式</string>
     <string name="theme_follow_system">跟随系统</string>
