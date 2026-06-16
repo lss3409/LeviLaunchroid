@@ -51,7 +51,7 @@ public class ModNativeLoader {
             return;
         }
         if (cacheDir == null) {
-            notifyMessage(listener, "Native mod cache directory is not configured");
+            notifyMessage(listener, "Native mod working directory is not configured");
             return;
         }
 
@@ -69,8 +69,8 @@ public class ModNativeLoader {
 
         File cacheModsDir = new File(cacheDir, "mods");
         if (!cacheModsDir.exists() && !cacheModsDir.mkdirs()) {
-            Log.e(TAG, "Failed to create cache mod directory: " + cacheModsDir.getAbsolutePath());
-            notifyMessage(listener, "Failed to create cache mod directory: " + cacheModsDir.getAbsolutePath());
+            Log.e(TAG, "Failed to prepare native mod working directory: " + cacheModsDir.getAbsolutePath());
+            notifyMessage(listener, "Failed to prepare native mod working directory: " + cacheModsDir.getAbsolutePath());
             return;
         }
 
@@ -224,11 +224,11 @@ public class ModNativeLoader {
 
         if (targetDirectory.exists() && !deleteRecursively(targetDirectory)) {
             deleteRecursively(tempDirectory);
-            throw new IOException("Failed to clear cached mod directory: " + targetDirectory.getAbsolutePath());
+            throw new IOException("Failed to prepare native mod directory: " + targetDirectory.getAbsolutePath());
         }
         if (!tempDirectory.renameTo(targetDirectory)) {
             deleteRecursively(tempDirectory);
-            throw new IOException("Failed to promote cached mod directory: " + targetDirectory.getAbsolutePath());
+            throw new IOException("Failed to prepare native mod directory: " + targetDirectory.getAbsolutePath());
         }
 
         File targetFile = new File(targetDirectory, mod.getEntryPath());

@@ -61,11 +61,11 @@ object MinecraftRuntimePreparer {
         listener.onProgress(40, "Preparing game loader")
         listener.onLog("Loading game loader")
         try {
-            trace.mark("System.loadLibrary(preloader) started")
+            trace.mark("Game loader load started")
             System.loadLibrary("preloader")
-            trace.mark("System.loadLibrary(preloader) finished")
+            trace.mark("Game loader load finished")
         } catch (error: UnsatisfiedLinkError) {
-            trace.mark("System.loadLibrary(preloader) skipped", error.message ?: error.javaClass.simpleName)
+            trace.mark("Game loader load skipped", error.message ?: error.javaClass.simpleName)
         }
 
         listener.onLog("Loading native libraries")
@@ -225,7 +225,7 @@ object MinecraftRuntimePreparer {
         val fileName = toLibraryFileName(name)
         listener.onProgress(progress, "Loading native libraries", fileName)
         listener.onLog("Loading native library: $fileName")
-        trace.mark("System.load started", fileName)
+        trace.mark("Native library load started", fileName)
         val result = gameManager.loadLibraryDetailed(name)
         if (!result.loaded && required) {
             listener.onLog("Failed to load native library: ${result.fileName}")
@@ -239,14 +239,14 @@ object MinecraftRuntimePreparer {
         if (result.loaded) {
             listener.onLog("Loaded native library: ${result.fileName}")
             trace.mark(
-                "System.load finished",
+                "Native library load finished",
                 "${result.fileName} in ${result.durationMs}ms from ${result.source}" +
                     (result.detail?.let { " - $it" } ?: "")
             )
         } else {
             listener.onLog("Skipped native library: ${result.fileName}")
             trace.mark(
-                "System.load skipped",
+                "Native library load skipped",
                 "${result.fileName} in ${result.durationMs}ms from ${result.source}" +
                     (result.detail?.let { " - $it" } ?: "")
             )
@@ -263,7 +263,7 @@ object MinecraftRuntimePreparer {
         val cacheDir = resolveNativeModCacheDir(context, launchIntent)
         trace.mark(
             "Native mod loading started",
-            "cache=${cacheDir.absolutePath}; source=${modManager.currentVersion?.modsDir?.absolutePath ?: "<unknown>"}"
+            "mods=${modManager.currentVersion?.modsDir?.absolutePath ?: "<unknown>"}"
         )
         val modLoadLabels = java.util.IdentityHashMap<Mod, String>()
         val skippedIncompatibleMods = mutableListOf<String>()

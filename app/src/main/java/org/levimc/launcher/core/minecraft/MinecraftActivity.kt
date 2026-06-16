@@ -8,6 +8,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import com.mojang.minecraftpe.MainActivity
 import org.levimc.launcher.core.crash.CrashReporter
+import org.levimc.launcher.core.mods.ModManager
 import org.levimc.launcher.core.mods.inbuilt.overlay.InbuiltOverlayManager
 import java.io.File
 
@@ -43,6 +44,9 @@ class MinecraftActivity : MainActivity() {
             returnToLauncherAfterLaunchFailure()
             return
         }
+        trace.mark("Native mod enable started")
+        ModManager.enableLoadedMods()
+        trace.mark("Native mod enable finished")
         trace.mark("Mojang MainActivity super.onCreate starting")
         try {
             gameRuntimeStarted = true
@@ -189,6 +193,7 @@ class MinecraftActivity : MainActivity() {
     override fun onPause() {
         val shouldRestartAfterNormalExit = shouldRestartAfterNormalExit()
         if (shouldRestartAfterNormalExit) {
+            ModManager.disableAndUnloadLoadedMods()
             prepareNormalExitCleanup()
             scheduleNormalExitProcessRestart()
         }
@@ -197,6 +202,8 @@ class MinecraftActivity : MainActivity() {
     }
 
     override fun onDestroy() {
+        ModManager.disableAndUnloadLoadedMods()
+
         val shouldPrepareNormalExit = shouldRestartAfterNormalExit()
         if (shouldPrepareNormalExit) {
             prepareNormalExitCleanup()
