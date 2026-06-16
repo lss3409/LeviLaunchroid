@@ -15,6 +15,9 @@
 ```text
 example-mod/
 ├── manifest.json
+├── config/
+│   ├── config.json
+│   └── config.schema.json
 └── libexample.so
 ```
 
@@ -84,11 +87,15 @@ bool MyMod::unload() {
 
 `getDataDir()` 和 `getConfigDir()` 适合保存模组自己的数据和配置文件。
 
+用户可编辑的 JSON 设置建议使用 `pl::config::ConfigFile<T>`。模板中已经演示了
+强类型 aggregate 配置、默认 `config.json` 自动生成，以及供启动器配置编辑器读取的
+`config.schema.json` 自动生成。
+
 ## 构建 mod
 
 使用 Android NDK toolchain，并构建 `arm64-v8a` 或 `armeabi-v7a`。
 
-模板打包脚本可以完成构建和打包：
+模板打包脚本会构建 mod、生成配置文件，并把它们一起打进 `.levipack`：
 
 ```powershell
 ./scripts/package.ps1 -Abi arm64-v8a

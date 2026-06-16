@@ -12,6 +12,12 @@ mods. New mods should use the C++ template and `PL_REGISTER_MOD`.
 #include <pl/cpp/mod/RegisterHelper.hpp>
 ```
 
+Use the typed config helpers from:
+
+```cpp
+#include <pl/cpp/Config.hpp>
+```
+
 ## Register a Mod
 
 ```cpp
@@ -104,9 +110,16 @@ bool MyMod::unload() {
 }
 ```
 
+## Config
+
+Use `pl::config::ConfigFile<T>` for typed JSON config files, automatic default
+layout updates, and launcher-editable schema generation. See the
+[Config API Reference](/api/config).
+
 ## Notes
 
 - Store mod data in `getDataDir()`.
-- Store user-editable configuration in `getConfigDir()`.
+- Store user-editable configuration in `getConfigDir()`, or use
+  `pl::config::ConfigFile<T>` for typed JSON config.
 - Keep `load()` lightweight and move game-facing work to `enable()` when possible.
 - Clean up resources in the reverse order: `disable()` first, then `unload()`.

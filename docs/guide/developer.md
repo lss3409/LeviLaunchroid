@@ -16,6 +16,9 @@ Your mod logic normally lives in `src/mod/MyMod.cpp`.
 ```text
 example-mod/
 ├── manifest.json
+├── config/
+│   ├── config.json
+│   └── config.schema.json
 └── libexample.so
 ```
 
@@ -85,11 +88,17 @@ Lifecycle timing:
 
 Use `getDataDir()` and `getConfigDir()` for mod-owned files.
 
+For user-editable JSON settings, prefer `pl::config::ConfigFile<T>`. The
+template demonstrates a typed aggregate config, automatic default
+`config.json` generation, and `config.schema.json` generation for the launcher
+config editor.
+
 ## Build a Mod
 
 Use the Android NDK toolchain and build for `arm64-v8a` or `armeabi-v7a`.
 
-The template package script can build and package a mod:
+The template package script builds the mod, generates config files, and packages
+them into the `.levipack`:
 
 ```powershell
 ./scripts/package.ps1 -Abi arm64-v8a
