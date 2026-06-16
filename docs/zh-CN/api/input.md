@@ -48,7 +48,7 @@ PLAPI PreloaderInput_Interface *GetPreloaderInput(void);
 
 ### 返回值
 
-返回 `PreloaderInput_Interface *`。当前实现返回全局接口表。
+返回 `PreloaderInput_Interface *`。
 
 ### 示例
 
@@ -61,12 +61,10 @@ static bool on_touch(int action, int pointerId, float x, float y) {
   return false;
 }
 
-void LeviMod_Load(JavaVM *vm, const PLModInfo *mod_info) {
-  (void)vm;
-  (void)mod_info;
-
+bool MyMod::enable() {
   PreloaderInput_Interface *input = GetPreloaderInput();
   input->RegisterTouchCallback(on_touch);
+  return true;
 }
 ```
 
@@ -144,5 +142,5 @@ input->HideKeyboard();
 ## 注意事项
 
 - 回调列表当前没有注销接口，避免重复注册同一个回调。
-- 回调执行时会持有内部 mutex，不要在回调里做长时间阻塞操作。
-- 软键盘依赖 Java 层已设置当前 Activity；Activity 不存在时调用会被忽略。
+- 回调应保持简短，避免长时间阻塞。
+- 软键盘调用只在游戏 Activity 可用时生效。

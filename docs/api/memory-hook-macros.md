@@ -2,7 +2,8 @@
 
 ## Purpose
 
-`pl/api/memory/Hook.h` provides C++ macros that declare detours, store original functions, and register hooks with less boilerplate.
+`pl/api/memory/Hook.h` provides C++ macros for declaring and registering hooks
+with less boilerplate.
 
 ## Header
 
@@ -47,8 +48,8 @@ LL_STATIC_HOOK(DefType, priority, identifier, module, Ret, ...)
 | --- | --- |
 | `DefType` | Generated hook type name |
 | `priority` | `memory::HookPriority` |
-| `identifier` | Target address, function pointer, symbol name, or pattern |
-| `module` | Module name for symbol or pattern lookup |
+| `identifier` | Target address, function pointer, function name, or pattern |
+| `module` | Target module name |
 | `Ret` | Return type |
 | `...` | Target function parameter list |
 
@@ -73,8 +74,6 @@ void install() {
 
 ## Notes
 
-- String identifiers are resolved through Signature API.
 - `origin(...)` calls the original or next function in the hook chain.
-- Detour signature must match the target ABI.
-- Automatic registration may fail if the target library is not loaded yet.
-
+- Detour parameters and return type must match the target function.
+- Automatic registration may fail if the target function is not available yet.

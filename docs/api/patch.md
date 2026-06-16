@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Patch API reads, writes, and reverts process memory. The C API is the stable ABI boundary; the C++ API is an inline convenience wrapper.
+Patch API reads, writes, and reverts process memory.
 
 ## Header
 
@@ -130,6 +130,5 @@ Reverts all recorded patches.
 - Reusing a patch name overwrites the previous record.
 - Saved original byte length equals the write length.
 - Hex strings are whitespace-separated bytes. Each byte token must contain one or two hex digits.
-- `writeBytes` and `readBytes` reject null or unmapped addresses before copying memory. They cannot prove the address is semantically safe; wrong instruction bytes or patching the wrong function can still crash the process.
-- C++ wrappers are inline and call the C ABI. Do not depend on C++ STL symbols as plugin ABI.
-- The previous `pl::patch::*` C++ symbols are still exported for already built mods. Treat them as legacy runtime compatibility only.
+- `writeBytes` and `readBytes` reject invalid addresses where possible, but wrong instruction bytes or patching the wrong function can still crash the process.
+- Prefer the C++ helpers in new C++ mods.

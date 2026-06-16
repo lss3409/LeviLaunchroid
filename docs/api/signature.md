@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Signature API resolves a symbol name or byte pattern inside a loaded module and returns the matched address.
+Signature API resolves a function name or byte pattern inside a loaded module and returns the matched address.
 
 ## Headers
 
@@ -41,13 +41,13 @@ resolveSignatures(const std::vector<std::string> &signatures,
 
 ### Purpose
 
-First tries to resolve `signature` as a symbol name. If not found, treats it as a byte pattern.
+Resolves `signature` as a function name or byte pattern.
 
 ### Parameters
 
 | Parameter | Description |
 | --- | --- |
-| `signature` | Symbol name or byte pattern; must not be `NULL` |
+| `signature` | Function name or byte pattern; must not be `NULL` |
 | `moduleName` | Module name or path fragment; must not be `NULL` |
 
 ### Return Value
@@ -95,7 +95,6 @@ uintptr_t symbolA = results["SymbolA"];
 
 ## Notes
 
-- `moduleName` must match a module path in `/proc/self/maps`.
+- `moduleName` should match the target library name.
 - Empty or invalid patterns return `0`.
-- Results are cached; do not assume cached addresses survive module reloads.
 - Prefer `resolveSignatures` when resolving multiple patterns.

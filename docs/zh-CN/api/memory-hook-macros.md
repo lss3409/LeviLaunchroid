@@ -2,7 +2,7 @@
 
 ## 作用
 
-`pl/api/memory/Hook.h` 提供 C++ hook 宏，用更少样板代码声明 detour、保存原函数并注册 hook。
+`pl/api/memory/Hook.h` 提供 C++ hook 宏，用更少样板代码声明并注册 hook。
 
 ## 头文件
 
@@ -49,8 +49,8 @@ LL_STATIC_HOOK(DefType, priority, identifier, module, Ret, ...)
 | --- | --- |
 | `DefType` | 生成的 hook 类型名 |
 | `priority` | `memory::HookPriority` |
-| `identifier` | 目标函数地址、函数指针、符号名或 pattern |
-| `module` | 解析符号名或 pattern 时使用的模块名 |
+| `identifier` | 目标函数地址、函数指针、函数名或 pattern |
+| `module` | 目标模块名 |
 | `Ret` | 返回值类型 |
 | `...` | 目标函数参数列表 |
 
@@ -107,7 +107,6 @@ LL_STATIC_HOOK(MyAddressHook,
 
 ## 注意事项
 
-- `identifier` 是字符串时会通过 Signature API 解析；解析失败时 `hook()` 返回 `-1`。
 - `origin(...)` 会调用原函数或 hook 链中的下一个函数。
-- detour 参数和返回值必须与目标函数 ABI 匹配。
-- 自动注册发生在静态初始化阶段，目标库未加载时可能失败；这种情况应使用手动注册宏。
+- detour 参数和返回值必须与目标函数匹配。
+- 自动注册时目标函数不可用可能会失败；这种情况应使用手动注册宏。

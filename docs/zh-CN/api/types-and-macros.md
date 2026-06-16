@@ -2,7 +2,7 @@
 
 ## 作用
 
-类型和宏头定义导出符号、C ABI 声明方式和基础类型别名。
+类型和宏头提供常用辅助宏与基础类型别名。
 
 ## 头文件
 
@@ -19,13 +19,6 @@ C++:
 #include <pl/cpp/Types.hpp>
 ```
 
-旧路径：
-
-```cpp
-#include <pl/api/Macro.h>
-#include <pl/api/Types.h>
-```
-
 ## 宏
 
 ### VA_EXPAND
@@ -34,7 +27,7 @@ C++:
 #define VA_EXPAND(...) __VA_ARGS__
 ```
 
-用于展开可变参数宏。hook 宏内部会使用它。
+用于展开可变参数宏。
 
 ### PLAPI
 
@@ -46,7 +39,7 @@ C++:
 #endif
 ```
 
-作用：标记需要默认可见性的导出符号。
+作用：标记公开的 native 接口函数。
 
 使用场景：
 
@@ -64,7 +57,7 @@ PLAPI void MyExportedFunction(void);
 #endif
 ```
 
-作用：声明 C ABI 导出函数。C++ 代码中可避免 name mangling。
+作用：声明 C 风格公开函数。
 
 ## 基础类型
 
@@ -92,6 +85,4 @@ PLAPI void MyExportedFunction(void);
 
 ## 注意事项
 
-- C ABI 头只使用 C 可用类型，不暴露 STL。
 - 新代码优先使用 `pl/c/*` 或 `pl/cpp/*`。
-- 旧 `pl/api/*` 路径保留用于兼容已有 mod。

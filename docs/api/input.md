@@ -61,12 +61,10 @@ static bool on_touch(int action, int pointerId, float x, float y) {
   return false;
 }
 
-void LeviMod_Load(JavaVM *vm, const PLModInfo *mod_info) {
-  (void)vm;
-  (void)mod_info;
-
+bool MyMod::enable() {
   PreloaderInput_Interface *input = GetPreloaderInput();
   input->RegisterTouchCallback(on_touch);
+  return true;
 }
 ```
 
@@ -136,6 +134,5 @@ None.
 ## Notes
 
 - There is currently no unregister API. Avoid registering the same callback repeatedly.
-- Internal mutex is held while callbacks run. Do not block for long periods.
-- Soft keyboard calls are ignored when no Activity is available.
-
+- Keep callbacks short and non-blocking.
+- Soft keyboard calls only work while the game Activity is available.

@@ -1,50 +1,18 @@
-# Mod 入口 API
+# Mod API
 
 ## 作用
 
-Mod 入口 API 定义 preloader 如何把 mod 元数据和 `JavaVM` 传给 native mod。每个 native mod 必须导出 `LeviMod_Load`。
+Mod API 提供 LeviLauncher native mod 使用的 `MyMod` 生命周期写法。新 mod
+建议使用 C++ 模板和 `PL_REGISTER_MOD`。
 
 ## 头文件
 
-C:
-
-```c
-#include <pl/c/Mod.h>
-```
-
-C++:
-
 ```cpp
 #include <pl/cpp/Mod.hpp>
+#include <pl/cpp/mod/RegisterHelper.hpp>
 ```
 
-## 类型签名
-
-```c
-typedef struct PLModInfo {
-  uint32_t size;
-  const char *mod_id;
-  const char *display_name;
-  const char *author;
-  const char *version;
-  const char *entry_path;
-  const char *entry_file_name;
-  const char *library_path;
-  const char *icon_path;
-  const char *manifest_path;
-  const char *mod_root_path;
-} PLModInfo;
-
-typedef void (*PLModLoadFunc)(JavaVM *vm, const PLModInfo *mod_info);
-```
-
-mod 需要导出：
-
-```c
-void LeviMod_Load(JavaVM *vm, const PLModInfo *mod_info);
-```
-
-C++ mod 可以使用 `pl::mod` 自动生成这个入口：
+## 注册模组
 
 ```cpp
 #include "mod/MyMod.h"
@@ -53,58 +21,91 @@ C++ mod 可以使用 `pl::mod` 自动生成这个入口：
 PL_REGISTER_MOD(my_mod::MyMod, my_mod::MyMod::getInstance());
 ```
 
-`PL_REGISTER_MOD` 会在加载时先调用 `load()`，成功后再调用 `enable()`。
-`disable()` 和 `unload()` 可以先绑定，供未来 launcher 暴露 native 生命周期事件时使用；
-当前 Java 侧加载流程不会主动触发它们。
+`MyMod` 应提供这些方法：
 
-## 字段说明
+```cpp
+class MyMod {
+public:
+  static MyMod &getInstance();
 
-| 字段 | 作用 |
+  bool load();
+  bool enable();
+  bool disable();
+  bool unload();
+};
+```
+
+`unload()` 是可选的。模组持有需要在退出时释放的资源时再添加即可。
+
+## 生命周期
+
+| 方法 | 调用时机 |
 | --- | --- |
-| `size` | 当前结构体大小，用于兼容性判断 |
-| `mod_id` | mod 目录名 |
-| `display_name` | manifest 中的 `name`，为空时使用目录名 |
-| `author` | manifest 中的 `author` |
-| `version` | manifest 中的 `version` |
-| `entry_path` | manifest 中的入口相对路径 |
-| `entry_file_name` | 入口 `.so` 文件名 |
-| `library_path` | 实际加载的 `.so` 路径 |
-| `icon_path` | manifest 中有效的图标相对路径，可能为空 |
-| `manifest_path` | manifest 文件路径 |
-| `mod_root_path` | mod 根目录路径 |
+| `load()` | 模组被加载时。 |
+| `enable()` | 游戏即将启动时。 |
+| `disable()` | 游戏正在结束时。 |
+| `unload()` | 模组进行最终清理时。 |
 
-## 参数
+每个方法成功时返回 `true`，失败时返回 `false`。
 
-| 参数 | 说明 |
+## NativeMod
+
+在模组类里通过 `getSelf()` 访问当前模组对象：
+
+```cpp
+pl::mod::NativeMod &MyMod::getSelf() const {
+  return *pl::mod::NativeMod::current();
+}
+```
+
+常用方法：
+
+| 方法 | 作用 |
 | --- | --- |
-| `vm` | 当前进程的 `JavaVM *` |
-| `mod_info` | 当前 mod 的元数据，可能为 `NULL` 时应防御处理 |
+| `getLogger()` | 当前模组专属 logger。 |
+| `getId()` | 模组 id。 |
+| `getName()` | 显示名称。 |
+| `getAuthor()` | manifest 中的作者。 |
+| `getVersion()` | manifest 中的版本。 |
+| `getModDir()` | 模组包目录。 |
+| `getDataDir()` | 模组数据文件目录。 |
+| `getConfigDir()` | 模组配置文件目录。 |
+| `getResourceDir()` | 模组资源文件目录。 |
+| `getManifestPath()` | manifest 文件路径。 |
+| `getLibraryPath()` | 模组库文件路径。 |
+| `getJavaVM()` | 当前 Java VM 指针。 |
 
-## 返回值
+## 示例
 
-`LeviMod_Load` 没有返回值。加载成功与否由 preloader 的 `.so` 加载和符号解析过程决定。
+```cpp
+bool MyMod::load() {
+  auto &self = getSelf();
+  self.getLogger().info("Loading {}", self.getName());
 
-## 最小示例
+  std::filesystem::create_directories(self.getDataDir());
+  std::filesystem::create_directories(self.getConfigDir());
+  return true;
+}
 
-```c
-#include <pl/c/Mod.h>
+bool MyMod::enable() {
+  getSelf().getLogger().info("Enabled");
+  return true;
+}
 
-void LeviMod_Load(JavaVM *vm, const PLModInfo *mod_info) {
-  (void)vm;
-  if (!mod_info || mod_info->size < sizeof(PLModInfo)) {
-    return;
-  }
+bool MyMod::disable() {
+  getSelf().getLogger().info("Disabled");
+  return true;
+}
 
-  const char *id = mod_info->mod_id;
-  (void)id;
+bool MyMod::unload() {
+  getSelf().getLogger().info("Unloaded");
+  return true;
 }
 ```
 
 ## 注意事项
 
-- `PLModInfo` 内的字符串由 preloader 持有，只保证在 `LeviMod_Load` 调用期间可安全读取。需要长期保存时请复制字符串。
-- `mod_root_path`、`manifest_path` 和 `library_path` 指向当前 profile 的
-  `mods` 目录下的原始 mod 包位置。LeviLauncher 可能从运行时 cache 加载暂存副本，
-  但公开给 mod 的元数据仍然以原始包位置为准。
-- C++ mod 必须用 `extern "C"` 导出 `LeviMod_Load`，否则符号名会被 C++ name mangling 改掉。
-- 不要修改 `PLModInfo` 指针指向的数据。
+- 模组数据放到 `getDataDir()`。
+- 用户可编辑配置放到 `getConfigDir()`。
+- `load()` 尽量保持轻量，和游戏运行相关的工作优先放到 `enable()`。
+- 清理资源时按相反顺序处理：先 `disable()`，再 `unload()`。

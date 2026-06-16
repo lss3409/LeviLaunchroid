@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Type and macro headers define exported symbol visibility, C ABI declarations, and base type aliases.
+Type and macro headers provide small helper macros and common type aliases.
 
 ## Headers
 
@@ -19,24 +19,17 @@ C++:
 #include <pl/cpp/Types.hpp>
 ```
 
-Legacy:
-
-```cpp
-#include <pl/api/Macro.h>
-#include <pl/api/Types.h>
-```
-
 ## VA_EXPAND
 
 ```c
 #define VA_EXPAND(...) __VA_ARGS__
 ```
 
-Expands variadic macro arguments. Hook macros use it internally.
+Expands variadic macro arguments.
 
 ## PLAPI
 
-Marks exported symbols with default visibility when building preloader.
+Marks a function as part of the public native interface.
 
 ```c
 PLAPI void MyExportedFunction(void);
@@ -44,7 +37,7 @@ PLAPI void MyExportedFunction(void);
 
 ## PLCAPI
 
-Declares C ABI exported functions.
+Declares a public C-style function.
 
 ```c
 PLCAPI void MyCFunction(void);
@@ -74,7 +67,4 @@ PLCAPI void MyCFunction(void);
 
 ## Notes
 
-- C ABI headers do not expose STL types.
 - Prefer `pl/c/*` or `pl/cpp/*` in new code.
-- Legacy `pl/api/*` paths remain for compatibility.
-

@@ -2,7 +2,8 @@
 
 ## Purpose
 
-Hook API replaces a target function with a detour function and stores the original or next function pointer. Multiple detours on the same target are chained by priority.
+Hook API lets a mod run custom code before or instead of a target function.
+Multiple hooks on the same target are ordered by priority.
 
 ## Headers
 
@@ -66,7 +67,7 @@ bool unhook(FuncPtr target, FuncPtr detour);
 
 ### Purpose
 
-Installs a hook. Adding another hook to the same target rebuilds the detour chain.
+Installs a hook for a target function.
 
 ### Parameters
 
@@ -74,7 +75,7 @@ Installs a hook. Adding another hook to the same target rebuilds the detour chai
 | --- | --- |
 | `target` | Target function address; must not be `NULL` |
 | `detour` | Replacement function address; must not be `NULL` |
-| `originalFunc` | Receives the original or next function pointer; must not be `NULL` |
+| `originalFunc` | Receives the function pointer to call from the detour; must not be `NULL` |
 | `priority` | Hook priority; lower values run earlier |
 
 ### Return Value
@@ -82,7 +83,7 @@ Installs a hook. Adding another hook to the same target rebuilds the detour chai
 | Value | Description |
 | --- | --- |
 | `0` | Success |
-| `-1` | Invalid argument or installation failure |
+| `-1` | Invalid argument or hook failure |
 
 ### Example
 
@@ -125,11 +126,11 @@ Returns `true` when removed, otherwise `false`.
 
 - Lower priority values run earlier.
 - Same priority keeps registration order.
-- `originalFunc` points to the next function in the chain; the last one points to the real original.
+- `originalFunc` points to the function that should be called from the detour.
 
 ## Common Mistakes
 
 - Passing `NULL` as `originalFunc`: `pl_hook` returns `-1`.
-- Detour signature does not match target ABI.
+- Detour parameters or return type do not match the target function.
 - Calling the target address directly inside detour, causing recursion.
-- Installing too early before the target library is loaded.
+- Installing before the target function is available.

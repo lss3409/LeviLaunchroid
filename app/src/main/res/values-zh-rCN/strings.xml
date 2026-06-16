@@ -112,7 +112,7 @@
     <string name="missing_libs_message">检测到缺少必要的游戏库文件，是否立即修复？</string>
     <string name="repair">修复</string>
     <string name="repair_libs_dialog_title">修复游戏库文件</string>
-    <string name="repair_libs_dialog_subtitle">正在准备 Minecraft 原生运行库</string>
+    <string name="repair_libs_dialog_subtitle">正在准备游戏库文件</string>
     <string name="repair_preparing">准备中…</string>
     <string name="repair_processing">正在提取库文件…</string>
     <string name="repair_finalizing">正在完成修复…</string>
@@ -332,7 +332,7 @@
     <!-- 启动页 -->
     <string name="splash_logo_desc">叶子标志</string>
     <string name="minecraft_loading_title">正在启动 Minecraft</string>
-    <string name="minecraft_loading_subtitle">准备原生库与已启用模组</string>
+    <string name="minecraft_loading_subtitle">准备游戏文件与已启用模组</string>
     <string name="minecraft_loading_status_preparing">正在准备运行时</string>
     <string name="minecraft_loading_log_title">启动日志</string>
     <string name="minecraft_loading_complete">运行时已就绪</string>
@@ -410,7 +410,7 @@
     <!-- Inbuilt Mods -->
     <string name="inbuilt_mods">内置模组</string>
     <string name="inbuilt_mods_title">🔧 内置模组</string>
-    <string name="inbuilt_mods_subtitle">无需原生库即可运行的内部模组</string>
+    <string name="inbuilt_mods_subtitle">开箱即用的内置模组</string>
     <string name="no_inbuilt_mods_available">所有内置模组均已添加</string>
     <string name="inbuilt_mod_added">%s 已添加到模组</string>
     <string name="inbuilt_mod_removed">%s 已从模组移除</string>
@@ -669,7 +669,7 @@
         <item>你可以在内容管理页面导入 .mcworld、.mcpack 和 .mcaddon 文件。</item>
         <item>在启动器中管理多个 Xbox 账号，并在它们之间无缝切换。</item>
         <item>CurseForge 可以让你直接浏览并下载社区内容。</item>
-        <item>加载外部原生 SO 模块以扩展或增强 Minecraft 功能和性能。</item>
+        <item>导入模组以扩展或增强 Minecraft 功能和性能。</item>
     </string-array>
     <string name="theme_color_title">主题颜色</string>
     <string name="theme_color_desc">应用的主强调色</string>

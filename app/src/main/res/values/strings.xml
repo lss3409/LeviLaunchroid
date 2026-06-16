@@ -146,7 +146,7 @@
     <string name="missing_libs_message">Required game library files are missing. Do you want to repair them now?</string>
     <string name="repair">Repair</string>
     <string name="repair_libs_dialog_title">Repairing Game Libraries</string>
-    <string name="repair_libs_dialog_subtitle">Preparing native runtime files</string>
+    <string name="repair_libs_dialog_subtitle">Preparing game library files</string>
     <string name="repair_preparing">Preparing…</string>
     <string name="repair_processing">Extracting libraries…</string>
     <string name="repair_finalizing">Finalizing repair…</string>
@@ -395,10 +395,10 @@ Migration must complete before LeviLauncher can continue.</string>
     <!-- Splash -->
     <string name="splash_logo_desc">Leaf logo</string>
     <string name="minecraft_loading_title">Starting Minecraft</string>
-    <string name="minecraft_loading_subtitle">Preparing native libraries and enabled mods</string>
-    <string name="minecraft_loading_status_preparing">Preparing runtime</string>
+    <string name="minecraft_loading_subtitle">Preparing game files and enabled mods</string>
+    <string name="minecraft_loading_status_preparing">Preparing game</string>
     <string name="minecraft_loading_log_title">Launch Log</string>
-    <string name="minecraft_loading_complete">Runtime ready</string>
+    <string name="minecraft_loading_complete">Game ready</string>
     <string name="minecraft_loading_entering_game">Entering Minecraft</string>
     <string name="minecraft_loading_failed">Launch failed</string>
     <string name="minecraft_loading_return">Back to Launcher</string>
@@ -475,7 +475,7 @@ Migration must complete before LeviLauncher can continue.</string>
     <!-- Inbuilt Mods -->
     <string name="inbuilt_mods">Inbuilt Mods</string>
     <string name="inbuilt_mods_title">Inbuilt Mods</string>
-    <string name="inbuilt_mods_subtitle">Internal mods that run without native libraries</string>
+    <string name="inbuilt_mods_subtitle">Built-in mods ready to use</string>
     <string name="no_inbuilt_mods_available">All inbuilt mods have been added</string>
     <string name="inbuilt_mod_added">%s added to mods</string>
     <string name="inbuilt_mod_removed">%s removed from mods</string>
@@ -676,7 +676,7 @@ Migration must complete before LeviLauncher can continue.</string>
         <item>You can import .mcworld, .mcpack, and .mcaddon files from the Content Management page.</item>
         <item>Manage multiple Xbox accounts inside the launcher and switch between them seamlessly.</item>
         <item>CurseForge lets you browse and download community content directly.</item>
-        <item>Load external native SO modules to extend or enhance Minecraft features and performance.</item>
+        <item>Import mods to extend or enhance Minecraft features and performance.</item>
     </string-array>
 
     <string name="theme_color_title">Theme Color</string>

@@ -1,50 +1,18 @@
-# Mod Entry API
+# Mod API
 
 ## Purpose
 
-The Mod Entry API defines how preloader passes mod metadata and `JavaVM` to a native mod. Every native mod must export `LeviMod_Load`.
+The Mod API provides the `MyMod` lifecycle style used by LeviLauncher native
+mods. New mods should use the C++ template and `PL_REGISTER_MOD`.
 
 ## Headers
 
-C:
-
-```c
-#include <pl/c/Mod.h>
-```
-
-C++:
-
 ```cpp
 #include <pl/cpp/Mod.hpp>
+#include <pl/cpp/mod/RegisterHelper.hpp>
 ```
 
-## Signatures
-
-```c
-typedef struct PLModInfo {
-  uint32_t size;
-  const char *mod_id;
-  const char *display_name;
-  const char *author;
-  const char *version;
-  const char *entry_path;
-  const char *entry_file_name;
-  const char *library_path;
-  const char *icon_path;
-  const char *manifest_path;
-  const char *mod_root_path;
-} PLModInfo;
-
-typedef void (*PLModLoadFunc)(JavaVM *vm, const PLModInfo *mod_info);
-```
-
-The mod must export:
-
-```c
-void LeviMod_Load(JavaVM *vm, const PLModInfo *mod_info);
-```
-
-For C++ mods, `pl::mod` can generate that entry point:
+## Register a Mod
 
 ```cpp
 #include "mod/MyMod.h"
@@ -53,59 +21,92 @@ For C++ mods, `pl::mod` can generate that entry point:
 PL_REGISTER_MOD(my_mod::MyMod, my_mod::MyMod::getInstance());
 ```
 
-`PL_REGISTER_MOD` calls `load()` first and then `enable()` when loading
-succeeds. `disable()` and `unload()` callbacks can be bound for future launcher
-lifecycle events, but current Java-side loading does not trigger them.
+`MyMod` should provide these methods:
 
-## Fields
+```cpp
+class MyMod {
+public:
+  static MyMod &getInstance();
 
-| Field | Purpose |
+  bool load();
+  bool enable();
+  bool disable();
+  bool unload();
+};
+```
+
+`unload()` is optional. Add it when the mod owns resources that should be
+released during shutdown.
+
+## Lifecycle
+
+| Method | When it runs |
 | --- | --- |
-| `size` | Size of the current structure for compatibility checks |
-| `mod_id` | Mod directory name |
-| `display_name` | Manifest `name`; directory name is used when empty |
-| `author` | Manifest `author` |
-| `version` | Manifest `version` |
-| `entry_path` | Manifest entry relative path |
-| `entry_file_name` | Entry `.so` file name |
-| `library_path` | Actual loaded `.so` path |
-| `icon_path` | Valid icon relative path, or empty |
-| `manifest_path` | Manifest file path |
-| `mod_root_path` | Mod root directory |
+| `load()` | The mod is loaded. |
+| `enable()` | The game is about to start. |
+| `disable()` | The game is closing. |
+| `unload()` | The mod is doing final cleanup. |
 
-## Parameters
+Each method should return `true` when it succeeds and `false` when it fails.
 
-| Parameter | Description |
+## NativeMod
+
+Use `getSelf()` in your mod class to access the current mod object:
+
+```cpp
+pl::mod::NativeMod &MyMod::getSelf() const {
+  return *pl::mod::NativeMod::current();
+}
+```
+
+Common methods:
+
+| Method | Purpose |
 | --- | --- |
-| `vm` | Current process `JavaVM *` |
-| `mod_info` | Current mod metadata |
-
-## Return Value
-
-`LeviMod_Load` returns nothing.
+| `getLogger()` | Logger dedicated to this mod. |
+| `getId()` | Mod id. |
+| `getName()` | Display name. |
+| `getAuthor()` | Author from manifest. |
+| `getVersion()` | Version from manifest. |
+| `getModDir()` | Mod package directory. |
+| `getDataDir()` | Directory for mod data files. |
+| `getConfigDir()` | Directory for mod configuration files. |
+| `getResourceDir()` | Directory for bundled resource files. |
+| `getManifestPath()` | Manifest file path. |
+| `getLibraryPath()` | Mod library path. |
+| `getJavaVM()` | Current Java VM pointer. |
 
 ## Example
 
-```c
-#include <pl/c/Mod.h>
+```cpp
+bool MyMod::load() {
+  auto &self = getSelf();
+  self.getLogger().info("Loading {}", self.getName());
 
-void LeviMod_Load(JavaVM *vm, const PLModInfo *mod_info) {
-  (void)vm;
-  if (!mod_info || mod_info->size < sizeof(PLModInfo)) {
-    return;
-  }
+  std::filesystem::create_directories(self.getDataDir());
+  std::filesystem::create_directories(self.getConfigDir());
+  return true;
+}
 
-  const char *id = mod_info->mod_id;
-  (void)id;
+bool MyMod::enable() {
+  getSelf().getLogger().info("Enabled");
+  return true;
+}
+
+bool MyMod::disable() {
+  getSelf().getLogger().info("Disabled");
+  return true;
+}
+
+bool MyMod::unload() {
+  getSelf().getLogger().info("Unloaded");
+  return true;
 }
 ```
 
 ## Notes
 
-- Strings inside `PLModInfo` are owned by preloader and should be copied if stored.
-- `mod_root_path`, `manifest_path`, and `library_path` point to the original
-  mod package under the selected profile's `mods` directory. LeviLauncher may
-  load a staged copy from its runtime cache, but public mod metadata remains
-  rooted at the original package location.
-- C++ mods must export `LeviMod_Load` with `extern "C"`.
-- Do not mutate data pointed to by `PLModInfo`.
+- Store mod data in `getDataDir()`.
+- Store user-editable configuration in `getConfigDir()`.
+- Keep `load()` lightweight and move game-facing work to `enable()` when possible.
+- Clean up resources in the reverse order: `disable()` first, then `unload()`.

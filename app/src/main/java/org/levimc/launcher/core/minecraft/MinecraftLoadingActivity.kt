@@ -82,7 +82,7 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
         MinecraftLaunchSession.clear()
         trace.milestone("Launch screen ready")
         appendLog("Preparing launch")
-        appendLog("Preparing native libraries")
+        appendLog("Preparing game files")
         startPreparingAfterFirstDraw()
     }
 
@@ -124,7 +124,7 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
         if (preparingStarted) return
         preparingStarted = true
         trace.milestone("Runtime preparation continuing")
-        appendLog("Preparing runtime")
+        appendLog("Preparing game")
         startPreparing()
     }
 

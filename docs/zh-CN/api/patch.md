@@ -2,7 +2,7 @@
 
 ## 作用
 
-Patch API 用于读取、写入和回滚进程内存。C API 是稳定 ABI 边界；C++ API 是基于 C ABI 的 inline 便利封装。
+Patch API 用于读取、写入和回滚进程内存。
 
 ## 头文件
 
@@ -134,7 +134,5 @@ C++ wrapper 返回读取到的字节数组，失败时返回空数组。
 - 同名 patch 会覆盖旧记录；需要多个独立 patch 时使用不同名称。
 - 写入前会保存原始字节，保存长度等于本次写入长度。
 - hex 字符串使用空白分隔字节，每个字节 token 必须是一到两个十六进制字符。
-- `writeBytes` 和 `readBytes` 会在复制内存前拒绝空地址或未映射地址，但这只能避免明显的空指针崩溃，不能证明 patch 在语义上安全。
-- patch 地址和字节必须匹配目标 ABI 指令集；写错函数或写错指令仍会导致进程崩溃。
-- C++ wrapper 是 inline 封装并调用 C ABI，不要把 C++ STL 符号当作插件 ABI 依赖。
-- 旧的 `pl::patch::*` C++ 符号仍会导出，用于兼容已经编译好的旧 mod；它们只属于 legacy 运行时兼容。
+- `writeBytes` 和 `readBytes` 会尽量拒绝无效地址，但写错函数或写错指令仍会导致进程崩溃。
+- C++ mod 优先使用 C++ helpers。

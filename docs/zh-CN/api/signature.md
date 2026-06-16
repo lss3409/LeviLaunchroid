@@ -2,7 +2,7 @@
 
 ## 作用
 
-Signature API 用于在已加载模块中解析符号名或字节特征码，返回匹配地址。
+Signature API 用于在已加载模块中解析函数名或字节特征码，返回匹配地址。
 
 ## 头文件
 
@@ -41,13 +41,13 @@ resolveSignatures(const std::vector<std::string> &signatures,
 
 ### 作用
 
-优先按符号名解析；如果符号不存在，则把 `signature` 当作字节 pattern 扫描模块可读内存区域。
+按函数名或字节 pattern 解析地址。
 
 ### 参数
 
 | 参数 | 说明 |
 | --- | --- |
-| `signature` | 符号名或字节 pattern，不能为 `NULL` |
+| `signature` | 函数名或字节 pattern，不能为 `NULL` |
 | `moduleName` | 模块名或路径片段，不能为 `NULL` |
 
 ### 返回值
@@ -97,7 +97,6 @@ uintptr_t symbolA = results["SymbolA"];
 
 ## 注意事项
 
-- `moduleName` 必须能匹配 `/proc/self/maps` 中的模块路径。
+- `moduleName` 应匹配目标库名称。
 - pattern 为空或格式非法时返回 `0`。
-- 结果会缓存；模块重新加载或内存布局变化时不要假设旧地址仍有效。
 - 批量解析多个 signature 时优先使用 `resolveSignatures`，避免重复扫描。

@@ -1,10 +1,15 @@
 # Native Mod Quick Start
 
-This page is for developers building preload-native mods for LeviLauncher. Regular launcher users should start with [Getting Started](/guide/getting-started).
+This page is for developers building native mods for LeviLauncher. Regular
+launcher users should start with [Getting Started](/guide/getting-started).
 
-## How Loading Works
+## Recommended Template
 
-Preloader reads `manifest.json` from a mod directory, loads the `.so` pointed to by `entry`, finds the exported `LeviMod_Load` symbol, and calls it.
+Start from the LeviLauncher Android mod template. It provides a ready-to-build
+CMake project, a sample `MyMod` class, manifest configuration, packaging script,
+and CI workflow.
+
+Your mod logic normally lives in `src/mod/MyMod.cpp`.
 
 ## Directory Layout
 
@@ -30,61 +35,73 @@ example-mod/
 | Field | Purpose | Required |
 | --- | --- | --- |
 | `type` | Must be `preload-native`. | Yes |
-| `entry` | Safe relative path to the mod entry `.so`. | Yes |
-| `name` | Display name. The directory name is used when empty. | No |
+| `entry` | Relative path to the mod library. | Yes |
+| `name` | Display name. | No |
 | `author` | Author. | No |
 | `version` | Mod version. | No |
-| `icon` | Relative icon path. Invalid paths are ignored. | No |
+| `icon` | Relative icon path. | No |
 | `minecraft_versions` | Compatible Minecraft versions. Exact strings and `*` prefix wildcards are supported. Missing or empty means all versions. | No |
 
-## C Entry Example
-
-```c
-#include <android/log.h>
-#include <pl/c/Mod.h>
-
-void LeviMod_Load(JavaVM *vm, const PLModInfo *mod_info) {
-  (void)vm;
-
-  const char *name = mod_info && mod_info->display_name
-                         ? mod_info->display_name
-                         : "unknown";
-  __android_log_print(ANDROID_LOG_INFO, "ExampleMod", "Loaded %s", name);
-}
-```
-
-## C++ Entry Example
+## MyMod Example
 
 ```cpp
-#include <android/log.h>
-#include <pl/cpp/Mod.hpp>
+bool MyMod::load() {
+  getSelf().getLogger().info("Loaded {}", getSelf().getName());
+  return true;
+}
 
-extern "C" void LeviMod_Load(JavaVM *vm, const PLModInfo *mod_info) {
-  (void)vm;
-  __android_log_print(ANDROID_LOG_INFO, "ExampleMod", "Loaded %s",
-                      mod_info ? mod_info->mod_id : "unknown");
+bool MyMod::enable() {
+  return true;
+}
+
+bool MyMod::disable() {
+  return true;
+}
+
+bool MyMod::unload() {
+  return true;
 }
 ```
+
+Lifecycle timing:
+
+1. `load()` runs when the mod is loaded.
+2. `enable()` runs before the game starts.
+3. `disable()` runs when the game is closing.
+4. `unload()` runs during final mod cleanup.
+
+## Useful APIs
+
+- `getLogger()`
+- `getId()`
+- `getName()`
+- `getModDir()`
+- `getDataDir()`
+- `getConfigDir()`
+- `getResourceDir()`
+- `getManifestPath()`
+- `getLibraryPath()`
+- `getJavaVM()`
+
+Use `getDataDir()` and `getConfigDir()` for mod-owned files.
 
 ## Build a Mod
 
-```cmake
-cmake_minimum_required(VERSION 3.22)
-project(example_mod LANGUAGES C CXX)
+Use the Android NDK toolchain and build for `arm64-v8a` or `armeabi-v7a`.
 
-add_library(example SHARED src/example.cpp)
+The template package script can build and package a mod:
 
-target_include_directories(example PRIVATE
-    path/to/preloader/src)
+```powershell
+./scripts/package.ps1 -Abi arm64-v8a
 ```
 
-Use the Android NDK toolchain and build for a supported ARM ABI.
+Import the generated `.levipack` into LeviLauncher.
 
 ## Common Errors
 
-- `LeviMod_Load` is not exported with C ABI. C++ mods must use `extern "C"`.
 - `manifest.json` has a `type` other than `preload-native`.
-- `entry` is absolute, contains `..`, or does not point to a `.so`.
-- The mod was built for an unsupported ABI.
+- `entry` is empty, absolute, or does not point to a `.so`.
+- The mod was built for an unsupported Android architecture.
+- The selected Minecraft version is not listed in `minecraft_versions`.
 
-Continue with the [Preloader API Reference](/api/mod) when the minimal mod loads correctly.
+Continue with the [Mod API Reference](/api/mod) when the minimal mod loads correctly.
