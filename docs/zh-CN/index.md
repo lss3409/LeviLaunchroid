@@ -18,6 +18,9 @@ hero:
     - theme: alt
       text: 开发者文档
       link: /zh-CN/guide/developer
+    - theme: alt
+      text: 下载
+      link: https://github.com/LiteLDev/LeviLaunchroid/releases/latest
 
 features:
   - title: 官方游戏优先

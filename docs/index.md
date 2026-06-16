@@ -18,6 +18,9 @@ hero:
     - theme: alt
       text: Developer docs
       link: /guide/developer
+    - theme: alt
+      text: Download
+      link: https://github.com/LiteLDev/LeviLaunchroid/releases/latest
 
 features:
   - title: Official game first
