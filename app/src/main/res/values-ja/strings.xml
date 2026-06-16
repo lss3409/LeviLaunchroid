@@ -650,4 +650,38 @@ LeviLauncher を続行するには移行を完了する必要があります。<
 
     <string name="unsupported_version_title">サポートされていないバージョン</string>
     <string name="unsupported_version_msg">このランチャーは1.21.80より前のMinecraftバージョンをサポートしていません。</string>
+    <!-- Mod Config -->
+    <string name="mod_author_byline">by %s</string>
+    <string name="mod_version_chip">バージョン %s</string>
+    <string name="mod_config_title_format">%s の設定</string>
+    <string name="mod_config_not_found">編集可能な設定が見つかりません</string>
+    <string name="mod_config_load_failed">設定の読み込みに失敗しました: %s</string>
+    <string name="mod_config_save_failed">設定の保存に失敗しました</string>
+    <string name="mod_config_saved">設定を保存しました</string>
+    <string name="mod_config_restart_hint">設定ファイルを保存し、.backup ファイルを保持しました。</string>
+    <string name="mod_config_validation_failed">設定の検証に失敗しました</string>
+    <string name="mod_config_invalid_json">無効な JSON</string>
+    <string name="mod_config_expand">展開</string>
+    <string name="mod_config_collapse">折りたたむ</string>
+    <string name="mod_config_raw_json">元の JSON を編集</string>
+    <string name="mod_config_raw_json_short">JSON</string>
+    <string name="mod_config_item_label">項目 %1$s</string>
+    <string name="mod_config_object_desc">関連設定のグループ</string>
+    <string name="mod_config_array_desc">値のリスト</string>
+    <string name="mod_config_range_prefix">範囲</string>
+    <string name="mod_config_error_number">%1$s は数値である必要があります</string>
+    <string name="mod_config_error_minimum">%1$s は %2$s 以上である必要があります</string>
+    <string name="mod_config_error_maximum">%1$s は %2$s 以下である必要があります</string>
+    <string name="mod_config_error_boolean">%1$s はオンまたはオフである必要があります</string>
+    <string name="mod_config_error_string">%1$s はテキストである必要があります</string>
+    <plurals name="mod_config_files_count">
+        <item quantity="other">%d 個の編集可能な設定</item>
+    </plurals>
+    <plurals name="mod_config_choices_count">
+        <item quantity="other">%d 個の選択肢</item>
+    </plurals>
+    <plurals name="mod_config_items_count">
+        <item quantity="other">%d 個の項目</item>
+    </plurals>
+
 </resources>

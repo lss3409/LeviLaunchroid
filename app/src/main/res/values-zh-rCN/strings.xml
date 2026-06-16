@@ -324,6 +324,54 @@
     <string name="mod_disabled">模组已禁用</string>
     <string name="mod_filename_format">文件：%s</string>
     <string name="mod_enable_status">启用状态</string>
+    <string name="mod_icon_content_description">模组图标</string>
+    <string name="mod_author_byline">by %s</string>
+    <string name="mod_version_chip">版本 %s</string>
+    <string name="mod_metadata_title">信息</string>
+    <string name="mod_actions_title">操作</string>
+    <string name="mod_author_label">作者</string>
+    <string name="mod_version_label">版本</string>
+    <string name="mod_minecraft_versions_label">适配版本</string>
+    <string name="mod_entry_label">入口文件</string>
+    <string name="mod_id_label">模组 ID</string>
+    <string name="mod_config_files_label">配置文件</string>
+    <string name="mod_unknown_author">未知作者</string>
+    <string name="mod_unknown_version">未知版本</string>
+    <string name="mod_all_versions">全部支持版本</string>
+    <string name="mod_no_config_files">没有可编辑配置</string>
+    <string name="mod_config_badge">配置</string>
+    <string name="mod_config_badge_with_count">配置 · %d</string>
+    <string name="mod_config_title_format">%s 配置</string>
+    <string name="mod_config_not_found">未找到可编辑配置</string>
+    <string name="mod_config_load_failed">配置加载失败：%s</string>
+    <string name="mod_config_save_failed">配置保存失败</string>
+    <string name="mod_config_saved">配置已保存</string>
+    <string name="mod_config_restart_hint">配置文件已保存，并保留了 .backup 备份。重启或重新加载游戏后生效。</string>
+    <string name="mod_config_validation_failed">配置校验失败</string>
+    <string name="mod_config_invalid_json">JSON 无效</string>
+    <string name="mod_config_expand">展开</string>
+    <string name="mod_config_collapse">收起</string>
+    <string name="mod_config_raw_json">编辑原始 JSON</string>
+    <string name="mod_config_raw_json_short">JSON</string>
+    <string name="mod_config_item_label">项目 %1$s</string>
+    <string name="mod_config_object_desc">相关设置组</string>
+    <string name="mod_config_array_desc">值列表</string>
+    <string name="mod_config_range_prefix">范围</string>
+    <string name="mod_config_error_number">%1$s 必须是数字</string>
+    <string name="mod_config_error_minimum">%1$s 不能小于 %2$s</string>
+    <string name="mod_config_error_maximum">%1$s 不能大于 %2$s</string>
+    <string name="mod_config_error_boolean">%1$s 必须是开关值</string>
+    <string name="mod_config_error_string">%1$s 必须是文本</string>
+
+    <plurals name="mod_config_files_count">
+        <item quantity="other">%d 个可编辑配置</item>
+    </plurals>
+    <plurals name="mod_config_choices_count">
+        <item quantity="other">%d 个选项</item>
+    </plurals>
+    <plurals name="mod_config_items_count">
+        <item quantity="other">%d 项</item>
+    </plurals>
 
     <!-- 版本选择对话框 -->
     <string name="game_version_select_title">选择游戏版本</string>

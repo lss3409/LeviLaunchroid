@@ -650,4 +650,41 @@ La migration doit être terminée avant de continuer avec LeviLauncher.</string>
 
     <string name="unsupported_version_title">Version non prise en charge</string>
     <string name="unsupported_version_msg">Ce lanceur ne prend pas en charge les versions de Minecraft antérieures à 1.21.80.</string>
+    <!-- Mod Config -->
+    <string name="mod_author_byline">par %s</string>
+    <string name="mod_version_chip">Version %s</string>
+    <string name="mod_config_title_format">Configuration de %s</string>
+    <string name="mod_config_not_found">Aucune configuration modifiable trouvée</string>
+    <string name="mod_config_load_failed">Échec du chargement de la configuration : %s</string>
+    <string name="mod_config_save_failed">Échec de l\'enregistrement de la configuration</string>
+    <string name="mod_config_saved">Configuration enregistrée</string>
+    <string name="mod_config_restart_hint">Le fichier de configuration a été enregistré et un fichier .backup a été conservé.</string>
+    <string name="mod_config_validation_failed">Échec de la validation de la configuration</string>
+    <string name="mod_config_invalid_json">JSON invalide</string>
+    <string name="mod_config_expand">Développer</string>
+    <string name="mod_config_collapse">Réduire</string>
+    <string name="mod_config_raw_json">Modifier le JSON brut</string>
+    <string name="mod_config_raw_json_short">JSON</string>
+    <string name="mod_config_item_label">Élément %1$s</string>
+    <string name="mod_config_object_desc">Groupe de paramètres liés</string>
+    <string name="mod_config_array_desc">Liste de valeurs</string>
+    <string name="mod_config_range_prefix">Plage</string>
+    <string name="mod_config_error_number">%1$s doit être un nombre</string>
+    <string name="mod_config_error_minimum">%1$s doit être au moins %2$s</string>
+    <string name="mod_config_error_maximum">%1$s doit être au plus %2$s</string>
+    <string name="mod_config_error_boolean">%1$s doit être activé ou désactivé</string>
+    <string name="mod_config_error_string">%1$s doit être du texte</string>
+    <plurals name="mod_config_files_count">
+        <item quantity="one">%d configuration modifiable</item>
+        <item quantity="other">%d configurations modifiables</item>
+    </plurals>
+    <plurals name="mod_config_choices_count">
+        <item quantity="one">%d choix</item>
+        <item quantity="other">%d choix</item>
+    </plurals>
+    <plurals name="mod_config_items_count">
+        <item quantity="one">%d élément</item>
+        <item quantity="other">%d éléments</item>
+    </plurals>
+
 </resources>

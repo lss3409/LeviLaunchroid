@@ -674,4 +674,47 @@
 
     <string name="unsupported_version_title">Неподдерживаемая версия</string>
     <string name="unsupported_version_msg">Этот лаунчер не поддерживает версии Minecraft старше 1.21.80.</string>
+    <!-- Mod Config -->
+    <string name="mod_author_byline">от %s</string>
+    <string name="mod_version_chip">Версия %s</string>
+    <string name="mod_config_title_format">Конфигурация %s</string>
+    <string name="mod_config_not_found">Редактируемая конфигурация не найдена</string>
+    <string name="mod_config_load_failed">Не удалось загрузить конфигурацию: %s</string>
+    <string name="mod_config_save_failed">Не удалось сохранить конфигурацию</string>
+    <string name="mod_config_saved">Конфигурация сохранена</string>
+    <string name="mod_config_restart_hint">Файл конфигурации сохранен, файл .backup оставлен.</string>
+    <string name="mod_config_validation_failed">Проверка конфигурации не пройдена</string>
+    <string name="mod_config_invalid_json">Недопустимый JSON</string>
+    <string name="mod_config_expand">Развернуть</string>
+    <string name="mod_config_collapse">Свернуть</string>
+    <string name="mod_config_raw_json">Редактировать исходный JSON</string>
+    <string name="mod_config_raw_json_short">JSON</string>
+    <string name="mod_config_item_label">Элемент %1$s</string>
+    <string name="mod_config_object_desc">Группа связанных настроек</string>
+    <string name="mod_config_array_desc">Список значений</string>
+    <string name="mod_config_range_prefix">Диапазон</string>
+    <string name="mod_config_error_number">%1$s должно быть числом</string>
+    <string name="mod_config_error_minimum">%1$s должно быть не меньше %2$s</string>
+    <string name="mod_config_error_maximum">%1$s должно быть не больше %2$s</string>
+    <string name="mod_config_error_boolean">%1$s должно быть включено или выключено</string>
+    <string name="mod_config_error_string">%1$s должно быть текстом</string>
+    <plurals name="mod_config_files_count">
+        <item quantity="one">%d редактируемая конфигурация</item>
+        <item quantity="few">%d редактируемые конфигурации</item>
+        <item quantity="many">%d редактируемых конфигураций</item>
+        <item quantity="other">%d редактируемой конфигурации</item>
+    </plurals>
+    <plurals name="mod_config_choices_count">
+        <item quantity="one">%d вариант</item>
+        <item quantity="few">%d варианта</item>
+        <item quantity="many">%d вариантов</item>
+        <item quantity="other">%d варианта</item>
+    </plurals>
+    <plurals name="mod_config_items_count">
+        <item quantity="one">%d элемент</item>
+        <item quantity="few">%d элемента</item>
+        <item quantity="many">%d элементов</item>
+        <item quantity="other">%d элемента</item>
+    </plurals>
+
 </resources>

@@ -650,4 +650,41 @@ La migración debe completarse antes de continuar con LeviLauncher.</string>
 
     <string name="unsupported_version_title">Versión no soportada</string>
     <string name="unsupported_version_msg">Este lanzador no soporta versiones de Minecraft anteriores a 1.21.80.</string>
+    <!-- Mod Config -->
+    <string name="mod_author_byline">por %s</string>
+    <string name="mod_version_chip">Versión %s</string>
+    <string name="mod_config_title_format">Configuración de %s</string>
+    <string name="mod_config_not_found">No se encontró configuración editable</string>
+    <string name="mod_config_load_failed">Error al cargar la configuración: %s</string>
+    <string name="mod_config_save_failed">Error al guardar la configuración</string>
+    <string name="mod_config_saved">Configuración guardada</string>
+    <string name="mod_config_restart_hint">El archivo de configuración se guardó y se conservó un archivo .backup.</string>
+    <string name="mod_config_validation_failed">La validación de configuración falló</string>
+    <string name="mod_config_invalid_json">JSON no válido</string>
+    <string name="mod_config_expand">Expandir</string>
+    <string name="mod_config_collapse">Contraer</string>
+    <string name="mod_config_raw_json">Editar JSON original</string>
+    <string name="mod_config_raw_json_short">JSON</string>
+    <string name="mod_config_item_label">Elemento %1$s</string>
+    <string name="mod_config_object_desc">Grupo de ajustes relacionados</string>
+    <string name="mod_config_array_desc">Lista de valores</string>
+    <string name="mod_config_range_prefix">Rango</string>
+    <string name="mod_config_error_number">%1$s debe ser un número</string>
+    <string name="mod_config_error_minimum">%1$s debe ser al menos %2$s</string>
+    <string name="mod_config_error_maximum">%1$s debe ser como máximo %2$s</string>
+    <string name="mod_config_error_boolean">%1$s debe estar activado o desactivado</string>
+    <string name="mod_config_error_string">%1$s debe ser texto</string>
+    <plurals name="mod_config_files_count">
+        <item quantity="one">%d configuración editable</item>
+        <item quantity="other">%d configuraciones editables</item>
+    </plurals>
+    <plurals name="mod_config_choices_count">
+        <item quantity="one">%d opción</item>
+        <item quantity="other">%d opciones</item>
+    </plurals>
+    <plurals name="mod_config_items_count">
+        <item quantity="one">%d elemento</item>
+        <item quantity="other">%d elementos</item>
+    </plurals>
+
 </resources>

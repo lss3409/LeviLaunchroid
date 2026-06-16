@@ -677,4 +677,41 @@ LeviLauncher जारी रखने से पहले माइग्रे
 
     <string name="unsupported_version_title">असमर्थित संस्करण</string>
     <string name="unsupported_version_msg">यह लॉन्चर 1.21.80 से पुराने Minecraft संस्करणों का समर्थन नहीं करता है।</string>
+    <!-- Mod Config -->
+    <string name="mod_author_byline">%s द्वारा</string>
+    <string name="mod_version_chip">संस्करण %s</string>
+    <string name="mod_config_title_format">%s कॉन्फ़िग</string>
+    <string name="mod_config_not_found">संपादन योग्य कॉन्फ़िग नहीं मिला</string>
+    <string name="mod_config_load_failed">कॉन्फ़िग लोड करने में विफल: %s</string>
+    <string name="mod_config_save_failed">कॉन्फ़िग सहेजने में विफल</string>
+    <string name="mod_config_saved">कॉन्फ़िग सहेजा गया</string>
+    <string name="mod_config_restart_hint">कॉन्फ़िग फ़ाइल सहेजी गई और .backup फ़ाइल रखी गई।</string>
+    <string name="mod_config_validation_failed">कॉन्फ़िग सत्यापन विफल</string>
+    <string name="mod_config_invalid_json">अमान्य JSON</string>
+    <string name="mod_config_expand">फैलाएं</string>
+    <string name="mod_config_collapse">समेटें</string>
+    <string name="mod_config_raw_json">मूल JSON संपादित करें</string>
+    <string name="mod_config_raw_json_short">JSON</string>
+    <string name="mod_config_item_label">आइटम %1$s</string>
+    <string name="mod_config_object_desc">संबंधित सेटिंग्स का समूह</string>
+    <string name="mod_config_array_desc">मानों की सूची</string>
+    <string name="mod_config_range_prefix">सीमा</string>
+    <string name="mod_config_error_number">%1$s एक संख्या होनी चाहिए</string>
+    <string name="mod_config_error_minimum">%1$s कम से कम %2$s होना चाहिए</string>
+    <string name="mod_config_error_maximum">%1$s अधिकतम %2$s होना चाहिए</string>
+    <string name="mod_config_error_boolean">%1$s चालू या बंद होना चाहिए</string>
+    <string name="mod_config_error_string">%1$s टेक्स्ट होना चाहिए</string>
+    <plurals name="mod_config_files_count">
+        <item quantity="one">%d संपादन योग्य कॉन्फ़िग</item>
+        <item quantity="other">%d संपादन योग्य कॉन्फ़िग</item>
+    </plurals>
+    <plurals name="mod_config_choices_count">
+        <item quantity="one">%d विकल्प</item>
+        <item quantity="other">%d विकल्प</item>
+    </plurals>
+    <plurals name="mod_config_items_count">
+        <item quantity="one">%d आइटम</item>
+        <item quantity="other">%d आइटम</item>
+    </plurals>
+
 </resources>

@@ -71,10 +71,20 @@ public class ModsAdapter extends RecyclerView.Adapter<ModsAdapter.ModViewHolder>
     public void onBindViewHolder(@NonNull ModViewHolder holder, int position) {
         Mod mod = mods.get(position);
         holder.name.setText(mod.getDisplayName());
+        holder.authorText.setText(holder.itemView.getContext().getString(
+                R.string.mod_author_byline,
+                fallbackText(mod.getAuthor(), holder.itemView.getContext().getString(R.string.mod_unknown_author))));
+        holder.versionText.setText(holder.itemView.getContext().getString(
+                R.string.mod_version_chip,
+                fallbackText(mod.getVersion(), holder.itemView.getContext().getString(R.string.mod_unknown_version))));
 
         if (holder.orderText != null) {
             holder.orderText.setText(holder.itemView.getContext().getString(R.string.mod_load_order, position + 1));
             holder.orderText.setVisibility(View.VISIBLE);
+        }
+
+        if (holder.configBadge != null) {
+            holder.configBadge.setVisibility(View.GONE);
         }
 
         holder.switchBtn.setOnCheckedChangeListener(null);
@@ -156,9 +166,20 @@ public class ModsAdapter extends RecyclerView.Adapter<ModsAdapter.ModViewHolder>
         }
     }
 
+    private String fallbackText(String value, String fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? fallback : trimmed;
+    }
+
     static class ModViewHolder extends RecyclerView.ViewHolder {
         TextView name;
         TextView orderText;
+        TextView configBadge;
+        TextView authorText;
+        TextView versionText;
         Switch switchBtn;
         android.widget.ImageView dragHandle;
 
@@ -166,6 +187,9 @@ public class ModsAdapter extends RecyclerView.Adapter<ModsAdapter.ModViewHolder>
             super(itemView);
             name = itemView.findViewById(R.id.mod_name);
             orderText = itemView.findViewById(R.id.mod_order);
+            configBadge = itemView.findViewById(R.id.mod_config_badge);
+            authorText = itemView.findViewById(R.id.mod_author);
+            versionText = itemView.findViewById(R.id.mod_version);
             switchBtn = itemView.findViewById(R.id.mod_switch);
             dragHandle = itemView.findViewById(R.id.drag_handle);
         }

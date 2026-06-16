@@ -4,108 +4,240 @@
     android:layout_height="match_parent"
     android:background="@color/background">
 
-    <LinearLayout
+    <androidx.core.widget.NestedScrollView
         android:id="@+id/mod_detail_root"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:paddingStart="15dp"
-        android:paddingEnd="15dp"
-        android:paddingTop="16dp"
-        android:paddingBottom="24dp"
-        android:animateLayoutChanges="true">
-
-        <TextView
-            android:id="@+id/mod_detail_title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/mod_detail_title"
-            android:fontFamily="@font/misans"
-            android:textColor="@color/primary"
-            android:textSize="22sp"
-            android:textStyle="bold" />
+        android:clipToPadding="false"
+        android:fillViewport="true"
+        android:paddingStart="20dp"
+        android:paddingTop="15dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="24dp">
 
         <LinearLayout
-            android:id="@+id/mod_detail_info_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:background="@drawable/card_background"
-            android:orientation="vertical"
-            android:padding="16dp">
+            android:animateLayoutChanges="true"
+            android:orientation="vertical">
 
             <TextView
-                android:id="@+id/mod_name_detail"
-                android:layout_width="match_parent"
+                android:id="@+id/mod_detail_title"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textSize="20sp"
-                android:textStyle="bold"
-                android:textColor="@color/on_surface"
-                android:fontFamily="@font/misans" />
-
-            <TextView
-                android:id="@+id/mod_filename_detail"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textSize="14sp"
-                android:textColor="@color/on_surface"
                 android:fontFamily="@font/misans"
-                android:layout_marginTop="8dp" />
-
-            <TextView
-                android:id="@+id/mod_order_detail"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textSize="14sp"
-                android:textColor="@color/on_surface"
-                android:fontFamily="@font/misans"
-                android:layout_marginTop="4dp" />
+                android:text="@string/mod_detail_title"
+                android:textColor="@color/primary"
+                android:textSize="22sp"
+                android:textStyle="bold" />
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginTop="16dp">
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:id="@+id/mod_detail_header_container"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:paddingEnd="15dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                    <FrameLayout
+                        android:id="@+id/mod_icon_container"
+                        android:layout_width="72dp"
+                        android:layout_height="72dp"
+                        android:background="@drawable/plugin_field_background"
+                        android:padding="10dp">
+
+                        <ImageView
+                            android:id="@+id/mod_icon_detail"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:contentDescription="@string/mod_icon_content_description"
+                            android:scaleType="centerCrop"
+                            android:src="@drawable/ic_plugin" />
+                    </FrameLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="14dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/mod_name_detail"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:ellipsize="end"
+                            android:fontFamily="@font/misans"
+                            android:maxLines="2"
+                            android:textColor="@color/on_surface"
+                            android:textSize="20sp"
+                            android:textStyle="bold" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:id="@+id/mod_author_detail"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:ellipsize="end"
+                                android:fontFamily="@font/misans"
+                                android:maxLines="1"
+                                android:textColor="@color/on_surface"
+                                android:textSize="13sp" />
+
+                            <TextView
+                                android:id="@+id/mod_version_detail"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="12dp"
+                                android:fontFamily="@font/misans"
+                                android:textColor="@color/on_surface"
+                                android:textSize="13sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/mod_description_detail"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:fontFamily="@font/misans"
+                    android:lineSpacingExtra="2dp"
+                    android:textColor="@color/on_surface_variant"
+                    android:textSize="14sp"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingVertical="4dp">
+
+                    <TextView
+                        android:id="@+id/mod_status_text"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:fontFamily="@font/misans"
+                        android:textColor="@color/on_surface"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <Switch
+                        android:id="@+id/mod_switch_detail"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
+                </LinearLayout>
+            <LinearLayout
+                android:id="@+id/mod_detail_info_container"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1.15"
+                android:orientation="vertical"
+                android:paddingHorizontal="15dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/misans"
+                    android:text="@string/mod_metadata_title"
+                    android:textColor="@color/on_surface"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <include
+                    android:id="@+id/mod_version_row"
+                    layout="@layout/item_mod_detail_meta_row" />
+
+                <include
+                    android:id="@+id/mod_minecraft_versions_row"
+                    layout="@layout/item_mod_detail_meta_row" />
+
+                <include
+                    android:id="@+id/mod_config_files_row"
+                    layout="@layout/item_mod_detail_meta_row" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/mod_detail_actions_container"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="0.75"
+                android:orientation="vertical">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/mod_enable_status"
-                    android:textSize="16sp"
+                    android:fontFamily="@font/misans"
+                    android:text="@string/mod_actions_title"
                     android:textColor="@color/on_surface"
-                    android:fontFamily="@font/misans" />
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
 
-                <Space
-                    android:layout_width="0dp"
-                    android:layout_height="1dp"
-                    android:layout_weight="1" />
+                <Button
+                    android:id="@+id/configure_mod_button"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_launch_button"
+                    android:fontFamily="@font/misans"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingHorizontal="14dp"
+                    android:paddingVertical="0dp"
+                    android:text="@string/configure"
+                    android:textAllCaps="false"
+                    android:textColor="@color/on_primary"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
 
-                <Switch
-                    android:id="@+id/mod_switch_detail"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" />
+                <Button
+                    android:id="@+id/delete_mod_button"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_error_button"
+                    android:fontFamily="@font/misans"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingHorizontal="14dp"
+                    android:paddingVertical="0dp"
+                    android:text="@string/delete_mod"
+                    android:textAllCaps="false"
+                    android:textColor="@color/on_primary"
+                    android:textSize="13sp" />
             </LinearLayout>
         </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/mod_detail_actions_container"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:background="@drawable/card_background"
-            android:orientation="vertical"
-            android:padding="16dp">
-
-            <Button
-                android:id="@+id/delete_mod_button"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/delete_mod"
-                android:textColor="@color/white"
-                android:backgroundTint="@color/error"
-                android:fontFamily="@font/misans" />
         </LinearLayout>
 
-    </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
 </FrameLayout>

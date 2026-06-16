@@ -60,11 +60,13 @@ public class FileHandler {
 
     private static final class PreparedImport {
         final String targetId;
+        final String entryPath;
         final File packageDir;
         final File cleanupRoot;
 
-        PreparedImport(String targetId, File packageDir, File cleanupRoot) {
+        PreparedImport(String targetId, String entryPath, File packageDir, File cleanupRoot) {
             this.targetId = targetId;
+            this.entryPath = entryPath;
             this.packageDir = packageDir;
             this.cleanupRoot = cleanupRoot;
         }
@@ -422,11 +424,11 @@ public class FileHandler {
                         continue;
                     }
 
-                    if (destinationDir.exists() && !deleteRecursively(destinationDir)) {
-                        throw new IOException("Failed to overwrite existing mod: " + preparedImport.targetId);
+                    if (destinationDir.exists()) {
+                        copyDirectoryPreservingExisting(preparedImport.packageDir, destinationDir, preparedImport.entryPath);
+                    } else {
+                        copyDirectory(preparedImport.packageDir, destinationDir);
                     }
-
-                    copyDirectory(preparedImport.packageDir, destinationDir);
                     ++processed;
                 } catch (Exception e) {
                     lastError = e.getMessage();
@@ -485,7 +487,7 @@ public class FileHandler {
         copyUriToFile(uri, libraryFile);
         writeManifest(packageDir, createNormalizedManifest(
                 new JsonObject(), displayName, fileName, packageDir, overrideType, overrideVersion));
-        return new PreparedImport(targetId, packageDir, stagingRoot);
+        return new PreparedImport(targetId, fileName, packageDir, stagingRoot);
     }
 
     private PreparedImport prepareZipImport(
@@ -531,8 +533,8 @@ public class FileHandler {
                 manifest, displayName, entryPath, modRoot, overrideType, overrideVersion));
 
         String rootName = modRoot.equals(stagingRoot) ? stripExtension(fileName) : modRoot.getName();
-        String targetId = buildTargetId(stripExtension(fileName), rootName);
-        return new PreparedImport(targetId, modRoot, stagingRoot);
+        String targetId = buildTargetId(displayName, rootName);
+        return new PreparedImport(targetId, entryPath, modRoot, stagingRoot);
     }
 
     private JsonObject readManifest(File modRoot) throws IOException {
@@ -1013,6 +1015,38 @@ public class FileHandler {
             for (File file : files) {
                 copyDirectory(file, new File(target, file.getName()));
             }
+            return;
+        }
+
+        try (FileInputStream fis = new FileInputStream(source)) {
+            copyStreamToFile(fis, target);
+        }
+    }
+
+    private void copyDirectoryPreservingExisting(File source, File target, String entryPath) throws IOException {
+        copyDirectoryPreservingExisting(source, source, target, normalizeEntryPath(entryPath));
+    }
+
+    private void copyDirectoryPreservingExisting(File root, File source, File target, String entryPath) throws IOException {
+        if (source.isDirectory()) {
+            if (!target.exists() && !target.mkdirs()) {
+                throw new IOException("Failed to create directory: " + target.getAbsolutePath());
+            }
+
+            File[] files = source.listFiles();
+            if (files == null) {
+                return;
+            }
+
+            for (File file : files) {
+                copyDirectoryPreservingExisting(root, file, new File(target, file.getName()), entryPath);
+            }
+            return;
+        }
+
+        String relativePath = root.toPath().relativize(source.toPath()).toString().replace('\\', '/');
+        boolean mayReplace = MANIFEST_FILE_NAME.equals(relativePath) || relativePath.equals(entryPath);
+        if (target.exists() && !mayReplace) {
             return;
         }
 

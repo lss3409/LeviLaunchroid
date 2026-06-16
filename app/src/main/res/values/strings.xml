@@ -387,6 +387,57 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="mod_disabled">Mod disabled</string>
     <string name="mod_filename_format">File: %s</string>
     <string name="mod_enable_status">Enable Status</string>
+    <string name="mod_icon_content_description">Mod icon</string>
+    <string name="mod_author_byline">by %s</string>
+    <string name="mod_version_chip">Version %s</string>
+    <string name="mod_metadata_title">Information</string>
+    <string name="mod_actions_title">Actions</string>
+    <string name="mod_author_label">Author</string>
+    <string name="mod_version_label">Version</string>
+    <string name="mod_minecraft_versions_label">Minecraft Versions</string>
+    <string name="mod_entry_label">Entry File</string>
+    <string name="mod_id_label">Mod ID</string>
+    <string name="mod_config_files_label">Config Files</string>
+    <string name="mod_unknown_author">Unknown author</string>
+    <string name="mod_unknown_version">Unknown version</string>
+    <string name="mod_all_versions">All supported versions</string>
+    <string name="mod_no_config_files">No editable config</string>
+    <string name="mod_config_badge">CONFIG</string>
+    <string name="mod_config_badge_with_count">CONFIG · %d</string>
+    <string name="mod_config_title_format">%s Config</string>
+    <string name="mod_config_not_found">No editable config found</string>
+    <string name="mod_config_load_failed">Failed to load config: %s</string>
+    <string name="mod_config_save_failed">Failed to save config</string>
+    <string name="mod_config_saved">Config saved</string>
+    <string name="mod_config_restart_hint">The config file was saved and a .backup file was kept. Restart or reload the game for changes to take effect.</string>
+    <string name="mod_config_validation_failed">Config validation failed</string>
+    <string name="mod_config_invalid_json">Invalid JSON</string>
+    <string name="mod_config_expand">Expand</string>
+    <string name="mod_config_collapse">Collapse</string>
+    <string name="mod_config_raw_json">Edit Raw JSON</string>
+    <string name="mod_config_raw_json_short">JSON</string>
+    <string name="mod_config_item_label">Item %1$s</string>
+    <string name="mod_config_object_desc">Group of related settings</string>
+    <string name="mod_config_array_desc">List of values</string>
+    <string name="mod_config_range_prefix">Range</string>
+    <string name="mod_config_error_number">%1$s must be a number</string>
+    <string name="mod_config_error_minimum">%1$s must be at least %2$s</string>
+    <string name="mod_config_error_maximum">%1$s must be at most %2$s</string>
+    <string name="mod_config_error_boolean">%1$s must be on or off</string>
+    <string name="mod_config_error_string">%1$s must be text</string>
+
+    <plurals name="mod_config_files_count">
+        <item quantity="one">%d editable config</item>
+        <item quantity="other">%d editable configs</item>
+    </plurals>
+    <plurals name="mod_config_choices_count">
+        <item quantity="one">%d choice</item>
+        <item quantity="other">%d choices</item>
+    </plurals>
+    <plurals name="mod_config_items_count">
+        <item quantity="one">%d item</item>
+        <item quantity="other">%d items</item>
+    </plurals>
 
     <!-- Game Version Select Dialog -->
     <string name="game_version_select_title">Select Game Version</string>

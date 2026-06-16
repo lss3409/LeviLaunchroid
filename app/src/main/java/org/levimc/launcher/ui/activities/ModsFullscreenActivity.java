@@ -31,6 +31,7 @@ import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
 import org.levimc.launcher.ui.animation.DynamicAnim;
 import org.levimc.launcher.ui.views.MainViewModel;
 import org.levimc.launcher.ui.views.MainViewModelFactory;
+import org.levimc.launcher.util.PersonalizationManager;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -114,6 +115,12 @@ public class ModsFullscreenActivity extends BaseActivity {
         enabledModsCount = findViewById(R.id.enabled_mods_count);
         inbuiltModsHeader = findViewById(R.id.inbuilt_mods_header);
         externalModsHeader = findViewById(R.id.external_mods_header);
+
+        PersonalizationManager personalizationManager = new PersonalizationManager(this);
+        View root = findViewById(android.R.id.content);
+        if (root != null) {
+            personalizationManager.applyAccentToView(root, this);
+        }
     }
 
     private void startFilePicker() {

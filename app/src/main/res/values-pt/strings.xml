@@ -650,4 +650,41 @@ A migração deve ser concluída antes que o LeviLauncher continue.</string>
 
     <string name="unsupported_version_title">Versão não suportada</string>
     <string name="unsupported_version_msg">Este lançador não suporta versões do Minecraft anteriores a 1.21.80.</string>
+    <!-- Mod Config -->
+    <string name="mod_author_byline">por %s</string>
+    <string name="mod_version_chip">Versão %s</string>
+    <string name="mod_config_title_format">Configuração de %s</string>
+    <string name="mod_config_not_found">Nenhuma configuração editável encontrada</string>
+    <string name="mod_config_load_failed">Falha ao carregar configuração: %s</string>
+    <string name="mod_config_save_failed">Falha ao salvar configuração</string>
+    <string name="mod_config_saved">Configuração salva</string>
+    <string name="mod_config_restart_hint">O arquivo de configuração foi salvo e um arquivo .backup foi mantido.</string>
+    <string name="mod_config_validation_failed">Falha na validação da configuração</string>
+    <string name="mod_config_invalid_json">JSON inválido</string>
+    <string name="mod_config_expand">Expandir</string>
+    <string name="mod_config_collapse">Recolher</string>
+    <string name="mod_config_raw_json">Editar JSON original</string>
+    <string name="mod_config_raw_json_short">JSON</string>
+    <string name="mod_config_item_label">Item %1$s</string>
+    <string name="mod_config_object_desc">Grupo de configurações relacionadas</string>
+    <string name="mod_config_array_desc">Lista de valores</string>
+    <string name="mod_config_range_prefix">Intervalo</string>
+    <string name="mod_config_error_number">%1$s deve ser um número</string>
+    <string name="mod_config_error_minimum">%1$s deve ser pelo menos %2$s</string>
+    <string name="mod_config_error_maximum">%1$s deve ser no máximo %2$s</string>
+    <string name="mod_config_error_boolean">%1$s deve estar ligado ou desligado</string>
+    <string name="mod_config_error_string">%1$s deve ser texto</string>
+    <plurals name="mod_config_files_count">
+        <item quantity="one">%d configuração editável</item>
+        <item quantity="other">%d configurações editáveis</item>
+    </plurals>
+    <plurals name="mod_config_choices_count">
+        <item quantity="one">%d opção</item>
+        <item quantity="other">%d opções</item>
+    </plurals>
+    <plurals name="mod_config_items_count">
+        <item quantity="one">%d item</item>
+        <item quantity="other">%d itens</item>
+    </plurals>
+
 </resources>
