@@ -24,6 +24,9 @@ public class InstallProgressDialog extends Dialog {
     private ProgressBar progressBar;
     private TextView progressText;
     private TextView titleText;
+    private TextView statusText;
+    private CharSequence pendingTitle;
+    private CharSequence pendingStatus;
     private ValueAnimator progressAnimator;
     private int currentProgress;
 
@@ -41,6 +44,13 @@ public class InstallProgressDialog extends Dialog {
         progressBar = findViewById(R.id.progress_bar);
         progressText = findViewById(R.id.tv_progress_percent);
         titleText = findViewById(R.id.tv_title);
+        statusText = findViewById(R.id.tv_progress_status);
+        if (pendingTitle != null && titleText != null) {
+            titleText.setText(pendingTitle);
+        }
+        if (pendingStatus != null && statusText != null) {
+            statusText.setText(pendingStatus);
+        }
         applyPersonalization();
 
         Window window = getWindow();
@@ -93,6 +103,20 @@ public class InstallProgressDialog extends Dialog {
             updateProgressText(animatedProgress);
         });
         progressAnimator.start();
+    }
+
+    public void setTitleText(CharSequence title) {
+        pendingTitle = title;
+        if (titleText != null) {
+            titleText.setText(title);
+        }
+    }
+
+    public void setStatusText(CharSequence status) {
+        pendingStatus = status;
+        if (statusText != null) {
+            statusText.setText(status);
+        }
     }
 
     private void updateProgressText(int progress) {

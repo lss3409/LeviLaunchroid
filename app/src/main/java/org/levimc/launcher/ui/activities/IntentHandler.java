@@ -8,6 +8,7 @@ import android.util.Log;
 import org.levimc.launcher.core.minecraft.MinecraftActivity;
 import org.levimc.launcher.core.minecraft.MinecraftActivityState;
 import org.levimc.launcher.core.minecraft.MinecraftImportIntents;
+import org.levimc.launcher.util.InstanceBackupManager;
 import org.levimc.launcher.util.MinecraftUriHandler;
 
 public class IntentHandler extends BaseActivity {
@@ -41,6 +42,16 @@ public class IntentHandler extends BaseActivity {
 
             Intent launcherIntent = new Intent(originalIntent);
             launcherIntent.setClass(this, MainActivity.class);
+            startActivity(launcherIntent);
+            finish();
+            return;
+        }
+
+        if (InstanceBackupManager.isBackupIntent(this, originalIntent)) {
+            Intent launcherIntent = new Intent(originalIntent);
+            launcherIntent.setClass(this, InstancesActivity.class);
+            launcherIntent.putExtra(InstancesActivity.EXTRA_RESTORE_BACKUP_ON_OPEN, true);
+            launcherIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivity(launcherIntent);
             finish();
             return;

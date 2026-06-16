@@ -10,15 +10,27 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.HashSet;
-import java.util.List;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 public class ModNativeLoader {
     private static final String TAG = "ModNativeLoader";
-    private static final int CACHE_MANIFEST_VERSION = 2;
+    private static final int CACHE_MANIFEST_VERSION = 3;
+    private static final String DATA_DIRECTORY_NAME = "data";
+    private static final String CONFIG_DIRECTORY_NAME = "config";
+
+    private static final class CachedModEntry {
+        final File sourceDirectory;
+        final File targetFile;
+
+        CachedModEntry(File sourceDirectory, File targetFile) {
+            this.sourceDirectory = sourceDirectory;
+            this.targetFile = targetFile;
+        }
+    }
 
     public static void loadEnabledSoMods(ModManager modManager, File cacheDir) {
         loadEnabledSoMods(modManager, cacheDir, null);
@@ -36,6 +48,10 @@ public class ModNativeLoader {
     public static void loadEnabledSoMods(ModManager modManager, File cacheDir, LoadListener listener) {
         if (modManager.getCurrentVersion() == null || modManager.getCurrentVersion().modsDir == null) {
             notifyMessage(listener, "Native mod directory is not configured");
+            return;
+        }
+        if (cacheDir == null) {
+            notifyMessage(listener, "Native mod cache directory is not configured");
             return;
         }
 
@@ -77,7 +93,8 @@ public class ModNativeLoader {
             }
 
             try {
-                File targetFile = prepareCachedEntry(modManager, cacheModsDir, mod, listener);
+                CachedModEntry cachedEntry = prepareCachedEntry(modManager, cacheModsDir, mod);
+                File targetFile = cachedEntry.targetFile;
                 if (targetFile == null || !targetFile.isFile()) {
                     IOException error = new IOException("Entry not found after copy: " + (targetFile == null ? "<null>" : targetFile.getAbsolutePath()));
                     Log.e(TAG, error.getMessage());
@@ -90,7 +107,10 @@ public class ModNativeLoader {
                 System.load(targetFile.getAbsolutePath());
 
                 if (ModManager.ensurePreloaderLoaded()) {
-                    if (!ModManager.initializeLoadedMod(targetFile.getAbsolutePath(), mod)) {
+                    if (!ModManager.initializeLoadedMod(
+                            targetFile.getAbsolutePath(),
+                            cachedEntry.sourceDirectory.getAbsolutePath(),
+                            mod)) {
                         Log.e(TAG, "Failed to finish native initialization for " + mod.getDisplayName());
                         notifyFailure(listener, mod, new UnsatisfiedLinkError("Failed to finish native initialization"));
                         continue;
@@ -177,7 +197,7 @@ public class ModNativeLoader {
         }
     }
 
-    private static File prepareCachedEntry(ModManager modManager, File cacheModsDir, Mod mod, LoadListener listener) throws IOException {
+    private static CachedModEntry prepareCachedEntry(ModManager modManager, File cacheModsDir, Mod mod) throws IOException {
         File sourceDirectory = new File(modManager.getCurrentVersion().modsDir, mod.getId());
         if (!sourceDirectory.isDirectory()) {
             throw new IOException("Mod package directory does not exist: " + sourceDirectory.getAbsolutePath());
@@ -191,7 +211,7 @@ public class ModNativeLoader {
             File targetFile = new File(targetDirectory, mod.getEntryPath());
             if (sourceFingerprint.equals(cached) && targetFile.isFile() && targetFile.length() > 0) {
                 ensureReadOnly(targetFile);
-                return targetFile;
+                return new CachedModEntry(sourceDirectory, targetFile);
             }
         }
 
@@ -199,7 +219,7 @@ public class ModNativeLoader {
         if (tempDirectory.exists() && !deleteRecursively(tempDirectory)) {
             throw new IOException("Failed to clear temporary mod directory: " + tempDirectory.getAbsolutePath());
         }
-        copyDirectory(sourceDirectory, tempDirectory);
+        copyPackageDirectory(sourceDirectory, tempDirectory);
         writeManifest(new File(tempDirectory, ".mod_cache_manifest"), sourceFingerprint);
 
         if (targetDirectory.exists() && !deleteRecursively(targetDirectory)) {
@@ -213,7 +233,7 @@ public class ModNativeLoader {
 
         File targetFile = new File(targetDirectory, mod.getEntryPath());
         ensureReadOnly(targetFile);
-        return targetFile;
+        return new CachedModEntry(sourceDirectory, targetFile);
     }
 
     private static String readFile(File file) {
@@ -259,6 +279,9 @@ public class ModNativeLoader {
         }
 
         for (File child : children) {
+            if (isRuntimeDirectory(root, child)) {
+                continue;
+            }
             if (child.isDirectory()) {
                 collectFiles(child, files);
             } else if (child.isFile()) {
@@ -299,7 +322,11 @@ public class ModNativeLoader {
         ensureReadOnly(dst);
     }
 
-    private static void copyDirectory(File src, File dst) throws IOException {
+    private static void copyPackageDirectory(File src, File dst) throws IOException {
+        copyDirectory(src, dst, src);
+    }
+
+    private static void copyDirectory(File src, File dst, File root) throws IOException {
         if (src.isDirectory()) {
             if (!dst.exists() && !dst.mkdirs()) {
                 throw new IOException("Failed to create directory: " + dst.getAbsolutePath());
@@ -311,12 +338,29 @@ public class ModNativeLoader {
             }
 
             for (File child : children) {
-                copyDirectory(child, new File(dst, child.getName()));
+                if (isRuntimeDirectory(root, child)) {
+                    continue;
+                }
+                copyDirectory(child, new File(dst, child.getName()), root);
             }
             return;
         }
 
         copyFile(src, dst);
+    }
+
+    private static boolean isRuntimeDirectory(File root, File file) {
+        if (!file.isDirectory()) {
+            return false;
+        }
+
+        File parent = file.getParentFile();
+        if (parent == null || !parent.equals(root)) {
+            return false;
+        }
+
+        String name = file.getName();
+        return DATA_DIRECTORY_NAME.equals(name) || CONFIG_DIRECTORY_NAME.equals(name);
     }
 
     private static void ensureParentDirectory(File file) throws IOException {

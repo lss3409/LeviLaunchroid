@@ -251,6 +251,11 @@
                 <data android:pathPattern="/.*\\..*\\..*\\.zip" />
                 <data android:pathPattern="/.*\\..*\\..*\\..*\\.zip" />
                 <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.zip" />
+                <data android:pathPattern="/.*\\.levibackup" />
+                <data android:pathPattern="/.*\\..*\\.levibackup" />
+                <data android:pathPattern="/.*\\..*\\..*\\.levibackup" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\.levibackup" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.levibackup" />
                 <data android:pathPattern="/.*\\.levipack" />
                 <data android:pathPattern="/.*\\..*\\.levipack" />
                 <data android:pathPattern="/.*\\..*\\..*\\.levipack" />
@@ -282,6 +287,7 @@
                 <data android:pathPattern="/.*\\..*\\..*\\..*\\.mctemplate" />
                 <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.mctemplate" />
                 <data android:pathSuffix=".zip" />
+                <data android:pathSuffix=".levibackup" />
                 <data android:pathSuffix=".levipack" />
                 <data android:pathSuffix=".so" />
                 <data android:pathSuffix=".mcworld" />
@@ -304,6 +310,11 @@
                 <data android:pathPattern="/.*\\..*\\..*\\.zip" />
                 <data android:pathPattern="/.*\\..*\\..*\\..*\\.zip" />
                 <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.zip" />
+                <data android:pathPattern="/.*\\.levibackup" />
+                <data android:pathPattern="/.*\\..*\\.levibackup" />
+                <data android:pathPattern="/.*\\..*\\..*\\.levibackup" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\.levibackup" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.levibackup" />
                 <data android:pathPattern="/.*\\.levipack" />
                 <data android:pathPattern="/.*\\..*\\.levipack" />
                 <data android:pathPattern="/.*\\..*\\..*\\.levipack" />
@@ -335,6 +346,7 @@
                 <data android:pathPattern="/.*\\..*\\..*\\..*\\.mctemplate" />
                 <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.mctemplate" />
                 <data android:pathSuffix=".zip" />
+                <data android:pathSuffix=".levibackup" />
                 <data android:pathSuffix=".levipack" />
                 <data android:pathSuffix=".so" />
                 <data android:pathSuffix=".mcworld" />

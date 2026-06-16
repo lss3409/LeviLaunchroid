@@ -23,6 +23,10 @@ object MinecraftRuntimePreparer {
         fun onLog(message: String)
     }
 
+    @JvmStatic
+    @JvmName("nativeSetupRuntime")
+    private external fun nativeSetupRuntime(modsPath: String)
+
     private val noopListener = object : ProgressListener {
         override fun onProgress(progress: Int, status: String, detail: String?) = Unit
         override fun onLog(message: String) = Unit
@@ -69,6 +73,8 @@ object MinecraftRuntimePreparer {
 
         listener.onProgress(78, "Loading enabled mods")
         listener.onLog("Loading native mods")
+
+        nativeSetupRuntime(modManager.currentVersion?.modsDir?.absolutePath.toString())
         val skippedIncompatibleMods = loadNativeMods(context, launchIntent, modManager, listener, trace)
 
         listener.onProgress(100, "Runtime ready", "Entering Minecraft")
@@ -255,7 +261,10 @@ object MinecraftRuntimePreparer {
         trace: LaunchTrace
     ): List<String> {
         val cacheDir = resolveNativeModCacheDir(context, launchIntent)
-        trace.mark("Native mod loading started", cacheDir.absolutePath)
+        trace.mark(
+            "Native mod loading started",
+            "cache=${cacheDir.absolutePath}; source=${modManager.currentVersion?.modsDir?.absolutePath ?: "<unknown>"}"
+        )
         val modLoadLabels = java.util.IdentityHashMap<Mod, String>()
         val skippedIncompatibleMods = mutableListOf<String>()
         ModNativeLoader.loadEnabledSoMods(

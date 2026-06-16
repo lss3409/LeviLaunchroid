@@ -29,13 +29,17 @@ import org.levimc.launcher.core.versions.GameVersion;
 import org.levimc.launcher.util.PersonalizationManager;
 import org.levimc.launcher.core.versions.VersionManager;
 import org.levimc.launcher.ui.animation.DynamicAnim;
+import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
+import org.levimc.launcher.ui.dialogs.InstallProgressDialog;
 import org.levimc.launcher.util.ApkImportManager;
+import org.levimc.launcher.util.InstanceBackupManager;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 public class InstancesActivity extends BaseActivity {
+    public static final String EXTRA_RESTORE_BACKUP_ON_OPEN = "restore_backup_on_open";
 
     private static final int FILTER_ALL = 0;
     private static final int FILTER_CUSTOM = 1;
@@ -57,7 +61,10 @@ public class InstancesActivity extends BaseActivity {
     private List<GameVersion> allVersions = new ArrayList<>();
 
     private ApkImportManager apkImportManager;
+    private InstanceBackupManager backupManager;
+    private InstallProgressDialog restoreProgressDialog;
     private ActivityResultLauncher<Intent> apkImportResultLauncher;
+    private ActivityResultLauncher<Intent> backupImportResultLauncher;
     private ActivityResultLauncher<Intent> instanceSettingsLauncher;
     private boolean firstResume = true;
 
@@ -70,6 +77,7 @@ public class InstancesActivity extends BaseActivity {
         versionManager = VersionManager.get(this);
 
         apkImportManager = new ApkImportManager(this, null);
+        backupManager = new InstanceBackupManager(this);
         apkImportManager.setOnImportCompleteListener(() -> {
             versionManager.loadAllVersions();
             loadVersions();
@@ -80,6 +88,17 @@ public class InstancesActivity extends BaseActivity {
                 result -> {
                     if (apkImportManager != null)
                         apkImportManager.handleActivityResult(result.getResultCode(), result.getData());
+                }
+        );
+
+        backupImportResultLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK
+                            && result.getData() != null
+                            && result.getData().getData() != null) {
+                        restoreBackup(result.getData().getData());
+                    }
                 }
         );
 
@@ -128,10 +147,19 @@ public class InstancesActivity extends BaseActivity {
         setupFilterTabs();
         setupSearch();
         setupImportButton();
+        setupBackupImportButton();
         updateCount();
+        handleBackupOpenIntent(getIntent());
 
         DynamicAnim.applyPressScaleRecursively(findViewById(android.R.id.content));
         recyclerView.post(() -> DynamicAnim.staggerRecyclerChildren(recyclerView));
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleBackupOpenIntent(intent);
     }
 
     private int calculateSpanCount() {
@@ -234,6 +262,24 @@ public class InstancesActivity extends BaseActivity {
         btnImport.setOnClickListener(v -> startApkFilePicker());
     }
 
+    private void setupBackupImportButton() {
+        TextView btnImportBackup = findViewById(R.id.btn_import_backup);
+        if (btnImportBackup == null) return;
+        btnImportBackup.setVisibility(View.VISIBLE);
+        btnImportBackup.setSelected(true);
+        PersonalizationManager pm = new PersonalizationManager(this);
+        int accent = pm.getAccentColor();
+        if (accent != 0) {
+            android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+            gd.setShape(GradientDrawable.RECTANGLE);
+            gd.setColor(accent);
+            gd.setCornerRadius(20 * getResources().getDisplayMetrics().density);
+            btnImportBackup.setBackground(gd);
+            btnImportBackup.setTextColor(android.graphics.Color.WHITE);
+        }
+        btnImportBackup.setOnClickListener(v -> startBackupImportPicker());
+    }
+
     private void startApkFilePicker() {
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -241,6 +287,90 @@ public class InstancesActivity extends BaseActivity {
         String[] mimeTypes = {"application/vnd.android.package-archive", "application/octet-stream", "application/zip"};
         intent.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes);
         apkImportResultLauncher.launch(intent);
+    }
+
+    private void startBackupImportPicker() {
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        String[] mimeTypes = {
+                "application/zip",
+                "application/x-zip",
+                "application/x-zip-compressed",
+                "application/octet-stream"
+        };
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes);
+        backupImportResultLauncher.launch(intent);
+    }
+
+    private void restoreBackup(android.net.Uri backupUri) {
+        restoreProgressDialog = new InstallProgressDialog(this);
+        restoreProgressDialog.setTitleText(getString(R.string.instance_restore_title));
+        restoreProgressDialog.setStatusText(getString(R.string.instance_restore_in_progress));
+        restoreProgressDialog.setProgress(0);
+        restoreProgressDialog.show();
+
+        backupManager.restore(backupUri, new InstanceBackupManager.RestoreCallback() {
+            @Override
+            public void onStarted() {
+                if (restoreProgressDialog != null) {
+                    restoreProgressDialog.setProgress(0);
+                    restoreProgressDialog.setStatusText(getString(R.string.instance_restore_in_progress));
+                }
+            }
+
+            @Override
+            public void onProgress(int progress) {
+                if (restoreProgressDialog != null) {
+                    restoreProgressDialog.setProgress(progress);
+                }
+            }
+
+            @Override
+            public void onSuccess(String restoredName) {
+                finishRestoreProgress();
+                versionManager.loadAllVersions();
+                loadVersions();
+                if (adapter != null) {
+                    adapter.setSelectedVersion(versionManager.getSelectedVersion());
+                    applyFilters();
+                }
+                new CustomAlertDialog(InstancesActivity.this)
+                        .setTitleText(getString(R.string.instance_restore_success_title))
+                        .setMessage(getString(R.string.instance_restore_success_message, restoredName))
+                        .setPositiveButton(getString(R.string.confirm), null)
+                        .show();
+            }
+
+            @Override
+            public void onError(String message) {
+                finishRestoreProgress();
+                new CustomAlertDialog(InstancesActivity.this)
+                        .setTitleText(getString(R.string.instance_restore_failed_title))
+                        .setMessage(getString(R.string.instance_restore_failed_message, message))
+                        .setPositiveButton(getString(R.string.confirm), null)
+                        .show();
+            }
+        });
+    }
+
+    private void handleBackupOpenIntent(Intent intent) {
+        if (intent == null || !intent.getBooleanExtra(EXTRA_RESTORE_BACKUP_ON_OPEN, false)) {
+            return;
+        }
+        android.net.Uri uri = intent.getData();
+        intent.removeExtra(EXTRA_RESTORE_BACKUP_ON_OPEN);
+        setIntent(intent);
+        if (uri != null) {
+            restoreBackup(uri);
+        }
+    }
+
+    private void finishRestoreProgress() {
+        if (restoreProgressDialog != null && restoreProgressDialog.isShowing()) {
+            restoreProgressDialog.dismiss();
+        }
+        restoreProgressDialog = null;
     }
 
     private void applyFilters() {
@@ -287,6 +417,7 @@ public class InstancesActivity extends BaseActivity {
             loadVersions();
         }
         setupImportButton();
+        setupBackupImportButton();
         applyFilters();
     }
 

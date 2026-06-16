@@ -75,7 +75,7 @@ public class ModManager {
 
     private ModManager() {}
 
-    private static native boolean nativeLoadMod(String libPath, Mod modObj);
+    private static native boolean nativeLoadMod(String libPath, String modRootPath, Mod modObj);
 
     public static ModManager getInstance() {
         ModManager result = instance;
@@ -111,12 +111,16 @@ public class ModManager {
     }
 
     public static boolean initializeLoadedMod(String libPath, Mod mod) {
+        return initializeLoadedMod(libPath, null, mod);
+    }
+
+    public static boolean initializeLoadedMod(String libPath, String modRootPath, Mod mod) {
         if (!ensurePreloaderLoaded()) {
             return false;
         }
 
         try {
-            return nativeLoadMod(libPath, mod);
+            return nativeLoadMod(libPath, modRootPath, mod);
         } catch (UnsatisfiedLinkError e) {
             Log.e(TAG, "Failed to invoke nativeLoadMod for " + libPath, e);
             return false;
