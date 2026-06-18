@@ -1,12 +1,15 @@
 package org.levimc.launcher.ui.activities;
 
 import android.app.Activity;
+import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.text.Editable;
@@ -14,13 +17,20 @@ import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+import androidx.core.app.ActivityOptionsCompat;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -43,6 +53,7 @@ public class InstancesActivity extends BaseActivity {
 
     private static final int FILTER_ALL = 0;
     private static final int FILTER_CUSTOM = 1;
+    private static final int REQUEST_BATCH_BACKUP_STORAGE = 4301;
     private static final int CARD_GLASS_ALPHA_LIGHT = 48;
     private static final int CARD_GLASS_ALPHA_DARK = 58;
     private static final int CARD_OUTLINE_ALPHA_LIGHT = 90;
@@ -63,6 +74,12 @@ public class InstancesActivity extends BaseActivity {
     private ApkImportManager apkImportManager;
     private InstanceBackupManager backupManager;
     private InstallProgressDialog restoreProgressDialog;
+    private InstallProgressDialog batchBackupProgressDialog;
+    private TextView batchBackupButton;
+    private List<GameVersion> pendingBatchBackupVersions = new ArrayList<>();
+    private List<String> batchBackupPaths = new ArrayList<>();
+    private List<String> batchBackupFailures = new ArrayList<>();
+    private int batchBackupIndex;
     private ActivityResultLauncher<Intent> apkImportResultLauncher;
     private ActivityResultLauncher<Intent> backupImportResultLauncher;
     private ActivityResultLauncher<Intent> instanceSettingsLauncher;
@@ -141,13 +158,18 @@ public class InstancesActivity extends BaseActivity {
         adapter.setOnSettingsClickListener(version -> {
             Intent intent = new Intent(this, InstanceSettingsActivity.class);
             intent.putExtra("version", version);
-            instanceSettingsLauncher.launch(intent);
+            instanceSettingsLauncher.launch(intent, ActivityOptionsCompat.makeCustomAnimation(
+                    this,
+                    R.anim.fade_in,
+                    R.anim.fade_out
+            ));
         });
 
         setupFilterTabs();
         setupSearch();
         setupImportButton();
         setupBackupImportButton();
+        setupBatchBackupButton();
         updateCount();
         handleBackupOpenIntent(getIntent());
 
@@ -267,6 +289,20 @@ public class InstancesActivity extends BaseActivity {
         if (btnImportBackup == null) return;
         btnImportBackup.setVisibility(View.VISIBLE);
         btnImportBackup.setSelected(true);
+        applyAccentButtonStyle(btnImportBackup);
+        btnImportBackup.setOnClickListener(v -> startBackupImportPicker());
+    }
+
+    private void setupBatchBackupButton() {
+        batchBackupButton = findViewById(R.id.btn_batch_backup);
+        if (batchBackupButton == null) return;
+        batchBackupButton.setVisibility(View.VISIBLE);
+        batchBackupButton.setSelected(true);
+        applyAccentButtonStyle(batchBackupButton);
+        batchBackupButton.setOnClickListener(v -> showBatchBackupSelection());
+    }
+
+    private void applyAccentButtonStyle(TextView button) {
         PersonalizationManager pm = new PersonalizationManager(this);
         int accent = pm.getAccentColor();
         if (accent != 0) {
@@ -274,10 +310,9 @@ public class InstancesActivity extends BaseActivity {
             gd.setShape(GradientDrawable.RECTANGLE);
             gd.setColor(accent);
             gd.setCornerRadius(20 * getResources().getDisplayMetrics().density);
-            btnImportBackup.setBackground(gd);
-            btnImportBackup.setTextColor(android.graphics.Color.WHITE);
+            button.setBackground(gd);
+            button.setTextColor(android.graphics.Color.WHITE);
         }
-        btnImportBackup.setOnClickListener(v -> startBackupImportPicker());
     }
 
     private void startApkFilePicker() {
@@ -354,6 +389,369 @@ public class InstancesActivity extends BaseActivity {
         });
     }
 
+    private void showBatchBackupSelection() {
+        versionManager.loadAllVersions();
+        loadVersions();
+        if (allVersions.isEmpty()) {
+            new CustomAlertDialog(this)
+                    .setTitleText(getString(R.string.instance_batch_backup_title))
+                    .setMessage(getString(R.string.instance_batch_backup_no_instances))
+                    .setPositiveButton(getString(R.string.confirm), null)
+                    .show();
+            return;
+        }
+
+        List<GameVersion> selectableVersions = new ArrayList<>(allVersions);
+        boolean[] selected = new boolean[selectableVersions.size()];
+        for (int i = 0; i < selected.length; i++) {
+            selected[i] = true;
+        }
+
+        CustomAlertDialog[] dialogRef = new CustomAlertDialog[1];
+        Runnable updateBackupButton = () -> updateBatchBackupDialogButton(dialogRef[0], selected);
+        View content = createBatchBackupSelectionView(selectableVersions, selected, updateBackupButton);
+        CustomAlertDialog dialog = new CustomAlertDialog(this)
+                .setTitleText(getString(R.string.instance_batch_backup_title))
+                .setCustomView(content)
+                .setPositiveButton(getString(R.string.backup), v -> {
+                    List<GameVersion> versionsToBackup = collectSelectedVersions(selectableVersions, selected);
+                    if (versionsToBackup.isEmpty()) {
+                        Toast.makeText(this, R.string.instance_batch_backup_no_selection, Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    startBatchBackupWithPermissionCheck(versionsToBackup);
+                })
+                .setNegativeButton(getString(R.string.cancel), null);
+        dialogRef[0] = dialog;
+        dialog.show();
+        updateBatchBackupDialogButton(dialog, selected);
+    }
+
+    private View createBatchBackupSelectionView(List<GameVersion> versions, boolean[] selected, Runnable onSelectionChanged) {
+        float density = getResources().getDisplayMetrics().density;
+        int horizontalPadding = (int) (2 * density);
+        int rowVerticalPadding = (int) (10 * density);
+
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding(horizontalPadding, 0, horizontalPadding, 0);
+
+        TextView message = new TextView(this);
+        message.setText(R.string.instance_batch_backup_select_message);
+        message.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+        message.setTextSize(13);
+        message.setFontFeatureSettings("kern");
+        container.addView(message, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        CheckBox selectAll = new CheckBox(this);
+        selectAll.setText(R.string.instance_batch_backup_select_all);
+        selectAll.setTextColor(getResources().getColor(R.color.on_surface, getTheme()));
+        selectAll.setTextSize(14);
+        selectAll.setChecked(true);
+        selectAll.setPadding(0, rowVerticalPadding, 0, rowVerticalPadding);
+        applyCheckBoxTheme(selectAll);
+        container.addView(selectAll, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        View divider = new View(this);
+        divider.setBackgroundColor(getResources().getColor(R.color.divider, getTheme()));
+        divider.setAlpha(0.35f);
+        container.addView(divider, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                Math.max(1, (int) density)
+        ));
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setFillViewport(false);
+        scrollView.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        scrollView.addView(list, new ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT,
+                ScrollView.LayoutParams.WRAP_CONTENT
+        ));
+
+        CheckBox[] boxes = new CheckBox[versions.size()];
+        boolean[] updatingAll = {false};
+        for (int i = 0; i < versions.size(); i++) {
+            int index = i;
+            CheckBox item = new CheckBox(this);
+            item.setText(getVersionLabel(versions.get(i)));
+            item.setTextColor(getResources().getColor(R.color.on_surface, getTheme()));
+            item.setTextSize(13);
+            item.setSingleLine(false);
+            item.setChecked(true);
+            item.setPadding(0, rowVerticalPadding, 0, rowVerticalPadding);
+            applyCheckBoxTheme(item);
+            item.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                selected[index] = isChecked;
+                if (updatingAll[0]) return;
+                updatingAll[0] = true;
+                selectAll.setChecked(areAllSelected(selected));
+                updatingAll[0] = false;
+                if (onSelectionChanged != null) {
+                    onSelectionChanged.run();
+                }
+            });
+            boxes[i] = item;
+            list.addView(item, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+            ));
+        }
+
+        selectAll.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (updatingAll[0]) return;
+            updatingAll[0] = true;
+            for (int i = 0; i < boxes.length; i++) {
+                selected[i] = isChecked;
+                boxes[i].setChecked(isChecked);
+            }
+            updatingAll[0] = false;
+            if (onSelectionChanged != null) {
+                onSelectionChanged.run();
+            }
+        });
+
+        int rowHeight = (int) (48 * density);
+        int maxHeight = (int) (260 * density);
+        int minHeight = (int) (96 * density);
+        int listHeight = Math.min(maxHeight, Math.max(minHeight, versions.size() * rowHeight));
+        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                listHeight
+        );
+        scrollParams.topMargin = (int) (6 * density);
+        container.addView(scrollView, scrollParams);
+        return container;
+    }
+
+    private void applyCheckBoxTheme(CheckBox checkBox) {
+        PersonalizationManager pm = new PersonalizationManager(this);
+        int accent = pm.getAccentColor();
+        if (accent == 0) {
+            accent = getResources().getColor(R.color.primary, getTheme());
+        }
+        int unchecked = getResources().getColor(R.color.text_secondary, getTheme());
+        int disabled = Color.argb(88, Color.red(unchecked), Color.green(unchecked), Color.blue(unchecked));
+        ColorStateList tint = new ColorStateList(
+                new int[][]{
+                        new int[]{-android.R.attr.state_enabled},
+                        new int[]{android.R.attr.state_checked},
+                        new int[]{}
+                },
+                new int[]{disabled, accent, unchecked}
+        );
+        checkBox.setButtonTintList(tint);
+    }
+
+    private void updateBatchBackupDialogButton(CustomAlertDialog dialog, boolean[] selected) {
+        if (dialog == null || dialog.getPositiveButton() == null) return;
+        boolean hasSelection = false;
+        if (selected != null) {
+            for (boolean item : selected) {
+                if (item) {
+                    hasSelection = true;
+                    break;
+                }
+            }
+        }
+        dialog.getPositiveButton().setEnabled(hasSelection);
+        dialog.getPositiveButton().setAlpha(hasSelection ? 1f : 0.55f);
+    }
+
+    private List<GameVersion> collectSelectedVersions(List<GameVersion> versions, boolean[] selected) {
+        List<GameVersion> result = new ArrayList<>();
+        for (int i = 0; i < versions.size() && i < selected.length; i++) {
+            if (selected[i]) {
+                result.add(versions.get(i));
+            }
+        }
+        return result;
+    }
+
+    private boolean areAllSelected(boolean[] selected) {
+        if (selected == null || selected.length == 0) return false;
+        for (boolean item : selected) {
+            if (!item) return false;
+        }
+        return true;
+    }
+
+    private void startBatchBackupWithPermissionCheck(List<GameVersion> versionsToBackup) {
+        pendingBatchBackupVersions = new ArrayList<>(versionsToBackup);
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                    REQUEST_BATCH_BACKUP_STORAGE);
+            return;
+        }
+        startBatchBackup();
+    }
+
+    private void startBatchBackup() {
+        if (pendingBatchBackupVersions == null || pendingBatchBackupVersions.isEmpty()) {
+            return;
+        }
+        batchBackupIndex = 0;
+        batchBackupPaths = new ArrayList<>();
+        batchBackupFailures = new ArrayList<>();
+        setBatchBackupButtonEnabled(false);
+
+        batchBackupProgressDialog = new InstallProgressDialog(this);
+        batchBackupProgressDialog.setTitleText(getString(R.string.instance_batch_backup_title));
+        batchBackupProgressDialog.setStatusText(getString(
+                R.string.instance_batch_backup_in_progress,
+                getVersionLabel(pendingBatchBackupVersions.get(0)),
+                1,
+                pendingBatchBackupVersions.size()
+        ));
+        batchBackupProgressDialog.setProgress(0);
+        batchBackupProgressDialog.show();
+
+        runNextBatchBackup();
+    }
+
+    private void runNextBatchBackup() {
+        if (batchBackupIndex >= pendingBatchBackupVersions.size()) {
+            finishBatchBackup();
+            return;
+        }
+
+        GameVersion current = pendingBatchBackupVersions.get(batchBackupIndex);
+        String currentLabel = getVersionLabel(current);
+        int currentNumber = batchBackupIndex + 1;
+        int total = pendingBatchBackupVersions.size();
+
+        backupManager.backup(current, new InstanceBackupManager.BackupCallback() {
+            @Override
+            public void onStarted() {
+                updateBatchBackupProgress(0, currentLabel, currentNumber, total);
+            }
+
+            @Override
+            public void onProgress(int progress) {
+                updateBatchBackupProgress(progress, currentLabel, currentNumber, total);
+            }
+
+            @Override
+            public void onSuccess(String displayPath) {
+                batchBackupPaths.add(displayPath);
+                batchBackupIndex++;
+                runNextBatchBackup();
+            }
+
+            @Override
+            public void onError(String message) {
+                batchBackupFailures.add(currentLabel + ": " + firstNonEmpty(message, getString(R.string.instance_backup_failed_title)));
+                batchBackupIndex++;
+                runNextBatchBackup();
+            }
+        });
+    }
+
+    private void updateBatchBackupProgress(int instanceProgress, String instanceName, int currentNumber, int total) {
+        if (batchBackupProgressDialog == null) return;
+        int clampedProgress = Math.max(0, Math.min(100, instanceProgress));
+        int overallProgress = ((currentNumber - 1) * 100 + clampedProgress) / Math.max(1, total);
+        batchBackupProgressDialog.setProgress(overallProgress);
+        batchBackupProgressDialog.setStatusText(getString(
+                R.string.instance_batch_backup_in_progress,
+                instanceName,
+                currentNumber,
+                total
+        ));
+    }
+
+    private void finishBatchBackup() {
+        finishBatchBackupProgress();
+
+        String savedLines = joinLines(batchBackupPaths);
+        String failedLines = joinLines(batchBackupFailures);
+        CustomAlertDialog resultDialog = new CustomAlertDialog(this);
+        if (batchBackupPaths.isEmpty()) {
+            resultDialog
+                    .setTitleText(getString(R.string.instance_batch_backup_failed_title))
+                    .setMessage(getString(R.string.instance_batch_backup_failed_message, failedLines))
+                    .setPositiveButton(getString(R.string.confirm), null)
+                    .show();
+        } else if (batchBackupFailures.isEmpty()) {
+            resultDialog
+                    .setTitleText(getString(R.string.instance_batch_backup_success_title))
+                    .setMessage(getString(R.string.instance_batch_backup_success_message,
+                            batchBackupPaths.size(), savedLines))
+                    .setPositiveButton(getString(R.string.confirm), null)
+                    .show();
+        } else {
+            resultDialog
+                    .setTitleText(getString(R.string.instance_batch_backup_partial_title))
+                    .setMessage(getString(R.string.instance_batch_backup_partial_message,
+                            batchBackupPaths.size(), batchBackupFailures.size(), savedLines, failedLines))
+                    .setPositiveButton(getString(R.string.confirm), null)
+                    .show();
+        }
+
+        pendingBatchBackupVersions = new ArrayList<>();
+        batchBackupIndex = 0;
+    }
+
+    private void finishBatchBackupProgress() {
+        if (batchBackupProgressDialog != null && batchBackupProgressDialog.isShowing()) {
+            batchBackupProgressDialog.dismiss();
+        }
+        batchBackupProgressDialog = null;
+        setBatchBackupButtonEnabled(true);
+    }
+
+    private void setBatchBackupButtonEnabled(boolean enabled) {
+        if (batchBackupButton == null) return;
+        batchBackupButton.setEnabled(enabled);
+        batchBackupButton.setAlpha(enabled ? 1f : 0.55f);
+    }
+
+    private String getVersionLabel(GameVersion version) {
+        if (version == null) {
+            return getString(R.string.minecraft);
+        }
+        String primary = firstNonEmpty(version.displayName, version.directoryName, version.versionCode, getString(R.string.minecraft));
+        String secondary = firstNonEmpty(version.versionCode, version.directoryName);
+        if (!secondary.isEmpty() && !primary.contains(secondary)) {
+            return primary + " (" + secondary + ")";
+        }
+        return primary;
+    }
+
+    private String joinLines(List<String> lines) {
+        if (lines == null || lines.isEmpty()) return "";
+        StringBuilder builder = new StringBuilder();
+        for (String line : lines) {
+            if (line == null || line.trim().isEmpty()) continue;
+            if (builder.length() > 0) {
+                builder.append('\n');
+            }
+            builder.append("- ").append(line.trim());
+        }
+        return builder.toString();
+    }
+
+    private String firstNonEmpty(String... values) {
+        if (values == null) return "";
+        for (String value : values) {
+            if (value != null && !value.trim().isEmpty()) {
+                return value.trim();
+            }
+        }
+        return "";
+    }
+
     private void handleBackupOpenIntent(Intent intent) {
         if (intent == null || !intent.getBooleanExtra(EXTRA_RESTORE_BACKUP_ON_OPEN, false)) {
             return;
@@ -418,7 +816,21 @@ public class InstancesActivity extends BaseActivity {
         }
         setupImportButton();
         setupBackupImportButton();
+        setupBatchBackupButton();
         applyFilters();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_BATCH_BACKUP_STORAGE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startBatchBackup();
+            } else {
+                pendingBatchBackupVersions = new ArrayList<>();
+                Toast.makeText(this, R.string.storage_permission_not_granted, Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 
     private static class GridSpacingDecoration extends RecyclerView.ItemDecoration {
