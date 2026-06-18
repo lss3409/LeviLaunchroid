@@ -6,6 +6,8 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import java.io.File;
+
 public class LauncherStorageTest {
     @Test
     public void sanitizeProfileIdKeepsSupportedCharacters() {
@@ -28,5 +30,12 @@ public class LauncherStorageTest {
         assertTrue(LauncherStorage.isReservedProfileId("_shared"));
         assertTrue(LauncherStorage.isReservedProfileId("_legacy_unclassified"));
         assertFalse(LauncherStorage.isReservedProfileId("Minecraft_1.21.80"));
+    }
+
+    @Test
+    public void mediaAppRootUsesPackageMediaDirectory() {
+        File mediaDir = new File("/storage/emulated/0/Android/media/org.levimc.launcher");
+
+        assertEquals(mediaDir, LauncherStorage.buildTargetMediaAppRoot(mediaDir));
     }
 }

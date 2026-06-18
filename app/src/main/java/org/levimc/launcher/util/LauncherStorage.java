@@ -16,6 +16,7 @@ public final class LauncherStorage {
     private static final String NO_MEDIA_FILE = ".nomedia";
     private static final String ANDROID_DIR = "Android";
     private static final String ANDROID_DATA_DIR = "data";
+    private static final String ANDROID_MEDIA_DIR = "media";
     private static final String FILES_DIR = "files";
     public static final String MINECRAFT_DIR = "minecraft";
     public static final String SHARED_PROFILE_ID = "_shared";
@@ -61,14 +62,32 @@ public final class LauncherStorage {
     }
 
     private static File resolveTargetAppRoot(Context context) {
-        File fallback = context.getExternalFilesDir(null);
-        if (fallback != null && ensureDir(fallback)) {
-            return fallback;
+        File[] mediaDirs = context.getExternalMediaDirs();
+        if (mediaDirs != null) {
+            for (File mediaDir : mediaDirs) {
+                File appRoot = buildTargetMediaAppRoot(mediaDir);
+                if (ensureDir(appRoot)) {
+                    return appRoot;
+                }
+            }
+        }
+
+        File publicMediaRoot = new File(
+                Environment.getExternalStorageDirectory(),
+                ANDROID_DIR + File.separator + ANDROID_MEDIA_DIR + File.separator + context.getPackageName()
+        );
+        File publicAppRoot = buildTargetMediaAppRoot(publicMediaRoot);
+        if (ensureDir(publicAppRoot)) {
+            return publicAppRoot;
         }
 
         File internalFallback = context.getFilesDir();
         ensureDir(internalFallback);
         return internalFallback;
+    }
+
+    static File buildTargetMediaAppRoot(File mediaDir) {
+        return mediaDir;
     }
 
     public static String getTargetAppRootDisplayPath(Context context) {

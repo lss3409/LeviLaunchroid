@@ -42,6 +42,10 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true">
 
+        <meta-data
+            android:name="com.google.android.gms.games.APP_ID"
+            android:value="486187589451"/>
+
         <activity
             android:name="org.levimc.launcher.ui.activities.SplashActivity"
             android:exported="true"
