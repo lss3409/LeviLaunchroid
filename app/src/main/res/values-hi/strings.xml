@@ -157,7 +157,7 @@
     <string name="storage_migration_start">माइग्रेट करें</string>
     <string name="storage_migration_permission_denied">माइग्रेशन के लिए पुराने फ़ोल्डर को पढ़ने हेतु स्टोरेज अनुमति आवश्यक है।</string>
     <string name="storage_migration_progress_title">स्टोरेज माइग्रेट हो रहा है</string>
-    <string name="storage_migration_progress_subtitle">लॉन्चर डेटा Android/data में कॉपी किया जा रहा है</string>
+    <string name="storage_migration_progress_subtitle">लॉन्चर डेटा Android/media में कॉपी किया जा रहा है</string>
     <string name="storage_migration_scanning">पुराना फ़ोल्डर स्कैन किया जा रहा है…</string>
     <string name="storage_migration_progress_detail">%1$d/%2$d फ़ाइलें · %3$s</string>
     <string name="storage_migration_eta_pending">शेष समय का अनुमान लगाया जा रहा है…</string>
@@ -227,6 +227,19 @@ LeviLauncher जारी रखने से पहले माइग्रे
     <string name="instance_delete_warning">यह कार्रवाई पूर्ववत नहीं की जा सकती।</string>
     <string name="instance_delete_confirm_title">इंस्टेंस हटाएं</string>
     <string name="instance_delete_confirm_msg">क्या आप सुनिश्चित हैं कि आप इस इंस्टेंस को हटाना चाहते हैं? वर्ल्ड्स सहित सभी डेटा स्थायी रूप से हटा दिया जाएगा।</string>
+    <string name="instance_batch_backup_button">बैच बैकअप</string>
+    <string name="instance_batch_backup_title">इंस्टेंस का बैच बैकअप</string>
+    <string name="instance_batch_backup_select_message">बैकअप करने के लिए इंस्टेंस चुनें। यदि Minecraft चल रहा है, तो बैकअप के दौरान डेटा बदलने से बचने के लिए पहले उसे बंद करें।</string>
+    <string name="instance_batch_backup_select_all">सभी इंस्टेंस चुनें</string>
+    <string name="instance_batch_backup_no_instances">बैकअप के लिए कोई इंस्टेंस उपलब्ध नहीं है।</string>
+    <string name="instance_batch_backup_no_selection">कम से कम एक इंस्टेंस चुनें।</string>
+    <string name="instance_batch_backup_in_progress">%1$s का बैकअप हो रहा है (%2$d/%3$d)…</string>
+    <string name="instance_batch_backup_success_title">बैकअप बनाए गए</string>
+    <string name="instance_batch_backup_success_message">%1$d बैकअप बनाए गए:\n%2$s</string>
+    <string name="instance_batch_backup_partial_title">बैकअप आंशिक रूप से पूरा हुआ</string>
+    <string name="instance_batch_backup_partial_message">%1$d बैकअप बनाए गए, %2$d विफल रहे।\n\nसहेजे गए:\n%3$s\n\nविफल:\n%4$s</string>
+    <string name="instance_batch_backup_failed_title">बैच बैकअप विफल</string>
+    <string name="instance_batch_backup_failed_message">कोई बैकअप नहीं बनाया जा सका:\n%1$s</string>
 
     <!-- Language Setting -->
     <string name="language">भाषा</string>

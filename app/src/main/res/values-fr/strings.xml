@@ -157,7 +157,7 @@ La migration peut prendre du temps. Vous pouvez laisser l’application en arri�
     <string name="storage_migration_start">Migrer</string>
     <string name="storage_migration_permission_denied">L’autorisation de stockage est nécessaire pour lire l’ancien dossier pendant la migration.</string>
     <string name="storage_migration_progress_title">Migration du stockage</string>
-    <string name="storage_migration_progress_subtitle">Copie des données du lanceur vers Android/data</string>
+    <string name="storage_migration_progress_subtitle">Copie des données du lanceur vers Android/media</string>
     <string name="storage_migration_scanning">Analyse de l’ancien dossier…</string>
     <string name="storage_migration_progress_detail">%1$d/%2$d fichiers · %3$s</string>
     <string name="storage_migration_eta_pending">Estimation du temps restant…</string>
@@ -227,6 +227,19 @@ La migration doit être terminée avant de continuer avec LeviLauncher.</string>
     <string name="instance_delete_warning">Cette action ne peut pas être annulée.</string>
     <string name="instance_delete_confirm_title">Supprimer l\'instance</string>
     <string name="instance_delete_confirm_msg">Êtes-vous sûr ? Toutes les données, y compris les mondes, seront définitivement supprimées.</string>
+    <string name="instance_batch_backup_button">Sauvegarde par lot</string>
+    <string name="instance_batch_backup_title">Sauvegarde par lot des instances</string>
+    <string name="instance_batch_backup_select_message">Sélectionnez les instances à sauvegarder. Quittez Minecraft s\'il est en cours d\'exécution afin d\'éviter toute modification des données pendant la sauvegarde.</string>
+    <string name="instance_batch_backup_select_all">Sélectionner toutes les instances</string>
+    <string name="instance_batch_backup_no_instances">Aucune instance disponible à sauvegarder.</string>
+    <string name="instance_batch_backup_no_selection">Sélectionnez au moins une instance.</string>
+    <string name="instance_batch_backup_in_progress">Sauvegarde de %1$s (%2$d/%3$d)…</string>
+    <string name="instance_batch_backup_success_title">Sauvegardes créées</string>
+    <string name="instance_batch_backup_success_message">%1$d sauvegardes créées :\n%2$s</string>
+    <string name="instance_batch_backup_partial_title">Sauvegarde partiellement terminée</string>
+    <string name="instance_batch_backup_partial_message">%1$d sauvegardes créées, %2$d échecs.\n\nEnregistrées :\n%3$s\n\nÉchecs :\n%4$s</string>
+    <string name="instance_batch_backup_failed_title">Échec de la sauvegarde par lot</string>
+    <string name="instance_batch_backup_failed_message">Impossible de créer une sauvegarde :\n%1$s</string>
 
     <string name="language">Langue (Language)</string>
     <string name="english">English</string>

@@ -15,9 +15,7 @@ public final class LauncherStorage {
     private static final String LEGACY_ROOT_PATH = "games/org.levimc";
     private static final String NO_MEDIA_FILE = ".nomedia";
     private static final String ANDROID_DIR = "Android";
-    private static final String ANDROID_DATA_DIR = "data";
     private static final String ANDROID_MEDIA_DIR = "media";
-    private static final String FILES_DIR = "files";
     public static final String MINECRAFT_DIR = "minecraft";
     public static final String SHARED_PROFILE_ID = "_shared";
     public static final String LEGACY_UNCLASSIFIED_DIR = "_legacy_unclassified";
@@ -72,15 +70,6 @@ public final class LauncherStorage {
             }
         }
 
-        File publicMediaRoot = new File(
-                Environment.getExternalStorageDirectory(),
-                ANDROID_DIR + File.separator + ANDROID_MEDIA_DIR + File.separator + context.getPackageName()
-        );
-        File publicAppRoot = buildTargetMediaAppRoot(publicMediaRoot);
-        if (ensureDir(publicAppRoot)) {
-            return publicAppRoot;
-        }
-
         File internalFallback = context.getFilesDir();
         ensureDir(internalFallback);
         return internalFallback;
@@ -91,7 +80,11 @@ public final class LauncherStorage {
     }
 
     public static String getTargetAppRootDisplayPath(Context context) {
-        return ANDROID_DIR + "/" + ANDROID_DATA_DIR + "/" + context.getPackageName() + "/" + FILES_DIR;
+        return buildTargetAppRootDisplayPath(context.getPackageName());
+    }
+
+    static String buildTargetAppRootDisplayPath(String packageName) {
+        return ANDROID_DIR + "/" + ANDROID_MEDIA_DIR + "/" + packageName;
     }
 
     public static File getLegacyRoot() {

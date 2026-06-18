@@ -157,7 +157,7 @@ A migração pode demorar. Você pode deixar o app em segundo plano enquanto ela
     <string name="storage_migration_start">Migrar</string>
     <string name="storage_migration_permission_denied">A permissão de armazenamento é necessária para ler o diretório antigo durante a migração.</string>
     <string name="storage_migration_progress_title">Migrando Armazenamento</string>
-    <string name="storage_migration_progress_subtitle">Copiando dados do launcher para Android/data</string>
+    <string name="storage_migration_progress_subtitle">Copiando dados do launcher para Android/media</string>
     <string name="storage_migration_scanning">Verificando diretório antigo…</string>
     <string name="storage_migration_progress_detail">%1$d/%2$d arquivos · %3$s</string>
     <string name="storage_migration_eta_pending">Estimando tempo restante…</string>
@@ -227,6 +227,19 @@ A migração deve ser concluída antes que o LeviLauncher continue.</string>
     <string name="instance_delete_warning">Esta ação não pode ser desfeita.</string>
     <string name="instance_delete_confirm_title">Excluir Instância</string>
     <string name="instance_delete_confirm_msg">Tem certeza? Todos os dados (mundos incluídos) serão removidos para sempre.</string>
+    <string name="instance_batch_backup_button">Backup em Lote</string>
+    <string name="instance_batch_backup_title">Backup em Lote de Instâncias</string>
+    <string name="instance_batch_backup_select_message">Selecione as instâncias para fazer backup. Feche o Minecraft primeiro se ele estiver em execução para evitar alterações de dados durante o backup.</string>
+    <string name="instance_batch_backup_select_all">Selecionar todas as instâncias</string>
+    <string name="instance_batch_backup_no_instances">Não há instâncias disponíveis para backup.</string>
+    <string name="instance_batch_backup_no_selection">Selecione pelo menos uma instância.</string>
+    <string name="instance_batch_backup_in_progress">Fazendo backup de %1$s (%2$d/%3$d)…</string>
+    <string name="instance_batch_backup_success_title">Backups Criados</string>
+    <string name="instance_batch_backup_success_message">%1$d backups criados:\n%2$s</string>
+    <string name="instance_batch_backup_partial_title">Backup Parcialmente Concluído</string>
+    <string name="instance_batch_backup_partial_message">%1$d backups criados, %2$d falharam.\n\nSalvos:\n%3$s\n\nFalhas:\n%4$s</string>
+    <string name="instance_batch_backup_failed_title">Falha no Backup em Lote</string>
+    <string name="instance_batch_backup_failed_message">Não foi possível criar nenhum backup:\n%1$s</string>
 
     <string name="language">Idioma (Language)</string>
     <string name="english">English</string>

@@ -157,7 +157,7 @@
     <string name="storage_migration_start">移行</string>
     <string name="storage_migration_permission_denied">移行のために古いディレクトリを読み取るには、ストレージ権限が必要です。</string>
     <string name="storage_migration_progress_title">ストレージを移行中</string>
-    <string name="storage_migration_progress_subtitle">ランチャーデータを Android/data にコピーしています</string>
+    <string name="storage_migration_progress_subtitle">ランチャーデータを Android/media にコピーしています</string>
     <string name="storage_migration_scanning">古いディレクトリをスキャン中…</string>
     <string name="storage_migration_progress_detail">%1$d/%2$d ファイル · %3$s</string>
     <string name="storage_migration_eta_pending">残り時間を推定中…</string>
@@ -227,6 +227,19 @@ LeviLauncher を続行するには移行を完了する必要があります。<
     <string name="instance_delete_warning">この操作は元に戻せません。</string>
     <string name="instance_delete_confirm_title">インスタンスの削除</string>
     <string name="instance_delete_confirm_msg">本当に削除しますか？ワールドを含むすべてのデータが完全に失われます。</string>
+    <string name="instance_batch_backup_button">一括バックアップ</string>
+    <string name="instance_batch_backup_title">インスタンスを一括バックアップ</string>
+    <string name="instance_batch_backup_select_message">バックアップするインスタンスを選択してください。Minecraft が実行中の場合は、バックアップ中のデータ変更を避けるため先に終了してください。</string>
+    <string name="instance_batch_backup_select_all">すべてのインスタンスを選択</string>
+    <string name="instance_batch_backup_no_instances">バックアップ可能なインスタンスがありません。</string>
+    <string name="instance_batch_backup_no_selection">少なくとも 1 つのインスタンスを選択してください。</string>
+    <string name="instance_batch_backup_in_progress">%1$s をバックアップ中 (%2$d/%3$d)…</string>
+    <string name="instance_batch_backup_success_title">バックアップを作成しました</string>
+    <string name="instance_batch_backup_success_message">%1$d 件のバックアップを作成しました:\n%2$s</string>
+    <string name="instance_batch_backup_partial_title">バックアップは一部完了しました</string>
+    <string name="instance_batch_backup_partial_message">%1$d 件のバックアップを作成し、%2$d 件が失敗しました。\n\n保存済み:\n%3$s\n\n失敗:\n%4$s</string>
+    <string name="instance_batch_backup_failed_title">一括バックアップに失敗しました</string>
+    <string name="instance_batch_backup_failed_message">バックアップを作成できませんでした:\n%1$s</string>
 
     <string name="language">言語 (Language)</string>
     <string name="english">English</string>

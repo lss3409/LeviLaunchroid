@@ -38,4 +38,12 @@ public class LauncherStorageTest {
 
         assertEquals(mediaDir, LauncherStorage.buildTargetMediaAppRoot(mediaDir));
     }
+
+    @Test
+    public void displayPathUsesAndroidMediaPackageDirectory() {
+        assertEquals(
+                "Android/media/org.levimc.launcher",
+                LauncherStorage.buildTargetAppRootDisplayPath("org.levimc.launcher")
+        );
+    }
 }
