@@ -17,6 +17,9 @@ import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 
 public class VersionProfileMetadataStore {
     public static final String PROFILE_FILE_NAME = "profile.json";
@@ -67,11 +70,19 @@ public class VersionProfileMetadataStore {
             fos.getFD().sync();
         }
 
-        if (target.exists() && !target.delete()) {
-            throw new IOException("Failed to replace metadata file: " + target);
-        }
-        if (!tmp.renameTo(target)) {
-            throw new IOException("Failed to rename metadata file: " + tmp);
+        replaceFile(tmp, target);
+    }
+
+    private void replaceFile(File source, File target) throws IOException {
+        try {
+            Files.move(
+                    source.toPath(),
+                    target.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING
+            );
+        } catch (AtomicMoveNotSupportedException ignored) {
+            Files.move(source.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
         }
     }
 

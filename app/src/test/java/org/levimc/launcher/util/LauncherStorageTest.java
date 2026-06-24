@@ -5,6 +5,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
+import org.levimc.launcher.settings.FeatureSettings;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -128,6 +129,30 @@ public class LauncherStorageTest {
                         newRuntimeRoot,
                         LauncherStorage.SHARED_MODE_NEW
                 )
+        );
+    }
+
+    @Test
+    public void normalizeContentStorageTypeUsesVersionIsolationRootsWhenEnabled() {
+        assertEquals(
+                FeatureSettings.StorageType.VERSION_ISOLATION_INTERNAL,
+                LauncherStorage.normalizeContentStorageType(FeatureSettings.StorageType.INTERNAL, true)
+        );
+        assertEquals(
+                FeatureSettings.StorageType.VERSION_ISOLATION_EXTERNAL,
+                LauncherStorage.normalizeContentStorageType(FeatureSettings.StorageType.EXTERNAL, true)
+        );
+    }
+
+    @Test
+    public void normalizeContentStorageTypeUsesSharedRootsWhenVersionIsolationDisabled() {
+        assertEquals(
+                FeatureSettings.StorageType.INTERNAL,
+                LauncherStorage.normalizeContentStorageType(FeatureSettings.StorageType.VERSION_ISOLATION_INTERNAL, false)
+        );
+        assertEquals(
+                FeatureSettings.StorageType.EXTERNAL,
+                LauncherStorage.normalizeContentStorageType(FeatureSettings.StorageType.VERSION_ISOLATION_EXTERNAL, false)
         );
     }
 

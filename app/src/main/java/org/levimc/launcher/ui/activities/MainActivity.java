@@ -1103,6 +1103,10 @@ import okhttp3.OkHttpClient;
         } catch (IllegalArgumentException e) {
             storageType = org.levimc.launcher.settings.FeatureSettings.StorageType.INTERNAL;
         }
+        storageType = LauncherStorage.normalizeContentStorageType(
+                storageType,
+                currentVersion.versionIsolation
+        );
 
         java.io.File baseDir = LauncherStorage.getContentGameDataDir(
                 this,

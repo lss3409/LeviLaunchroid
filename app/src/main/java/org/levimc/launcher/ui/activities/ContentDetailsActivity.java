@@ -423,6 +423,10 @@ public class ContentDetailsActivity extends BaseActivity {
         FeatureSettings.StorageType currentStorageType = parseStorageType(savedType);
         GameVersion currentVersion = versionManager.getSelectedVersion();
         if (currentVersion == null) return null;
+        currentStorageType = LauncherStorage.normalizeContentStorageType(
+                currentStorageType,
+                currentVersion.versionIsolation
+        );
         return LauncherStorage.getContentGameDataDir(this, currentVersion.getStorageProfileId(), currentStorageType);
     }
 

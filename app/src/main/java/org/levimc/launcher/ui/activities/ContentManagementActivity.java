@@ -101,6 +101,7 @@ public class ContentManagementActivity extends BaseActivity {
     private void loadStorageType() {
         String savedType = prefs.getString(KEY_STORAGE_TYPE, "INTERNAL");
         currentStorageType = parseStorageType(savedType);
+        normalizeCurrentStorageType();
     }
 
     private void saveStorageType() {
@@ -313,7 +314,20 @@ public class ContentManagementActivity extends BaseActivity {
     private File getGameDataDirForType(FeatureSettings.StorageType storageType) {
         GameVersion currentVersion = versionManager.getSelectedVersion();
         if (currentVersion == null) return null;
-        return LauncherStorage.getContentGameDataDir(this, currentVersion.getStorageProfileId(), storageType);
+        FeatureSettings.StorageType resolvedType = LauncherStorage.normalizeContentStorageType(
+                storageType,
+                currentVersion.versionIsolation
+        );
+        return LauncherStorage.getContentGameDataDir(this, currentVersion.getStorageProfileId(), resolvedType);
+    }
+
+    private void normalizeCurrentStorageType() {
+        GameVersion currentVersion = versionManager != null ? versionManager.getSelectedVersion() : null;
+        if (currentVersion == null) return;
+        currentStorageType = LauncherStorage.normalizeContentStorageType(
+                currentStorageType,
+                currentVersion.versionIsolation
+        );
     }
 
     private FeatureSettings.StorageType parseStorageType(String value) {

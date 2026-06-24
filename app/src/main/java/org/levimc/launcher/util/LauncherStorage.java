@@ -334,6 +334,29 @@ public final class LauncherStorage {
         return getSharedGameDataDir(context, storageType == FeatureSettings.StorageType.EXTERNAL);
     }
 
+    public static FeatureSettings.StorageType normalizeContentStorageType(
+            FeatureSettings.StorageType storageType,
+            boolean versionIsolation
+    ) {
+        FeatureSettings.StorageType safeType = storageType == null
+                ? FeatureSettings.StorageType.INTERNAL
+                : storageType;
+        if (versionIsolation) {
+            return switch (safeType) {
+                case EXTERNAL, VERSION_ISOLATION, VERSION_ISOLATION_EXTERNAL ->
+                        FeatureSettings.StorageType.VERSION_ISOLATION_EXTERNAL;
+                case INTERNAL, VERSION_ISOLATION_INTERNAL ->
+                        FeatureSettings.StorageType.VERSION_ISOLATION_INTERNAL;
+            };
+        }
+        return switch (safeType) {
+            case EXTERNAL, VERSION_ISOLATION, VERSION_ISOLATION_EXTERNAL ->
+                    FeatureSettings.StorageType.EXTERNAL;
+            case INTERNAL, VERSION_ISOLATION_INTERNAL ->
+                    FeatureSettings.StorageType.INTERNAL;
+        };
+    }
+
     public static File getStorageDataRoot(Context context, String profileId, boolean versionIsolation) {
         return versionIsolation
                 ? getProfileDataRoot(context, profileId)

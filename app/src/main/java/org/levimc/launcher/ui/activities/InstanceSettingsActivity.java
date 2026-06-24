@@ -39,6 +39,7 @@ public class InstanceSettingsActivity extends BaseActivity {
     private EditText editName;
     private SwitchMaterial switchIsolation;
     private SwitchMaterial switchLaunchVertically;
+    private String originalDisplayName = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -114,6 +115,7 @@ public class InstanceSettingsActivity extends BaseActivity {
                 currentName = dn;
             }
         }
+        originalDisplayName = currentName.trim();
         editName.setText(currentName);
 
         switchIsolation.setChecked(version.versionIsolation);
@@ -159,7 +161,7 @@ public class InstanceSettingsActivity extends BaseActivity {
     private void saveAndFinish() {
         String newName = editName.getText().toString().trim();
 
-        if (!newName.isEmpty() && !version.isInstalled) {
+        if (!newName.isEmpty() && !version.isInstalled && !newName.equals(originalDisplayName)) {
             versionManager.renameCustomVersion(version, newName, new VersionManager.OnRenameVersionCallback() {
                 @Override
                 public void onRenameCompleted(boolean success) {}
