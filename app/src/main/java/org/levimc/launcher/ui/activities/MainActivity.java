@@ -802,24 +802,26 @@ import okhttp3.OkHttpClient;
     }
 
     private void showStorageMigrationDialog() {
-        if (isFinishing()) return;
+        if (isFinishing() || isDestroyed()) return;
         if (storageMigrationDialog != null && storageMigrationDialog.isShowing()) return;
-        storageMigrationDialog = new LibsRepairDialog(this);
-        storageMigrationDialog.setCanceledOnTouchOutside(false);
-        storageMigrationDialog.setOnShowListener(dialog -> {
-            storageMigrationDialog.setTitleText(getString(R.string.storage_migration_progress_title));
-            storageMigrationDialog.setSubtitleText(getString(R.string.storage_migration_progress_subtitle));
-            storageMigrationDialog.setStatusText(getString(R.string.storage_migration_scanning));
-            storageMigrationDialog.setEtaText(getString(R.string.storage_migration_eta_pending));
-            storageMigrationDialog.setBackgroundHintText(getString(R.string.storage_migration_background_hint));
-            storageMigrationDialog.setPauseButton("", null);
-            storageMigrationDialog.setIndeterminate(true);
-            storageMigrationDialog.updateProgress(0);
+        LibsRepairDialog dialog = new LibsRepairDialog(this);
+        storageMigrationDialog = dialog;
+        dialog.setCanceledOnTouchOutside(false);
+        dialog.setOnShowListener(shownDialog -> {
+            if (storageMigrationDialog != dialog || isFinishing() || isDestroyed()) return;
+            dialog.setTitleText(getString(R.string.storage_migration_progress_title));
+            dialog.setSubtitleText(getString(R.string.storage_migration_progress_subtitle));
+            dialog.setStatusText(getString(R.string.storage_migration_scanning));
+            dialog.setEtaText(getString(R.string.storage_migration_eta_pending));
+            dialog.setBackgroundHintText(getString(R.string.storage_migration_background_hint));
+            dialog.setPauseButton("", null);
+            dialog.setIndeterminate(true);
+            dialog.updateProgress(0);
             if (lastMigrationState != null) {
                 updateStorageMigrationDialog(lastMigrationState);
             }
         });
-        storageMigrationDialog.show();
+        dialog.show();
     }
 
     private void handleStorageMigrationState(StorageMigrationService.MigrationState state) {
