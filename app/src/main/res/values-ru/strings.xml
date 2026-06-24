@@ -160,6 +160,22 @@
     <string name="storage_migration_failed_message">Миграция не может продолжиться: %1$s
 
 Миграция должна завершиться, прежде чем LeviLauncher сможет продолжить.</string>
+    <string name="migration_cleanup_title">Очистить исторический каталог</string>
+    <string name="migration_cleanup_desc">Удаляйте старый каталог games/org.levimc только после того, как убедитесь, что все экземпляры запускаются нормально, а миры, наборы ресурсов, наборы поведения и настройки не пропали. Удалённые исторические данные нельзя будет восстановить из этого каталога.</string>
+    <string name="migration_cleanup_button">Очистить исторический каталог</string>
+    <string name="migration_cleanup_confirm_title">Очистить исторический каталог?</string>
+    <string name="migration_cleanup_confirm_message">Это навсегда удалит старый каталог games/org.levimc.\n\nПеред продолжением убедитесь, что все экземпляры запускаются нормально, а миры, наборы ресурсов, наборы поведения и настройки не пропали.</string>
+    <string name="migration_cleanup_unavailable_not_completed">Миграция хранилища ещё не завершена. Завершите миграцию перед очисткой старого каталога.</string>
+    <string name="migration_cleanup_unavailable_missing">Старый каталог games/org.levimc не найден или уже очищен.</string>
+    <string name="migration_cleanup_ready">Старый каталог можно очистить. Перед продолжением убедитесь, что все перенесённые экземпляры работают корректно.</string>
+    <string name="migration_cleanup_success">Исторический каталог очищен: удалено файлов: %1$d (%2$s).</string>
+    <string name="migration_cleanup_failed">Не удалось очистить исторический каталог: %1$s</string>
+    <string name="shared_storage_layout_title">Каталог общего контента</string>
+    <string name="shared_storage_layout_desc">Использовать новый каталог _shared для общего внутреннего и внешнего контента. Отключите, чтобы использовать исходные внутренний и внешний каталоги данных игры. Файлы при этом не перемещаются.</string>
+    <string name="shared_storage_layout_mode_new">Новый каталог _shared</string>
+    <string name="shared_storage_layout_mode_legacy">Исходные внутренний/внешний каталоги</string>
+    <string name="shared_storage_layout_status">Текущий режим: %1$s\nВнутренний: %2$s\nВнешний: %3$s</string>
+    <string name="shared_storage_layout_changed">Выбор каталога хранилища обновлён. Перезапустите Minecraft и снова откройте управление контентом, чтобы изменение полностью применилось.</string>
 
     <string name="theme_title">Тема</string>
     <string name="theme_follow_system">Как в системе</string>
@@ -582,6 +598,7 @@
     <string name="settings_tab_personalize">Персонализация</string>
     <string name="settings_tab_updates">Обновления</string>
     <string name="settings_tab_about">О приложении</string>
+    <string name="settings_tab_migration">Миграция</string>
     <string name="settings_theme_desc">Выберите тему приложения</string>
     <string name="launch_vertically">Запуск вертикально</string>
     <string name="launch_vertically_desc">Принудительно запускать игру в портретном режиме</string>

@@ -100,6 +100,7 @@
     <string name="settings_tab_personalize">Personnalisation</string>
     <string name="settings_tab_updates">Mises à jour</string>
     <string name="settings_tab_about">À propos</string>
+    <string name="settings_tab_migration">Migration</string>
     <string name="settings_theme_desc">Choisir le thème de l\'application</string>
 
     <string name="unknown_sources_permission_title">Autorisation d\'installation</string>
@@ -176,6 +177,22 @@ L’ancien dossier games/org.levimc n’a pas été supprimé et n’est plus ut
     <string name="storage_migration_failed_message">La migration ne peut pas continuer : %1$s
 
 La migration doit être terminée avant de continuer avec LeviLauncher.</string>
+    <string name="migration_cleanup_title">Nettoyer le répertoire historique</string>
+    <string name="migration_cleanup_desc">Supprimez l\'ancien répertoire games/org.levimc uniquement après avoir confirmé que toutes les instances se lancent normalement et qu\'aucun monde, pack de ressources, pack de comportement ou paramètre ne manque. Les données historiques supprimées ne pourront pas être restaurées depuis ce répertoire.</string>
+    <string name="migration_cleanup_button">Nettoyer le répertoire historique</string>
+    <string name="migration_cleanup_confirm_title">Nettoyer le répertoire historique ?</string>
+    <string name="migration_cleanup_confirm_message">Cela supprimera définitivement l\'ancien répertoire games/org.levimc.\n\nAvant de continuer, vérifiez que toutes les instances se lancent normalement et qu\'aucun monde, pack de ressources, pack de comportement ou paramètre ne manque.</string>
+    <string name="migration_cleanup_unavailable_not_completed">La migration du stockage n\'est pas encore terminée. Terminez la migration avant de nettoyer l\'ancien répertoire.</string>
+    <string name="migration_cleanup_unavailable_missing">L\'ancien répertoire games/org.levimc est introuvable ou a déjà été nettoyé.</string>
+    <string name="migration_cleanup_ready">L\'ancien répertoire peut être nettoyé. Vérifiez que toutes les instances migrées fonctionnent correctement avant de continuer.</string>
+    <string name="migration_cleanup_success">Répertoire historique nettoyé : %1$d fichiers supprimés (%2$s).</string>
+    <string name="migration_cleanup_failed">Échec du nettoyage du répertoire historique : %1$s</string>
+    <string name="shared_storage_layout_title">Répertoire de contenu partagé</string>
+    <string name="shared_storage_layout_desc">Utilisez le nouveau répertoire _shared pour le contenu partagé interne et externe. Désactivez cette option pour utiliser les répertoires de données de jeu internes et externes d\'origine. Cela ne déplace aucun fichier.</string>
+    <string name="shared_storage_layout_mode_new">Nouveau répertoire _shared</string>
+    <string name="shared_storage_layout_mode_legacy">Répertoires internes/externes d\'origine</string>
+    <string name="shared_storage_layout_status">Mode actuel : %1$s\nInterne : %2$s\nExterne : %3$s</string>
+    <string name="shared_storage_layout_changed">La sélection du répertoire de stockage a été mise à jour. Redémarrez Minecraft et rouvrez la gestion du contenu pour appliquer complètement le changement.</string>
 
     <string name="theme_title">Mode Thème</string>
     <string name="theme_follow_system">Suivre le système</string>

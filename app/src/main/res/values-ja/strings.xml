@@ -100,6 +100,7 @@
     <string name="settings_tab_personalize">カスタマイズ</string>
     <string name="settings_tab_updates">アップデート</string>
     <string name="settings_tab_about">アプリについて</string>
+    <string name="settings_tab_migration">移行</string>
     <string name="settings_theme_desc">アプリのテーマを選択</string>
 
     <string name="unknown_sources_permission_title">インストールの許可</string>
@@ -176,6 +177,22 @@
     <string name="storage_migration_failed_message">移行を続行できませんでした: %1$s
 
 LeviLauncher を続行するには移行を完了する必要があります。</string>
+    <string name="migration_cleanup_title">履歴ディレクトリを削除</string>
+    <string name="migration_cleanup_desc">すべてのインスタンスが正常に起動し、ワールド、リソースパック、ビヘイビアーパック、設定が失われていないことを確認してから、古い games/org.levimc ディレクトリを削除してください。削除した履歴データはこのディレクトリから復元できません。</string>
+    <string name="migration_cleanup_button">履歴ディレクトリを削除</string>
+    <string name="migration_cleanup_confirm_title">履歴ディレクトリを削除しますか？</string>
+    <string name="migration_cleanup_confirm_message">古い games/org.levimc ディレクトリを完全に削除します。\n\n続行する前に、すべてのインスタンスが正常に起動し、ワールド、リソースパック、ビヘイビアーパック、設定が失われていないことを確認してください。</string>
+    <string name="migration_cleanup_unavailable_not_completed">ストレージ移行がまだ完了していません。古いディレクトリを削除する前に移行を完了してください。</string>
+    <string name="migration_cleanup_unavailable_missing">古い games/org.levimc ディレクトリが見つからないか、すでに削除されています。</string>
+    <string name="migration_cleanup_ready">古いディレクトリを削除できます。続行する前に、移行済みのすべてのインスタンスが正常であることを確認してください。</string>
+    <string name="migration_cleanup_success">履歴ディレクトリを削除しました: %1$d 個のファイルを削除 (%2$s)。</string>
+    <string name="migration_cleanup_failed">履歴ディレクトリの削除に失敗しました: %1$s</string>
+    <string name="shared_storage_layout_title">共有コンテンツディレクトリ</string>
+    <string name="shared_storage_layout_desc">Internal と External の共有コンテンツに新しい _shared ディレクトリを使用します。オフにすると、元の internal/external ゲームデータディレクトリを使用します。ファイルは移動されません。</string>
+    <string name="shared_storage_layout_mode_new">新しい _shared ディレクトリ</string>
+    <string name="shared_storage_layout_mode_legacy">元の internal/external ディレクトリ</string>
+    <string name="shared_storage_layout_status">現在のモード: %1$s\nInternal: %2$s\nExternal: %3$s</string>
+    <string name="shared_storage_layout_changed">ストレージディレクトリの選択を更新しました。変更を完全に反映するには Minecraft を再起動し、コンテンツ管理を開き直してください。</string>
 
     <string name="theme_title">テーマモード</string>
     <string name="theme_follow_system">システムに従う</string>

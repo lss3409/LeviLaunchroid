@@ -100,6 +100,7 @@
     <string name="settings_tab_personalize">वैयक्तिकरण</string>
     <string name="settings_tab_updates">अपडेट्स</string>
     <string name="settings_tab_about">बारे में</string>
+    <string name="settings_tab_migration">माइग्रेशन</string>
     <string name="settings_theme_desc">एप्लिकेशन थीम चुनें</string>
 
     <string name="unknown_sources_permission_title">इंस्टॉल अनुमति</string>
@@ -176,6 +177,22 @@
     <string name="storage_migration_failed_message">माइग्रेशन जारी नहीं रह सका: %1$s
 
 LeviLauncher जारी रखने से पहले माइग्रेशन पूरा होना चाहिए।</string>
+    <string name="migration_cleanup_title">पुरानी डायरेक्टरी साफ़ करें</string>
+    <string name="migration_cleanup_desc">पुरानी games/org.levimc डायरेक्टरी को तभी हटाएँ जब आपने पुष्टि कर ली हो कि सभी इंस्टेंस सामान्य रूप से शुरू होते हैं और world, resource pack, behavior pack या settings गायब नहीं हैं। हटाए गए पुराने डेटा को इस डायरेक्टरी से वापस नहीं लाया जा सकेगा।</string>
+    <string name="migration_cleanup_button">पुरानी डायरेक्टरी साफ़ करें</string>
+    <string name="migration_cleanup_confirm_title">पुरानी डायरेक्टरी साफ़ करें?</string>
+    <string name="migration_cleanup_confirm_message">यह पुरानी games/org.levimc डायरेक्टरी को स्थायी रूप से हटा देगा।\n\nजारी रखने से पहले सुनिश्चित करें कि सभी इंस्टेंस सामान्य रूप से शुरू होते हैं और world, resource pack, behavior pack या settings गायब नहीं हैं।</string>
+    <string name="migration_cleanup_unavailable_not_completed">स्टोरेज माइग्रेशन अभी पूरा नहीं हुआ है। पुरानी डायरेक्टरी साफ़ करने से पहले माइग्रेशन पूरा करें।</string>
+    <string name="migration_cleanup_unavailable_missing">पुरानी games/org.levimc डायरेक्टरी नहीं मिली या पहले ही साफ़ की जा चुकी है।</string>
+    <string name="migration_cleanup_ready">पुरानी डायरेक्टरी साफ़ की जा सकती है। जारी रखने से पहले पुष्टि करें कि सभी माइग्रेट किए गए इंस्टेंस ठीक हैं।</string>
+    <string name="migration_cleanup_success">पुरानी डायरेक्टरी साफ़ हुई: %1$d फ़ाइलें हटाई गईं (%2$s)।</string>
+    <string name="migration_cleanup_failed">पुरानी डायरेक्टरी साफ़ करने में विफल: %1$s</string>
+    <string name="shared_storage_layout_title">साझा सामग्री डायरेक्टरी</string>
+    <string name="shared_storage_layout_desc">Internal और External साझा सामग्री के लिए नई _shared डायरेक्टरी का उपयोग करें। मूल internal और external गेम डेटा डायरेक्टरी का उपयोग करने के लिए इसे बंद करें। इससे फ़ाइलें स्थानांतरित नहीं होतीं।</string>
+    <string name="shared_storage_layout_mode_new">नई _shared डायरेक्टरी</string>
+    <string name="shared_storage_layout_mode_legacy">मूल internal/external डायरेक्टरी</string>
+    <string name="shared_storage_layout_status">वर्तमान मोड: %1$s\nInternal: %2$s\nExternal: %3$s</string>
+    <string name="shared_storage_layout_changed">स्टोरेज डायरेक्टरी चयन अपडेट हो गया। बदलाव पूरी तरह लागू करने के लिए Minecraft को पुनः शुरू करें और content management फिर से खोलें।</string>
 
     <string name="theme_title">थीम मोड</string>
     <string name="theme_follow_system">सिस्टम का पालन करें</string>

@@ -105,18 +105,19 @@ public class StorageMigrationManager {
     }
 
     public boolean shouldOfferMigration() {
-        if (isMigrationCompleted() || running.get()) return false;
+        if (running.get()) return false;
+        if (isMigrationCompleted()) return false;
         File legacyRoot = LauncherStorage.getLegacyRoot();
         File targetRoot = LauncherStorage.getTargetAppRoot(context);
         if (samePath(legacyRoot, targetRoot)) return false;
         boolean hasReadableLegacyRoot = canReadLegacyRoot();
         if (!hasReadableLegacyRoot && legacyRoot.exists()) return true;
-        if (!hasReadableLegacyRoot && !hasSharedLegacyData()) {
+        if (!hasReadableLegacyRoot) {
             LauncherStorage.markMigrationCompleted(context);
             LauncherStorage.invalidateCache();
             return false;
         }
-        if (hasReadableLegacyRoot && !LauncherStorage.legacyRootHasData() && !hasSharedLegacyData()) {
+        if (hasReadableLegacyRoot && !LauncherStorage.legacyRootHasData()) {
             LauncherStorage.markMigrationCompleted(context);
             LauncherStorage.invalidateCache();
             return false;
@@ -223,27 +224,6 @@ public class StorageMigrationManager {
         });
     }
 
-    private boolean hasSharedLegacyData() {
-        return hasAnyFile(new File(LauncherStorage.getTargetAppRoot(context), LauncherStorage.GAME_DATA_RELATIVE_PATH))
-                || hasAnyFile(new File(context.getFilesDir(), LauncherStorage.GAME_DATA_RELATIVE_PATH));
-    }
-
-    private static boolean hasAnyFile(File root) {
-        if (root == null || !root.isDirectory()) return false;
-        ArrayDeque<File> stack = new ArrayDeque<>();
-        stack.push(root);
-        while (!stack.isEmpty()) {
-            File current = stack.pop();
-            File[] children = current.listFiles();
-            if (children == null) continue;
-            for (File child : children) {
-                if (child.isFile()) return true;
-                if (child.isDirectory()) stack.push(child);
-            }
-        }
-        return false;
-    }
-
     public void cancel() {
         cancelled = true;
     }
@@ -254,24 +234,6 @@ public class StorageMigrationManager {
                 sourceRoot,
                 targetRoot,
                 relative -> new File(targetRoot, mapLegacyRootRelativePath(relative)),
-                result
-        );
-
-        File legacyExternalSharedGameData = new File(targetRoot, LauncherStorage.GAME_DATA_RELATIVE_PATH);
-        File newExternalSharedGameData = LauncherStorage.getSharedGameDataDir(context, true);
-        scanFilesUnderRoot(
-                legacyExternalSharedGameData,
-                newExternalSharedGameData,
-                relative -> new File(newExternalSharedGameData, relative),
-                result
-        );
-
-        File legacyInternalSharedGameData = new File(context.getFilesDir(), LauncherStorage.GAME_DATA_RELATIVE_PATH);
-        File newInternalSharedGameData = LauncherStorage.getSharedGameDataDir(context, false);
-        scanFilesUnderRoot(
-                legacyInternalSharedGameData,
-                newInternalSharedGameData,
-                relative -> new File(newInternalSharedGameData, relative),
                 result
         );
 

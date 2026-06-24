@@ -6,12 +6,18 @@ import android.os.Environment;
 import org.levimc.launcher.settings.FeatureSettings;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Locale;
 
 public final class LauncherStorage {
     private static final String PREFS_NAME = "storage_migration";
     private static final String KEY_COMPLETED = "storage_migration_completed";
+    private static final String STORAGE_LAYOUT_PREFS_NAME = "storage_layout";
+    private static final String KEY_SHARED_INTERNAL_MODE = "shared_internal_mode";
+    private static final String KEY_SHARED_EXTERNAL_MODE = "shared_external_mode";
+    static final String SHARED_MODE_LEGACY = "legacy";
+    static final String SHARED_MODE_NEW = "new";
     private static final String LEGACY_ROOT_PATH = "games/org.levimc";
     private static final String NO_MEDIA_FILE = ".nomedia";
     private static final String ANDROID_DIR = "Android";
@@ -122,7 +128,10 @@ public final class LauncherStorage {
     }
 
     public static File getSharedFilesRoot(Context context, boolean external) {
-        File dir = new File(getSharedRoot(context), external ? EXTERNAL_STORAGE_DIR : INTERNAL_STORAGE_DIR);
+        File legacyRoot = getLegacySharedFilesRoot(context, external);
+        File newRoot = getNewSharedFilesRoot(context, external);
+        String mode = getSharedStorageMode(context, external);
+        File dir = resolveSharedFilesRoot(legacyRoot, newRoot, mode);
         ensureDir(dir);
         ensureDir(new File(dir, GAME_DATA_RELATIVE_PATH));
         return dir;
@@ -132,6 +141,77 @@ public final class LauncherStorage {
         File dir = new File(getSharedFilesRoot(context, external), GAME_DATA_RELATIVE_PATH);
         ensureDir(dir);
         return dir;
+    }
+
+    private static File getNewSharedFilesRoot(Context context, boolean external) {
+        return new File(getSharedRoot(context), external ? EXTERNAL_STORAGE_DIR : INTERNAL_STORAGE_DIR);
+    }
+
+    private static File getLegacySharedFilesRoot(Context context, boolean external) {
+        if (external) {
+            File externalDir = context.getExternalFilesDir(null);
+            return externalDir == null ? getNewSharedFilesRoot(context, true) : externalDir;
+        }
+        return context.getDataDir();
+    }
+
+    private static String getSharedStorageMode(Context context, boolean external) {
+        ensureSharedStorageModeInitialized(context);
+        String key = external ? KEY_SHARED_EXTERNAL_MODE : KEY_SHARED_INTERNAL_MODE;
+        String mode = context.getSharedPreferences(STORAGE_LAYOUT_PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(key, SHARED_MODE_NEW);
+        return SHARED_MODE_LEGACY.equals(mode) ? SHARED_MODE_LEGACY : SHARED_MODE_NEW;
+    }
+
+    private static void ensureSharedStorageModeInitialized(Context context) {
+        android.content.SharedPreferences prefs = context.getSharedPreferences(STORAGE_LAYOUT_PREFS_NAME, Context.MODE_PRIVATE);
+        if (prefs.contains(KEY_SHARED_INTERNAL_MODE) && prefs.contains(KEY_SHARED_EXTERNAL_MODE)) {
+            return;
+        }
+
+        String mode = chooseSharedStorageMode(
+                getLegacySharedFilesRoot(context, false),
+                getLegacySharedFilesRoot(context, true)
+        );
+        prefs.edit()
+                .putString(KEY_SHARED_INTERNAL_MODE, mode)
+                .putString(KEY_SHARED_EXTERNAL_MODE, mode)
+                .apply();
+    }
+
+    public static boolean isUsingNewSharedStorage(Context context) {
+        ensureSharedStorageModeInitialized(context);
+        android.content.SharedPreferences prefs = context.getSharedPreferences(STORAGE_LAYOUT_PREFS_NAME, Context.MODE_PRIVATE);
+        return SHARED_MODE_NEW.equals(prefs.getString(KEY_SHARED_INTERNAL_MODE, SHARED_MODE_NEW))
+                && SHARED_MODE_NEW.equals(prefs.getString(KEY_SHARED_EXTERNAL_MODE, SHARED_MODE_NEW));
+    }
+
+    public static void setUseNewSharedStorage(Context context, boolean useNewStorage) {
+        String mode = useNewStorage ? SHARED_MODE_NEW : SHARED_MODE_LEGACY;
+        context.getSharedPreferences(STORAGE_LAYOUT_PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_SHARED_INTERNAL_MODE, mode)
+                .putString(KEY_SHARED_EXTERNAL_MODE, mode)
+                .apply();
+    }
+
+    public static String getSharedInternalGameDataDisplayPath(Context context) {
+        return getSharedGameDataDir(context, false).getAbsolutePath();
+    }
+
+    public static String getSharedExternalGameDataDisplayPath(Context context) {
+        return getSharedGameDataDir(context, true).getAbsolutePath();
+    }
+
+    static String chooseSharedStorageMode(File legacyInternalFilesRoot, File legacyExternalFilesRoot) {
+        return hasAnyFile(new File(legacyInternalFilesRoot, GAME_DATA_RELATIVE_PATH))
+                || hasAnyFile(new File(legacyExternalFilesRoot, GAME_DATA_RELATIVE_PATH))
+                ? SHARED_MODE_LEGACY
+                : SHARED_MODE_NEW;
+    }
+
+    static File resolveSharedFilesRoot(File legacyRoot, File newRoot, String mode) {
+        return SHARED_MODE_LEGACY.equals(mode) ? legacyRoot : newRoot;
     }
 
     public static File getSharedDataRoot(Context context) {
@@ -321,9 +401,15 @@ public final class LauncherStorage {
         if (!legacyRoot.isDirectory()) {
             return false;
         }
+        return hasAnyFile(legacyRoot);
+    }
 
+    private static boolean hasAnyFile(File root) {
+        if (root == null || !root.isDirectory()) {
+            return false;
+        }
         ArrayDeque<File> stack = new ArrayDeque<>();
-        stack.push(legacyRoot);
+        stack.push(root);
         while (!stack.isEmpty()) {
             File current = stack.pop();
             File[] children = current.listFiles();
@@ -334,5 +420,87 @@ public final class LauncherStorage {
             }
         }
         return false;
+    }
+
+    public static LegacyCleanupResult cleanupLegacyRoot(Context context) {
+        return cleanupLegacyRoot(getLegacyRoot(), getTargetAppRoot(context), isMigrationCompleted(context));
+    }
+
+    static LegacyCleanupResult cleanupLegacyRoot(File legacyRoot, File targetRoot, boolean migrationCompleted) {
+        if (!migrationCompleted) {
+            return LegacyCleanupResult.failed("Migration has not completed.");
+        }
+        if (!legacyRoot.exists()) {
+            return LegacyCleanupResult.success(0, 0L);
+        }
+        if (!legacyRoot.isDirectory()) {
+            return LegacyCleanupResult.failed("Legacy path is not a directory: " + legacyRoot.getAbsolutePath());
+        }
+
+        try {
+            String legacyPath = legacyRoot.getCanonicalPath();
+            String targetPath = targetRoot.getCanonicalPath();
+            if (legacyPath.equals(targetPath) || isPathWithin(legacyPath, targetPath)) {
+                return LegacyCleanupResult.failed("Legacy path overlaps with active storage.");
+            }
+
+            CleanupCounter counter = new CleanupCounter();
+            boolean deleted = deleteLegacyChildFirst(legacyRoot, counter);
+            if (!deleted || legacyRoot.exists()) {
+                return LegacyCleanupResult.failed("Could not delete the legacy directory completely.");
+            }
+            return LegacyCleanupResult.success(counter.files, counter.bytes);
+        } catch (IOException error) {
+            return LegacyCleanupResult.failed(error.getMessage());
+        }
+    }
+
+    private static boolean deleteLegacyChildFirst(File file, CleanupCounter counter) {
+        if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children == null) {
+                return false;
+            }
+            for (File child : children) {
+                if (!deleteLegacyChildFirst(child, counter)) {
+                    return false;
+                }
+            }
+        } else if (file.isFile()) {
+            counter.files++;
+            counter.bytes += Math.max(0L, file.length());
+        }
+        return file.delete();
+    }
+
+    private static boolean isPathWithin(String path, String basePath) {
+        return path.startsWith(basePath + File.separator);
+    }
+
+    private static class CleanupCounter {
+        int files;
+        long bytes;
+    }
+
+    public static class LegacyCleanupResult {
+        public final boolean success;
+        public final int deletedFiles;
+        public final long deletedBytes;
+        public final String errorMessage;
+
+        private LegacyCleanupResult(boolean success, int deletedFiles, long deletedBytes, String errorMessage) {
+            this.success = success;
+            this.deletedFiles = deletedFiles;
+            this.deletedBytes = deletedBytes;
+            this.errorMessage = errorMessage == null ? "" : errorMessage;
+        }
+
+        static LegacyCleanupResult success(int deletedFiles, long deletedBytes) {
+            return new LegacyCleanupResult(true, deletedFiles, deletedBytes, "");
+        }
+
+        static LegacyCleanupResult failed(String errorMessage) {
+            return new LegacyCleanupResult(false, 0, 0L, errorMessage);
+        }
     }
 }

@@ -160,6 +160,22 @@ Folder lama games/org.levimc tidak dihapus dan tidak lagi digunakan.</string>
     <string name="storage_migration_failed_message">Migrasi tidak dapat dilanjutkan: %1$s
 
 Migrasi harus selesai sebelum LeviLauncher dapat melanjutkan.</string>
+    <string name="migration_cleanup_title">Bersihkan Direktori Riwayat</string>
+    <string name="migration_cleanup_desc">Hapus direktori lama games/org.levimc hanya setelah memastikan semua instans dapat diluncurkan normal dan world, resource pack, behavior pack, serta pengaturan tidak hilang. Data riwayat yang dihapus tidak dapat dipulihkan dari direktori ini.</string>
+    <string name="migration_cleanup_button">Bersihkan Direktori Riwayat</string>
+    <string name="migration_cleanup_confirm_title">Bersihkan Direktori Riwayat?</string>
+    <string name="migration_cleanup_confirm_message">Ini akan menghapus permanen direktori lama games/org.levimc.\n\nSebelum melanjutkan, pastikan semua instans dapat diluncurkan normal dan world, resource pack, behavior pack, serta pengaturan tidak hilang.</string>
+    <string name="migration_cleanup_unavailable_not_completed">Migrasi penyimpanan belum selesai. Selesaikan migrasi sebelum membersihkan direktori lama.</string>
+    <string name="migration_cleanup_unavailable_missing">Direktori lama games/org.levimc tidak ditemukan atau sudah dibersihkan.</string>
+    <string name="migration_cleanup_ready">Direktori lama dapat dibersihkan. Pastikan semua instans hasil migrasi sehat sebelum melanjutkan.</string>
+    <string name="migration_cleanup_success">Direktori riwayat dibersihkan: %1$d file dihapus (%2$s).</string>
+    <string name="migration_cleanup_failed">Gagal membersihkan direktori riwayat: %1$s</string>
+    <string name="shared_storage_layout_title">Direktori Konten Bersama</string>
+    <string name="shared_storage_layout_desc">Gunakan direktori _shared baru untuk konten bersama Internal dan External. Matikan untuk memakai direktori data game internal dan eksternal asli. Ini tidak memindahkan file.</string>
+    <string name="shared_storage_layout_mode_new">Direktori _shared baru</string>
+    <string name="shared_storage_layout_mode_legacy">Direktori internal/eksternal asli</string>
+    <string name="shared_storage_layout_status">Mode saat ini: %1$s\nInternal: %2$s\nExternal: %3$s</string>
+    <string name="shared_storage_layout_changed">Pilihan direktori penyimpanan diperbarui. Mulai ulang Minecraft dan buka kembali manajemen konten agar perubahan diterapkan sepenuhnya.</string>
 
     <string name="theme_title">Mode Tema</string>
     <string name="theme_follow_system">Ikuti Sistem</string>
@@ -586,6 +602,7 @@ Migrasi harus selesai sebelum LeviLauncher dapat melanjutkan.</string>
     <string name="settings_tab_personalize">Personalisasi</string>
     <string name="settings_tab_updates">Pembaruan</string>
     <string name="settings_tab_about">Tentang</string>
+    <string name="settings_tab_migration">Migrasi</string>
     <string name="settings_theme_desc">Pilih tema aplikasi</string>
     <string name="launch_vertically">Luncurkan Vertikal</string>
     <string name="launch_vertically_desc">Paksa game diluncurkan dalam mode potret</string>
