@@ -74,7 +74,7 @@ object MinecraftRuntimePreparer {
         listener.onProgress(78, "Loading enabled mods")
         listener.onLog("Loading native mods")
 
-        nativeSetupRuntime(modManager.currentVersion?.modsDir?.absolutePath.toString())
+        //nativeSetupRuntime(modManager.currentVersion?.modsDir?.absolutePath.toString())
         val skippedIncompatibleMods = loadNativeMods(context, launchIntent, modManager, listener, trace)
 
         listener.onProgress(100, "Runtime ready", "Entering Minecraft")
