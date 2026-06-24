@@ -215,15 +215,39 @@ public final class LauncherStorage {
     }
 
     public static File getSharedDataRoot(Context context) {
-        File dir = new File(getSharedRoot(context), PROFILE_DATA_DIR);
+        File dir = resolveSharedFilesRoot(
+                getLegacySharedDataRoot(context),
+                getNewSharedDataRoot(context),
+                getSharedStorageMode(context, false)
+        );
         ensureDir(dir);
         return dir;
     }
 
     public static File getSharedCacheRoot(Context context) {
-        File dir = new File(getSharedRoot(context), PROFILE_CACHE_DIR);
+        File dir = resolveSharedFilesRoot(
+                getLegacySharedCacheRoot(context),
+                getNewSharedCacheRoot(context),
+                getSharedStorageMode(context, false)
+        );
         ensureDir(dir);
         return dir;
+    }
+
+    private static File getNewSharedDataRoot(Context context) {
+        return new File(getSharedRoot(context), PROFILE_DATA_DIR);
+    }
+
+    private static File getLegacySharedDataRoot(Context context) {
+        return context.getDataDir();
+    }
+
+    private static File getNewSharedCacheRoot(Context context) {
+        return new File(getSharedRoot(context), PROFILE_CACHE_DIR);
+    }
+
+    private static File getLegacySharedCacheRoot(Context context) {
+        return context.getCacheDir();
     }
 
     public static File getVersionRoot(Context context, String profileId) {

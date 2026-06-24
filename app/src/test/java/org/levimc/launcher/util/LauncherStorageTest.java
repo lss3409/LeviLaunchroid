@@ -109,6 +109,29 @@ public class LauncherStorageTest {
     }
 
     @Test
+    public void resolveSharedFilesRootCanSelectSharedRuntimeRoots() {
+        File legacyRuntimeRoot = new File("legacy-runtime");
+        File newRuntimeRoot = new File("new-runtime");
+
+        assertEquals(
+                legacyRuntimeRoot,
+                LauncherStorage.resolveSharedFilesRoot(
+                        legacyRuntimeRoot,
+                        newRuntimeRoot,
+                        LauncherStorage.SHARED_MODE_LEGACY
+                )
+        );
+        assertEquals(
+                newRuntimeRoot,
+                LauncherStorage.resolveSharedFilesRoot(
+                        legacyRuntimeRoot,
+                        newRuntimeRoot,
+                        LauncherStorage.SHARED_MODE_NEW
+                )
+        );
+    }
+
+    @Test
     public void cleanupLegacyRootRejectsIncompleteMigration() throws Exception {
         File temp = Files.createTempDirectory("levi-cleanup").toFile();
         File legacyRoot = new File(temp, "legacy");
