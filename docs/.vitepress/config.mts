@@ -75,6 +75,7 @@ function buildEnglishNav(): DefaultTheme.NavItem[] {
         { text: "Build from Source", link: "/guide/build" },
       ],
     },
+    { text: "Privacy Policy", link: "/privacy-policy" },
     { text: "Downloads", link: releases },
     { text: "GitHub", link: repo },
   ];
@@ -92,6 +93,7 @@ function buildChineseNav(): DefaultTheme.NavItem[] {
         { text: "从源码构建", link: "/zh-CN/guide/build" },
       ],
     },
+    { text: "隐私政策", link: "/privacy-policy" },
     { text: "下载", link: releases },
     { text: "GitHub", link: repo },
   ];
