@@ -172,6 +172,6 @@ export default defineConfig({
     lineNumbers: true,
   },
   sitemap: {
-    hostname: "https://liteldev.github.io/LeviLaunchroid/",
+    hostname: "https://levilaunchroid.levimc.org/",
   },
 });

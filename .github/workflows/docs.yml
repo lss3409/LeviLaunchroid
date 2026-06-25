@@ -29,8 +29,6 @@ jobs:
 
       - name: Build documentation
         working-directory: docs
-        env:
-          VITEPRESS_BASE: /LeviLaunchroid/
         run: npm run docs:build
 
       - name: Upload Pages artifact
