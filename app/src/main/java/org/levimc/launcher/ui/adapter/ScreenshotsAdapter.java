@@ -35,6 +35,7 @@ public class ScreenshotsAdapter extends RecyclerView.Adapter<ScreenshotsAdapter.
     public interface OnScreenshotClickListener {
         void onDeleteClick(ScreenshotItem screenshot);
         void onSaveClick(ScreenshotItem screenshot);
+        void onLocateClick(ScreenshotItem screenshot);
     }
 
     public ScreenshotsAdapter(List<ScreenshotItem> screenshots, OnScreenshotClickListener listener) {
@@ -93,6 +94,12 @@ public class ScreenshotsAdapter extends RecyclerView.Adapter<ScreenshotsAdapter.
             }
         });
 
+        holder.locateButton.setOnClickListener(v -> {
+            if (listener != null) {
+                listener.onLocateClick(screenshot);
+            }
+        });
+
         org.levimc.launcher.util.PersonalizationManager pm = new org.levimc.launcher.util.PersonalizationManager(holder.itemView.getContext());
         pm.applyGlassToView(holder.itemView);
         pm.applyAccentToView(holder.itemView, holder.itemView.getContext());
@@ -115,6 +122,7 @@ public class ScreenshotsAdapter extends RecyclerView.Adapter<ScreenshotsAdapter.
         TextView dateText;
         Button deleteButton;
         Button saveButton;
+        Button locateButton;
 
         ViewHolder(View view) {
             super(view);
@@ -123,6 +131,7 @@ public class ScreenshotsAdapter extends RecyclerView.Adapter<ScreenshotsAdapter.
             dateText = view.findViewById(R.id.screenshot_date);
             deleteButton = view.findViewById(R.id.screenshot_delete_button);
             saveButton = view.findViewById(R.id.screenshot_save_button);
+            locateButton = view.findViewById(R.id.screenshot_locate_button);
         }
     }
 }

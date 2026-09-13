@@ -261,6 +261,7 @@ public class CustomAlertDialog extends Dialog {
             if (accent != 0) {
                 btnPositive.setBackgroundTintList(android.content.res.ColorStateList.valueOf(accent));
                 btnPositive.setTextColor(Color.WHITE);
+                btnNegative.setTextColor(accent);
             }
         } catch (Exception ignored) {}
     }

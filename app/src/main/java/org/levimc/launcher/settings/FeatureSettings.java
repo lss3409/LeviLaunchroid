@@ -6,9 +6,10 @@ public class FeatureSettings {
     private static volatile FeatureSettings INSTANCE;
     private static Context appContext;
     private boolean versionIsolationEnabled = false;
-    private boolean launcherManagedMcLoginEnabled = false;
+    private boolean launcherManagedMcLoginEnabled = true;
+    private boolean msLoginEnabled = false;
     private boolean logcatOverlayEnabled = false;
-    private Boolean crashUploadEnabled = true;
+    private boolean autoCloseGameOnLaunchNew = false;
 
     public enum StorageType {
         INTERNAL,
@@ -20,6 +21,9 @@ public class FeatureSettings {
 
     public static void init(Context context) {
         appContext = context.getApplicationContext();
+        // 首次启动时把默认设置（如 launcherManagedMcLoginEnabled=true）持久化到 SharedPreferences，
+        // 确保游戏进程的 native XAL 库（com.microsoft.xal.androidjava.Storage / Ecdsa）能读到 takeover 开关
+        SettingsStorage.save(appContext, getInstance());
     }
 
     public static FeatureSettings getInstance() {
@@ -42,11 +46,14 @@ public class FeatureSettings {
     public boolean isLauncherManagedMcLoginEnabled() { return launcherManagedMcLoginEnabled; }
     public void setLauncherManagedMcLoginEnabled(boolean enabled) { this.launcherManagedMcLoginEnabled = enabled; autoSave(); }
 
+    public boolean isMsLoginEnabled() { return msLoginEnabled; }
+    public void setMsLoginEnabled(boolean enabled) { this.msLoginEnabled = enabled; autoSave(); }
+
     public boolean isLogcatOverlayEnabled() { return logcatOverlayEnabled; }
     public void setLogcatOverlayEnabled(boolean enabled) { this.logcatOverlayEnabled = enabled; autoSave(); }
 
-    public boolean isCrashUploadEnabled() { return crashUploadEnabled == null || crashUploadEnabled; }
-    public void setCrashUploadEnabled(boolean enabled) { this.crashUploadEnabled = enabled; autoSave(); }
+    public boolean isAutoCloseGameOnLaunchNew() { return autoCloseGameOnLaunchNew; }
+    public void setAutoCloseGameOnLaunchNew(boolean enabled) { this.autoCloseGameOnLaunchNew = enabled; autoSave(); }
 
 
     private void autoSave() {

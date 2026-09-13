@@ -44,7 +44,7 @@ public abstract class ContentItem {
     }
 
     public String getFormattedLastModified() {
-        SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault());
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
         return sdf.format(new Date(lastModified));
     }
 

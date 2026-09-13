@@ -17,7 +17,9 @@ public class WorldItem extends ContentItem {
     private String worldName;
     private String gameMode;
     private long lastPlayed;
+    private long seed;
     private boolean isValid;
+    private boolean isHardcore;
 
     public WorldItem(String name, File worldDir) {
         super(name, worldDir);
@@ -33,7 +35,7 @@ public class WorldItem extends ContentItem {
     @Override
     public String getDescription() {
         if (!isValid) return "Invalid world";
-        return String.format("Game Mode: %s", gameMode != null ? gameMode : "Unknown");
+        return String.format("游戏模式: %s", gameMode != null ? gameMode : "未知");
     }
 
     @Override
@@ -43,6 +45,19 @@ public class WorldItem extends ContentItem {
 
     public String getWorldName() {
         return worldName;
+    }
+
+    public long getSeed() {
+        return seed;
+    }
+
+    public boolean isHardcore() {
+        return isHardcore;
+    }
+
+    /** 世界唯一标识：目录名（随机生成，导入/创建时稳定），用于极限存档备份的识别。 */
+    public String getWorldId() {
+        return file != null ? file.getName() : name;
     }
 
     private void loadWorldInfo() {
@@ -87,6 +102,16 @@ public class WorldItem extends ContentItem {
                     gameMode = getGameModeName(gameModeInt);
                 }
 
+                NbtTag seedTag = compound.get("RandomSeed");
+                if (seedTag != null) {
+                    seed = seedTag.getLong();
+                }
+
+                NbtTag hardcoreTag = compound.get("IsHardcore");
+                if (hardcoreTag != null) {
+                    isHardcore = hardcoreTag.getByte() != 0;
+                }
+
                 if (worldName == null || worldName.isEmpty() || worldName.equals(file.getName())) {
                     NbtTag levelNameTag = compound.get("LevelName");
                     if (levelNameTag != null && levelNameTag.getType() == NbtTag.TAG_STRING) {
@@ -103,7 +128,7 @@ public class WorldItem extends ContentItem {
         }
 
         if (gameMode == null) {
-            gameMode = "Survival";
+            gameMode = "生存模式";
         }
 
         lastPlayed = file.lastModified();
@@ -111,11 +136,11 @@ public class WorldItem extends ContentItem {
 
     private String getGameModeName(int gameType) {
         return switch (gameType) {
-            case 0 -> "Survival";
-            case 1 -> "Creative";
-            case 2 -> "Adventure";
-            case 3 -> "Spectator";
-            default -> "Unknown";
+            case 0 -> "生存模式";
+            case 1 -> "创造模式";
+            case 2 -> "冒险模式";
+            case 3 -> "旁观模式";
+            default -> "未知";
         };
     }
 }

@@ -4,7 +4,6 @@ import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.preference.PreferenceManager
-import org.levimc.launcher.core.crash.CrashReporter
 import org.levimc.launcher.settings.FeatureSettings
 import org.levimc.launcher.ui.dialogs.LogcatOverlayManager
 
@@ -14,7 +13,7 @@ class LauncherApplication : Application() {
         super.onCreate()
         context = applicationContext
         FeatureSettings.init(applicationContext)
-        CrashReporter.init(this)
+        LaunchTrace.init(applicationContext)
         val processName = Application.getProcessName()
         if (processName.endsWith(":crash")) return
 

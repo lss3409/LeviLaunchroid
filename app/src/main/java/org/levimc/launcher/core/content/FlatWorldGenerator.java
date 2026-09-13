@@ -65,7 +65,7 @@ public class FlatWorldGenerator {
         }
     }
 
-    public static File generateFlatWorld(File worldsDirectory, String worldName, List<BlockLayer> layers, int biomeId, int gameMode) throws IOException {
+    public static File generateFlatWorld(File worldsDirectory, String worldName, List<BlockLayer> layers, int biomeId, int gameMode, boolean hardcore) throws IOException {
         String safeName = worldName.replaceAll("[^a-zA-Z0-9_\\- ]", "_");
         String folderName = safeName + "_" + System.currentTimeMillis();
         File worldDir = new File(worldsDirectory, folderName);
@@ -79,10 +79,11 @@ public class FlatWorldGenerator {
             for (BlockLayer layer : layers) {
                 totalHeight += layer.count;
             }
-            int spawnY = Math.max(totalHeight + 2, 4);
+            // 基岩版超平坦方块从 Y=-64 起向上堆叠；出生点放在最高方块顶部（脚下有方块，XZ 保持 0,0）
+            int spawnY = -64 + totalHeight;
 
             writeLevelName(worldDir, worldName);
-            writeLevelDat(worldDir, worldName, layers, biomeId, gameMode, spawnY);
+            writeLevelDat(worldDir, worldName, layers, biomeId, gameMode, hardcore, spawnY);
 
             File levelDat = new File(worldDir, "level.dat");
             File levelDatOld = new File(worldDir, "level.dat_old");
@@ -120,7 +121,7 @@ public class FlatWorldGenerator {
         }
     }
 
-    private static void writeLevelDat(File worldDir, String worldName, List<BlockLayer> layers, int biomeId, int gameMode, int spawnY) throws IOException {
+    private static void writeLevelDat(File worldDir, String worldName, List<BlockLayer> layers, int biomeId, int gameMode, boolean hardcore, int spawnY) throws IOException {
         Map<String, NbtTag> compound = new LinkedHashMap<>();
 
         long currentTime = System.currentTimeMillis() / 1000;
@@ -130,6 +131,7 @@ public class FlatWorldGenerator {
 
         compound.put("LevelName", new NbtTag(NbtTag.TAG_STRING, "LevelName", worldName));
         compound.put("GameType", new NbtTag(NbtTag.TAG_INT, "GameType", gameMode));
+        compound.put("IsHardcore", new NbtTag(NbtTag.TAG_BYTE, "IsHardcore", (byte) (hardcore ? 1 : 0)));
         compound.put("Generator", new NbtTag(NbtTag.TAG_INT, "Generator", 2));
         compound.put("RandomSeed", new NbtTag(NbtTag.TAG_LONG, "RandomSeed", seed));
         compound.put("SpawnX", new NbtTag(NbtTag.TAG_INT, "SpawnX", 0));
@@ -191,7 +193,7 @@ public class FlatWorldGenerator {
 
         compound.put("BiomeOverride", new NbtTag(NbtTag.TAG_STRING, "BiomeOverride", ""));
         compound.put("LimitedWorldOriginX", new NbtTag(NbtTag.TAG_INT, "LimitedWorldOriginX", 0));
-        compound.put("LimitedWorldOriginY", new NbtTag(NbtTag.TAG_INT, "LimitedWorldOriginY", 32767));
+        compound.put("LimitedWorldOriginY", new NbtTag(NbtTag.TAG_INT, "LimitedWorldOriginY", -64));
         compound.put("LimitedWorldOriginZ", new NbtTag(NbtTag.TAG_INT, "LimitedWorldOriginZ", 0));
         compound.put("limitedWorldWidth", new NbtTag(NbtTag.TAG_INT, "limitedWorldWidth", 0));
         compound.put("limitedWorldDepth", new NbtTag(NbtTag.TAG_INT, "limitedWorldDepth", 0));

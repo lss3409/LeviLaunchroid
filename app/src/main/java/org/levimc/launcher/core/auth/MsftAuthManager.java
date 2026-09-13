@@ -58,7 +58,10 @@ public final class MsftAuthManager {
     private static final int ACCOUNT_NETWORK_RETRY_COUNT = 4;
 
     public static final String DEFAULT_CLIENT_ID = MsaConstants.BEDROCK_ANDROID_TITLE_ID;
-    public static final String DEFAULT_SCOPE = MsaConstants.SCOPE_TITLE_AUTH;
+    // 注意：库默认 SCOPE_TITLE_AUTH 是大写 MBI_SSL，但游戏 XAL 向 XSTS 交换 token 时
+    // 严格校验 ticket 的 scope 必须是小写 mbi_ssl，大写会被拒绝导致游戏静默登录失败
+    // （表现为「请登录」引导页）。这里用小写 scope 登录，token 才能被游戏直接使用。
+    public static final String DEFAULT_SCOPE = "service::user.auth.xboxlive.com::mbi_ssl";
 
     private MsftAuthManager() {
     }
@@ -68,7 +71,13 @@ public final class MsftAuthManager {
                 DEFAULT_CLIENT_ID,
                 DEFAULT_SCOPE,
                 null,
-                MsaEnvironment.LIVE.getNativeClientUrl(),
+                // 必须与游戏 XAL 的 redirect_uri 一致（minecraft 模块 strings.xml 的 xal_token）：
+                // MSA 的 refresh_token 绑定 redirect_uri，游戏刷新 token 时用 ms-xal-...://auth，
+                // 若启动器用默认 oauth20_desktop.srf 登录，access_token 过期后游戏无法刷新
+                // （表现为启动器登录后进游戏「未登录/弹引导窗」）。
+                // 注意：网页登录对自定义 scheme 回调兼容性差，请使用「设备代码登录」
+                // （设备码流程不受 redirect 影响，且 token 与游戏一致）。
+                "ms-xal-0000000048183522://auth",
                 MsaEnvironment.LIVE
         );
     }

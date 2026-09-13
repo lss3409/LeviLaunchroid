@@ -21,12 +21,13 @@ import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 public class ContentImporter {
     private static final String TAG = "ContentImporter";
-    private static final int BUFFER_SIZE = 8192;
+    private static final int BUFFER_SIZE = 1048576;
 
     private final Context context;
     private final ExecutorService executor;
@@ -34,7 +35,7 @@ public class ContentImporter {
     public interface ImportCallback {
         void onSuccess(String message);
         void onError(String error);
-        void onProgress(int progress);
+        void onProgress(int current, int total, String fileName);
     }
 
     public static class ImportResult {
@@ -42,6 +43,7 @@ public class ContentImporter {
         public int behaviorPacksImported = 0;
         public int skinPacksImported = 0;
         public int worldsImported = 0;
+        public int structuresImported = 0;
     }
 
     public ContentImporter(Context context) {
@@ -49,14 +51,17 @@ public class ContentImporter {
         this.executor = Executors.newSingleThreadExecutor();
     }
 
-    public void importContent(List<Uri> uris, File resourcePacksDir, File behaviorPacksDir, 
-                              File skinPacksDir, File worldsDir, ImportCallback callback) {
+    public void importContent(List<Uri> uris, File resourcePacksDir, File behaviorPacksDir,
+                              File skinPacksDir, File worldsDir, File structuresDir, ImportCallback callback) {
         executor.execute(() -> {
             try {
                 ImportResult totalResult = new ImportResult();
                 StringBuilder errors = new StringBuilder();
 
+                int total = uris.size();
+                int index = 0;
                 for (Uri uri : uris) {
+                    index++;
                     try {
                         String fileName = getFileName(uri);
                         if (fileName == null || fileName.isEmpty()) {
@@ -64,6 +69,9 @@ public class ContentImporter {
                         }
                         String lowerName = fileName.toLowerCase();
                         Log.d(TAG, "Importing file: " + fileName);
+                        if (callback != null) {
+                            callback.onProgress(index, total, fileName);
+                        }
 
                         InputStream inputStream = context.getContentResolver().openInputStream(uri);
                         if (inputStream == null) {
@@ -79,16 +87,20 @@ public class ContentImporter {
 
                         if (lowerName.endsWith(".mcworld")) {
                             importMcworld(tempFile, worldsDir, result);
+                        } else if (lowerName.endsWith(".mcstructure")) {
+                            importMcstructure(tempFile, fileName, structuresDir, result);
                         } else if (lowerName.endsWith(".mcaddon")) {
                             importMcaddon(tempFile, resourcePacksDir, behaviorPacksDir, skinPacksDir, result);
                         } else if (lowerName.endsWith(".mcpack")) {
                             importMcpack(tempFile, resourcePacksDir, behaviorPacksDir, skinPacksDir, result);
+                        } else if (lowerName.endsWith(".zip")) {
+                            importGenericArchive(tempFile, resourcePacksDir, behaviorPacksDir, skinPacksDir, worldsDir, structuresDir, result);
                         } else {
                             importMcpack(tempFile, resourcePacksDir, behaviorPacksDir, skinPacksDir, result);
                             if (result.resourcePacksImported == 0 && result.behaviorPacksImported == 0 && result.skinPacksImported == 0) {
                                 importMcaddon(tempFile, resourcePacksDir, behaviorPacksDir, skinPacksDir, result);
                             }
-                            if (result.resourcePacksImported == 0 && result.behaviorPacksImported == 0 && 
+                            if (result.resourcePacksImported == 0 && result.behaviorPacksImported == 0 &&
                                 result.skinPacksImported == 0 && result.worldsImported == 0) {
                                 importMcworld(tempFile, worldsDir, result);
                             }
@@ -98,44 +110,63 @@ public class ContentImporter {
                         totalResult.behaviorPacksImported += result.behaviorPacksImported;
                         totalResult.skinPacksImported += result.skinPacksImported;
                         totalResult.worldsImported += result.worldsImported;
+                        totalResult.structuresImported += result.structuresImported;
 
                         tempFile.delete();
 
                     } catch (Exception e) {
                         Log.e(TAG, "Import failed for uri: " + uri, e);
-                        errors.append("Failed for ").append(uri.getLastPathSegment()).append(": ").append(e.getMessage()).append("\n");
+                        errors.append("导入失败 ").append(uri.getLastPathSegment()).append(": ").append(e.getMessage()).append("\n");
                     }
                 }
 
                 StringBuilder message = new StringBuilder();
                 if (totalResult.worldsImported > 0) {
-                    message.append("Worlds: ").append(totalResult.worldsImported).append(" ");
+                    message.append("世界: ").append(totalResult.worldsImported).append(" ");
                 }
                 if (totalResult.resourcePacksImported > 0) {
-                    message.append("Resource Packs: ").append(totalResult.resourcePacksImported).append(" ");
+                    message.append("资源包: ").append(totalResult.resourcePacksImported).append(" ");
                 }
                 if (totalResult.behaviorPacksImported > 0) {
-                    message.append("Behavior Packs: ").append(totalResult.behaviorPacksImported).append(" ");
+                    message.append("行为包: ").append(totalResult.behaviorPacksImported).append(" ");
                 }
                 if (totalResult.skinPacksImported > 0) {
-                    message.append("Skin Packs: ").append(totalResult.skinPacksImported).append(" ");
+                    message.append("皮肤包: ").append(totalResult.skinPacksImported).append(" ");
+                }
+                if (totalResult.structuresImported > 0) {
+                    message.append("结构文件: ").append(totalResult.structuresImported).append(" ");
                 }
 
                 if (message.length() == 0) {
-                    callback.onError(errors.length() > 0 ? errors.toString().trim() : "No content was imported");
+                    callback.onError(errors.length() > 0 ? errors.toString().trim() : "没有导入任何内容");
                 } else {
-                    String finalMessage = "Imported: " + message.toString().trim();
+                    String finalMessage = "已导入: " + message.toString().trim();
                     if (errors.length() > 0) {
-                        finalMessage += "\nErrors:\n" + errors.toString().trim();
+                        finalMessage += "\n错误:\n" + errors.toString().trim();
                     }
                     callback.onSuccess(finalMessage);
                 }
 
             } catch (Exception e) {
                 Log.e(TAG, "Import failed", e);
-                callback.onError("Import failed: " + e.getMessage());
+                callback.onError("导入失败: " + e.getMessage());
             }
         });
+    }
+
+    private void importMcstructure(File file, String fileName, File structuresDir, ImportResult result) throws IOException {
+        if (structuresDir == null) return;
+        if (!structuresDir.exists()) structuresDir.mkdirs();
+        File target = new File(structuresDir, fileName);
+        try (FileInputStream in = new FileInputStream(file);
+             FileOutputStream out = new FileOutputStream(target)) {
+            byte[] buffer = new byte[8192];
+            int len;
+            while ((len = in.read(buffer)) > 0) {
+                out.write(buffer, 0, len);
+            }
+        }
+        result.structuresImported++;
     }
 
     private void importMcworld(File zipFile, File worldsDir, ImportResult result) throws IOException {
@@ -181,6 +212,17 @@ public class ContentImporter {
             PackInfo packInfo = parseManifest(manifestFile);
             if (packInfo == null) {
                 return;
+            }
+
+            // 重复导入检测：uuid 相同则跳过
+            if (packInfo.uuid != null) {
+                boolean duplicate =
+                        (packInfo.isResourcePack && resourcePacksDir != null && isDuplicatePack(resourcePacksDir, packInfo.uuid)) ||
+                        (packInfo.isBehaviorPack && behaviorPacksDir != null && isDuplicatePack(behaviorPacksDir, packInfo.uuid)) ||
+                        (packInfo.isSkinPack && skinPacksDir != null && isDuplicatePack(skinPacksDir, packInfo.uuid));
+                if (duplicate) {
+                    return;
+                }
             }
 
             String packName = generateRandomName();
@@ -256,10 +298,82 @@ public class ContentImporter {
         }
     }
 
+    /**
+     * 通用压缩包导入：解压后递归查找其中嵌套的 .mcpack / .mcworld / .mcaddon / .mcstructure，
+     * 只要压缩包里有 MC 资源就逐个导入；若解压后本身就是一个包或世界，则直接导入。
+     */
+    private void importGenericArchive(File zipFile, File resourcePacksDir, File behaviorPacksDir,
+                                      File skinPacksDir, File worldsDir, File structuresDir,
+                                      ImportResult result) throws IOException {
+        File tempDir = new File(context.getCacheDir(), "temp_archive_" + System.currentTimeMillis());
+        tempDir.mkdirs();
+        try {
+            extractZip(zipFile, tempDir);
+
+            int before = countImported(result);
+
+            // 1) 递归查找嵌套的 .mcpack / .mcaddon / .mcworld / .mcstructure 文件
+            List<File> nestedFiles = new ArrayList<>();
+            collectNestedContentFiles(tempDir, nestedFiles);
+            for (File nested : nestedFiles) {
+                try {
+                    String name = nested.getName().toLowerCase();
+                    if (name.endsWith(".mcworld")) {
+                        importMcworld(nested, worldsDir, result);
+                    } else if (name.endsWith(".mcstructure")) {
+                        importMcstructure(nested, nested.getName(), structuresDir, result);
+                    } else if (name.endsWith(".mcaddon")) {
+                        importMcaddon(nested, resourcePacksDir, behaviorPacksDir, skinPacksDir, result);
+                    } else {
+                        importMcpack(nested, resourcePacksDir, behaviorPacksDir, skinPacksDir, result);
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Failed to import nested file: " + nested.getName(), e);
+                }
+            }
+
+            // 2) 若没有识别到任何嵌套文件，尝试把解压结果当作单个包/世界导入
+            if (countImported(result) == before) {
+                importMcpack(zipFile, resourcePacksDir, behaviorPacksDir, skinPacksDir, result);
+                if (countImported(result) == before) {
+                    importMcaddon(zipFile, resourcePacksDir, behaviorPacksDir, skinPacksDir, result);
+                }
+                if (countImported(result) == before) {
+                    importMcworld(zipFile, worldsDir, result);
+                }
+            }
+        } finally {
+            deleteDirectory(tempDir);
+        }
+    }
+
+    private int countImported(ImportResult result) {
+        return result.resourcePacksImported + result.behaviorPacksImported
+                + result.skinPacksImported + result.worldsImported + result.structuresImported;
+    }
+
+    private void collectNestedContentFiles(File dir, List<File> out) {
+        if (dir == null || !dir.isDirectory()) return;
+        File[] files = dir.listFiles();
+        if (files == null) return;
+        for (File file : files) {
+            if (file.isDirectory()) {
+                collectNestedContentFiles(file, out);
+            } else {
+                String name = file.getName().toLowerCase();
+                if (name.endsWith(".mcpack") || name.endsWith(".mcworld")
+                        || name.endsWith(".mcaddon") || name.endsWith(".mcstructure")) {
+                    out.add(file);
+                }
+            }
+        }
+    }
+
     private static class PackInfo {
         boolean isResourcePack = false;
         boolean isBehaviorPack = false;
         boolean isSkinPack = false;
+        String uuid = null;
     }
 
     private static class PackDirectory {
@@ -300,6 +414,13 @@ public class ContentImporter {
                                 break;
                         }
                     }
+                }
+            }
+
+            if (manifest.has("header")) {
+                JSONObject header = manifest.getJSONObject("header");
+                if (header.has("uuid")) {
+                    info.uuid = header.getString("uuid");
                 }
             }
 
@@ -439,6 +560,21 @@ public class ContentImporter {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
+    private boolean isDuplicatePack(File dir, String uuid) {
+        if (dir == null || !dir.exists() || uuid == null) return false;
+        File[] files = dir.listFiles(File::isDirectory);
+        if (files == null) return false;
+        for (File file : files) {
+            File manifest = new File(file, "manifest.json");
+            if (!manifest.exists()) continue;
+            PackInfo existing = parseManifest(manifest);
+            if (existing != null && uuid.equalsIgnoreCase(existing.uuid)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void extractZip(File zipFile, File targetDir) throws IOException {
         try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(zipFile)) {
             java.util.Enumeration<? extends ZipEntry> entries = zip.entries();
@@ -447,11 +583,10 @@ public class ContentImporter {
             while (entries.hasMoreElements()) {
                 ZipEntry entry = entries.nextElement();
                 String entryName = normalizeZipEntryName(entry.getName());
-                File entryFile = new File(targetDir, entryName);
-
-                if (!entryFile.getCanonicalPath().startsWith(targetDir.getCanonicalPath())) {
+                if (entryName.startsWith("../") || entryName.contains("/../")) {
                     continue;
                 }
+                File entryFile = new File(targetDir, entryName);
 
                 if (entry.isDirectory()) {
                     entryFile.mkdirs();
@@ -495,7 +630,6 @@ public class ContentImporter {
             if (!target.exists()) {
                 target.mkdirs();
             }
-
             File[] files = source.listFiles();
             if (files != null) {
                 for (File file : files) {

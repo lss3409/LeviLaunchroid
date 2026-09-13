@@ -2,10 +2,11 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:layout_margin="4dp"
+    android:background="@drawable/bg_rounded_card"
     android:orientation="horizontal"
     android:padding="12dp"
-    android:gravity="center_vertical"
-    android:background="?attr/selectableItemBackground">
+    android:gravity="center_vertical">
 
     <LinearLayout
         android:layout_width="0dp"
@@ -17,7 +18,8 @@
             android:id="@+id/structure_name"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="@android:color/white"
+            android:fontFamily="@font/misans"
+            android:textColor="@color/on_surface"
             android:textSize="16sp"
             android:textStyle="bold" />
 
@@ -25,19 +27,26 @@
             android:id="@+id/structure_size"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="#AAAAAA"
-            android:textSize="12sp"
-            android:layout_marginTop="2dp" />
+            android:layout_marginTop="2dp"
+            android:fontFamily="@font/misans"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
 
     </LinearLayout>
 
     <Button
         android:id="@+id/export_button"
         android:layout_width="wrap_content"
-        android:layout_height="36dp"
+        android:layout_height="wrap_content"
+        android:backgroundTint="@color/primary"
+        android:fontFamily="@font/misans"
+        android:minWidth="0dp"
+        android:minHeight="0dp"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="6dp"
         android:text="@string/extract"
-        android:textSize="12sp"
-        android:backgroundTint="#4CAF50"
-        android:textColor="@android:color/white" />
+        android:textAllCaps="false"
+        android:textColor="@color/on_primary"
+        android:textSize="10sp" />
 
 </LinearLayout>

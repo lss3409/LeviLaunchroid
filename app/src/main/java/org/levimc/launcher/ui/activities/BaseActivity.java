@@ -30,10 +30,12 @@ import androidx.core.widget.TextViewCompat;
 
 import org.levimc.launcher.R;
 import org.levimc.launcher.core.auth.MsftAccountStore;
+import org.levimc.launcher.settings.FeatureSettings;
 import org.levimc.launcher.ui.animation.DynamicAnim;
 import org.levimc.launcher.util.AccountTextUtils;
 import org.levimc.launcher.util.PersonalizationManager;
 import org.levimc.launcher.util.ThemeManager;
+import org.levimc.launcher.util.UiScaleManager;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -61,7 +63,8 @@ public class BaseActivity extends AppCompatActivity {
         Configuration config = new Configuration(res.getConfiguration());
         config.setLocale(locale);
         Context localizedContext = newBase.createConfigurationContext(config);
-        super.attachBaseContext(localizedContext);
+        Context scaledContext = UiScaleManager.applyScale(localizedContext);
+        super.attachBaseContext(scaledContext);
     }
 
     @Override
@@ -144,7 +147,7 @@ public class BaseActivity extends AppCompatActivity {
     private void setupBaseNavBar() {
         int[] tabIds = {
             R.id.nav_tab_launch, R.id.nav_tab_instances,
-            R.id.nav_tab_about, R.id.nav_tab_settings
+            R.id.nav_tab_settings
         };
 
         PersonalizationManager pm = new PersonalizationManager(this);
@@ -208,11 +211,6 @@ public class BaseActivity extends AppCompatActivity {
                 startActivity(new Intent(this, InstancesActivity.class));
             }
         });
-        findViewById(R.id.nav_tab_about).setOnClickListener(v -> {
-            if (!(this instanceof AboutActivity)) {
-                startActivity(new Intent(this, AboutActivity.class));
-            }
-        });
         findViewById(R.id.nav_tab_settings).setOnClickListener(v -> {
             if (!(this instanceof SettingsActivity)) {
                 startActivity(new Intent(this, SettingsActivity.class));
@@ -224,11 +222,18 @@ public class BaseActivity extends AppCompatActivity {
 
     protected void refreshNavAccountUI() {
         if (!navBarInjected) return;
+        View signIn = findViewById(R.id.nav_sign_in_button);
+        View avatarContainer = findViewById(R.id.nav_account_avatar_container);
+        // 默认关闭登录入口（盗版无法登录微软），设置里可开关
+        if (!FeatureSettings.getInstance().isMsLoginEnabled()) {
+            if (signIn != null) signIn.setVisibility(View.GONE);
+            if (avatarContainer != null) avatarContainer.setVisibility(View.GONE);
+            clearNavAvatar();
+            return;
+        }
         java.util.List<MsftAccountStore.MsftAccount> list = MsftAccountStore.list(this);
         MsftAccountStore.MsftAccount active = null;
         for (MsftAccountStore.MsftAccount a : list) if (a.active) { active = a; break; }
-        View signIn = findViewById(R.id.nav_sign_in_button);
-        View avatarContainer = findViewById(R.id.nav_account_avatar_container);
         if (active == null) {
             if (signIn != null) signIn.setVisibility(View.VISIBLE);
             if (avatarContainer != null) avatarContainer.setVisibility(View.GONE);
@@ -317,7 +322,7 @@ public class BaseActivity extends AppCompatActivity {
         if (!navBarInjected) return;
         int[] tabIds = {
             R.id.nav_tab_launch, R.id.nav_tab_instances,
-            R.id.nav_tab_about, R.id.nav_tab_settings
+            R.id.nav_tab_settings
         };
 
         PersonalizationManager pm = new PersonalizationManager(this);

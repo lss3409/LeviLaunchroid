@@ -387,8 +387,9 @@ public class ContentDetailsActivity extends BaseActivity {
         File resourcePacksDir = getPackDirectory("resource_packs");
         File behaviorPacksDir = getPackDirectory("behavior_packs");
         File skinPacksDir = getPackDirectory("skin_packs");
+        File structuresDir = new File(org.levimc.launcher.util.LauncherStorage.getSharedGameDataDir(this, true), "structures");
 
-        contentImporter.importContent(java.util.Collections.singletonList(uri), resourcePacksDir, behaviorPacksDir, skinPacksDir, worldsDir,
+        contentImporter.importContent(java.util.Collections.singletonList(uri), resourcePacksDir, behaviorPacksDir, skinPacksDir, worldsDir, structuresDir,
             new ContentImporter.ImportCallback() {
                 @Override
                 public void onSuccess(String message) {
@@ -410,7 +411,7 @@ public class ContentDetailsActivity extends BaseActivity {
                 }
 
                 @Override
-                public void onProgress(int progress) {
+                public void onProgress(int current, int total, String fileName) {
                 }
             });
     }
@@ -425,9 +426,7 @@ public class ContentDetailsActivity extends BaseActivity {
     }
 
     private File getGameDataDirForSavedStorageType() {
-        android.content.SharedPreferences prefs = getSharedPreferences("content_management", MODE_PRIVATE);
-        String savedType = prefs.getString("storage_type", "INTERNAL");
-        FeatureSettings.StorageType currentStorageType = parseStorageType(savedType);
+        FeatureSettings.StorageType currentStorageType = parseStorageType("EXTERNAL");
         GameVersion currentVersion = versionManager.getSelectedVersion();
         if (currentVersion == null) return null;
         currentStorageType = LauncherStorage.normalizeContentStorageType(

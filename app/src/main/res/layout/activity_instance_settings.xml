@@ -189,6 +189,79 @@
                             android:textColor="@color/text_secondary"
                             android:textSize="11sp" />
                     </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:background="@drawable/card_background"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/shortcut_title"
+                            android:fontFamily="@font/misans"
+                            android:textColor="@color/on_surface"
+                            android:textSize="15sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="@string/shortcut_desc"
+                            android:fontFamily="@font/misans"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+
+                        <EditText
+                            android:id="@+id/edit_shortcut_name"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:layout_marginTop="10dp"
+                            android:paddingHorizontal="14dp"
+                            android:background="@drawable/bg_search_field_light"
+                            android:fontFamily="@font/misans"
+                            android:textColor="@color/on_surface"
+                            android:textColorHint="@color/text_secondary"
+                            android:textSize="14sp"
+                            android:singleLine="true"
+                            android:importantForAutofill="no" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:orientation="horizontal">
+
+                            <Button
+                                android:id="@+id/btn_add_shortcut"
+                                android:layout_width="0dp"
+                                android:layout_height="40dp"
+                                android:layout_weight="1"
+                                android:text="@string/add_to_desktop"
+                                android:fontFamily="@font/misans"
+                                android:textSize="13sp"
+                                android:textColor="@color/on_primary"
+                                android:backgroundTint="@color/primary"
+                                android:textAllCaps="false" />
+
+                            <Button
+                                android:id="@+id/btn_remove_shortcut"
+                                android:layout_width="0dp"
+                                android:layout_height="40dp"
+                                android:layout_weight="1"
+                                android:layout_marginStart="10dp"
+                                android:text="@string/remove_shortcut"
+                                android:fontFamily="@font/misans"
+                                android:textSize="13sp"
+                                android:textColor="#FFFFFF"
+                                android:backgroundTint="#E53935"
+                                android:textAllCaps="false" />
+                        </LinearLayout>
+                    </LinearLayout>
                 </LinearLayout>
 
                 <LinearLayout
@@ -208,46 +281,6 @@
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal">
-
-                            <LinearLayout
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:orientation="vertical">
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/version_isolation"
-                                    android:fontFamily="@font/misans"
-                                    android:textColor="@color/on_surface"
-                                    android:textSize="15sp"
-                                    android:textStyle="bold" />
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginTop="2dp"
-                                    android:text="@string/instance_isolation_desc"
-                                    android:fontFamily="@font/misans"
-                                    android:textColor="@color/text_secondary"
-                                    android:textSize="12sp" />
-                            </LinearLayout>
-
-                            <com.google.android.material.switchmaterial.SwitchMaterial
-                                android:id="@+id/switch_version_isolation"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:thumbTint="@color/primary"
-                                android:trackTint="#555555" />
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="16dp"
                             android:gravity="center_vertical"
                             android:orientation="horizontal">
 

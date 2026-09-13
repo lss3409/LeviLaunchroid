@@ -83,6 +83,7 @@ public class MsftLoginActivity extends BaseActivity {
     private boolean externalBrowserOpened;
     private long deviceGeneration;
     private long webGeneration;
+    private int webAutoRetryCount;
 
     private final Runnable expiryRunnable = new Runnable() {
         @Override
@@ -224,7 +225,24 @@ public class MsftLoginActivity extends BaseActivity {
         settings.setSafeBrowsingEnabled(true);
 
         webView.setBackgroundColor(getColor(R.color.background));
-        webView.setWebChromeClient(new WebChromeClient());
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onReceivedTitle(WebView view, String title) {
+                // MSA 的网络错误页（"登录失败/无法访问网络"）是页面内部请求失败后
+                // 由页面 JS 显示的，主框架已加载成功，onReceivedError 不会触发。
+                // 检测到错误页标题就自动刷新重试（网络抖动时自动恢复）。
+                if (title != null && (title.contains("登录失败") || title.contains("Sign in failed") || title.contains("无法访问"))) {
+                    if (webAutoRetryCount < 5 && !redirectHandled && isCurrentWebLogin()) {
+                        webAutoRetryCount++;
+                        view.postDelayed(() -> {
+                            if (!redirectHandled && isCurrentWebLogin()) {
+                                view.reload();
+                            }
+                        }, 1500);
+                    }
+                }
+            }
+        });
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
@@ -239,7 +257,18 @@ public class MsftLoginActivity extends BaseActivity {
 
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                // 网络间歇性抖动（SSL 握手失败/超时）在国内网络下很常见：
+                // 主框架加载失败时自动重试几次，避免用户反复手动点登录。
                 if (request != null && request.isForMainFrame() && !redirectHandled && isCurrentWebLogin()) {
+                    if (webAutoRetryCount < 3) {
+                        webAutoRetryCount++;
+                        view.postDelayed(() -> {
+                            if (!redirectHandled && isCurrentWebLogin()) {
+                                view.reload();
+                            }
+                        }, 1200);
+                        return;
+                    }
                     String message = error != null && error.getDescription() != null
                             ? error.getDescription().toString()
                             : getString(R.string.ms_login_failed);
@@ -250,6 +279,16 @@ public class MsftLoginActivity extends BaseActivity {
             @Override
             public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
                 handler.cancel();
+                // SSL 握手被网络干扰也自动重试
+                if (isCurrentWebLogin() && webAutoRetryCount < 3) {
+                    webAutoRetryCount++;
+                    view.postDelayed(() -> {
+                        if (!redirectHandled && isCurrentWebLogin()) {
+                            view.reload();
+                        }
+                    }, 1200);
+                    return;
+                }
                 if (isCurrentWebLogin()) {
                     showMethodChooser(getString(R.string.ms_login_ssl_failed));
                 }
@@ -353,6 +392,7 @@ public class MsftLoginActivity extends BaseActivity {
         progressOverlay.setVisibility(View.GONE);
         cancelled.set(false);
         redirectHandled = false;
+        webAutoRetryCount = 0;
         state = CryptoUtils.randomString(32);
         webView.loadUrl(MsftAuthManager.buildAuthorizeUrl(state));
     }

@@ -11,6 +11,10 @@ import org.levimc.launcher.core.versions.GameVersion
 import org.levimc.launcher.preloader.PreloaderInput
 import org.levimc.launcher.preloader.PreloaderSignatureRulesManager
 import org.levimc.launcher.util.LauncherStorage
+import org.levimc.launcher.core.auth.MsftAuthManager
+import org.levimc.launcher.core.auth.storage.XalExporter
+import org.levimc.launcher.util.GlobalConfigManager
+import org.levimc.launcher.util.PreloadManager
 import java.io.File
 
 object MinecraftRuntimePreparer {
@@ -146,6 +150,66 @@ object MinecraftRuntimePreparer {
         val dataDir = LauncherStorage.getStorageDataRoot(context, profileId, versionIsolation)
         val cacheDir = LauncherStorage.getStorageCacheRoot(context, profileId, versionIsolation)
 
+        // 正版/盗版统一：XAL 写到启动器内部 filesDir（Java takeover 读取路径）。
+        try {
+            XalExporter.exportActiveAccountToFiles(context.applicationContext, context.applicationContext.filesDir)
+        } catch (t: Throwable) {
+            android.util.Log.w("MinecraftRuntimePreparer", "XAL export skipped: " + (t.message ?: t.javaClass.simpleName))
+        }
+
+        // 兜底：同时导出到该版本重定向的 filesDir（游戏 native XAL 可能读这里），
+        // 与游戏内登录写入的位置一致；两份都写，兼容不同版本的读取路径。
+        try {
+            XalExporter.exportActiveAccountToFiles(context.applicationContext, filesDir)
+        } catch (t: Throwable) {
+            android.util.Log.w("MinecraftRuntimePreparer", "XAL version-dir export skipped: " + (t.message ?: t.javaClass.simpleName))
+        }
+
+        // 过渡方案：若存在「游戏内登录」捕获的模板，注入目标版本目录（覆盖导出），
+        // 模板是游戏自己签发的完整状态，游戏读取即可静默登录（等价于备份恢复）。
+        try {
+            org.levimc.launcher.core.auth.storage.XalTemplateStore.inject(context.applicationContext, filesDir)
+        } catch (t: Throwable) {
+            android.util.Log.w("MinecraftRuntimePreparer", "XAL template inject skipped: " + (t.message ?: t.javaClass.simpleName))
+        }
+        try {
+            org.levimc.launcher.core.auth.storage.XalTemplateStore.inject(context.applicationContext, context.applicationContext.filesDir)
+        } catch (t: Throwable) {
+            android.util.Log.w("MinecraftRuntimePreparer", "XAL template inject (launcher dir) skipped: " + (t.message ?: t.javaClass.simpleName))
+        }
+
+        // 全局配置与预加载写到启动器重定向目录（externalFilesDir），
+        // 与游戏运行时 getExternalFilesDir 重定向一致，避免 Android 11+ 无法写入 MC 原版目录。
+        try {
+            GlobalConfigManager.apply(context.applicationContext, externalFilesDir)
+        } catch (t: Throwable) {
+            android.util.Log.w("MinecraftRuntimePreparer", "Global config skipped: " + (t.message ?: t.javaClass.simpleName))
+        }
+
+        if (version.isInstalled) {
+            try {
+                mergePreloadedPacks(context, externalFilesDir)
+            } catch (t: Throwable) {
+                android.util.Log.w("MinecraftRuntimePreparer", "merge preload skipped: " + (t.message ?: t.javaClass.simpleName))
+            }
+        } else {
+            if (versionIsolation) {
+                try {
+                    mergeSharedContent(context, externalFilesDir)
+                } catch (t: Throwable) {
+                    android.util.Log.w("MinecraftRuntimePreparer", "merge shared content skipped: " + (t.message ?: t.javaClass.simpleName))
+                }
+            }
+
+            // 预加载：把共享文件夹里标记为「预加载」的资源包/行为包复制进目标版本，
+            // 并写入 global_resource_packs.json 作为全局资源（创建世界无需手动添加）。
+            try {
+                mergePreloadedPacks(context, externalFilesDir)
+            } catch (t: Throwable) {
+                android.util.Log.w("MinecraftRuntimePreparer", "merge preload skipped: " + (t.message ?: t.javaClass.simpleName))
+            }
+        }
+
         version.versionDir?.let { launchIntent.putExtra("MC_PATH", it.absolutePath) }
         launchIntent.putExtra("IS_INSTALLED", version.isInstalled)
         launchIntent.putExtra("VERSION_ISOLATION", versionIsolation)
@@ -169,6 +233,131 @@ object MinecraftRuntimePreparer {
         launchIntent.putExtra("MINECRAFT_VERSION_DIR", version.directoryName)
         launchIntent.putExtra("LAUNCH_VERTICALLY", version.launchVertically)
         launchIntent.putExtra("VERSION_ISOLATION", version.versionIsolation)
+    }
+
+    // 把共享文件夹 games/com.mojang 下的内容（世界/资源包/行为包/皮肤包/截图）复制进版本目录，
+    // 使版本隔离时游戏也能读取共享内容。用复制而非软链接，避免 Android FUSE 下软链接不生效。
+    private fun mergeSharedContent(context: Context, externalFilesDir: File) {
+        val sharedGameData = LauncherStorage.getSharedGameDataDir(context, true)
+        val versionGameData = File(externalFilesDir, "games/com.mojang")
+        val dirNames = arrayOf("minecraftWorlds", "resource_packs", "behavior_packs", "skin_packs", "Screenshots", "structures")
+        for (dirName in dirNames) {
+            val sharedDir = File(sharedGameData, dirName)
+            val versionDir = File(versionGameData, dirName)
+            if (!versionDir.exists()) versionDir.mkdirs()
+            if (!sharedDir.exists() || !sharedDir.isDirectory) continue
+            sharedDir.listFiles()?.forEach { item ->
+                val target = File(versionDir, item.name)
+                if (target.exists()) return@forEach
+                try {
+                    item.copyRecursively(target, overwrite = false)
+                    android.util.Log.d("MinecraftRuntimePreparer", "merged shared: $dirName/${item.name}")
+                } catch (e: Throwable) {
+                    android.util.Log.w("MinecraftRuntimePreparer", "merge shared failed: ${item.name}: ${e.message}")
+                }
+            }
+        }
+    }
+
+    // 把共享文件夹里标记为「预加载」的资源包/行为包复制进目标版本目录，
+    // 并写入 global_resource_packs.json 作为全局资源（创建世界时无需手动添加即生效）。
+    private fun mergePreloadedPacks(context: Context, externalFilesDir: File) {
+        val preloadManager = PreloadManager(context.applicationContext)
+        val preloadUuids = preloadManager.getPreloadUuids()
+        if (preloadUuids.isEmpty()) return
+
+        val sharedGameData = LauncherStorage.getSharedGameDataDir(context, true)
+        val versionGameData = File(externalFilesDir, "games/com.mojang")
+
+        val globalResourcePacks = mutableListOf<org.json.JSONObject>()
+
+        val dirNames = arrayOf("resource_packs", "behavior_packs")
+        for (dirName in dirNames) {
+            val sharedDir = File(sharedGameData, dirName)
+            val versionDir = File(versionGameData, dirName)
+            if (!versionDir.exists()) versionDir.mkdirs()
+            if (!sharedDir.exists() || !sharedDir.isDirectory) continue
+            sharedDir.listFiles()?.forEach { item ->
+                if (!item.isDirectory) return@forEach
+                val manifest = readManifestHeader(item) ?: return@forEach
+                val uuid = manifest.first
+                if (!preloadUuids.contains(uuid.lowercase())) return@forEach
+
+                val target = File(versionDir, item.name)
+                if (!target.exists()) {
+                    try {
+                        item.copyRecursively(target, overwrite = false)
+                        android.util.Log.d("MinecraftRuntimePreparer", "preloaded: $dirName/${item.name}")
+                    } catch (e: Throwable) {
+                        android.util.Log.w("MinecraftRuntimePreparer", "preload failed: ${item.name}: ${e.message}")
+                    }
+                }
+
+                // 资源包（非行为包）才加入全局资源列表
+                if (dirName == "resource_packs") {
+                    val obj = org.json.JSONObject()
+                    obj.put("pack_id", uuid)
+                    obj.put("version", manifest.second)
+                    globalResourcePacks.add(obj)
+                }
+            }
+        }
+
+        if (globalResourcePacks.isNotEmpty()) {
+            writeGlobalResourcePacks(versionGameData, globalResourcePacks)
+        }
+    }
+
+    // 返回 (uuid, version数组)。version 必须用包 manifest 里的真实值，否则游戏无法匹配全局资源。
+    private fun readManifestHeader(packDir: File): Pair<String, org.json.JSONArray>? {
+        return try {
+            val manifestFile = File(packDir, "manifest.json")
+            if (!manifestFile.exists()) return null
+            val json = org.json.JSONObject(manifestFile.readText())
+            val header = json.optJSONObject("header") ?: return null
+            val uuid = header.optString("uuid", null)
+            if (uuid.isNullOrEmpty()) return null
+
+            val versionArr = when (val v = header.opt("version")) {
+                is org.json.JSONArray -> v
+                is String -> parseVersionString(v)
+                is Number -> org.json.JSONArray().put(v.toInt())
+                else -> org.json.JSONArray().put(1).put(0).put(0)
+            }
+            Pair(uuid, versionArr)
+        } catch (e: Throwable) {
+            null
+        }
+    }
+
+    private fun parseVersionString(v: String): org.json.JSONArray {
+        val arr = org.json.JSONArray()
+        v.split(".").forEach { part ->
+            try {
+                arr.put(part.trim().toInt())
+            } catch (_: Throwable) {
+                arr.put(0)
+            }
+        }
+        return if (arr.length() == 0) org.json.JSONArray().put(1).put(0).put(0) else arr
+    }
+
+    private fun writeGlobalResourcePacks(versionGameData: File, packs: List<org.json.JSONObject>) {
+        try {
+            // global_resource_packs.json 必须位于 games/com.mojang/minecraftpe/ 下（与 options.txt 同级），
+            // 且根节点是 JSON 数组（[{"pack_id":..., "version":[...]}]），不是 {"packs":[...]} 对象。
+            val minecraftPeDir = File(versionGameData, "minecraftpe")
+            if (!minecraftPeDir.exists()) minecraftPeDir.mkdirs()
+            val file = File(minecraftPeDir, "global_resource_packs.json")
+            val array = org.json.JSONArray()
+            for (obj in packs) {
+                array.put(obj)
+            }
+            file.writeText(array.toString(2))
+            android.util.Log.d("MinecraftRuntimePreparer", "global_resource_packs.json written: ${file.absolutePath}")
+        } catch (e: Throwable) {
+            android.util.Log.w("MinecraftRuntimePreparer", "write global_resource_packs failed: ${e.message}")
+        }
     }
 
     private fun loadMinecraftLibraries(

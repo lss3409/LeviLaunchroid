@@ -43,13 +43,20 @@ public class Ecdsa {
             }
         } catch (Throwable ignored) {}
         String name = takeover ? "org.levimc.xal.crypto" : "com.microsoft.xal.crypto";
+        Log.i("Ecdsa", "getCryptoPrefs: takeover=" + takeover + " name=" + name
+                + " pkg=" + context.getPackageName() + " dataDir=" + context.getDataDir());
         return context.getSharedPreferences(name, 0);
    }
 
     @Nullable
     public static Ecdsa restoreKeyAndId(@NonNull Context context) throws ClassCastException, IllegalArgumentException, NoSuchProviderException, NoSuchAlgorithmException, InvalidKeySpecException {
         SharedPreferences sharedPreferences = getCryptoPrefs(context);
-        if (!sharedPreferences.contains("id") || !sharedPreferences.contains("public") || !sharedPreferences.contains("private")) {
+        boolean hasId = sharedPreferences.contains("id");
+        boolean hasPub = sharedPreferences.contains("public");
+        boolean hasPriv = sharedPreferences.contains("private");
+        Log.i("Ecdsa", "restoreKeyAndId: contains id=" + hasId + " pub=" + hasPub + " priv=" + hasPriv);
+        if (!hasId || !hasPub || !hasPriv) {
+            Log.w("Ecdsa", "restoreKeyAndId: MISSING keys, clearing and returning null");
             SharedPreferences.Editor edit = sharedPreferences.edit();
             edit.clear();
             edit.apply();
@@ -59,18 +66,26 @@ public class Ecdsa {
         String string2 = sharedPreferences.getString("private", "");
         String string3 = sharedPreferences.getString("id", "");
         if (string.isEmpty() || string2.isEmpty() || string3.isEmpty()) {
+            Log.w("Ecdsa", "restoreKeyAndId: EMPTY values, returning null");
             SharedPreferences.Editor edit2 = sharedPreferences.edit();
             edit2.clear();
             edit2.apply();
             return null;
         }
-        byte[] bytesFromBase64String = getBytesFromBase64String(string);
-        byte[] bytesFromBase64String2 = getBytesFromBase64String(string2);
-        KeyFactory keyFactory = KeyFactory.getInstance("ECDSA", "SC");
-        Ecdsa ecdsa = new Ecdsa();
-        ecdsa.uniqueId = string3;
-        ecdsa.keyPair = new KeyPair(keyFactory.generatePublic(new X509EncodedKeySpec(bytesFromBase64String)), keyFactory.generatePrivate(new PKCS8EncodedKeySpec(bytesFromBase64String2)));
-        return ecdsa;
+        try {
+            byte[] bytesFromBase64String = getBytesFromBase64String(string);
+            byte[] bytesFromBase64String2 = getBytesFromBase64String(string2);
+            Log.i("Ecdsa", "restoreKeyAndId: decoded pub=" + bytesFromBase64String.length + " priv=" + bytesFromBase64String2.length);
+            KeyFactory keyFactory = KeyFactory.getInstance("ECDSA", "SC");
+            Ecdsa ecdsa = new Ecdsa();
+            ecdsa.uniqueId = string3;
+            ecdsa.keyPair = new KeyPair(keyFactory.generatePublic(new X509EncodedKeySpec(bytesFromBase64String)), keyFactory.generatePrivate(new PKCS8EncodedKeySpec(bytesFromBase64String2)));
+            Log.i("Ecdsa", "restoreKeyAndId: SUCCESS id=" + string3);
+            return ecdsa;
+        } catch (Throwable t) {
+            Log.e("Ecdsa", "restoreKeyAndId: parse failed", t);
+            throw t;
+        }
     }
 
     @NonNull
@@ -107,7 +122,9 @@ public class Ecdsa {
         edit.putString("id", str);
         edit.putString("public", getBase64StringFromBytes(this.keyPair.getPublic().getEncoded()));
         edit.putString("private", getBase64StringFromBytes(this.keyPair.getPrivate().getEncoded()));
-        return edit.commit();
+        boolean ok = edit.commit();
+        Log.i("Ecdsa", "storeKeyPairAndId: id=" + str + " committed=" + ok);
+        return ok;
     }
 
     public byte[] sign(byte[] bArr) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {

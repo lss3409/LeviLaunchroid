@@ -64,6 +64,17 @@
         android:visibility="gone" />
 
     <ImageView
+        android:id="@+id/instance_shortcut"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_marginStart="8dp"
+        android:padding="4dp"
+        android:src="@android:drawable/ic_menu_add"
+        android:tint="@color/text_secondary"
+        android:contentDescription="@string/add_to_desktop"
+        android:background="?android:attr/selectableItemBackgroundBorderless" />
+
+    <ImageView
         android:id="@+id/instance_check"
         android:layout_width="20dp"
         android:layout_height="20dp"

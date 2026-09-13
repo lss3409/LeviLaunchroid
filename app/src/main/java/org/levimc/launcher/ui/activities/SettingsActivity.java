@@ -8,6 +8,8 @@ import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Base64;
 import android.view.Gravity;
 import android.view.View;
@@ -15,6 +17,7 @@ import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.GridLayout;
 import android.widget.ImageView;
@@ -31,20 +34,24 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 
 import org.levimc.launcher.R;
-import org.levimc.launcher.core.crash.CrashReporter;
-import org.levimc.launcher.preloader.PreloaderSignatureRulesManager;
+import org.levimc.launcher.core.versions.VersionManager;
 import org.levimc.launcher.settings.FeatureSettings;
 import org.levimc.launcher.ui.animation.DynamicAnim;
+import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
+import org.levimc.launcher.ui.dialogs.LoadingDialog;
 import org.levimc.launcher.ui.dialogs.LogcatOverlayManager;
-import org.levimc.launcher.util.GithubReleaseUpdater;
+import org.levimc.launcher.util.GlobalConfigManager;
 import org.levimc.launcher.util.LanguageManager;
 import org.levimc.launcher.util.LauncherStorage;
 import org.levimc.launcher.util.PermissionsHandler;
 import org.levimc.launcher.util.PersonalizationManager;
 import org.levimc.launcher.util.ThemeManager;
 
+import java.io.File;
 import java.text.DateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
 public class SettingsActivity extends BaseActivity {
@@ -52,6 +59,7 @@ public class SettingsActivity extends BaseActivity {
     private PermissionsHandler permissionsHandler;
     private ActivityResultLauncher<Intent> permissionResultLauncher;
     private ActivityResultLauncher<Intent> bgImagePickerLauncher;
+    private ActivityResultLauncher<Uri> folderPickerLauncher;
     private int updateButtonTapCount = 0;
     private long lastUpdateButtonTapTime = 0;
     private static final int EASTER_EGG_TAP_COUNT = 3;
@@ -59,13 +67,11 @@ public class SettingsActivity extends BaseActivity {
 
     private TextView tabBasic;
     private TextView tabPersonalize;
-    private TextView tabUpdates;
     private TextView tabMigration;
     private TextView tabAbout;
 
     private View sectionBasic;
     private View sectionPersonalize;
-    private View sectionUpdates;
     private View sectionMigration;
     private View sectionAbout;
 
@@ -79,12 +85,10 @@ public class SettingsActivity extends BaseActivity {
     private TextView bgImageBlurValue;
     private TextView bgImageBrightnessValue;
     private ImageView bgImagePreview;
-    private TextView migrationCleanupStatus;
-    private Button migrationCleanupButton;
+    private TextView customStoragePathCurrent;
+    private EditText customStoragePathInput;
     private SwitchMaterial switchSharedStorageLayout;
     private TextView sharedStorageLayoutStatus;
-    private TextView preloaderSigsLastUpdateText;
-    private Button preloaderSigsUpdateButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -126,10 +130,22 @@ public class SettingsActivity extends BaseActivity {
                 }
         );
 
+        folderPickerLauncher = registerForActivityResult(
+                new ActivityResultContracts.OpenDocumentTree(),
+                uri -> {
+                    if (uri != null) {
+                        String path = getPathFromTreeUri(uri);
+                        if (path != null && customStoragePathInput != null) {
+                            customStoragePathInput.setText(path);
+                            updateSelectApplyButtonState();
+                        }
+                    }
+                }
+        );
+
         initTabs();
         setupBasicSection();
         setupPersonalizeSection();
-        setupUpdatesSection();
         setupMigrationSection();
         setupAboutSection();
 
@@ -149,26 +165,23 @@ public class SettingsActivity extends BaseActivity {
     private void initTabs() {
         tabBasic = findViewById(R.id.tab_basic);
         tabPersonalize = findViewById(R.id.tab_personalize);
-        tabUpdates = findViewById(R.id.tab_updates);
         tabMigration = findViewById(R.id.tab_migration);
         tabAbout = findViewById(R.id.tab_about);
 
         sectionBasic = findViewById(R.id.section_basic);
         sectionPersonalize = findViewById(R.id.section_personalize);
-        sectionUpdates = findViewById(R.id.section_updates);
         sectionMigration = findViewById(R.id.section_migration);
         sectionAbout = findViewById(R.id.section_about);
 
         tabBasic.setOnClickListener(v -> { selectedTabIndex = 0; selectTab(tabBasic); });
         tabPersonalize.setOnClickListener(v -> { selectedTabIndex = 1; selectTab(tabPersonalize); });
-        tabUpdates.setOnClickListener(v -> { selectedTabIndex = 2; selectTab(tabUpdates); });
-        tabAbout.setOnClickListener(v -> { selectedTabIndex = 3; selectTab(tabAbout); });
-        tabMigration.setOnClickListener(v -> { selectedTabIndex = 4; selectTab(tabMigration); });
+        tabAbout.setOnClickListener(v -> { selectedTabIndex = 2; selectTab(tabAbout); });
+        tabMigration.setOnClickListener(v -> { selectedTabIndex = 3; selectTab(tabMigration); });
     }
 
     private void selectTab(TextView selectedTab) {
         TextView[] tabs = getSettingsTabs();
-        View[] sections = {sectionBasic, sectionPersonalize, sectionUpdates, sectionAbout, sectionMigration};
+        View[] sections = {sectionBasic, sectionPersonalize, sectionAbout, sectionMigration};
 
         int accent = personalizationManager.getAccentColor();
 
@@ -203,7 +216,7 @@ public class SettingsActivity extends BaseActivity {
     }
 
     private TextView[] getSettingsTabs() {
-        return new TextView[]{tabBasic, tabPersonalize, tabUpdates, tabAbout, tabMigration};
+        return new TextView[]{tabBasic, tabPersonalize, tabAbout, tabMigration};
     }
 
     private void setupBasicSection() {
@@ -287,16 +300,258 @@ public class SettingsActivity extends BaseActivity {
             } catch (Throwable ignored) {}
         });
 
-        SwitchMaterial switchCrashUpload = findViewById(R.id.switch_crash_upload);
-        switchCrashUpload.setChecked(fs.isCrashUploadEnabled());
-        switchCrashUpload.setOnCheckedChangeListener((btn, checked) -> {
-            fs.setCrashUploadEnabled(checked);
-            CrashReporter.refreshCrashlyticsCollection(this);
-        });
+        // 登录入口开关已移除：登录按钮一直显示
 
-        SwitchMaterial switchManagedLogin = findViewById(R.id.switch_managed_login);
-        switchManagedLogin.setChecked(fs.isLauncherManagedMcLoginEnabled());
-        switchManagedLogin.setOnCheckedChangeListener((btn, checked) -> fs.setLauncherManagedMcLoginEnabled(checked));
+        SwitchMaterial switchAutoCloseGame = findViewById(R.id.switch_auto_close_game);
+        if (switchAutoCloseGame != null) {
+            switchAutoCloseGame.setChecked(fs.isAutoCloseGameOnLaunchNew());
+            switchAutoCloseGame.setOnCheckedChangeListener((btn, checked) -> {
+                fs.setAutoCloseGameOnLaunchNew(checked);
+            });
+        }
+
+        setupGlobalConfigSection();
+    }
+
+    private void setupGlobalConfigSection() {
+        View row = findViewById(R.id.global_config_row);
+        Button configureButton = findViewById(R.id.btn_configure_global);
+        if (row == null) return;
+
+        refreshGlobalConfigSummary();
+
+        int accent = personalizationManager != null ? personalizationManager.getAccentColor() : 0;
+        if (accent != 0 && configureButton != null) {
+            configureButton.setBackgroundTintList(ColorStateList.valueOf(accent));
+            configureButton.setTextColor(Color.WHITE);
+        }
+
+        View.OnClickListener openDialog = v -> showGlobalConfigDialog();
+        row.setOnClickListener(openDialog);
+        if (configureButton != null) {
+            configureButton.setOnClickListener(openDialog);
+        }
+    }
+
+    private void refreshGlobalConfigSummary() {
+        TextView summary = findViewById(R.id.global_config_summary);
+        if (summary == null) return;
+        String value = GlobalConfigManager.summary(this);
+        summary.setText(value != null ? value : getString(R.string.global_config_not_set));
+    }
+
+    private void showGlobalConfigDialog() {
+        float density = getResources().getDisplayMetrics().density;
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding((int) (8 * density), 0, (int) (8 * density), (int) (8 * density));
+
+        ConfigField[] fields = {
+                new ConfigField(
+                        new String[]{GlobalConfigManager.KEY_VIEW_DISTANCE},
+                        getString(R.string.global_config_view_distance),
+                        new String[][]{{"6 区块", "96"}, {"8 区块", "128"}, {"10 区块", "160"}, {"12 区块", "192"},
+                                {"16 区块", "256"}, {"20 区块", "320"}, {"24 区块", "384"}, {"32 区块", "512"}}),
+                new ConfigField(
+                        new String[]{GlobalConfigManager.KEY_UI_PROFILE},
+                        getString(R.string.global_config_ui_type),
+                        new String[][]{{getString(R.string.ui_classic), "0"}, {getString(R.string.ui_pocket), "1"}}),
+                new ConfigField(
+                        new String[]{GlobalConfigManager.KEY_TOUCH_SCHEME},
+                        getString(R.string.global_config_touch_scheme),
+                        new String[][]{{getString(R.string.touch_joystick_tap), "0"}, {getString(R.string.touch_joystick_crosshair), "1"}, {getString(R.string.touch_dpad_tap), "2"}}),
+                new ConfigField(
+                        new String[]{GlobalConfigManager.KEY_SPLIT_CONTROL},
+                        getString(R.string.global_config_split_control),
+                        new String[][]{{getString(R.string.global_config_off), "0"}, {getString(R.string.global_config_on), "1"}}),
+        };
+
+        List<Spinner> spinners = new ArrayList<>();
+        for (int i = 0; i < fields.length; i++) {
+            ConfigField field = fields[i];
+
+            TextView label = new TextView(this);
+            label.setText(field.label);
+            label.setTextColor(getColor(R.color.on_surface));
+            label.setTextSize(13);
+            label.setTypeface(null, android.graphics.Typeface.BOLD);
+            LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            if (i > 0) labelParams.topMargin = (int) (12 * density);
+            label.setLayoutParams(labelParams);
+            container.addView(label);
+
+            List<String> optionLabels = new ArrayList<>();
+            optionLabels.add(getString(R.string.global_config_keep_default));
+            for (String[] opt : field.options) optionLabels.add(opt[0]);
+
+            Spinner spinner = new androidx.appcompat.widget.AppCompatSpinner(this);
+            ArrayAdapter<String> adapter = new ArrayAdapter<>(this, R.layout.spinner_item, optionLabels);
+            adapter.setDropDownViewResource(R.layout.spinner_dropdown_item);
+            spinner.setAdapter(adapter);
+            spinner.setPopupBackgroundResource(R.drawable.bg_popup_menu_rounded);
+            // 用静态背景，避免默认 state selector 背景在滚动时导致下拉箭头闪烁
+            spinner.setBackgroundResource(R.drawable.bg_spinner_outline);
+
+            int selectedIndex = 0;
+            String current = GlobalConfigManager.get(this, field.keys[0]);
+            if (current != null) {
+                for (int j = 0; j < field.options.length; j++) {
+                    if (field.options[j][1].equals(current)) {
+                        selectedIndex = j + 1;
+                        break;
+                    }
+                }
+            }
+            spinner.setSelection(selectedIndex);
+
+            LinearLayout.LayoutParams spinnerParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            spinnerParams.topMargin = (int) (4 * density);
+            spinner.setLayoutParams(spinnerParams);
+            container.addView(spinner);
+            spinners.add(spinner);
+        }
+
+        // 视野：滑块（30° ~ 110°）
+        TextView fovLabel = new TextView(this);
+        fovLabel.setText(getString(R.string.global_config_fov));
+        fovLabel.setTextColor(getColor(R.color.on_surface));
+        fovLabel.setTextSize(13);
+        fovLabel.setTypeface(null, android.graphics.Typeface.BOLD);
+        LinearLayout.LayoutParams fovLabelParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        fovLabelParams.topMargin = (int) (12 * density);
+        fovLabel.setLayoutParams(fovLabelParams);
+        container.addView(fovLabel);
+
+        final TextView fovValue = new TextView(this);
+        fovValue.setTextColor(getColor(R.color.text_secondary));
+        fovValue.setTextSize(12);
+        fovValue.setGravity(Gravity.END);
+        fovValue.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        container.addView(fovValue);
+
+        final SeekBar fovSeek = new SeekBar(this);
+        fovSeek.setMax(80); // 0~80 对应 30°~110°
+        int seekColor = personalizationManager != null && personalizationManager.getAccentColor() != 0
+                ? personalizationManager.getAccentColor() : getColor(R.color.primary);
+        fovSeek.setProgressTintList(ColorStateList.valueOf(seekColor));
+        fovSeek.setThumbTintList(ColorStateList.valueOf(seekColor));
+        int fovProgress = fovToProgress(GlobalConfigManager.get(this, GlobalConfigManager.KEY_FOV));
+        fovSeek.setProgress(fovProgress);
+        fovValue.setText((fovProgress + 30) + "°");
+        fovSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                fovValue.setText((progress + 30) + "°");
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+        fovSeek.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        container.addView(fovSeek);
+
+        // 安全区：滑块（0% ~ 100%）
+        TextView safeZoneLabel = new TextView(this);
+        safeZoneLabel.setText(getString(R.string.global_config_safe_zone));
+        safeZoneLabel.setTextColor(getColor(R.color.on_surface));
+        safeZoneLabel.setTextSize(13);
+        safeZoneLabel.setTypeface(null, android.graphics.Typeface.BOLD);
+        LinearLayout.LayoutParams safeLabelParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        safeLabelParams.topMargin = (int) (12 * density);
+        safeZoneLabel.setLayoutParams(safeLabelParams);
+        container.addView(safeZoneLabel);
+
+        final TextView safeZoneValue = new TextView(this);
+        safeZoneValue.setTextColor(getColor(R.color.text_secondary));
+        safeZoneValue.setTextSize(12);
+        safeZoneValue.setGravity(Gravity.END);
+        safeZoneValue.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        container.addView(safeZoneValue);
+
+        final SeekBar safeZoneSeek = new SeekBar(this);
+        safeZoneSeek.setMax(100);
+        safeZoneSeek.setProgressTintList(ColorStateList.valueOf(seekColor));
+        safeZoneSeek.setThumbTintList(ColorStateList.valueOf(seekColor));
+        int safePercent = parseSafeZonePercent(GlobalConfigManager.get(this, GlobalConfigManager.KEY_SAFE_ZONE_X));
+        safeZoneSeek.setProgress(safePercent);
+        safeZoneValue.setText(safePercent + "%");
+        safeZoneSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                safeZoneValue.setText(progress + "%");
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+        safeZoneSeek.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        container.addView(safeZoneSeek);
+
+        // 包进 ScrollView，并给一个受约束的高度，让内容真正滚动、标题与按钮始终可见。
+        // 高度取屏幕高度的 40%，既保证小屏手机按钮不被挤出，也远小于弹窗 maxHeight(500dp)。
+        ScrollView scrollView = new ScrollView(this);
+        int scrollHeight = (int) (getResources().getDisplayMetrics().heightPixels * 0.4f);
+        scrollView.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, scrollHeight));
+        scrollView.addView(container);
+
+        new CustomAlertDialog(this)
+                .setTitleText(getString(R.string.global_config_title))
+                .setCustomView(scrollView)
+                .setPositiveButton(getString(R.string.apply), v -> {
+                    for (int i = 0; i < fields.length; i++) {
+                        int idx = spinners.get(i).getSelectedItemPosition();
+                        if (idx <= 0) continue; // 不修改
+                        String value = fields[i].options[idx - 1][1];
+                        for (String key : fields[i].keys) {
+                            GlobalConfigManager.set(this, key, value);
+                        }
+                    }
+                    int fovDegrees = 30 + fovSeek.getProgress();
+                    GlobalConfigManager.set(this, GlobalConfigManager.KEY_FOV, String.valueOf(fovDegrees));
+                    String safeValue = String.valueOf(safeZoneSeek.getProgress() / 100.0);
+                    GlobalConfigManager.set(this, GlobalConfigManager.KEY_SAFE_ZONE_X, safeValue);
+                    GlobalConfigManager.set(this, GlobalConfigManager.KEY_SAFE_ZONE_Y, safeValue);
+                    refreshGlobalConfigSummary();
+                    Toast.makeText(this, R.string.global_config_saved, Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton(getString(R.string.cancel), null)
+                .show();
+    }
+
+    private int parseSafeZonePercent(String value) {
+        if (value == null || value.isEmpty()) return 100;
+        try {
+            return (int) Math.round(Float.parseFloat(value) * 100f);
+        } catch (NumberFormatException ignored) {
+            return 100;
+        }
+    }
+
+    private int fovToProgress(String value) {
+        if (value == null || value.isEmpty()) return 40; // 默认 70° → progress 40
+        try {
+            int degrees = Integer.parseInt(value);
+            return Math.max(0, Math.min(80, degrees - 30));
+        } catch (NumberFormatException ignored) {
+            return 40;
+        }
+    }
+
+    private static class ConfigField {
+        final String[] keys;
+        final String label;
+        final String[][] options;
+
+        ConfigField(String[] keys, String label, String[][] options) {
+            this.keys = keys;
+            this.label = label;
+            this.options = options;
+        }
     }
 
     private void setupPersonalizeSection() {
@@ -480,18 +735,6 @@ public class SettingsActivity extends BaseActivity {
             btnSelectImage.setTextColor(Color.WHITE);
         }
         
-        Button btnCheckUpdate = findViewById(R.id.btn_check_update);
-        if (btnCheckUpdate != null && accent != 0) {
-            btnCheckUpdate.setBackgroundTintList(ColorStateList.valueOf(accent));
-            btnCheckUpdate.setTextColor(Color.WHITE);
-        }
-
-        Button btnUpdatePreloaderSigs = findViewById(R.id.btn_update_preloader_sigs);
-        if (btnUpdatePreloaderSigs != null && accent != 0) {
-            btnUpdatePreloaderSigs.setBackgroundTintList(ColorStateList.valueOf(accent));
-            btnUpdatePreloaderSigs.setTextColor(Color.WHITE);
-        }
-        
         SwitchMaterial switchLogcat = findViewById(R.id.switch_logcat);
         if (switchLogcat != null && accent != 0) {
             int[][] states = {{android.R.attr.state_checked}, {}};
@@ -500,22 +743,38 @@ public class SettingsActivity extends BaseActivity {
             switchLogcat.setTrackTintList(new ColorStateList(states, new int[]{trackChecked, 0xFF555555}));
         }
         
-        SwitchMaterial switchManagedLogin = findViewById(R.id.switch_managed_login);
-        if (switchManagedLogin != null && accent != 0) {
-            int[][] states = {{android.R.attr.state_checked}, {}};
-            switchManagedLogin.setThumbTintList(new ColorStateList(states, new int[]{accent, 0xFFAAAAAA}));
-            int trackChecked = Color.argb(100, Color.red(accent), Color.green(accent), Color.blue(accent));
-            switchManagedLogin.setTrackTintList(new ColorStateList(states, new int[]{trackChecked, 0xFF555555}));
+        Button btnApplyStorage = findViewById(R.id.btn_apply_custom_storage_path);
+        if (btnApplyStorage != null && accent != 0) {
+            btnApplyStorage.setBackgroundTintList(ColorStateList.valueOf(accent));
+            btnApplyStorage.setTextColor(Color.WHITE);
         }
 
-        SwitchMaterial switchCrashUpload = findViewById(R.id.switch_crash_upload);
-        if (switchCrashUpload != null && accent != 0) {
-            int[][] states = {{android.R.attr.state_checked}, {}};
-            switchCrashUpload.setThumbTintList(new ColorStateList(states, new int[]{accent, 0xFFAAAAAA}));
-            int trackChecked = Color.argb(100, Color.red(accent), Color.green(accent), Color.blue(accent));
-            switchCrashUpload.setTrackTintList(new ColorStateList(states, new int[]{trackChecked, 0xFF555555}));
+        Button btnResetStorage = findViewById(R.id.btn_reset_custom_storage_path);
+        if (btnResetStorage != null && accent != 0) {
+            btnResetStorage.setTextColor(Color.WHITE);
+            btnResetStorage.setBackgroundTintList(ColorStateList.valueOf(accent));
         }
-        
+
+        Button btnConfigureGlobal = findViewById(R.id.btn_configure_global);
+        if (btnConfigureGlobal != null && accent != 0) {
+            btnConfigureGlobal.setBackgroundTintList(ColorStateList.valueOf(accent));
+            btnConfigureGlobal.setTextColor(Color.WHITE);
+        }
+
+        Button btnApplyColor = findViewById(R.id.btn_apply_color);
+        if (btnApplyColor != null && accent != 0) {
+            btnApplyColor.setBackgroundTintList(ColorStateList.valueOf(accent));
+            btnApplyColor.setTextColor(Color.WHITE);
+        }
+
+        int[] helpIconIds = {R.id.help_chunkbase_icon, R.id.help_mcwiki_icon, R.id.help_bilibili_icon, R.id.help_minebbs_icon, R.id.help_littleskin_icon};
+        for (int id : helpIconIds) {
+            ImageView icon = findViewById(id);
+            if (icon != null && accent != 0) {
+                icon.setImageTintList(ColorStateList.valueOf(accent));
+            }
+        }
+
         TextView navAppName = findViewById(R.id.nav_app_name);
         if (navAppName != null && accent != 0) {
             pm.applySolidAccentText(navAppName, accent);
@@ -527,7 +786,7 @@ public class SettingsActivity extends BaseActivity {
             navSignInBtn.setTextColor(Color.WHITE);
         }
         
-        int[] navTabIds = {R.id.nav_tab_launch, R.id.nav_tab_instances, R.id.nav_tab_about, R.id.nav_tab_settings};
+        int[] navTabIds = {R.id.nav_tab_launch, R.id.nav_tab_instances, R.id.nav_tab_settings};
         for (int id : navTabIds) {
             TextView navTab = findViewById(id);
             if (navTab != null && id == R.id.nav_tab_settings && accent != 0) {
@@ -677,91 +936,124 @@ public class SettingsActivity extends BaseActivity {
 
 
 
-    private void setupUpdatesSection() {
-        try {
-            String localVersion = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
-            TextView versionText = findViewById(R.id.version_text);
-            versionText.setText(getString(R.string.version_prefix) + localVersion);
-        } catch (PackageManager.NameNotFoundException ignored) {
-        }
-
-        Button btnCheckUpdate = findViewById(R.id.btn_check_update);
-        btnCheckUpdate.setOnClickListener(v -> handleUpdateButtonClick());
-
-        preloaderSigsLastUpdateText = findViewById(R.id.preloader_sigs_last_update);
-        preloaderSigsUpdateButton = findViewById(R.id.btn_update_preloader_sigs);
-        refreshPreloaderSigsLastUpdateUi();
-        if (preloaderSigsUpdateButton != null) {
-            preloaderSigsUpdateButton.setOnClickListener(v -> handlePreloaderSigsUpdateClick());
-        }
-    }
-
-    private void handlePreloaderSigsUpdateClick() {
-        if (preloaderSigsUpdateButton == null) {
-            return;
-        }
-        if (!PreloaderSignatureRulesManager.hasRemoteRulesUrl()) {
-            Toast.makeText(this, R.string.preloader_sigs_no_remote_url, Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        preloaderSigsUpdateButton.setEnabled(false);
-        preloaderSigsUpdateButton.setText(R.string.preloader_sigs_updating);
-        PreloaderSignatureRulesManager.refreshNow(this, result -> {
-            if (isFinishing()) {
-                return;
-            }
-            preloaderSigsUpdateButton.setEnabled(true);
-            preloaderSigsUpdateButton.setText(R.string.preloader_sigs_update);
-            refreshPreloaderSigsLastUpdateUi();
-
-            if (result.success) {
-                Toast.makeText(this, R.string.preloader_sigs_update_success, Toast.LENGTH_SHORT).show();
-            } else {
-                String detail = result.message.isEmpty()
-                        ? getString(R.string.unknown_error)
-                        : result.message;
-                Toast.makeText(this, getString(R.string.preloader_sigs_update_failed, detail), Toast.LENGTH_LONG).show();
-            }
-        });
-    }
-
-    private void refreshPreloaderSigsLastUpdateUi() {
-        if (preloaderSigsLastUpdateText == null) {
-            return;
-        }
-
-        long updateTime = PreloaderSignatureRulesManager.getLastSuccessfulUpdateTime(this);
-        String updateText = updateTime > 0L
-                ? DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, Locale.getDefault()).format(new Date(updateTime))
-                : getString(R.string.preloader_sigs_never_updated);
-        preloaderSigsLastUpdateText.setText(getString(R.string.preloader_sigs_last_update, updateText));
-    }
-
     private void setupMigrationSection() {
-        switchSharedStorageLayout = findViewById(R.id.switch_shared_storage_layout);
-        sharedStorageLayoutStatus = findViewById(R.id.shared_storage_layout_status);
-        TextView legacyPath = findViewById(R.id.migration_cleanup_path);
-        migrationCleanupStatus = findViewById(R.id.migration_cleanup_status);
-        migrationCleanupButton = findViewById(R.id.btn_cleanup_legacy_dir);
+        setupCustomStoragePathSection();
+    }
 
-        if (switchSharedStorageLayout != null) {
-            switchSharedStorageLayout.setChecked(LauncherStorage.isUsingNewSharedStorage(this));
-            switchSharedStorageLayout.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                LauncherStorage.setUseNewSharedStorage(this, isChecked);
-                refreshSharedStorageLayoutUi();
-                Toast.makeText(this, R.string.shared_storage_layout_changed, Toast.LENGTH_LONG).show();
+    private void setupCustomStoragePathSection() {
+        customStoragePathCurrent = findViewById(R.id.custom_storage_path_current);
+        customStoragePathInput = findViewById(R.id.input_custom_storage_path);
+        Button btnSelectApply = findViewById(R.id.btn_apply_custom_storage_path);
+        Button btnReset = findViewById(R.id.btn_reset_custom_storage_path);
+
+        if (customStoragePathInput != null) {
+            customStoragePathInput.setHint(LauncherStorage.getTargetAppRootDisplayPath(this));
+            String custom = LauncherStorage.getCustomStoragePath(this);
+            if (custom != null) {
+                customStoragePathInput.setText(custom);
+            }
+            customStoragePathInput.addTextChangedListener(new TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+                @Override
+                public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    updateSelectApplyButtonState();
+                }
+
+                @Override
+                public void afterTextChanged(Editable s) {}
             });
         }
-        refreshSharedStorageLayoutUi();
 
-        if (legacyPath != null) {
-            legacyPath.setText(LauncherStorage.getLegacyRoot().getAbsolutePath());
+        if (btnSelectApply != null) {
+            btnSelectApply.setOnClickListener(v -> {
+                if (getString(R.string.custom_storage_path_select).contentEquals(btnSelectApply.getText())) {
+                    openFolderPicker();
+                } else {
+                    applyCustomStoragePath();
+                }
+            });
         }
-        if (migrationCleanupButton != null) {
-            migrationCleanupButton.setOnClickListener(v -> confirmCleanupLegacyDir());
+        if (btnReset != null) {
+            btnReset.setOnClickListener(v -> resetCustomStoragePath());
         }
-        refreshMigrationCleanupUi();
+
+        refreshCustomStoragePathUi();
+        updateSelectApplyButtonState();
+    }
+
+    private void updateSelectApplyButtonState() {
+        Button btn = findViewById(R.id.btn_apply_custom_storage_path);
+        if (btn == null) return;
+        boolean hasText = customStoragePathInput != null
+                && !customStoragePathInput.getText().toString().trim().isEmpty();
+        btn.setText(hasText ? R.string.custom_storage_path_apply : R.string.custom_storage_path_select);
+    }
+
+    private void openFolderPicker() {
+        if (folderPickerLauncher != null) {
+            folderPickerLauncher.launch(null);
+        }
+    }
+
+    private String getPathFromTreeUri(Uri uri) {
+        try {
+            String docId = android.provider.DocumentsContract.getTreeDocumentId(uri);
+            if (docId == null) return null;
+            String[] parts = docId.split(":");
+            if (parts.length >= 2 && ("primary".equals(parts[0]) || "home".equals(parts[0]))) {
+                return "/storage/emulated/0/" + parts[1];
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    private void refreshCustomStoragePathUi() {
+        if (customStoragePathCurrent == null) return;
+
+        String custom = LauncherStorage.getCustomStoragePath(this);
+        String effective = (custom != null) ? custom : LauncherStorage.getTargetAppRootDisplayPath(this);
+        customStoragePathCurrent.setText(getString(R.string.custom_storage_path_current, effective));
+    }
+
+    private void applyCustomStoragePath() {
+        if (customStoragePathInput == null) return;
+        String path = customStoragePathInput.getText().toString().trim();
+        if (path.isEmpty()) {
+            LauncherStorage.clearCustomStoragePath(this);
+            refreshCustomStoragePathUi();
+            refreshVersionsAfterStorageChange();
+            return;
+        }
+        // 自定义路径确认弹窗：提示可能导致导入大型包变慢
+        new CustomAlertDialog(this)
+                .setTitleText(getString(R.string.custom_path_confirm_title))
+                .setMessage(getString(R.string.custom_path_confirm_message))
+                .setPositiveButton(getString(R.string.apply), v -> {
+                    LauncherStorage.setCustomStoragePath(this, path);
+                    refreshCustomStoragePathUi();
+                    refreshVersionsAfterStorageChange();
+                })
+                .setNegativeButton(getString(R.string.cancel), null)
+                .show();
+    }
+
+    private void resetCustomStoragePath() {
+        LauncherStorage.clearCustomStoragePath(this);
+        if (customStoragePathInput != null) {
+            customStoragePathInput.setText("");
+        }
+        refreshCustomStoragePathUi();
+        refreshVersionsAfterStorageChange();
+    }
+
+    private void refreshVersionsAfterStorageChange() {
+        // 存储路径切换后立即重新扫描实例，避免旧路径实例残留
+        try {
+            VersionManager.get(this).loadAllVersions();
+        } catch (Exception ignored) {}
     }
 
     private void refreshSharedStorageLayoutUi() {
@@ -778,66 +1070,22 @@ public class SettingsActivity extends BaseActivity {
         ));
     }
 
-    private void refreshMigrationCleanupUi() {
-        if (migrationCleanupStatus == null || migrationCleanupButton == null) return;
-
-        boolean migrationCompleted = LauncherStorage.isMigrationCompleted(this);
-        boolean legacyExists = LauncherStorage.getLegacyRoot().isDirectory();
-        migrationCleanupButton.setEnabled(migrationCompleted && legacyExists);
-
-        if (!migrationCompleted) {
-            migrationCleanupStatus.setText(R.string.migration_cleanup_unavailable_not_completed);
-        } else if (!legacyExists) {
-            migrationCleanupStatus.setText(R.string.migration_cleanup_unavailable_missing);
-        } else {
-            migrationCleanupStatus.setText(R.string.migration_cleanup_ready);
-        }
-    }
-
-    private void confirmCleanupLegacyDir() {
-        new android.app.AlertDialog.Builder(this)
-                .setTitle(R.string.migration_cleanup_confirm_title)
-                .setMessage(R.string.migration_cleanup_confirm_message)
-                .setPositiveButton(R.string.delete, (dialog, which) -> cleanupLegacyDir())
-                .setNegativeButton(R.string.cancel, null)
-                .show();
-    }
-
-    private void cleanupLegacyDir() {
-        if (migrationCleanupButton != null) {
-            migrationCleanupButton.setEnabled(false);
-        }
-        AsyncTask.execute(() -> {
-            LauncherStorage.LegacyCleanupResult result = LauncherStorage.cleanupLegacyRoot(this);
-            runOnUiThread(() -> {
-                refreshMigrationCleanupUi();
-                if (result.success) {
-                    String message = getString(
-                            R.string.migration_cleanup_success,
-                            result.deletedFiles,
-                            formatBytes(result.deletedBytes)
-                    );
-                    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
-                    if (migrationCleanupStatus != null) {
-                        migrationCleanupStatus.setText(message);
-                    }
-                } else {
-                    String message = getString(R.string.migration_cleanup_failed, result.errorMessage);
-                    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
-                    if (migrationCleanupStatus != null) {
-                        migrationCleanupStatus.setText(message);
-                    }
-                }
-            });
-        });
-    }
-
     private void setupAboutSection() {
-        findViewById(R.id.settings_btn_github).setOnClickListener(v ->
-                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/LiteLDev/LeviLaunchroid"))));
+        findViewById(R.id.help_chunkbase).setOnClickListener(v ->
+                openUrl("https://www.chunkbase.com/", getString(R.string.help_chunkbase)));
+        findViewById(R.id.help_mcwiki).setOnClickListener(v ->
+                openUrl("https://zh.minecraft.wiki/", getString(R.string.help_mcwiki)));
+        findViewById(R.id.help_bilibili).setOnClickListener(v ->
+                openUrl("https://www.bilibili.com/", getString(R.string.help_bilibili)));
+        findViewById(R.id.help_minebbs).setVisibility(View.GONE);
+        findViewById(R.id.help_littleskin).setVisibility(View.GONE);
+    }
 
-        findViewById(R.id.settings_btn_discord).setOnClickListener(v ->
-                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://discord.gg/jsnzw4ueAt"))));
+    private void openUrl(String url, String title) {
+        Intent intent = new Intent(this, WebViewActivity.class);
+        intent.putExtra(WebViewActivity.EXTRA_URL, url);
+        intent.putExtra(WebViewActivity.EXTRA_TITLE, title);
+        startActivity(intent);
     }
 
     private void handleUpdateButtonClick() {
@@ -853,8 +1101,6 @@ public class SettingsActivity extends BaseActivity {
         if (updateButtonTapCount >= EASTER_EGG_TAP_COUNT) {
             updateButtonTapCount = 0;
             triggerEasterEgg();
-        } else {
-            new GithubReleaseUpdater(this, "LiteLDev", "LeviLaunchroid", permissionResultLauncher).checkUpdate();
         }
     }
 
@@ -874,12 +1120,4 @@ public class SettingsActivity extends BaseActivity {
         findViewById(R.id.nav_tab_settings).setOnClickListener(v -> {});
     }
 
-    private String formatBytes(long bytes) {
-        if (bytes < 1024) return bytes + " B";
-        double kb = bytes / 1024.0;
-        if (kb < 1024) return String.format(Locale.getDefault(), "%.1f KB", kb);
-        double mb = kb / 1024.0;
-        if (mb < 1024) return String.format(Locale.getDefault(), "%.1f MB", mb);
-        return String.format(Locale.getDefault(), "%.1f GB", mb / 1024.0);
-    }
 }

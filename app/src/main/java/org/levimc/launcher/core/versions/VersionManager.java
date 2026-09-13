@@ -17,6 +17,7 @@ import org.levimc.launcher.core.mods.ModManager;
 import org.levimc.launcher.ui.activities.MainActivity;
 import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
 import org.levimc.launcher.ui.dialogs.LibsRepairDialog;
+import org.levimc.launcher.util.ApkInstaller;
 import org.levimc.launcher.util.ApkUtils;
 import org.levimc.launcher.util.LauncherStorage;
 import org.levimc.launcher.util.NativeImageGuard;
@@ -29,6 +30,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 
 public class VersionManager {
@@ -385,8 +387,17 @@ public class VersionManager {
 
         if (dirs != null) {
             for (File dir : dirs) {
+                // 跳过保留/特殊目录（shared、安装版、未分类等），避免误删其内资源包/世界
+                if (isReservedVersionDir(dir.getName())) {
+                    continue;
+                }
+
                 File apk = new File(dir, "base.apk.levi");
-                if (!apk.exists()) continue;
+                // 仅清理空文件（导入时写入失败导致），不再因 zip 校验失败误删正常实例
+                if (!apk.exists() || apk.length() == 0) {
+                    ApkInstaller.deleteDir(dir);
+                    continue;
+                }
 
                 GameVersion gv = getGameVersion(dir);
                 gv.needsRepair = false;
@@ -395,6 +406,21 @@ public class VersionManager {
             }
         }
         restoreSelectedVersion();
+    }
+
+    private boolean isReservedVersionDir(String dirName) {
+        if (dirName == null) return true;
+        if (LauncherStorage.isReservedProfileId(dirName)) return true;
+        return LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID.equals(dirName);
+    }
+
+    private boolean isValidApkFile(File apk) {
+        if (apk == null || !apk.isFile() || apk.length() == 0) return false;
+        try (ZipFile zipFile = new ZipFile(apk)) {
+            return zipFile.size() > 0;
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private void syncInstalledMetadata(String packageName, String versionName, VersionProfileMetadata metadata) {

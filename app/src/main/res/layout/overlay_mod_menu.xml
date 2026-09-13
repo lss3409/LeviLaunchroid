@@ -420,7 +420,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:thumbTint="#4AE0A0"
-                                android:trackTint="@color/switch_track_color" />
+                                android:trackTint="@color/switch_track_color"
+                                android:showText="true"
+                                android:textOn="@string/switch_on"
+                                android:textOff="@string/switch_off" />
 
                         </LinearLayout>
 
@@ -470,7 +473,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:thumbTint="#4AE0A0"
-                                android:trackTint="@color/switch_track_color" />
+                                android:trackTint="@color/switch_track_color"
+                                android:showText="true"
+                                android:textOn="@string/switch_on"
+                                android:textOff="@string/switch_off" />
 
                         </LinearLayout>
 

@@ -4,7 +4,9 @@ import android.content.Context;
 import android.net.Uri;
 import android.util.Log;
 
+import org.levimc.launcher.R;
 import org.levimc.launcher.core.versions.GameVersion;
+import org.levimc.launcher.util.HardcoreBackupManager;
 import org.levimc.launcher.util.LauncherStorage;
 
 import java.io.File;
@@ -31,6 +33,7 @@ public class WorldManager {
     private final Context context;
     private final ExecutorService executor;
     private File worldsDirectory;
+    private List<File> aggregateWorldsDirs;
     
     public interface WorldOperationCallback {
         void onSuccess(String message);
@@ -59,19 +62,40 @@ public class WorldManager {
 
     public void setWorldsDirectory(File directory) {
         this.worldsDirectory = directory;
+        this.aggregateWorldsDirs = null;
         if (worldsDirectory != null && !worldsDirectory.exists()) {
             worldsDirectory.mkdirs();
         }
     }
 
+    public void setAggregateWorldsDirectories(List<File> dirs) {
+        this.aggregateWorldsDirs = dirs;
+        if (dirs != null) {
+            for (File dir : dirs) {
+                if (dir != null && !dir.exists()) {
+                    dir.mkdirs();
+                }
+            }
+        }
+    }
+
     public List<WorldItem> getWorlds() {
         List<WorldItem> worlds = new ArrayList<>();
-        
-        if (worldsDirectory == null || !worldsDirectory.exists()) {
-            return worlds;
+        if (aggregateWorldsDirs != null) {
+            for (File dir : aggregateWorldsDirs) {
+                scanWorldsDirectory(dir, worlds);
+            }
+        } else {
+            scanWorldsDirectory(worldsDirectory, worlds);
         }
+        return worlds;
+    }
 
-        File[] worldDirs = worldsDirectory.listFiles(File::isDirectory);
+    private void scanWorldsDirectory(File dir, List<WorldItem> worlds) {
+        if (dir == null || !dir.exists()) {
+            return;
+        }
+        File[] worldDirs = dir.listFiles(File::isDirectory);
         if (worldDirs != null) {
             for (File worldDir : worldDirs) {
                 WorldItem world = new WorldItem(worldDir.getName(), worldDir);
@@ -80,8 +104,6 @@ public class WorldManager {
                 }
             }
         }
-
-        return worlds;
     }
 
     public void importWorld(Uri worldUri, WorldOperationCallback callback) {
@@ -172,17 +194,15 @@ public class WorldManager {
         }
         executor.execute(() -> {
             try {
-                createBackup(world);
-                
+                // 直接删除，不再在扫描目录里留备份副本（否则删除后又出现一个 _backup 世界）
                 if (deleteDirectory(world.getFile())) {
-                    callback.onSuccess("World deleted successfully");
+                    callback.onSuccess(context.getString(R.string.world_deleted_successfully));
                 } else {
-                    callback.onError("Failed to delete world");
+                    callback.onError(context.getString(R.string.world_delete_failed));
                 }
-
             } catch (Exception e) {
                 Log.e(TAG, "Failed to delete world", e);
-                callback.onError("Delete failed: " + e.getMessage());
+                callback.onError(context.getString(R.string.world_delete_failed) + ": " + e.getMessage());
             }
         });
     }
@@ -340,18 +360,49 @@ public class WorldManager {
     }
 
     private String createBackup(WorldItem world) throws IOException {
-        File backupDir = LauncherStorage.getWorldBackupsDir(context);
-        backupDir.mkdirs();
-        
-        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-        String backupName = world.getName() + "_" + timestamp + ".mcworld";
-        File backupFile = new File(backupDir, backupName);
-        
-        try (FileOutputStream fos = new FileOutputStream(backupFile)) {
-            createWorldZip(world.getFile(), fos, null);
+        // 备份为 .mcworld 压缩包，存到 Download/LeviLauncher/Backups/minecraftWorlds backups/
+        // 按 版本号/世界名_seed种子 分类（与极限存档备份结构一致，但不进 Hardcore backups）。
+        File worldDir = world.getFile();
+        if (worldDir == null || !worldDir.exists()) {
+            throw new IOException("无法确定存档文件夹");
         }
-        
-        return backupFile.getAbsolutePath();
+
+        String versionLabel = currentVersionLabel();
+        File backupDir = new File(
+                new File(LauncherStorage.getWorldBackupsDir(context), versionLabel),
+                HardcoreBackupManager.backupDirName(world.getWorldName(), world.getSeed()));
+        if (!backupDir.exists() && !backupDir.mkdirs()) {
+            throw new IOException("无法创建备份目录: " + backupDir.getAbsolutePath());
+        }
+
+        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        String seedStr = world.getSeed() != 0 ? "seed" + world.getSeed() : "noseed";
+        File zipFile = new File(backupDir,
+                sanitize(world.getWorldName()) + "_" + seedStr + "_" + timestamp + ".mcworld");
+
+        try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(zipFile))) {
+            zipDirectory(worldDir, "", zos);
+        }
+        return zipFile.getAbsolutePath();
+    }
+
+    /** 当前选中版本的显示名（用于备份分类），无版本时返回 unknown。 */
+    private String currentVersionLabel() {
+        try {
+            org.levimc.launcher.core.versions.VersionManager vm =
+                    org.levimc.launcher.core.versions.VersionManager.getIfInitialized();
+            org.levimc.launcher.core.versions.GameVersion current = vm != null ? vm.getSelectedVersion() : null;
+            String label = current != null ? current.displayName : null;
+            if (label != null && !label.isEmpty()) return sanitize(label);
+        } catch (Exception ignored) {
+        }
+        return "unknown";
+    }
+
+    private static String sanitize(String name) {
+        if (name == null) return "world";
+        String s = name.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
+        return s.isEmpty() ? "world" : s;
     }
 
     private boolean deleteDirectory(File dir) {

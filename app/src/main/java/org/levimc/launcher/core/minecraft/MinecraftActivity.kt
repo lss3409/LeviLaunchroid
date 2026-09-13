@@ -17,11 +17,11 @@ import android.view.inputmethod.InputConnectionWrapper
 import android.view.inputmethod.InputMethodManager
 import androidx.appcompat.widget.AppCompatEditText
 import com.mojang.minecraftpe.MainActivity
-import org.levimc.launcher.core.crash.CrashReporter
 import org.levimc.launcher.core.mods.ModManager
 import org.levimc.launcher.core.mods.inbuilt.nativemod.PojavControlsMod
 import org.levimc.launcher.core.mods.inbuilt.overlay.InbuiltOverlayManager
 import org.levimc.launcher.preloader.PreloaderInput
+import org.levimc.launcher.util.HardcoreBackupManager
 import org.levimc.pojavcontrols.PojavControls
 import org.levimc.pojavcontrols.PojavControlsHost
 import java.io.File
@@ -36,6 +36,13 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     private var gameRuntimeStarted = false
     private var preloaderTextInput: PreloaderTextInput? = null
     private var previousInputFocus: View? = null
+    private val hardcoreBackupHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var hardcoreBackupRunning = false
+    private val hardcoreBackupRunnable = object : Runnable {
+        override fun run() {
+            runHardcoreBackupCheck()
+        }
+    }
 
     private class PreloaderTextInput(context: Context) : AppCompatEditText(context) {
         override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
@@ -107,6 +114,17 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             returnToLauncherAfterLaunchFailure()
             return
         }
+        // 崩溃分析：记录本次会话与启用的模组快照（用于异常退出后的中文分析提示）
+        try {
+            val enabledModNames = java.util.ArrayList<String>()
+            for (mod in ModManager.getInstance().mods) {
+                if (mod.isEnabled) enabledModNames.add(mod.displayName)
+            }
+            org.levimc.launcher.util.CrashAnalyzer.onGameLaunchStarted(
+                this, enabledModNames, intent?.getStringExtra("MINECRAFT_VERSION"))
+        } catch (t: Throwable) {
+            trace.warning("Crash analyzer snapshot failed", t.message)
+        }
         trace.mark("Native mod enable started")
         ModManager.enableLoadedMods()
         trace.mark("Native mod enable finished")
@@ -152,7 +170,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     private fun returnToLauncherAfterLaunchFailure() {
         gameRuntimeStarted = false
         MinecraftLaunchSession.clear()
-        MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this)
+        MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this, org.levimc.launcher.ui.activities.MainActivity.sForeground)
         finish()
     }
 
@@ -180,8 +198,13 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun onNewIntent(intent: Intent) {
-        setIntent(intent)
-        super.onNewIntent(intent)
+        // 仅深链（带 data 的 VIEW）才更新 intent 并交给 Mojang 处理。
+        // 「回到游戏」的纯带回前台请求不覆盖启动参数（存储路径等 extras），
+        // 否则游戏会丢失重定向目录，世界列表/深链都会失效。
+        if (intent.data != null && Intent.ACTION_VIEW == intent.action) {
+            setIntent(intent)
+            super.onNewIntent(intent)
+        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -205,6 +228,90 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         if (overlayManager == null) {
             startInbuiltModServices()
         }
+
+        startHardcoreBackupScheduler()
+    }
+
+    /** 游玩中自动备份：按设定的间隔周期检查并备份极限世界（最后一层保险）。 */
+    private fun startHardcoreBackupScheduler() {
+        hardcoreBackupHandler.removeCallbacks(hardcoreBackupRunnable)
+        val manager = HardcoreBackupManager(applicationContext)
+        if (!manager.isEnabled) return
+        // 仅在「局内备份」时机下启动定时器
+        if (manager.getBackupTrigger() != HardcoreBackupManager.TRIGGER_INGAME) return
+        // 立即执行一次检查，再按间隔循环
+        hardcoreBackupHandler.postDelayed(hardcoreBackupRunnable, 1000L)
+    }
+
+    private fun runHardcoreBackupCheck() {
+        if (hardcoreBackupRunning) return
+        val manager = HardcoreBackupManager(applicationContext)
+        if (!manager.isEnabled) return
+
+        hardcoreBackupRunning = true
+        val intervalMs = manager.getIntervalMs()
+        Thread({
+            try {
+                val extFilesDir = getExternalFilesDir(null)
+                val worldsDir = extFilesDir?.let { File(it, "games/com.mojang/minecraftWorlds") }
+                val hardcoreWorlds = HardcoreBackupManager.scanHardcoreWorldsIn(worldsDir)
+                manager.checkAndBackup(hardcoreWorlds, object : HardcoreBackupManager.Callback {
+                    override fun onBackedUp(world: org.levimc.launcher.core.content.WorldItem, backupPath: String) {
+                        android.util.Log.i("HardcoreBackup", "In-game backed up: " + backupPath)
+                    }
+
+                    override fun onSkipped(world: org.levimc.launcher.core.content.WorldItem, reason: String) {
+                        android.util.Log.d("HardcoreBackup", "Skipped ${world.getWorldName()}: $reason")
+                    }
+
+                    override fun onFinished(backedUp: Int, skipped: Int) {
+                        hardcoreBackupRunning = false
+                        // 继续下一轮定时检查
+                        hardcoreBackupHandler.postDelayed(hardcoreBackupRunnable, intervalMs.coerceAtLeast(60_000L))
+                    }
+                })
+            } catch (t: Throwable) {
+                android.util.Log.w("HardcoreBackup", "check failed: ${t.message}")
+                hardcoreBackupRunning = false
+                hardcoreBackupHandler.postDelayed(hardcoreBackupRunnable, intervalMs.coerceAtLeast(60_000L))
+            }
+        }, "hardcore-in-game-backup").start()
+    }
+
+    private fun stopHardcoreBackupScheduler() {
+        hardcoreBackupHandler.removeCallbacks(hardcoreBackupRunnable)
+    }
+
+    /** 「局内暂停时备份」：游戏切到后台/暂停时触发一次备份。 */
+    private fun backupOnPauseIfNeeded() {
+        val manager = HardcoreBackupManager(applicationContext)
+        if (!manager.isEnabled) return
+        if (manager.getBackupTrigger() != HardcoreBackupManager.TRIGGER_PAUSE) return
+        if (hardcoreBackupRunning) return
+        hardcoreBackupRunning = true
+        Thread({
+            try {
+                val extFilesDir = getExternalFilesDir(null)
+                val worldsDir = extFilesDir?.let { File(it, "games/com.mojang/minecraftWorlds") }
+                val hardcoreWorlds = HardcoreBackupManager.scanHardcoreWorldsIn(worldsDir)
+                manager.checkAndBackup(hardcoreWorlds, object : HardcoreBackupManager.Callback {
+                    override fun onBackedUp(world: org.levimc.launcher.core.content.WorldItem, backupPath: String) {
+                        android.util.Log.i("HardcoreBackup", "Pause backed up: " + backupPath)
+                    }
+
+                    override fun onSkipped(world: org.levimc.launcher.core.content.WorldItem, reason: String) {
+                        android.util.Log.d("HardcoreBackup", "Pause skipped ${world.getWorldName()}: $reason")
+                    }
+
+                    override fun onFinished(backedUp: Int, skipped: Int) {
+                        hardcoreBackupRunning = false
+                    }
+                })
+            } catch (t: Throwable) {
+                android.util.Log.w("HardcoreBackup", "pause backup failed: ${t.message}")
+                hardcoreBackupRunning = false
+            }
+        }, "hardcore-pause-backup").start()
     }
 
     private fun isMouseSource(source: Int): Boolean {
@@ -358,6 +465,8 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun onPause() {
+        stopHardcoreBackupScheduler()
+        backupOnPauseIfNeeded()
         val shouldRestartAfterNormalExit = shouldRestartAfterNormalExit()
         if (shouldRestartAfterNormalExit) {
             ModManager.disableAndUnloadLoadedMods()
@@ -369,6 +478,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun onDestroy() {
+        stopHardcoreBackupScheduler()
         ModManager.disableAndUnloadLoadedMods()
         val shouldPrepareNormalExit = shouldRestartAfterNormalExit()
         if (shouldPrepareNormalExit) {
@@ -392,19 +502,21 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     private fun shouldRestartAfterNormalExit(): Boolean {
-        return gameRuntimeStarted && isFinishing && !CrashReporter.isHandlingCrash()
+        return gameRuntimeStarted && isFinishing
     }
 
     private fun prepareNormalExitCleanup() {
         if (normalExitPrepared) return
         normalExitPrepared = true
+        // 崩溃分析：标记本次会话为正常退出
+        org.levimc.launcher.util.CrashAnalyzer.onGameExitNormal(this)
     }
 
     private fun scheduleNormalExitProcessRestart() {
         if (normalExitRestartScheduled) return
         normalExitRestartScheduled = true
 
-        MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this)
+        MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this, org.levimc.launcher.ui.activities.MainActivity.sForeground)
     }
 
     override fun getAssets(): AssetManager {
@@ -416,6 +528,8 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun getFilesDir(): File {
+        // 正版/盗版统一走启动器重定向目录：内部文件（世界/资源包等在内部存储时也读这里），
+        // 避免 Android 11+ 无法写入正版 MC 原版 Android/data 目录。证书验证只依赖 getDataDir。
         return resolveStorageDir(MinecraftLauncher.EXTRA_STORAGE_FILES_DIR, super.getFilesDir())
     }
 
@@ -425,10 +539,15 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun getDataDir(): File {
+        // 恢复 v107 行为：正版/盗版统一重定向到启动器目录。
+        // 注意：若证书验证失败，再考虑用 originalMcContext 保持原版 dataDir 单独处理。
         return resolveStorageDir(MinecraftLauncher.EXTRA_STORAGE_DATA_DIR, super.getDataDir())
     }
 
     override fun getExternalFilesDir(type: String?): File? {
+        // 正版/盗版统一走启动器重定向目录：外部文件（世界/资源包等）写到启动器自己的目录，
+        // 避免 Android 11+ 无法写入正版 MC 原版 Android/data 目录的问题。
+        // dataDir 仍保持 MC 原版（见 getDataDir），证书验证不受影响。
         val baseDir = resolveStorageDir(
             MinecraftLauncher.EXTRA_STORAGE_EXTERNAL_FILES_DIR,
             super.getExternalFilesDir(null)
@@ -440,6 +559,23 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         }
     }
 
+    override fun getExternalFilesDirs(type: String?): Array<File> {
+        // 关键：AGDK GameActivity 传给 native 的 externalDataPath 取自
+        // getExternalFilesDirs(null)[0]（复数版本），而 ContextImpl 的复数实现
+        // 不经过单数 getExternalFilesDir，直接用包名拼 Android/data 默认目录。
+        // 不重写它的话，游戏原生始终认为外部存储是启动器默认目录（那里没有世界），
+        // minecraft://?load= 深链查不到世界会静默失败。
+        val baseDir = resolveStorageDir(
+            MinecraftLauncher.EXTRA_STORAGE_EXTERNAL_FILES_DIR,
+            super.getExternalFilesDir(null)
+        )
+        return if (type.isNullOrEmpty()) {
+            arrayOf(baseDir)
+        } else {
+            arrayOf(File(baseDir, type).also { it.mkdirs() })
+        }
+    }
+
     override fun getInternalStoragePath(): String {
         return getFilesDir().absolutePath
     }
@@ -448,16 +584,26 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         return (getExternalFilesDir(null) ?: getFilesDir()).absolutePath
     }
 
+    // 正版 MC 的原版 context（createPackageContext 创建），用于返回 MC 自己的目录；
+    // 盗版 MC 返回 null，走下面的 resolveStorageDir 重定向。
+    private fun originalMcContext(): android.content.Context? {
+        if (intent?.getBooleanExtra("IS_INSTALLED", false) != true) return null
+        return if (::gameManager.isInitialized) gameManager.getPackageContext() else null
+    }
+
     private fun resolveStorageDir(extraName: String, fallback: File?): File {
         val path = intent?.getStringExtra(extraName)
         val dir = if (!path.isNullOrEmpty()) File(path) else fallback ?: super.getFilesDir()
         if (!dir.exists()) {
             dir.mkdirs()
         }
+        android.util.Log.i("MinecraftActivity", "resolveStorageDir $extraName -> ${dir.absolutePath}"
+                + if (path.isNullOrEmpty()) " [FALLBACK=${fallback?.absolutePath}]" else "")
         return dir
     }
 
     override fun getDatabasePath(name: String): File {
+        originalMcContext()?.let { return it.getDatabasePath(name) }
         val dbDir = File(getDataDir(), "databases")
         if (!dbDir.exists()) {
             dbDir.mkdirs()
@@ -466,6 +612,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun getCacheDir(): File {
+        originalMcContext()?.let { return it.cacheDir }
         return resolveStorageDir(MinecraftLauncher.EXTRA_STORAGE_CACHE_DIR, super.getCacheDir())
     }
 

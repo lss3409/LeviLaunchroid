@@ -19,7 +19,7 @@
         android:insetBottom="0dp"
         android:background="@drawable/bg_mod_menu_toggle"
         app:backgroundTint="@null"
-        android:text="Previous"
+        android:text="@string/page_previous"
         android:textColor="@color/primary"
         android:textSize="12sp"
         android:textStyle="bold"
@@ -35,7 +35,11 @@
         android:layout_marginHorizontal="16dp"
         android:textSize="14sp"
         android:fontFamily="@font/misans"
-        android:textColor="@color/on_surface"/>
+        android:textColor="@color/on_surface"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="?attr/selectableItemBackground"
+        android:padding="4dp"/>
 
     <Button
         android:id="@+id/btn_next_page"
@@ -49,7 +53,7 @@
         android:insetBottom="0dp"
         android:background="@drawable/bg_mod_menu_toggle"
         app:backgroundTint="@null"
-        android:text="Next"
+        android:text="@string/page_next"
         android:textColor="@color/primary"
         android:textSize="12sp"
         android:textStyle="bold"

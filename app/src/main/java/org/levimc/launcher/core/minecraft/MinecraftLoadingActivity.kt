@@ -42,6 +42,7 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
     private lateinit var logView: TextView
     private lateinit var logScroll: ScrollView
     private lateinit var returnButton: Button
+    private lateinit var shareLogButton: Button
     private lateinit var trace: LaunchTrace
 
     @Volatile
@@ -71,6 +72,11 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
         logView = findViewById(R.id.minecraftLaunchLog)
         logScroll = findViewById(R.id.minecraftLaunchLogScroll)
         returnButton = findViewById(R.id.minecraftLaunchReturn)
+        shareLogButton = findViewById(R.id.minecraftLaunchShare)
+
+        shareLogButton.setOnClickListener {
+            shareLaunchLog()
+        }
 
         returnButton.setOnClickListener {
             appendLog("Returning to launcher")
@@ -204,6 +210,28 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
         appendLog("Launch failed")
         appendLog(message)
         returnButton.visibility = View.VISIBLE
+        shareLogButton.visibility = View.VISIBLE
+    }
+
+    /** 分享本次启动日志（唤起系统分享面板，可发给文件管理器或任意应用）。 */
+    private fun shareLaunchLog() {
+        val sessionFile = LaunchTrace.getLogFileFor(this, trace.getSessionId())
+        val file = if (sessionFile.exists()) sessionFile else LaunchTrace.getLatestLogFile(this)
+        if (file == null || !file.exists()) {
+            android.widget.Toast.makeText(this, R.string.share_launch_log_empty, android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            val uri = androidx.core.content.FileProvider.getUriForFile(this, packageName + ".fileprovider", file)
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(intent, getString(R.string.share_launch_log)))
+        } catch (e: Exception) {
+            android.widget.Toast.makeText(this, R.string.share_launch_log_empty, android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun animateProgressTo(targetProgress: Int) {
@@ -316,7 +344,7 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
         returningToLauncher = true
 
         MinecraftLaunchSession.clear()
-        MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this)
+        MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this, org.levimc.launcher.ui.activities.MainActivity.sForeground)
         finish()
     }
 

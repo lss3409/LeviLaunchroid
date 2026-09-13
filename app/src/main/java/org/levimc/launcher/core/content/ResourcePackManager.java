@@ -34,6 +34,7 @@ public class ResourcePackManager {
     private File resourcePacksDirectory;
     private File behaviorPacksDirectory;
     private File skinPacksDirectory;
+    private List<File> aggregateGameDataDirs;
     
     public interface PackOperationCallback {
         void onSuccess(String message);
@@ -73,7 +74,8 @@ public class ResourcePackManager {
         this.resourcePacksDirectory = resourcePacksDir;
         this.behaviorPacksDirectory = behaviorPacksDir;
         this.skinPacksDirectory = skinPacksDir;
-        
+        this.aggregateGameDataDirs = null;
+
         if (resourcePacksDirectory != null && !resourcePacksDirectory.exists()) {
             resourcePacksDirectory.mkdirs();
         }
@@ -85,33 +87,47 @@ public class ResourcePackManager {
         }
     }
 
+    public void setAggregateGameDataDirectories(List<File> gameDataDirs) {
+        this.aggregateGameDataDirs = gameDataDirs;
+    }
+
     public List<ResourcePackItem> getResourcePacks() {
         List<ResourcePackItem> packs = new ArrayList<>();
-        
-        if (resourcePacksDirectory != null && resourcePacksDirectory.exists()) {
+        if (aggregateGameDataDirs != null) {
+            for (File gameDataDir : aggregateGameDataDirs) {
+                File dir = new File(gameDataDir, "resource_packs");
+                if (dir.exists()) addPacksFromDirectory(dir, ResourcePackItem.PackType.RESOURCE_PACK, packs);
+            }
+        } else if (resourcePacksDirectory != null && resourcePacksDirectory.exists()) {
             addPacksFromDirectory(resourcePacksDirectory, ResourcePackItem.PackType.RESOURCE_PACK, packs);
         }
-        
         return packs;
     }
 
     public List<ResourcePackItem> getBehaviorPacks() {
         List<ResourcePackItem> packs = new ArrayList<>();
-        
-        if (behaviorPacksDirectory != null && behaviorPacksDirectory.exists()) {
+        if (aggregateGameDataDirs != null) {
+            for (File gameDataDir : aggregateGameDataDirs) {
+                File dir = new File(gameDataDir, "behavior_packs");
+                if (dir.exists()) addPacksFromDirectory(dir, ResourcePackItem.PackType.BEHAVIOR_PACK, packs);
+            }
+        } else if (behaviorPacksDirectory != null && behaviorPacksDirectory.exists()) {
             addPacksFromDirectory(behaviorPacksDirectory, ResourcePackItem.PackType.BEHAVIOR_PACK, packs);
         }
-        
         return packs;
     }
 
     public List<ResourcePackItem> getSkinPacks() {
         List<ResourcePackItem> packs = new ArrayList<>();
-        
-        if (skinPacksDirectory != null && skinPacksDirectory.exists()) {
+        if (aggregateGameDataDirs != null) {
+            for (File gameDataDir : aggregateGameDataDirs) {
+                File dir = new File(gameDataDir, "skin_packs");
+                if (dir.exists()) addPacksFromDirectory(dir, ResourcePackItem.PackType.SKIN_PACK, packs);
+            }
+        } else if (skinPacksDirectory != null && skinPacksDirectory.exists()) {
             addPacksFromDirectory(skinPacksDirectory, ResourcePackItem.PackType.SKIN_PACK, packs);
         }
-        
+
         return packs;
     }
 

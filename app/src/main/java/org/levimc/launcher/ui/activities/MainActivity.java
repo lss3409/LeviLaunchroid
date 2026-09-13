@@ -8,9 +8,14 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.pm.ShortcutInfo;
+import android.content.pm.ShortcutManager;
 import android.content.res.ColorStateList;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.Icon;
 import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
@@ -32,7 +37,9 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.lifecycle.ViewModelProvider;
 
 import org.levimc.launcher.R;
+import org.levimc.launcher.core.minecraft.MinecraftActivityState;
 import org.levimc.launcher.core.minecraft.MinecraftImportIntents;
+import org.levimc.launcher.core.minecraft.PendingLaunchManager;
 import org.levimc.launcher.core.minecraft.LaunchTrace;
 import org.levimc.launcher.core.minecraft.MinecraftLauncher;
 import org.levimc.launcher.core.mods.FileHandler;
@@ -45,20 +52,16 @@ import org.levimc.launcher.settings.FeatureSettings;
 
 import org.levimc.launcher.ui.animation.DynamicAnim;
 import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
-import org.levimc.launcher.ui.dialogs.LibsRepairDialog;
-import org.levimc.launcher.ui.dialogs.PlayStoreValidationDialog;
 import org.levimc.launcher.ui.views.MainViewModel;
 import org.levimc.launcher.ui.views.MainViewModelFactory;
 import org.levimc.launcher.util.ApkImportManager;
-import org.levimc.launcher.util.GithubReleaseUpdater;
+import org.levimc.launcher.util.HardcoreBackupManager;
 import org.levimc.launcher.util.LanguageManager;
 import org.levimc.launcher.util.LauncherStorage;
 import org.levimc.launcher.util.PermissionsHandler;
 import org.levimc.launcher.util.PersonalizationManager;
-import org.levimc.launcher.util.PlayStoreValidator;
 import org.levimc.launcher.util.ResourcepackHandler;
-import org.levimc.launcher.util.StorageMigrationManager;
-import org.levimc.launcher.util.StorageMigrationService;
+import org.levimc.launcher.util.ShortcutHelper;
 import org.levimc.launcher.util.UIHelper;
 import org.levimc.launcher.core.content.ContentManager;
 import java.util.ArrayList;
@@ -104,7 +107,6 @@ import okhttp3.OkHttpClient;
     private ApkImportManager apkImportManager;
     private MainViewModel viewModel;
     private VersionManager versionManager;
-    private StorageMigrationManager storageMigrationManager;
     private ActivityResultLauncher<Intent> permissionResultLauncher;
     private ActivityResultLauncher<Intent> apkImportResultLauncher;
     private ActivityResultLauncher<String> notificationPermissionLauncher;
@@ -125,36 +127,9 @@ import okhttp3.OkHttpClient;
     private LoadingDialog accountLoadingDialog;
     private ActivityResultLauncher<Intent> accountLoginLauncher;
     private OnBackPressedCallback onBackPressedCallback;
-    private boolean migrationPromptShown;
-    private boolean migrationPromptCheckInFlight;
-    private boolean postMigrationInitialized;
-    private StorageMigrationService storageMigrationService;
-    private boolean storageMigrationBound;
-    private LibsRepairDialog storageMigrationDialog;
-    private StorageMigrationService.MigrationState lastMigrationState;
-    private final ExecutorService storageMigrationExecutor = Executors.newSingleThreadExecutor();
 
-    private final StorageMigrationService.MigrationListener storageMigrationListener =
-            state -> runOnUiThread(() -> handleStorageMigrationState(state));
-
-    private final ServiceConnection storageMigrationConnection = new ServiceConnection() {
-        @Override
-        public void onServiceConnected(ComponentName name, IBinder service) {
-            storageMigrationService = ((StorageMigrationService.LocalBinder) service).getService();
-            storageMigrationBound = true;
-            storageMigrationService.addListener(storageMigrationListener);
-            handleStorageMigrationState(storageMigrationService.getCurrentState());
-        }
-
-        @Override
-        public void onServiceDisconnected(ComponentName name) {
-            if (storageMigrationService != null) {
-                storageMigrationService.removeListener(storageMigrationListener);
-            }
-            storageMigrationService = null;
-            storageMigrationBound = false;
-        }
-    };
+    /** 主页是否在前台（游戏后台被退出时据此决定是否静默重启，避免弹出多余过渡 UI）。 */
+    public static volatile boolean sForeground = false;
 
 
     @Override
@@ -165,8 +140,6 @@ import okhttp3.OkHttpClient;
         closeLauncherRestartAfterFirstDraw();
         setupNavBar();
         setupManagersAndHandlers();
-        new GithubReleaseUpdater(this, "LiteLDev", "LeviLaunchroid", permissionResultLauncher).checkUpdateOnLaunch();
-        showEulaIfNeeded();
         setupOnBackPressedCallback();
 
         accountLoginLauncher = registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(), result -> {
@@ -181,7 +154,7 @@ import okhttp3.OkHttpClient;
         });
 
         initAccountHeader();
-        binding.getRoot().post(this::showStorageMigrationPromptAfterEula);
+        initializeAfterMigrationGate();
     }
 
     @Override
@@ -234,6 +207,7 @@ import okhttp3.OkHttpClient;
             DynamicAnim.applyPressScale(accountAvatarContainer);
         }
 
+        // 登录入口一直显示（不再受设置开关控制）
         refreshAccountHeaderUI();
     }
 
@@ -263,6 +237,7 @@ import okhttp3.OkHttpClient;
      }
 
     private void refreshAccountHeaderUI() {
+        // 登录入口一直显示（不再受设置开关控制）
         MsftAccountStore.MsftAccount active = getActiveAccount();
         if (active == null) {
             if (signInButton != null) signInButton.setVisibility(View.VISIBLE);
@@ -519,7 +494,6 @@ import okhttp3.OkHttpClient;
     private void setupManagersAndHandlers() {
         languageManager = new LanguageManager(this);
         languageManager.applySavedLanguage();
-        storageMigrationManager = new StorageMigrationManager(this);
         permissionResultLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
@@ -545,8 +519,7 @@ import okhttp3.OkHttpClient;
     }
 
     private void initializeAfterMigrationGate() {
-        if (postMigrationInitialized || isFinishing() || isDestroyed()) return;
-        postMigrationInitialized = true;
+        if (isFinishing() || isDestroyed()) return;
 
         minecraftLauncher = new MinecraftLauncher(this);
         viewModel = new ViewModelProvider(this, new MainViewModelFactory(getApplication())).get(MainViewModel.class);
@@ -556,6 +529,32 @@ import okhttp3.OkHttpClient;
         initContentManagementSection();
         initMiscellaneousSection();
         initializeVersionManager();
+        requestStoragePermissionIfNeeded();
+    }
+
+    private void requestStoragePermissionIfNeeded() {
+        if (permissionsHandler == null) return;
+        if (permissionsHandler.hasPermission(PermissionsHandler.PermissionType.STORAGE)) return;
+        permissionsHandler.requestPermission(PermissionsHandler.PermissionType.STORAGE, new PermissionsHandler.PermissionResultCallback() {
+            @Override
+            public void onPermissionGranted(PermissionsHandler.PermissionType type) {
+                // 授权成功后重新扫描版本（首次打开可能因无权限扫描不到版本）
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (versionManager != null) {
+                        versionManager.loadAllVersions();
+                        setTextMinecraftVersion();
+                        updateViewModelVersion();
+                        refreshContentCounts();
+                    }
+                });
+            }
+
+            @Override
+            public void onPermissionDenied(PermissionsHandler.PermissionType type, boolean permanentlyDenied) {
+                Toast.makeText(MainActivity.this, R.string.storage_permission_not_granted, Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     private void initializeVersionManager() {
@@ -581,15 +580,88 @@ import okhttp3.OkHttpClient;
         binding.launchButton.setEnabled(true);
         handleVersionDependentIntent();
         refreshContentCounts();
+        checkPendingLaunch();
+        binding.getRoot().postDelayed(this::checkCrashReport, 900);
+    }
+
+    /** 关闭旧游戏重启后，自动启动待启动的版本。 */
+    private void checkPendingLaunch() {
+        GameVersion pending = PendingLaunchManager.consumePendingLaunch(this);
+        if (pending == null) return;
+        versionManager.selectVersion(pending);
+        viewModel.setCurrentVersion(pending);
+        setTextMinecraftVersion();
+        binding.getRoot().post(this::launchGame);
     }
 
     private void handleVersionDependentIntent() {
         if (versionManager == null || fileHandler == null) return;
-        if (!forwardIncomingMinecraftResourceToRunningGame()) {
-            checkResourcepack();
-            handleIncomingFiles();
-        }
+        handleIncomingMinecraftResource();
+        checkResourcepack();
+        handleIncomingFiles();
         handleMinecraftUriLaunch();
+    }
+
+    /** 外部分享的 .mcworld/.mcpack/.mcaddon/.mctemplate 由启动器导入到内容管理。
+     *  不再转发给运行中的游戏：游戏只认 ACTION_VIEW 深链，转发过去会被静默忽略，
+     *  表现为「卡住且无任何提示」。 */
+    private void handleIncomingMinecraftResource() {
+        Intent intent = getIntent();
+        if (contentManager == null || versionManager == null) return;
+        if (!MinecraftImportIntents.isMinecraftResourceIntent(this, intent)) return;
+
+        java.util.List<Uri> uris = new java.util.ArrayList<>();
+        if (intent.getClipData() != null) {
+            for (int i = 0; i < intent.getClipData().getItemCount(); i++) {
+                Uri u = intent.getClipData().getItemAt(i).getUri();
+                if (u != null) uris.add(u);
+            }
+        }
+        if (intent.getData() != null) uris.add(intent.getData());
+        if (uris.isEmpty()) return;
+
+        for (Uri uri : uris) {
+            if (MinecraftImportIntents.isWorldResource(this, uri)) {
+                contentManager.importWorld(uri, new org.levimc.launcher.core.content.WorldManager.WorldOperationCallback() {
+                    @Override
+                    public void onSuccess(String message) {
+                        runOnUiThread(() -> {
+                            UIHelper.showToast(MainActivity.this, getString(R.string.share_import_world_success));
+                            refreshContentCounts();
+                        });
+                    }
+
+                    @Override
+                    public void onError(String error) {
+                        runOnUiThread(() -> UIHelper.showToast(MainActivity.this,
+                                getString(R.string.share_import_failed, error != null ? error : "")));
+                    }
+
+                    @Override
+                    public void onProgress(int progress) {}
+                });
+            } else {
+                contentManager.importResourcePack(uri, new org.levimc.launcher.core.content.ResourcePackManager.PackOperationCallback() {
+                    @Override
+                    public void onSuccess(String message) {
+                        runOnUiThread(() -> {
+                            UIHelper.showToast(MainActivity.this, getString(R.string.share_import_pack_success));
+                            refreshContentCounts();
+                        });
+                    }
+
+                    @Override
+                    public void onError(String error) {
+                        runOnUiThread(() -> UIHelper.showToast(MainActivity.this,
+                                getString(R.string.share_import_failed, error != null ? error : "")));
+                    }
+
+                    @Override
+                    public void onProgress(int progress) {}
+                });
+            }
+        }
+        clearIncomingIntent();
     }
 
     private void initModsSection() {
@@ -641,332 +713,13 @@ import okhttp3.OkHttpClient;
         }
     }
 
-    private void requestBasicPermissions() {
-        requestStoragePermissionForMigration(() -> {
-            if (storageMigrationManager != null) {
-                startStorageMigrationService();
-            }
-        });
-    }
-
-    private void requestStoragePermissionForMigration(Runnable onGranted) {
-        permissionsHandler.requestPermission(PermissionsHandler.PermissionType.STORAGE, new PermissionsHandler.PermissionResultCallback() {
-            @Override
-            public void onPermissionGranted(PermissionsHandler.PermissionType type) {
-                if (type == PermissionsHandler.PermissionType.STORAGE) {
-                    if (onGranted != null) onGranted.run();
-                }
-            }
-
-            @Override
-            public void onPermissionDenied(PermissionsHandler.PermissionType type, boolean permanentlyDenied) {
-                if (type == PermissionsHandler.PermissionType.STORAGE) {
-                    Toast.makeText(MainActivity.this, R.string.storage_migration_permission_denied, Toast.LENGTH_LONG).show();
-                    showBlockingMigrationRetryDialog(
-                            getString(R.string.storage_migration_failed_title),
-                            getString(R.string.storage_migration_permission_denied)
-                    );
-                }
-            }
-        });
-    }
-
-    private void showStorageMigrationPromptIfNeeded() {
-        if (postMigrationInitialized || migrationPromptShown || migrationPromptCheckInFlight || storageMigrationManager == null || isFinishing() || isDestroyed()) return;
-        if (StorageMigrationService.isMigrationRunning(this)) {
-            resumeStorageMigrationService();
-            return;
-        }
-        migrationPromptCheckInFlight = true;
-        storageMigrationExecutor.execute(() -> {
-            boolean shouldOfferMigration = false;
-            try {
-                shouldOfferMigration = storageMigrationManager.shouldOfferMigration();
-            } catch (Exception ignored) {
-            }
-            boolean finalShouldOfferMigration = shouldOfferMigration;
-            runOnUiThread(() -> {
-                migrationPromptCheckInFlight = false;
-                if (isFinishing() || isDestroyed()) return;
-                if (!finalShouldOfferMigration) {
-                    initializeAfterMigrationGate();
-                    return;
-                }
-                if (migrationPromptShown || storageMigrationManager == null) return;
-                showStorageMigrationPromptDialog();
-            });
-        });
-    }
-
-    private void showStorageMigrationPromptDialog() {
-        migrationPromptShown = true;
-
-        CustomAlertDialog dialog = new CustomAlertDialog(this)
-                .setTitleText(getString(R.string.storage_migration_title))
-                .setMessage(getString(
-                        R.string.storage_migration_message,
-                        LauncherStorage.getTargetAppRootDisplayPath(this)
-                ))
-                .setPositiveButton(getString(R.string.storage_migration_start), v -> {
-                    if (storageMigrationManager.canReadLegacyRoot()) {
-                        startStorageMigrationService();
-                    } else {
-                        requestBasicPermissions();
-                    }
-                })
-                .setNegativeButton(getString(R.string.exit), v -> finishAffinity());
-        dialog.setCancelable(false);
-        dialog.show();
-    }
-
-    private void showStorageMigrationPromptAfterEula() {
-        SharedPreferences prefs = getSharedPreferences("LauncherPrefs", MODE_PRIVATE);
-        if (!prefs.getBoolean("eula_accepted", false)) return;
-        showStorageMigrationPromptIfNeeded();
-    }
-
-    private void startStorageMigrationService() {
-        if (isFinishing()) return;
-        requestNotificationPermissionForMigration();
-        showStorageMigrationDialog();
-        StorageMigrationService.startMigration(this);
-        bindStorageMigrationService();
-    }
-
-    private void resumeStorageMigrationService() {
-        if (isFinishing()) return;
-        requestNotificationPermissionForMigration();
-        showStorageMigrationDialog();
-        StorageMigrationService.startMigration(this);
-        bindStorageMigrationService();
-    }
-
-    private void requestNotificationPermissionForMigration() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || notificationPermissionLauncher == null) return;
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                == PackageManager.PERMISSION_GRANTED) {
-            return;
-        }
-        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
-    }
-
-    private void bindStorageMigrationService() {
-        if (storageMigrationBound) return;
-        if (!StorageMigrationService.isMigrationRunning(this)) return;
-        Intent intent = new Intent(this, StorageMigrationService.class);
-        bindService(intent, storageMigrationConnection, Context.BIND_AUTO_CREATE);
-    }
-
-    private void unbindStorageMigrationService() {
-        if (!storageMigrationBound) return;
-        if (storageMigrationService != null) {
-            storageMigrationService.removeListener(storageMigrationListener);
-        }
-        unbindService(storageMigrationConnection);
-        storageMigrationBound = false;
-        storageMigrationService = null;
-    }
-
-    private void showStorageMigrationDialog() {
-        if (isFinishing() || isDestroyed()) return;
-        if (storageMigrationDialog != null && storageMigrationDialog.isShowing()) return;
-        LibsRepairDialog dialog = new LibsRepairDialog(this);
-        storageMigrationDialog = dialog;
-        dialog.setCanceledOnTouchOutside(false);
-        dialog.setOnShowListener(shownDialog -> {
-            if (storageMigrationDialog != dialog || isFinishing() || isDestroyed()) return;
-            dialog.setTitleText(getString(R.string.storage_migration_progress_title));
-            dialog.setSubtitleText(getString(R.string.storage_migration_progress_subtitle));
-            dialog.setStatusText(getString(R.string.storage_migration_scanning));
-            dialog.setEtaText(getString(R.string.storage_migration_eta_pending));
-            dialog.setBackgroundHintText(getString(R.string.storage_migration_background_hint));
-            dialog.setPauseButton("", null);
-            dialog.setIndeterminate(true);
-            dialog.updateProgress(0);
-            if (lastMigrationState != null) {
-                updateStorageMigrationDialog(lastMigrationState);
-            }
-        });
-        dialog.show();
-    }
-
-    private void handleStorageMigrationState(StorageMigrationService.MigrationState state) {
-        if (state == null || isFinishing()) return;
-        lastMigrationState = state;
-        if (state.isActive()) {
-            showStorageMigrationDialog();
-            updateStorageMigrationDialog(state);
-            return;
-        }
-        if (state.isFinished()) {
-            dismissStorageMigrationDialog(() -> showStorageMigrationResult(state));
-            return;
-        }
-    }
-
-    private void updateStorageMigrationDialog(StorageMigrationService.MigrationState state) {
-        if (storageMigrationDialog == null || !storageMigrationDialog.isShowing()) return;
-        if (state.status == StorageMigrationService.Status.SCANNING) {
-            storageMigrationDialog.setIndeterminate(true);
-            storageMigrationDialog.setStatusText(getString(R.string.storage_migration_scanning));
-            storageMigrationDialog.setEtaText(getMigrationEtaText(state));
-            storageMigrationDialog.updateProgress(0);
-            return;
-        }
-        if (state.status != StorageMigrationService.Status.RUNNING) return;
-        storageMigrationDialog.setIndeterminate(false);
-        String progressDetail = getString(
-                R.string.storage_migration_progress_detail,
-                state.processedFiles,
-                state.totalFiles,
-                shortenMigrationPath(state.currentFile)
-        );
-        storageMigrationDialog.setStatusText(progressDetail);
-        storageMigrationDialog.setEtaText(getMigrationEtaText(state));
-        storageMigrationDialog.updateProgress(state.percent);
-    }
-
-    private void dismissStorageMigrationDialog(Runnable afterDismiss) {
-        LibsRepairDialog dialog = storageMigrationDialog;
-        storageMigrationDialog = null;
-        if (dialog == null) {
-            if (afterDismiss != null) afterDismiss.run();
-            return;
-        }
-        dialog.setOnDismissAnimationEndListener(afterDismiss);
-        if (dialog.isShowing()) {
-            dialog.dismiss();
-        } else if (afterDismiss != null) {
-            afterDismiss.run();
-        }
-    }
-
-    private void showStorageMigrationResult(StorageMigrationService.MigrationState state) {
-        if (isFinishing()) return;
-        if (state.status == StorageMigrationService.Status.COMPLETED) {
-            boolean wasInitialized = postMigrationInitialized;
-            initializeAfterMigrationGate();
-            if (wasInitialized && versionManager != null) {
-                versionManager.reload();
-                setTextMinecraftVersion();
-                updateViewModelVersion();
-            }
-            if (viewModel != null) viewModel.refreshMods();
-            refreshContentCounts();
-            new CustomAlertDialog(MainActivity.this)
-                    .setTitleText(getString(R.string.storage_migration_completed_title))
-                    .setMessage(getString(
-                            R.string.storage_migration_completed_message,
-                            state.totalFiles,
-                            formatBytes(state.totalBytes),
-                            state.skippedFiles
-                    ))
-                    .setPositiveButton(getString(R.string.confirm), null)
-                    .show();
-        } else if (state.status == StorageMigrationService.Status.PARTIAL) {
-            showBlockingMigrationRetryDialog(
-                    getString(R.string.storage_migration_partial_title),
-                    getString(
-                            R.string.storage_migration_partial_message,
-                            state.failedFiles,
-                            state.totalFiles
-                    )
-            );
-        } else if (state.status == StorageMigrationService.Status.FAILED) {
-            showBlockingMigrationRetryDialog(
-                    getString(R.string.storage_migration_failed_title),
-                    getString(R.string.storage_migration_failed_message, state.errorMessage)
-            );
-        }
-    }
-
-    private void showBlockingMigrationRetryDialog(String title, String message) {
-        if (isFinishing() || isDestroyed()) return;
-        migrationPromptShown = false;
-        CustomAlertDialog dialog = new CustomAlertDialog(MainActivity.this)
-                .setTitleText(title)
-                .setMessage(message)
-                .setPositiveButton(getString(R.string.retry), v -> showStorageMigrationPromptIfNeeded())
-                .setNegativeButton(getString(R.string.exit), v -> finishAffinity());
-        dialog.setCancelable(false);
-        dialog.show();
-    }
-
-    private String shortenMigrationPath(String path) {
-        if (path == null || path.isEmpty()) return "";
-        final int max = 48;
-        return path.length() <= max ? path : "..." + path.substring(path.length() - max);
-    }
-
-    private String formatBytes(long bytes) {
-        if (bytes < 1024) return bytes + " B";
-        double kb = bytes / 1024.0;
-        if (kb < 1024) return String.format(java.util.Locale.getDefault(), "%.1f KB", kb);
-        double mb = kb / 1024.0;
-        if (mb < 1024) return String.format(java.util.Locale.getDefault(), "%.1f MB", mb);
-        return String.format(java.util.Locale.getDefault(), "%.1f GB", mb / 1024.0);
-    }
-
-    private String getMigrationEtaText(StorageMigrationService.MigrationState state) {
-        if (state.estimatedRemainingMillis < 0L || state.estimatedCompletionAtMillis <= 0L) {
-            return getString(R.string.storage_migration_eta_pending);
-        }
-        String remaining = formatMigrationDuration(state.estimatedRemainingMillis);
-        String completionTime = DateFormat.getTimeInstance(DateFormat.SHORT, java.util.Locale.getDefault())
-                .format(new Date(state.estimatedCompletionAtMillis));
-        return getString(R.string.storage_migration_eta_detail, remaining, completionTime);
-    }
-
-    private String formatMigrationDuration(long millis) {
-        long seconds = Math.max(1L, Math.round(millis / 1000.0d));
-        long hours = seconds / 3600L;
-        long minutes = (seconds % 3600L) / 60L;
-        long remainingSeconds = seconds % 60L;
-        if (hours > 0L) {
-            return getString(R.string.storage_migration_duration_hours_minutes, hours, minutes);
-        }
-        if (minutes > 0L) {
-            return getString(R.string.storage_migration_duration_minutes_seconds, minutes, remainingSeconds);
-        }
-        return getString(R.string.storage_migration_duration_seconds, remainingSeconds);
-    }
-
-    private void showEulaIfNeeded() {
-        SharedPreferences prefs = getSharedPreferences("LauncherPrefs", MODE_PRIVATE);
-        if (!prefs.getBoolean("eula_accepted", false)) {
-            showEulaDialog();
-        }
-    }
-
-    private void showEulaDialog() {
-        CustomAlertDialog dia = new CustomAlertDialog(this)
-                .setTitleText(getString(R.string.eula_title))
-                .setMessage(getString(R.string.eula_message))
-                .setUseBorderedBackground(true)
-                .setBlurBackground(true)
-                .setPositiveButton(getString(R.string.eula_agree), v -> {
-                    getSharedPreferences("LauncherPrefs", MODE_PRIVATE)
-                            .edit().putBoolean("eula_accepted", true).apply();
-                    binding.getRoot().post(this::showStorageMigrationPromptIfNeeded);
-                })
-                .setNegativeButton(getString(R.string.eula_exit), v -> finishAffinity());
-        dia.setCancelable(false);
-        dia.show();
-    }
-
     @Override
     protected void onResume() {
         super.onResume();
+        sForeground = true;
         refreshAccountHeaderUI();
-        if (StorageMigrationService.isMigrationRunning(this)) {
-            resumeStorageMigrationService();
-            return;
-        }
-        if (!postMigrationInitialized) {
-            showStorageMigrationPromptAfterEula();
-            return;
-        }
         if (versionManager != null) {
+            versionManager.loadAllVersions();
             setTextMinecraftVersion();
             viewModel.refreshMods();
             refreshContentCounts();
@@ -974,12 +727,70 @@ import okhttp3.OkHttpClient;
         if (binding != null && versionManager != null) {
             binding.launchButton.setEnabled(true);
         }
+        checkHardcoreBackups();
+        captureXalTemplate();
+    }
+
+    /** 游戏退出回到启动器时，扫描版本的 xal 目录，
+     *  若存在游戏内登录写出的完整状态则保存为模板（过渡方案）。 */
+    private void captureXalTemplate() {
+        if (versionManager == null) return;
+        new Thread(() -> {
+            try {
+                java.util.List<GameVersion> versions = new java.util.ArrayList<>();
+                versions.addAll(versionManager.getInstalledVersions());
+                versions.addAll(versionManager.getCustomVersions());
+                for (GameVersion v : versions) {
+                    if (v == null) continue;
+                    try {
+                        java.io.File filesDir = org.levimc.launcher.util.LauncherStorage.getStorageFilesRoot(
+                                this, MinecraftLauncher.getStorageProfileId(v), v.versionIsolation, false);
+                        if (org.levimc.launcher.core.auth.storage.XalTemplateStore.capture(this, filesDir)) {
+                            break;
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            } catch (Throwable t) {
+                android.util.Log.w("MainActivity", "Xal template capture failed", t);
+            }
+        }, "xal-template-capture").start();
+    }
+
+    /** 启动器回到前台时静默检查极限存档是否需要定时备份（仅游玩过且达到间隔才备份）。 */
+    private void checkHardcoreBackups() {
+        HardcoreBackupManager manager = new HardcoreBackupManager(this);
+        if (!manager.isEnabled()) return;
+        // 仅在「退出后备份」时机下，回到启动器时触发备份
+        if (!HardcoreBackupManager.TRIGGER_EXIT.equals(manager.getBackupTrigger())) return;
+        new Thread(() -> {
+            java.util.List<org.levimc.launcher.core.content.WorldItem> worlds =
+                    HardcoreBackupManager.scanHardcoreWorlds(this);
+            manager.checkAndBackup(worlds, new HardcoreBackupManager.Callback() {
+                @Override
+                public void onBackedUp(org.levimc.launcher.core.content.WorldItem world, String backupPath) {
+                    android.util.Log.i("HardcoreBackup", "Backed up: " + backupPath);
+                }
+
+                @Override
+                public void onSkipped(org.levimc.launcher.core.content.WorldItem world, String reason) {
+                    android.util.Log.d("HardcoreBackup", "Skipped " + world.getWorldName() + ": " + reason);
+                }
+
+                @Override
+                public void onFinished(int backedUp, int skipped) {
+                    if (backedUp > 0) {
+                        runOnUiThread(() -> Toast.makeText(MainActivity.this,
+                                getString(R.string.hardcore_backup_done, backedUp), Toast.LENGTH_SHORT).show());
+                    }
+                }
+            });
+        }, "hardcore-auto-backup").start();
     }
 
     @Override
     protected void onStop() {
-        unbindStorageMigrationService();
         super.onStop();
+        sForeground = false;
     }
 
 
@@ -1061,14 +872,8 @@ import okhttp3.OkHttpClient;
         GameVersion currentVersion = versionManager.getSelectedVersion();
         if (currentVersion == null) return;
 
-        android.content.SharedPreferences cmPrefs = getSharedPreferences("content_management", MODE_PRIVATE);
-        String savedType = cmPrefs.getString("storage_type", "INTERNAL");
-        org.levimc.launcher.settings.FeatureSettings.StorageType storageType;
-        try {
-            storageType = org.levimc.launcher.settings.FeatureSettings.StorageType.valueOf(savedType);
-        } catch (IllegalArgumentException e) {
-            storageType = org.levimc.launcher.settings.FeatureSettings.StorageType.INTERNAL;
-        }
+        org.levimc.launcher.settings.FeatureSettings.StorageType storageType =
+                org.levimc.launcher.settings.FeatureSettings.StorageType.EXTERNAL;
         storageType = LauncherStorage.normalizeContentStorageType(
                 storageType,
                 currentVersion.versionIsolation
@@ -1101,9 +906,74 @@ import okhttp3.OkHttpClient;
     }
 
     private void initMiscellaneousSection() {
-        binding.miscCurseforgeRow.setOnClickListener(v -> startActivity(new Intent(this, CurseForgeActivity.class)));
+        // CurseForge 需要 API Key，无 Key 时隐藏入口避免 403 报错
+        String curseforgeKey = org.levimc.launcher.BuildConfig.CURSEFORGE_API_KEY;
+        if (curseforgeKey == null || curseforgeKey.trim().isEmpty()) {
+            binding.miscCurseforgeRow.setVisibility(View.GONE);
+        } else {
+            binding.miscCurseforgeRow.setOnClickListener(v -> startActivity(new Intent(this, CurseForgeActivity.class)));
+        }
         binding.miscAccountsRow.setOnClickListener(v -> startActivity(new Intent(this, AccountsActivity.class)));
         binding.miscQuickLaunchRow.setOnClickListener(v -> startActivity(new Intent(this, QuickLaunchActivity.class)));
+    }
+
+    /** 分享最近一次启动日志（参照 PC 版 LeviLauncher 的日志分享）。 */
+    private void shareLaunchLog() {
+        java.io.File log = LaunchTrace.getLatestLogFile(this);
+        if (log == null || !log.exists()) {
+            Toast.makeText(this, R.string.share_launch_log_empty, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            android.net.Uri uri = androidx.core.content.FileProvider.getUriForFile(
+                    this, getPackageName() + ".fileprovider", log);
+            Intent intent = new Intent(Intent.ACTION_SEND);
+            intent.setType("text/plain");
+            intent.putExtra(Intent.EXTRA_STREAM, uri);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(intent, getString(R.string.share_launch_log)));
+        } catch (Exception e) {
+            Toast.makeText(this, R.string.share_launch_log_empty, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /** 崩溃自动分析（严格模式，参照 PCL）：仅检测到原生崩溃转储时弹出中文分析提示。 */
+    private void checkCrashReport() {
+        org.levimc.launcher.util.CrashAnalyzer.CrashReport report =
+                org.levimc.launcher.util.CrashAnalyzer.consumeCrashReport(this);
+        if (report == null) return;
+
+        String stage = (report.lastStage == null || report.lastStage.isEmpty())
+                ? getString(R.string.crash_analysis_unknown_stage) : report.lastStage;
+        boolean hasMods = report.modNames != null && !report.modNames.isEmpty();
+
+        StringBuilder message = new StringBuilder();
+        switch (report.category) {
+            case org.levimc.launcher.util.CrashAnalyzer.CATEGORY_MOD_LOADING:
+                message.append(getString(R.string.crash_analysis_mod_loading_mods, stage,
+                        hasMods ? report.modNames : getString(R.string.crash_analysis_unknown_stage))).append('\n');
+                break;
+            case org.levimc.launcher.util.CrashAnalyzer.CATEGORY_IN_GAME:
+                message.append(hasMods
+                        ? getString(R.string.crash_analysis_in_game_mods, report.modNames)
+                        : getString(R.string.crash_analysis_in_game_no_mods)).append('\n');
+                break;
+            case org.levimc.launcher.util.CrashAnalyzer.CATEGORY_LAUNCH_PHASE:
+            default:
+                message.append(hasMods
+                        ? getString(R.string.crash_analysis_launch_phase_mods, stage, report.modNames)
+                        : getString(R.string.crash_analysis_launch_phase_no_mods, stage)).append('\n');
+                break;
+        }
+        message.append(getString(R.string.crash_analysis_dump_found)).append('\n');
+        message.append(getString(R.string.crash_analysis_hint));
+
+        new CustomAlertDialog(this)
+                .setTitleText(getString(R.string.crash_analysis_title))
+                .setMessage(message.toString().trim())
+                .setPositiveButton(getString(R.string.crash_analysis_share), v -> shareLaunchLog())
+                .setNegativeButton(getString(R.string.crash_analysis_ok), null)
+                .show();
     }
 
     private void openModsFullscreen() {
@@ -1134,33 +1004,31 @@ import okhttp3.OkHttpClient;
             return;
         }
 
-        if (FeatureSettings.getInstance().isLauncherManagedMcLoginEnabled()) {
-            trace.mark("Checking launcher-managed login");
-            MsftAccountStore.MsftAccount active = getActiveAccount();
-            boolean loggedIn = active != null && active.minecraftUsername != null && !active.minecraftUsername.isEmpty();
-            if (!loggedIn) {
-                trace.warning("Launch cancelled", "Minecraft account is missing");
+        trace.mark("Launch validation completed", version.directoryName + " " + version.versionCode);
+
+        if (MinecraftActivityState.isRunning()) {
+            // 正在运行的版本号与要启动的相同：直接「回到游戏」（把游戏任务栈带回前台）
+            String runningDir = MinecraftActivityState.getRunningVersionDir();
+            boolean sameVersion = version.directoryName != null && version.directoryName.equals(runningDir);
+            if (sameVersion && MinecraftActivityState.bringGameToFront(this)) {
+                trace.mark("Returned to running game", version.directoryName);
                 binding.launchButton.setEnabled(true);
-                new CustomAlertDialog(this)
-                        .setTitleText(getString(R.string.dialog_title_login_required))
-                        .setMessage(getString(R.string.dialog_message_login_required))
-                        .setPositiveButton(getString(R.string.go_to_accounts), v -> {
-                            startActivity(new Intent(this, AccountsActivity.class));
-                        })
-                        .setNegativeButton(getString(R.string.disable_launcher_login_and_continue), null)
-                        .show();
                 return;
             }
-        }
-
-        if (!PlayStoreValidator.isMinecraftFromPlayStore(this)) {
-            trace.warning("Launch cancelled", "Minecraft is not verified as Play Store install");
+            trace.warning("Launch blocked", "Game already running");
+            if (FeatureSettings.getInstance().isAutoCloseGameOnLaunchNew()) {
+                // 开关开：记录待启动版本，关闭旧游戏，重启后自动启动新版本
+                PendingLaunchManager.setPendingLaunch(this, version);
+                android.app.Activity game = MinecraftActivityState.getCurrentActivity();
+                if (game != null && !game.isFinishing()) game.finish();
+            } else {
+                // 开关关：点击无效 + 提示
+                Toast.makeText(this, R.string.game_already_running, Toast.LENGTH_LONG).show();
+            }
             binding.launchButton.setEnabled(true);
-            PlayStoreValidationDialog.showNotFromPlayStoreDialog(this);
             return;
         }
 
-        trace.mark("Launch validation completed", version.directoryName + " " + version.versionCode);
         try {
             Intent launchIntent = createMinecraftLaunchIntent();
             launchIntent.putExtra(LaunchTrace.EXTRA_SESSION_ID, trace.getSessionId());
@@ -1197,7 +1065,17 @@ import okhttp3.OkHttpClient;
         if (sourceIntent == null) return launchIntent;
 
         if (sourceIntent.hasExtra("MINECRAFT_URI")) {
-            launchIntent.putExtra("MINECRAFT_URI", sourceIntent.getStringExtra("MINECRAFT_URI"));
+            String uriStr = sourceIntent.getStringExtra("MINECRAFT_URI");
+            launchIntent.putExtra("MINECRAFT_URI", uriStr);
+            // 关键：把 minecraft:// URI 设为 intent 的 data，
+            // 游戏（Mojang MainActivity/native）读 intent.getData() 处理 deep link。
+            // 注意：Mojang MainActivity.processIntent 只在 action 为 ACTION_VIEW
+            //（或 org.chromium.arc.intent.action.VIEW）时才处理 minecraft:// 深链，
+            // 不设 action 游戏会直接忽略 URI。
+            if (uriStr != null && uriStr.startsWith("minecraft://")) {
+                launchIntent.setData(android.net.Uri.parse(uriStr));
+                launchIntent.setAction(Intent.ACTION_VIEW);
+            }
         }
         if (sourceIntent.hasExtra("MINECRAFT_URI_ACTION")) {
             launchIntent.putExtra("MINECRAFT_URI_ACTION", sourceIntent.getStringExtra("MINECRAFT_URI_ACTION"));
@@ -1247,6 +1125,11 @@ import okhttp3.OkHttpClient;
             popup.dismiss();
         });
 
+        adapter.setOnShortcutClickListener(version -> {
+            popup.dismiss();
+            addShortcut(version);
+        });
+
         popupView.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
         int popupWidth = popupView.getMeasuredWidth();
@@ -1255,17 +1138,41 @@ import okhttp3.OkHttpClient;
         popup.showAsDropDown(binding.selectVersionButton, xOffset, 4);
     }
 
+    /** 把某个版本号添加到桌面快捷方式（版本号命名）。 */
+    private void addShortcut(GameVersion version) {
+        if (version == null) return;
+        String label = ShortcutHelper.getDefaultLabel(version);
+        if (ShortcutHelper.isPinned(this, version)) {
+            Toast.makeText(this, getString(R.string.shortcut_already_added), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        boolean ok = ShortcutHelper.pinShortcut(this, version, label);
+        if (!ok) {
+            ok = ShortcutHelper.pinShortcutLegacy(this, version, label);
+        }
+        if (!ok) {
+            Toast.makeText(this, getString(R.string.add_to_desktop_failed), Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private static class InstancePopupAdapter extends RecyclerView.Adapter<InstancePopupAdapter.VH> {
         private final List<GameVersion> allVersions;
         private List<GameVersion> filteredVersions;
         private final GameVersion selectedVersion;
         private OnItemClickListener listener;
+        private OnShortcutClickListener shortcutListener;
 
         interface OnItemClickListener {
             void onClick(GameVersion version);
         }
 
+        interface OnShortcutClickListener {
+            void onShortcutClick(GameVersion version);
+        }
+
         void setOnItemClickListener(OnItemClickListener l) { this.listener = l; }
+
+        void setOnShortcutClickListener(OnShortcutClickListener l) { this.shortcutListener = l; }
 
         InstancePopupAdapter(List<GameVersion> versions, GameVersion selected) {
             this.allVersions = versions;
@@ -1316,6 +1223,10 @@ import okhttp3.OkHttpClient;
             holder.itemView.setOnClickListener(_v -> {
                 if (listener != null) listener.onClick(v);
             });
+
+            holder.shortcut.setOnClickListener(_v -> {
+                if (shortcutListener != null) shortcutListener.onShortcutClick(v);
+            });
         }
 
         private static void applyInstanceSelectionStyle(@NonNull VH holder, boolean isSelected) {
@@ -1345,13 +1256,14 @@ import okhttp3.OkHttpClient;
 
         static class VH extends RecyclerView.ViewHolder {
             TextView name, version, tag;
-            ImageView check;
+            ImageView check, shortcut;
             VH(View v) {
                 super(v);
                 name = v.findViewById(R.id.instance_name);
                 version = v.findViewById(R.id.instance_version);
                 tag = v.findViewById(R.id.instance_tag);
                 check = v.findViewById(R.id.instance_check);
+                shortcut = v.findViewById(R.id.instance_shortcut);
             }
         }
     }
@@ -1369,6 +1281,7 @@ import okhttp3.OkHttpClient;
         intent.setType("*/*");
         String[] mimeTypes = {"application/vnd.android.package-archive", "application/octet-stream", "application/zip"};
         intent.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes);
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
         apkImportResultLauncher.launch(intent);
     }
 
@@ -1461,19 +1374,6 @@ import okhttp3.OkHttpClient;
         }, false);
     }
 
-    private boolean forwardIncomingMinecraftResourceToRunningGame() {
-        Intent intent = getIntent();
-        if (!MinecraftImportIntents.isMinecraftResourceIntent(this, intent)) {
-            return false;
-        }
-        if (!MinecraftImportIntents.forwardToRunningMinecraft(this, intent)) {
-            return false;
-        }
-
-        clearIncomingIntent();
-        return true;
-    }
-
     private void clearIncomingIntent() {
         Intent cleanIntent = new Intent(this, MainActivity.class);
         setIntent(cleanIntent);
@@ -1525,9 +1425,6 @@ import okhttp3.OkHttpClient;
 
     @Override
     protected void onDestroy() {
-        unbindStorageMigrationService();
-        dismissStorageMigrationDialog(null);
-        storageMigrationExecutor.shutdownNow();
         super.onDestroy();
     }
 

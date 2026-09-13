@@ -47,4 +47,12 @@
         <item name="android:windowContentTransitions">false</item>
     </style>
 
+    <style name="GamePanelTheme" parent="Base.Theme.FullScreen">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowContentTransitions">false</item>
+        <item name="android:windowDisablePreview">true</item>
+    </style>
+
 </resources>

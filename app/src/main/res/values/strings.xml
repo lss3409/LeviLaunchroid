@@ -59,13 +59,18 @@
     <string name="local_custom">Local Custom</string>
 
     <!-- Permissions -->
-    <string name="storage_permission_title">Storage Migration Permission</string>
-    <string name="storage_permission_message">Please grant storage permission so LeviLauncher can copy data from the old games/org.levimc directory. This permission is only needed for the migration step.</string>
+    <string name="storage_permission_title">Storage Permission</string>
+    <string name="storage_permission_message">LeviLauncher needs access to all files to install and run Minecraft correctly. Without this permission, the launcher may not be able to install versions or save game data.</string>
     <string name="grant_permission">Grant</string>
     <string name="cancel">Cancel</string>
 
     <!-- Feedback -->
     <string name="files_processed">Successfully processed %d mod files</string>
+    <string name="share_import_world_success">World imported to content manager</string>
+    <string name="share_import_pack_success">Pack imported to content manager</string>
+    <string name="share_import_failed">Import failed: %1$s</string>
+    <string name="export_world_success">World exported</string>
+    <string name="export_pack_success">Pack exported</string>
     <string name="user_cancelled">Import cancelled by user</string>
 
 
@@ -77,7 +82,18 @@
     <string name="storage_permission_not_granted">Storage permission not granted</string>
 
     <string name="import_apk">Import APK</string>
+    <string name="hide_import">Hide</string>
+    <string name="importing_file_detail">Importing %3$s (%1$d/%2$d)</string>
+    <string name="custom_path_confirm_title">Change storage path</string>
+    <string name="custom_path_confirm_message">Android 11+ uses the FUSE filesystem for public external storage, which adds overhead when writing many small files and makes importing large packs noticeably slower.\n\nDefault directory (app-specific Android/data) bypasses FUSE and imports fast, but its data is removed when the launcher is uninstalled.\n\nCustom directory lives on public storage, so data survives uninstall, but importing large packs will be noticeably slower.\n\nContinue with the custom path?</string>
+    <string name="game_panel_title">Launcher</string>
+    <string name="game_panel_content">Content Management</string>
+    <string name="game_panel_mods">Mods</string>
+    <string name="game_panel_web">Web</string>
+    <string name="game_panel_curseforge">CurseForge</string>
+    <string name="game_panel_web_section">Websites</string>
     <string name="install">Install</string>
+    <string name="website">Website</string>
     <string name="version_name">Version name</string>
     <string name="name_invalid">This name cannot be used or is already taken!</string>
     <string name="install_done">Install finished, version: %1$s</string>
@@ -100,7 +116,7 @@
     <string name="settings_tab_personalize">Personalization</string>
     <string name="settings_tab_updates">Updates</string>
     <string name="settings_tab_about">About</string>
-    <string name="settings_tab_migration">Migration</string>
+    <string name="settings_tab_migration">Storage</string>
     <string name="settings_theme_desc">Choose the application theme</string>
 
 
@@ -207,6 +223,114 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="shared_storage_layout_mode_legacy">Original internal/external directories</string>
     <string name="shared_storage_layout_status">Current mode: %1$s\nInternal: %2$s\nExternal: %3$s</string>
     <string name="shared_storage_layout_changed">Storage directory selection updated. Restart Minecraft and reopen content management for the change to fully apply.</string>
+    <string name="custom_storage_path_title">Custom Storage Path</string>
+    <string name="custom_storage_path_desc">Set a custom root directory for Minecraft data. Leave empty to use the default path.</string>
+    <string name="custom_storage_path_apply">Apply</string>
+    <string name="custom_storage_path_select">Select</string>
+    <string name="select_version">Select version</string>
+    <string name="add_to_desktop">Add to home screen</string>
+    <string name="add_to_desktop_failed">Failed to add shortcut</string>
+    <string name="batch_import_done">Batch import finished: %1$d imported</string>
+    <string name="dead_worlds_category">Dead Worlds</string>
+    <string name="dead_world_tag">dead</string>
+    <string name="dead_world_desc">Seed: %1$d · Backups: %2$d · Latest: %3$s</string>
+    <string name="restore_world">Restore</string>
+    <string name="restore_world_confirm">Restore \"%1$s\" from the latest backup?</string>
+    <string name="restore_select_backup_title">Select Restore Point</string>
+    <string name="restore_select_backup_hint">Choose a backup time. The current world will be deleted and replaced by that backup.</string>
+    <string name="restore_backup_size">Size %1$s</string>
+    <string name="restore_world_confirm_time">Restore the world to %1$s? The current world will be deleted and replaced by that backup.</string>
+    <string name="restore_world_success">World restored from backup</string>
+    <string name="restore_world_failed">Restore failed</string>
+    <string name="shortcut_title">Home Screen Shortcut</string>
+    <string name="shortcut_desc">Pin this version to your home screen for one-tap launch.</string>
+    <string name="remove_shortcut">Remove Shortcut</string>
+    <string name="remove_shortcut_hint">Shortcut disabled. Long-press the icon on your home screen to remove it.</string>
+    <string name="game_already_running">A game is already running. Please exit it before launching another version.</string>
+    <string name="shortcut_already_added">This version is already on your home screen.</string>
+    <string name="auto_close_game_title">Close Running Game on Launch</string>
+    <string name="custom_storage_path_reset">Reset to Default</string>
+    <string name="custom_storage_path_current">Current: %1$s</string>
+    <string name="custom_storage_path_default">Default: %1$s</string>
+    <string name="custom_storage_path_applied">Custom storage path applied</string>
+    <string name="custom_path_restart_title">Restart Launcher</string>
+    <string name="custom_path_restart_message">Storage path applied. The launcher needs to restart for changes to fully take effect. Restart now?</string>
+    <string name="restart_now">Restart Now</string>
+    <string name="later">Later</string>
+    <string name="custom_storage_path_reset_done">Storage path reset to default</string>
+    <string name="apk_import_empty_file">APK write failed. This is usually caused by missing storage permission. Please grant \"All files access\" and retry.</string>
+    <string name="version_isolation_label">Version Isolation</string>
+    <string name="version_isolation_desc">When enabled, content is stored per version (instance). When disabled, all versions share the same content.</string>
+    <string name="show_all_content_label">Show All Content</string>
+    <string name="show_all_content_desc">View all versions and shared resources for management and deletion.</string>
+    <string name="view_shared_folder">View Shared Folder</string>
+    <string name="view_shared_folder_hint">All versions shared</string>
+    <string name="global_config_title">Global Game Config</string>
+    <string name="global_config_desc">Apply safe area, FOV, view distance and touch scheme to all versions.</string>
+    <string name="global_config_not_set">Not set</string>
+    <string name="global_config_saved">Global config saved</string>
+    <string name="global_config_configure">Configure</string>
+    <string name="global_config_safe_zone_x">Safe Zone X</string>
+    <string name="global_config_safe_zone_y">Safe Zone Y</string>
+    <string name="global_config_safe_zone">Safe Zone</string>
+    <string name="global_config_fov">Field of View</string>
+    <string name="global_config_view_distance">View Distance</string>
+    <string name="global_config_touch_scheme">Touch Settings</string>
+    <string name="global_config_split_control">Split Control</string>
+    <string name="global_config_graphics_mode">Graphics Mode</string>
+    <string name="global_config_vibrant_visuals">Vibrant Visuals</string>
+    <string name="global_config_ui_type">UI Type</string>
+    <string name="global_config_keep_default">Keep default</string>
+    <string name="global_config_on">On</string>
+    <string name="global_config_off">Off</string>
+    <string name="switch_on">On</string>
+    <string name="switch_off">Off</string>
+    <string name="graphics_fancy">Fancy</string>
+    <string name="graphics_fast">Fast</string>
+    <string name="graphics_simple">Simple</string>
+    <string name="graphics_vibrant">Vibrant Visuals</string>
+    <string name="ui_classic">Classic</string>
+    <string name="ui_pocket">Pocket</string>
+    <string name="touch_default">Default</string>
+    <string name="touch_pocket">Pocket</string>
+    <string name="touch_joystick">Joystick</string>
+    <string name="touch_joystick_tap">Joystick &amp; tap to interact</string>
+    <string name="touch_joystick_crosshair">Joystick &amp; aim crosshair</string>
+    <string name="touch_dpad_tap">D-pad &amp; tap to interact</string>
+    <string name="transfer_to_shared">Shared Folder</string>
+    <string name="settings_tab_help">Help</string>
+    <string name="help_title">Help</string>
+    <string name="help_desc">Useful Minecraft websites</string>
+    <string name="help_chunkbase">Chunkbase</string>
+    <string name="help_chunkbase_desc">Seed map / biome / structure finder</string>
+    <string name="help_mcwiki">Minecraft Wiki</string>
+    <string name="help_mcwiki_desc">Minecraft encyclopedia</string>
+    <string name="help_bilibili">Bilibili</string>
+    <string name="help_bilibili_desc">Bilibili video platform</string>
+    <string name="help_minebbs">MineBBS</string>
+    <string name="help_minebbs_desc">Minecraft community forum</string>
+    <string name="help_littleskin">LittleSkin</string>
+    <string name="help_littleskin_desc">Minecraft skin site</string>
+    <string name="custom_color_label">Custom Color (HEX/RGB)</string>
+    <string name="custom_color_hint">#RRGGBB or R,G,B</string>
+    <string name="apply">Apply</string>
+    <string name="curseforge_all_categories">All Categories</string>
+    <string name="curseforge_addons">Addons</string>
+    <string name="curseforge_maps">Maps</string>
+    <string name="curseforge_skins">Skins</string>
+    <string name="curseforge_texture_packs">Texture Packs</string>
+    <string name="curseforge_scripts">Scripts</string>
+    <string name="curseforge_relevancy">Relevancy</string>
+    <string name="curseforge_total_downloads">Total Downloads</string>
+    <string name="curseforge_last_updated">Last Updated</string>
+    <string name="curseforge_name">Name</string>
+    <string name="curseforge_sort">Sort: %1$s</string>
+    <string name="page_previous">Previous</string>
+    <string name="page_next">Next</string>
+    <string name="page_info">Page %1$d of %2$s</string>
+    <string name="page_first">First</string>
+    <string name="jump_to_page">Jump to page</string>
+    <string name="go">Go</string>
 
     <string name="theme_title">Theme Mode</string>
     <string name="theme_follow_system">Follow System</string>
@@ -259,7 +383,7 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="instance_delete_confirm_title">Delete Instance</string>
     <string name="instance_delete_confirm_msg">Are you sure you want to delete this instance? All data including worlds will be permanently removed.</string>
     <string name="instance_backup_title">Backup Instance</string>
-    <string name="instance_backup_desc">Create a full backup of this instance in Download/LeviLauncher/Backups.</string>
+    <string name="instance_backup_desc">Create a full backup of this instance in Download/LeviLauncher/Backups/minecraft item.</string>
     <string name="instance_backup_button">Backup Instance</string>
     <string name="instance_backup_confirm_message">Create a full backup of this instance now? Exit Minecraft first if it is running to avoid changing files during backup.</string>
     <string name="instance_backup_in_progress">Backing up instance…</string>
@@ -287,6 +411,8 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="instance_restore_success_message">Restored: %1$s</string>
     <string name="instance_restore_failed_title">Restore Failed</string>
     <string name="instance_restore_failed_message">Could not restore backup:\n%1$s</string>
+    <string name="instance_restore_already_exists_title">Instance Already Exists</string>
+    <string name="instance_restore_already_exists_message">Instance "%1$s" has already been imported. Skipped duplicate import.</string>
 
     <!-- Language Setting -->
     <!-- Keep English at the top (default language). -->
@@ -309,6 +435,35 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="rename_version_message">Enter a new name for this version:</string>
     <string name="new_version_name">New version name</string>
     <string name="rename">Rename</string>
+    <string name="locate">Locate</string>
+    <string name="file_manager_title">File Manager</string>
+    <string name="seed_label">Seed: %1$d</string>
+    <string name="seed_copied">Seed copied to clipboard</string>
+    <string name="file_not_found">File not found</string>
+    <string name="copy">Copy</string>
+    <string name="paste">Paste</string>
+    <string name="new_folder">New folder</string>
+    <string name="file_exists">A file with this name already exists</string>
+    <string name="operation_failed">Operation failed</string>
+    <string name="copied">Copied</string>
+    <string name="delete_confirm">Delete \"%1$s\"?</string>
+    <string name="close">Close</string>
+    <string name="playing">Playing: %1$s</string>
+    <string name="audio_play_failed">Audio playback failed</string>
+    <string name="preview">Preview</string>
+    <string name="saved">Saved</string>
+    <string name="read_only">Read only</string>
+    <string name="play">Play</string>
+    <string name="pause">Pause</string>
+    <string name="mt_manager">MT Manager</string>
+    <string name="system_file_manager">System file manager</string>
+    <string name="open_with">Open with</string>
+    <string name="file_too_large">File too large, open in file manager</string>
+    <string name="no_file_manager">No file manager found</string>
+    <string name="open_external">File manager</string>
+    <string name="copied_to">Copied to %1$s</string>
+    <string name="renamed_to">Renamed to %1$s</string>
+    <string name="deleted">Deleted %1$s</string>
     <string name="rename_success">Version renamed successfully</string>
     <string name="rename_failed">Rename failed: %1$s</string>
     <string name="cannot_rename_installed">Cannot rename installed versions</string>
@@ -325,6 +480,7 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="skin_packs_category">Skin Packs</string>
     <string name="screenshots_category">Screenshots</string>
     <string name="servers_category">Servers</string>
+    <string name="structures_category">Structures</string>
     <string name="storage_internal">Internal</string>
     <string name="storage_external">External</string>
     <string name="storage_version_isolation">Version Isolation</string>
@@ -361,6 +517,8 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="import_resource_pack">Import Resource Pack</string>
     <string name="import_behavior_pack">Import Behavior Pack</string>
     <string name="import_skin_pack">Import Skin Pack</string>
+    <string name="addon_delete_linked_title">Delete Addon Components</string>
+    <string name="addon_delete_linked_message">"%1$s" is a dependency of the paired addon component. Deleting it will also delete the paired "%2$s". Delete both?</string>
     <string name="delete_resource_pack">Delete Resource Pack</string>
     <string name="delete_skin_pack">Delete Skin Pack</string>
     <string name="delete_behavior_pack">Delete Behavior Pack</string>
@@ -375,6 +533,8 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="exporting_pack">Exporting pack…</string>
     <string name="backing_up_world">Backing up world…</string>
     <string name="deleting_world">Deleting world…</string>
+    <string name="world_deleted_successfully">World deleted successfully</string>
+    <string name="world_delete_failed">Failed to delete world</string>
     <string name="deleting_pack">Deleting pack…</string>
     <string name="adding_server">Adding server…</string>
     <string name="deleting_screenshot">Deleting screenshot…</string>
@@ -383,6 +543,7 @@ Migration must complete before LeviLauncher can continue.</string>
     <!-- World Editor -->
     <string name="edit_world">Edit World</string>
     <string name="edit">Edit</string>
+    <string name="edit_world_beta">Edit (Beta)</string>
     <string name="save">Save</string>
     <string name="reset">Reset</string>
     <string name="saved_to_gallery">Saved to gallery</string>
@@ -405,6 +566,8 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="layers">Layers (bottom to top)</string>
     <string name="layers_hint">Drag to reorder, swipe left to delete</string>
     <string name="add_layer">+ Add Layer</string>
+    <string name="hardcore_mode">Hardcore Mode</string>
+    <string name="randomize_layers">Randomize</string>
     <string name="create_world">Create World</string>
     <string name="add_at_least_one_layer">Add at least one layer</string>
     <string name="world_created_successfully">World created successfully</string>
@@ -560,6 +723,8 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="ms_account_subtitle_format">User ID: %1$s • Updated: %2$s</string>
     <string name="xbox_avatar">Xbox avatar</string>
     <string name="launcher_managed_mc_login">Sign in to Minecraft with LeviLauncher</string>
+    <string name="ms_login_label">Show sign-in</string>
+    <string name="ms_login_desc">Show or hide the sign-in button in the top-right corner.</string>
     <string name="dialog_title_login_required">Sign-in required</string>
     <string name="dialog_message_login_required">Launcher-managed login is enabled, but no account is signed in. Go to Accounts to sign in.</string>
     <string name="go_to_accounts">Accounts</string>
@@ -744,6 +909,10 @@ Migration must complete before LeviLauncher can continue.</string>
 
     <!-- Quick Launch -->
     <string name="quick_launch_title">Quick Launch</string>
+    <string name="world_picker_version_label">Select version</string>
+    <string name="world_picker_loading">Loading worlds…</string>
+    <string name="world_picker_no_worlds">No worlds in this version</string>
+    <string name="world_picker_launch_failed">Failed to launch world</string>
     <string name="quick_launch_subtitle">Launch Minecraft with specific actions using URI protocol</string>
     <string name="quick_launch_how_to_play">How to Play</string>
     <string name="quick_launch_how_to_play_desc">Open the How to Play screen</string>
@@ -799,6 +968,23 @@ Migration must complete before LeviLauncher can continue.</string>
 
     <!-- Quick Actions Menu -->
     <string name="quick_launch">Quick Launch</string>
+    <string name="share_launch_log">Share Launch Log</string>
+    <string name="share_launch_log_empty">No launch log yet. Launch the game once first.</string>
+    <string name="crash_analysis_title">Crash Analysis</string>
+    <string name="crash_analysis_phase">The game crashed during the "%1$s" phase last time.</string>
+    <string name="crash_analysis_native_dump">A native crash dump was detected, meaning the game process itself crashed.</string>
+    <string name="crash_analysis_mods">Mods enabled this launch: %1$s. We suspect a mod may be involved; try disabling recently added mods first.</string>
+    <string name="crash_analysis_no_mods">No mods were enabled this launch; it may be a game or environment issue.</string>
+    <string name="crash_analysis_unknown_stage">Unknown</string>
+    <string name="crash_analysis_dump_found">A native crash dump was generated, confirming the game process crashed.</string>
+    <string name="crash_analysis_mod_loading_mods">The game crashed while loading mods (last step: %1$s). This is usually caused by mod incompatibility. Mods enabled this launch: %2$s. Try disabling recently added mods one by one.</string>
+    <string name="crash_analysis_launch_phase_mods">The game crashed during startup before entering the game (last step: %1$s). Mods enabled this launch: %2$s. Startup crashes are often caused by mod incompatibility; try disabling mods, or repair the game files if it still crashes.</string>
+    <string name="crash_analysis_launch_phase_no_mods">The game crashed during startup before entering the game (last step: %1$s). No mods were enabled; the game files may be corrupted or the version is incompatible. Try repairing game files or switching versions.</string>
+    <string name="crash_analysis_in_game_mods">The game crashed during gameplay (it had entered the game). Mods enabled this launch: %1$s. In-game crashes are usually triggered by specific actions; try disabling mods and reproducing.</string>
+    <string name="crash_analysis_in_game_no_mods">The game crashed during gameplay (it had entered the game). No mods were enabled; this may be a game issue or low device memory.</string>
+    <string name="crash_analysis_hint">Tap "Share Log" to send the launch log for further analysis.</string>
+    <string name="crash_analysis_share">Share Log</string>
+    <string name="crash_analysis_ok">Got it</string>
     <string name="quick_launch_menu_subtitle">Launch with URI actions</string>
 
     <!-- CurseForge -->
@@ -823,7 +1009,7 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="select_instance_title">Select Instance</string>
     <string name="filter_all">All</string>
     <string name="filter_custom">Custom</string>
-    <string name="sort_version_newest">Version (Newest)</string>
+    <string name="sort_version_newest">Version</string>
     <string name="tag_installed">Installed</string>
     <string name="tag_custom">Custom</string>
     <string name="vanilla_prefix">Vanilla %s</string>
@@ -876,4 +1062,41 @@ Migration must complete before LeviLauncher can continue.</string>
 
     <string name="unsupported_version_title">Unsupported Version</string>
     <string name="unsupported_version_msg">This launcher does not support Minecraft versions older than 1.21.80.</string>
+
+    <string name="data_migration_progress_subtitle">正在复制启动器数据…</string>
+    <string name="data_migration_progress_detail">%1$d/%2$d 个文件 · %3$s</string>
+
+    <string name="storage_remnant_title">检测到旧存储残留</string>
+    <string name="storage_remnant_message">旧存储位置仍有数据：\n%1$s\n\n是否迁移到新存储位置 %2$s？</string>
+    <string name="storage_remnant_migrate">迁移</string>
+    <string name="storage_remnant_skip">暂不迁移</string>
+    <string name="storage_remnant_progress_title">正在迁移旧数据</string>
+
+    <string name="preload_switch">设为全局资源</string>
+
+    <string name="hardcore_manage">极限存档管理</string>
+    <string name="hardcore_tag">Hardcore</string>
+    <string name="hardcore_manage_title">极限存档定时备份</string>
+    <string name="hardcore_manage_desc">检测到极限模式的世界，可按设定间隔自动备份到专属目录。</string>
+    <string name="hardcore_backup_enabled">启用定时备份</string>
+    <string name="hardcore_backup_interval">备份间隔</string>
+    <string name="hardcore_backup_minutes">分钟</string>
+    <string name="hardcore_backup_days">天</string>
+    <string name="hardcore_trigger_title">备份时机</string>
+    <string name="hardcore_trigger_ingame">局内备份</string>
+    <string name="hardcore_trigger_ingame_desc">游玩中按间隔自动备份</string>
+    <string name="hardcore_trigger_pause">局内暂停时备份</string>
+    <string name="hardcore_trigger_pause_desc">游戏切到后台/暂停时备份</string>
+    <string name="hardcore_trigger_exit">退出后备份</string>
+    <string name="hardcore_trigger_exit_desc">退出游戏回到启动器时备份</string>
+    <string name="hardcore_no_worlds">未检测到极限模式的世界</string>
+    <string name="hardcore_backup_now">立即备份</string>
+    <string name="hardcore_view_backups">查看备份</string>
+    <string name="hardcore_backup_done">已备份 %1$d 个世界</string>
+    <string name="hardcore_backup_skipped">跳过 %1$d 个世界</string>
+    <string name="hardcore_no_backups">该世界暂无备份</string>
+    <string name="hardcore_last_backup">最近备份：%1$s</string>
+    <string name="hardcore_never_backup">尚未备份</string>
+    <string name="hardcore_no_change_skip">世界自上次备份后无变化，跳过重复备份</string>
+    <string name="hardcore_settings_applied">设置已生效</string>
 </resources>

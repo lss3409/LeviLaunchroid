@@ -84,28 +84,13 @@
                         android:focusable="true" />
 
                     <TextView
-                        android:id="@+id/tab_updates"
-                        android:layout_width="wrap_content"
-                        android:layout_height="32dp"
-                        android:layout_marginStart="8dp"
-                        android:paddingHorizontal="16dp"
-                        android:gravity="center"
-                        android:text="@string/settings_tab_updates"
-                        android:fontFamily="@font/misans"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13sp"
-                        android:background="@drawable/bg_tab_unselected"
-                        android:clickable="true"
-                        android:focusable="true" />
-
-                    <TextView
                         android:id="@+id/tab_about"
                         android:layout_width="wrap_content"
                         android:layout_height="32dp"
                         android:layout_marginStart="8dp"
                         android:paddingHorizontal="16dp"
                         android:gravity="center"
-                        android:text="@string/settings_tab_about"
+                        android:text="@string/settings_tab_help"
                         android:fontFamily="@font/misans"
                         android:textColor="@color/text_secondary"
                         android:textSize="13sp"
@@ -240,14 +225,14 @@
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
-                                android:text="@string/crash_upload"
+                                android:text="@string/auto_close_game_title"
                                 android:fontFamily="@font/misans"
                                 android:textColor="@color/on_surface"
                                 android:textSize="15sp"
                                 android:textStyle="bold" />
 
                             <com.google.android.material.switchmaterial.SwitchMaterial
-                                android:id="@+id/switch_crash_upload"
+                                android:id="@+id/switch_auto_close_game"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:thumbTint="@color/primary"
@@ -263,27 +248,54 @@
                             android:alpha="0.3" />
 
                         <LinearLayout
+                            android:id="@+id/global_config_row"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:gravity="center_vertical"
-                            android:orientation="horizontal">
+                            android:orientation="horizontal"
+                            android:clickable="true"
+                            android:focusable="true">
 
-                            <TextView
+                            <LinearLayout
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
-                                android:text="@string/launcher_managed_mc_login"
-                                android:fontFamily="@font/misans"
-                                android:textColor="@color/on_surface"
-                                android:textSize="15sp"
-                                android:textStyle="bold" />
+                                android:orientation="vertical">
 
-                            <com.google.android.material.switchmaterial.SwitchMaterial
-                                android:id="@+id/switch_managed_login"
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/global_config_title"
+                                    android:fontFamily="@font/misans"
+                                    android:textColor="@color/on_surface"
+                                    android:textSize="15sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:id="@+id/global_config_summary"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="2dp"
+                                    android:fontFamily="@font/misans"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="12sp" />
+                            </LinearLayout>
+
+                            <Button
+                                android:id="@+id/btn_configure_global"
                                 android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:thumbTint="@color/primary"
-                                android:trackTint="#555555" />
+                                android:layout_height="36dp"
+                                android:minWidth="0dp"
+                                android:minHeight="0dp"
+                                android:paddingHorizontal="16dp"
+                                android:insetTop="0dp"
+                                android:insetBottom="0dp"
+                                android:text="@string/global_config_configure"
+                                android:fontFamily="@font/misans"
+                                android:textColor="@color/on_primary"
+                                android:textSize="12sp"
+                                android:textAllCaps="false"
+                                android:backgroundTint="@color/primary" />
                         </LinearLayout>
                     </LinearLayout>
                 </LinearLayout>
@@ -503,7 +515,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="16dp"
-                            android:text="Custom Color (HEX/RGB)"
+                            android:text="@string/custom_color_label"
                             android:fontFamily="@font/misans"
                             android:textColor="@color/text_secondary"
                             android:textSize="11sp"
@@ -521,7 +533,7 @@
                                 android:layout_weight="1"
                                 android:background="@drawable/bg_spinner_outline"
                                 android:paddingHorizontal="12dp"
-                                android:hint="#RRGGBB or R,G,B"
+                                android:hint="@string/custom_color_hint"
                                 android:fontFamily="@font/misans"
                                 android:textSize="13sp"
                                 android:textColor="@color/on_surface" />
@@ -530,7 +542,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="40dp"
                                 android:layout_marginStart="8dp"
-                                android:text="Apply"
+                                android:text="@string/apply"
                                 android:textAllCaps="false"
                                 android:fontFamily="@font/misans"
                                 android:textSize="12sp"
@@ -711,7 +723,7 @@
                 </LinearLayout>
 
                 <LinearLayout
-                    android:id="@+id/section_updates"
+                    android:id="@+id/section_about"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
@@ -725,100 +737,55 @@
                         android:padding="16dp">
 
                         <TextView
-                            android:id="@+id/version_text"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:fontFamily="@font/misans"
-                            android:textColor="@color/on_surface"
-                            android:textSize="15sp"
-                            android:textStyle="bold" />
-
-                        <View
-                            android:layout_width="match_parent"
-                            android:layout_height="1dp"
-                            android:layout_marginTop="14dp"
-                            android:layout_marginBottom="14dp"
-                            android:background="@color/divider"
-                            android:alpha="0.3" />
-
-                        <Button
-                            android:id="@+id/btn_check_update"
-                            android:layout_width="wrap_content"
-                            android:layout_height="40dp"
-                            android:text="@string/check_update"
-                            android:fontFamily="@font/misans"
-                            android:textSize="13sp"
-                            android:textColor="@color/on_primary"
-                            android:backgroundTint="@color/primary"
-                            android:paddingHorizontal="20dp"
-                            android:textAllCaps="false" />
-
-                        <View
-                            android:layout_width="match_parent"
-                            android:layout_height="1dp"
-                            android:layout_marginTop="14dp"
-                            android:layout_marginBottom="14dp"
-                            android:background="@color/divider"
-                            android:alpha="0.3" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/preloader_sigs_title"
+                            android:text="@string/help_title"
                             android:fontFamily="@font/misans"
                             android:textColor="@color/on_surface"
                             android:textSize="15sp"
                             android:textStyle="bold" />
 
                         <TextView
-                            android:id="@+id/preloader_sigs_last_update"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="2dp"
+                            android:text="@string/help_desc"
                             android:fontFamily="@font/misans"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
-
-                        <Button
-                            android:id="@+id/btn_update_preloader_sigs"
-                            android:layout_width="wrap_content"
-                            android:layout_height="40dp"
-                            android:layout_marginTop="12dp"
-                            android:text="@string/preloader_sigs_update"
-                            android:fontFamily="@font/misans"
-                            android:textSize="13sp"
-                            android:textColor="@color/on_primary"
-                            android:backgroundTint="@color/primary"
-                            android:paddingHorizontal="20dp"
-                            android:textAllCaps="false" />
                     </LinearLayout>
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/section_about"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:visibility="gone">
 
                     <LinearLayout
+                        android:id="@+id/help_chunkbase"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
                         android:background="@drawable/card_background"
-                        android:gravity="center_vertical"
                         android:orientation="horizontal"
-                        android:padding="16dp">
+                        android:gravity="center_vertical"
+                        android:padding="16dp"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <ImageView
+                            android:id="@+id/help_chunkbase_icon"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:src="@drawable/ic_search"
+                            android:importantForAccessibility="no"
+                            app:tint="@color/primary" />
 
                         <LinearLayout
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
+                            android:layout_marginStart="12dp"
                             android:orientation="vertical">
 
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="@string/about_title"
+                                android:text="@string/help_chunkbase"
                                 android:fontFamily="@font/misans"
                                 android:textColor="@color/on_surface"
                                 android:textSize="15sp"
@@ -828,40 +795,199 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="2dp"
-                                android:text="@string/copyright"
-                                android:fontFamily="@font/misans"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="12sp" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/font_license"
+                                android:text="@string/help_chunkbase_desc"
                                 android:fontFamily="@font/misans"
                                 android:textColor="@color/text_secondary"
                                 android:textSize="12sp" />
                         </LinearLayout>
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/help_mcwiki"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:background="@drawable/card_background"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:padding="16dp"
+                        android:clickable="true"
+                        android:focusable="true">
 
                         <ImageView
-                            android:id="@+id/settings_btn_github"
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
-                            android:layout_marginEnd="12dp"
-                            android:src="@drawable/ic_github"
-                            android:contentDescription="GitHub"
-                            android:clickable="true"
-                            android:focusable="true"
-                            app:tint="@color/text_secondary" />
+                            android:id="@+id/help_mcwiki_icon"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:src="@drawable/ic_internet"
+                            android:importantForAccessibility="no"
+                            app:tint="@color/primary" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/help_mcwiki"
+                                android:fontFamily="@font/misans"
+                                android:textColor="@color/on_surface"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="@string/help_mcwiki_desc"
+                                android:fontFamily="@font/misans"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/help_bilibili"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:background="@drawable/card_background"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:padding="16dp"
+                        android:clickable="true"
+                        android:focusable="true">
 
                         <ImageView
-                            android:id="@+id/settings_btn_discord"
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
-                            android:src="@drawable/ic_discord"
-                            android:contentDescription="Discord"
-                            android:clickable="true"
-                            android:focusable="true"
-                            app:tint="@color/text_secondary" />
+                            android:id="@+id/help_bilibili_icon"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:src="@drawable/ic_youtube"
+                            android:importantForAccessibility="no"
+                            app:tint="@color/primary" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/help_bilibili"
+                                android:fontFamily="@font/misans"
+                                android:textColor="@color/on_surface"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="@string/help_bilibili_desc"
+                                android:fontFamily="@font/misans"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/help_minebbs"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:background="@drawable/card_background"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:padding="16dp"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <ImageView
+                            android:id="@+id/help_minebbs_icon"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:src="@drawable/ic_internet"
+                            android:importantForAccessibility="no"
+                            app:tint="@color/primary" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/help_minebbs"
+                                android:fontFamily="@font/misans"
+                                android:textColor="@color/on_surface"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="@string/help_minebbs_desc"
+                                android:fontFamily="@font/misans"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/help_littleskin"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:background="@drawable/card_background"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:padding="16dp"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <ImageView
+                            android:id="@+id/help_littleskin_icon"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:src="@drawable/ic_tshirt"
+                            android:importantForAccessibility="no"
+                            app:tint="@color/primary" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/help_littleskin"
+                                android:fontFamily="@font/misans"
+                                android:textColor="@color/on_surface"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="@string/help_littleskin_desc"
+                                android:fontFamily="@font/misans"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
                     </LinearLayout>
                 </LinearLayout>
 
@@ -879,71 +1005,10 @@
                         android:orientation="vertical"
                         android:padding="16dp">
 
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal">
-
-                            <LinearLayout
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:orientation="vertical">
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/shared_storage_layout_title"
-                                    android:fontFamily="@font/misans"
-                                    android:textColor="@color/on_surface"
-                                    android:textSize="15sp"
-                                    android:textStyle="bold" />
-
-                                <TextView
-                                    android:id="@+id/shared_storage_layout_desc"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginTop="4dp"
-                                    android:text="@string/shared_storage_layout_desc"
-                                    android:fontFamily="@font/misans"
-                                    android:textColor="@color/text_secondary"
-                                    android:textSize="12sp" />
-                            </LinearLayout>
-
-                            <com.google.android.material.switchmaterial.SwitchMaterial
-                                android:id="@+id/switch_shared_storage_layout"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="12dp"
-                                android:thumbTint="@color/primary"
-                                android:trackTint="#555555" />
-                        </LinearLayout>
-
-                        <TextView
-                            android:id="@+id/shared_storage_layout_status"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
-                            android:background="@drawable/bg_spinner_outline"
-                            android:fontFamily="@font/misans"
-                            android:padding="10dp"
-                            android:textColor="@color/on_surface"
-                            android:textSize="12sp" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:background="@drawable/card_background"
-                        android:orientation="vertical"
-                        android:padding="16dp">
-
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="@string/migration_cleanup_title"
+                            android:text="@string/custom_storage_path_title"
                             android:fontFamily="@font/misans"
                             android:textColor="@color/on_surface"
                             android:textSize="15sp"
@@ -953,13 +1018,13 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:text="@string/migration_cleanup_desc"
+                            android:text="@string/custom_storage_path_desc"
                             android:fontFamily="@font/misans"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
 
                         <TextView
-                            android:id="@+id/migration_cleanup_path"
+                            android:id="@+id/custom_storage_path_current"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="12dp"
@@ -969,27 +1034,53 @@
                             android:textColor="@color/on_surface"
                             android:textSize="12sp" />
 
-                        <TextView
-                            android:id="@+id/migration_cleanup_status"
+                        <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="10dp"
-                            android:fontFamily="@font/misans"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="12sp" />
+                            android:layout_marginTop="12dp"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
 
-                        <Button
-                            android:id="@+id/btn_cleanup_legacy_dir"
-                            android:layout_width="wrap_content"
-                            android:layout_height="40dp"
-                            android:layout_marginTop="14dp"
-                            android:text="@string/migration_cleanup_button"
-                            android:fontFamily="@font/misans"
-                            android:textSize="13sp"
-                            android:textColor="@color/on_primary"
-                            android:backgroundTint="@color/primary"
-                            android:paddingHorizontal="20dp"
-                            android:textAllCaps="false" />
+                            <EditText
+                                android:id="@+id/input_custom_storage_path"
+                                android:layout_width="0dp"
+                                android:layout_height="40dp"
+                                android:layout_weight="1"
+                                android:background="@drawable/bg_spinner_outline"
+                                android:paddingHorizontal="12dp"
+                                android:fontFamily="@font/misans"
+                                android:textSize="13sp"
+                                android:textColor="@color/on_surface"
+                                android:inputType="textUri"
+                                android:singleLine="true"
+                                android:importantForAutofill="no" />
+
+                            <Button
+                                android:id="@+id/btn_apply_custom_storage_path"
+                                android:layout_width="wrap_content"
+                                android:layout_height="40dp"
+                                android:layout_marginStart="8dp"
+                                android:text="@string/custom_storage_path_apply"
+                                android:textAllCaps="false"
+                                android:fontFamily="@font/misans"
+                                android:textSize="12sp"
+                                android:textColor="@color/on_primary"
+                                android:backgroundTint="@color/primary"
+                                android:paddingHorizontal="16dp" />
+
+                            <Button
+                                android:id="@+id/btn_reset_custom_storage_path"
+                                android:layout_width="wrap_content"
+                                android:layout_height="40dp"
+                                android:layout_marginStart="8dp"
+                                android:text="@string/custom_storage_path_reset"
+                                android:textAllCaps="false"
+                                android:fontFamily="@font/misans"
+                                android:textSize="12sp"
+                                android:textColor="@color/on_surface"
+                                android:backgroundTint="@color/surface_variant"
+                                android:paddingHorizontal="12dp" />
+                        </LinearLayout>
                     </LinearLayout>
                 </LinearLayout>
 

@@ -8,6 +8,7 @@ import androidx.lifecycle.MutableLiveData;
 import org.levimc.launcher.core.versions.GameVersion;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -23,12 +24,14 @@ public class ContentManager {
     private final ExecutorService refreshExecutor;
     
     private GameVersion currentVersion;
+    private File structuresDir;
     private final MutableLiveData<List<WorldItem>> worldsLiveData = new MutableLiveData<>();
     private final MutableLiveData<List<ResourcePackItem>> resourcePacksLiveData = new MutableLiveData<>();
     private final MutableLiveData<List<ResourcePackItem>> behaviorPacksLiveData = new MutableLiveData<>();
     private final MutableLiveData<List<ResourcePackItem>> skinPacksLiveData = new MutableLiveData<>();
     private final MutableLiveData<List<ScreenshotItem>> screenshotsLiveData = new MutableLiveData<>();
     private final MutableLiveData<List<ServerItem>> serversLiveData = new MutableLiveData<>();
+    private final MutableLiveData<List<StructureFileItem>> structuresLiveData = new MutableLiveData<>();
     private final MutableLiveData<String> statusLiveData = new MutableLiveData<>();
 
     private ContentManager(Context context) {
@@ -37,7 +40,7 @@ public class ContentManager {
         this.resourcePackManager = new ResourcePackManager(this.context);
         this.screenshotManager = new ScreenshotManager();
         this.serverManager = new ServerManager();
-        this.refreshExecutor = Executors.newSingleThreadExecutor();
+        this.refreshExecutor = Executors.newFixedThreadPool(4);
     }
 
     public static synchronized ContentManager getInstance(Context context) {
@@ -62,6 +65,16 @@ public class ContentManager {
         refreshContent();
     }
 
+    public void setAggregatedStorageDirectories(List<File> gameDataDirs) {
+        List<File> worldsDirs = new ArrayList<>();
+        for (File gameDataDir : gameDataDirs) {
+            worldsDirs.add(new File(gameDataDir, "minecraftWorlds"));
+        }
+        worldManager.setAggregateWorldsDirectories(worldsDirs);
+        resourcePackManager.setAggregateGameDataDirectories(gameDataDirs);
+        refreshContent();
+    }
+
     public void refreshContent() {
         refreshWorlds();
         refreshResourcePacks();
@@ -69,6 +82,7 @@ public class ContentManager {
         refreshSkinPacks();
         refreshScreenshots();
         refreshServers();
+        refreshStructures();
     }
 
     public void refreshWorlds() {
@@ -113,6 +127,27 @@ public class ContentManager {
         });
     }
 
+    public void setStructuresDirectory(File dir) {
+        this.structuresDir = dir;
+    }
+
+    public void refreshStructures() {
+        refreshExecutor.execute(() -> {
+            List<StructureFileItem> structures = new ArrayList<>();
+            if (structuresDir != null && structuresDir.isDirectory()) {
+                File[] files = structuresDir.listFiles();
+                if (files != null) {
+                    for (File f : files) {
+                        if (f.isFile() && f.getName().toLowerCase().endsWith(".mcstructure")) {
+                            structures.add(new StructureFileItem(f));
+                        }
+                    }
+                }
+            }
+            structuresLiveData.postValue(structures);
+        });
+    }
+
     public LiveData<List<WorldItem>> getWorldsLiveData() {
         return worldsLiveData;
     }
@@ -135,6 +170,10 @@ public class ContentManager {
 
     public LiveData<List<ServerItem>> getServersLiveData() {
         return serversLiveData;
+    }
+
+    public LiveData<List<StructureFileItem>> getStructuresLiveData() {
+        return structuresLiveData;
     }
 
     public LiveData<String> getStatusLiveData() {
@@ -161,6 +200,21 @@ public class ContentManager {
             } else {
                 setStatus("Failed to delete screenshot");
                 if (callback != null) callback.onError("Failed to delete screenshot");
+            }
+        });
+    }
+
+    public void deleteStructure(StructureFileItem structure, ContentOperationCallback callback) {
+        setStatus("Deleting structure...");
+        refreshExecutor.execute(() -> {
+            boolean success = structure.getFile() != null && structure.getFile().delete();
+            if (success) {
+                refreshStructures();
+                setStatus("Structure deleted");
+                if (callback != null) callback.onSuccess("Structure deleted");
+            } else {
+                setStatus("Failed to delete structure");
+                if (callback != null) callback.onError("Failed to delete structure");
             }
         });
     }

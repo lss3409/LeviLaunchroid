@@ -70,6 +70,12 @@ public class InstallProgressDialog extends Dialog {
         View content = findViewById(android.R.id.content);
         if (content != null) {
             DynamicAnim.animateDialogShow(content);
+            // 兜底：动画异常时强制显示内容，避免进度窗「弹出但不可见」
+            content.postDelayed(() -> {
+                content.setAlpha(1f);
+                content.setScaleX(1f);
+                content.setScaleY(1f);
+            }, 700);
         }
     }
 

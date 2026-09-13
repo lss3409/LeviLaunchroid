@@ -23,6 +23,7 @@ import org.levimc.launcher.ui.animation.DynamicAnim;
 import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
 import org.levimc.launcher.ui.dialogs.InstallProgressDialog;
 import org.levimc.launcher.util.InstanceBackupManager;
+import org.levimc.launcher.util.ShortcutHelper;
 
 public class InstanceSettingsActivity extends BaseActivity {
     private static final int REQUEST_BACKUP_STORAGE = 4201;
@@ -37,7 +38,7 @@ public class InstanceSettingsActivity extends BaseActivity {
     private View sectionGeneral, sectionLaunchOptions, sectionManagement;
 
     private EditText editName;
-    private SwitchMaterial switchIsolation;
+    private EditText editShortcutName;
     private SwitchMaterial switchLaunchVertically;
     private String originalDisplayName = "";
 
@@ -74,8 +75,13 @@ public class InstanceSettingsActivity extends BaseActivity {
         sectionManagement = findViewById(R.id.section_management);
 
         editName = findViewById(R.id.edit_instance_name);
-        switchIsolation = findViewById(R.id.switch_version_isolation);
+        editShortcutName = findViewById(R.id.edit_shortcut_name);
         switchLaunchVertically = findViewById(R.id.switch_launch_vertically);
+
+        Button btnAddShortcut = findViewById(R.id.btn_add_shortcut);
+        Button btnRemoveShortcut = findViewById(R.id.btn_remove_shortcut);
+        if (btnAddShortcut != null) btnAddShortcut.setOnClickListener(v -> addShortcut());
+        if (btnRemoveShortcut != null) btnRemoveShortcut.setOnClickListener(v -> removeShortcut());
 
         tabGeneral.setOnClickListener(v -> selectTab(tabGeneral));
         tabLaunchOptions.setOnClickListener(v -> selectTab(tabLaunchOptions));
@@ -118,8 +124,15 @@ public class InstanceSettingsActivity extends BaseActivity {
         originalDisplayName = currentName.trim();
         editName.setText(currentName);
 
-        switchIsolation.setChecked(version.versionIsolation);
         switchLaunchVertically.setChecked(version.launchVertically);
+
+        if (editShortcutName != null) {
+            editShortcutName.setText(ShortcutHelper.getDefaultLabel(version));
+            // 已创建快捷方式后禁止改名：置灰提示用户「创建前先改名」
+            boolean pinned = ShortcutHelper.isPinned(this, version);
+            editShortcutName.setEnabled(!pinned);
+            editShortcutName.setAlpha(pinned ? 0.4f : 1.0f);
+        }
     }
 
     private void selectTab(TextView selectedTab) {
@@ -158,10 +171,36 @@ public class InstanceSettingsActivity extends BaseActivity {
         }
     }
 
+    private void addShortcut() {
+        if (version == null) return;
+        String label = editShortcutName != null ? editShortcutName.getText().toString().trim() : "";
+        if (label.isEmpty()) label = ShortcutHelper.getDefaultLabel(version);
+
+        if (ShortcutHelper.isPinned(this, version)) {
+            // 已添加过：用新名字更新（改名），并提示已存在
+            ShortcutHelper.renameShortcut(this, version, label);
+            Toast.makeText(this, R.string.shortcut_already_added, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        boolean ok = ShortcutHelper.pinShortcut(this, version, label);
+        if (!ok) {
+            ok = ShortcutHelper.pinShortcutLegacy(this, version, label);
+        }
+        if (!ok) {
+            Toast.makeText(this, R.string.add_to_desktop_failed, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void removeShortcut() {
+        if (version == null) return;
+        ShortcutHelper.removeShortcut(this, version);
+        Toast.makeText(this, R.string.remove_shortcut_hint, Toast.LENGTH_LONG).show();
+    }
+
     private void saveAndFinish() {
         String newName = editName.getText().toString().trim();
 
-        versionManager.setInstanceVersionIsolation(version, switchIsolation.isChecked());
         versionManager.setInstanceLaunchVertically(version, switchLaunchVertically.isChecked());
 
         if (!newName.isEmpty() && !newName.equals(originalDisplayName)) {

@@ -16,6 +16,8 @@ import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
 import org.levimc.launcher.ui.dialogs.InstallProgressDialog;
 import org.levimc.launcher.ui.views.MainViewModel;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executors;
 
 public class ApkImportManager {
@@ -23,6 +25,9 @@ public class ApkImportManager {
     private final MainViewModel viewModel;
     private final InstallProgressDialog progressDialog;
     private OnImportCompleteListener importCompleteListener;
+    private final List<Uri> pendingUris = new ArrayList<>();
+    private int totalCount = 0;
+    private int totalImported = 0;
 
     public interface OnImportCompleteListener {
         void onImportComplete();
@@ -38,34 +43,42 @@ public class ApkImportManager {
         this.importCompleteListener = listener;
     }
 
-    public void handleApkImportResult(Intent data) {
-        Uri apkUri = data.getData();
+    public void handleApkImportResultForUri(Uri apkUri) {
         if (apkUri == null) return;
-        
+
         String fileName = getFileName(apkUri);
         boolean isApks = fileName != null && fileName.toLowerCase().endsWith(".apks");
-        
+
         if (!isApks && fileName != null && !fileName.toLowerCase().endsWith(".apk")) {
             new CustomAlertDialog(activity)
                     .setTitleText(activity.getString(R.string.illegal_apk_title))
                     .setMessage(activity.getString(R.string.not_apk_or_apks))
-                    .setPositiveButton(activity.getString(R.string.exit), v -> {})
+                    .setPositiveButton(activity.getString(R.string.exit), v -> processNextApk())
                     .show();
             return;
         }
-        
-        String initialVersionName = isApks 
-                ? ApkUtils.extractMinecraftVersionNameFromApksUri(activity, apkUri)
-                : ApkUtils.extractMinecraftVersionNameFromUri(activity, apkUri);
-                
-        if ("Error Apk".equals(initialVersionName)) {
-            new CustomAlertDialog(activity)
-                    .setTitleText(activity.getString(R.string.illegal_apk_title))
-                    .setMessage(activity.getString(R.string.not_mc_apk))
-                    .setPositiveButton(activity.getString(R.string.exit), v -> {})
-                    .show();
-            return;
-        }
+
+        // 分析 APK（提取版本名）较耗时，放到后台线程执行；
+        // 不在此阶段弹进度窗（会在版本确认弹窗之前突兀出现），安装阶段才显示进度。
+        Executors.newSingleThreadExecutor().execute(() -> {
+            String initialVersionName = isApks
+                    ? ApkUtils.extractMinecraftVersionNameFromApksUri(activity, apkUri)
+                    : ApkUtils.extractMinecraftVersionNameFromUri(activity, apkUri);
+            activity.runOnUiThread(() -> {
+                if ("Error Apk".equals(initialVersionName)) {
+                    new CustomAlertDialog(activity)
+                            .setTitleText(activity.getString(R.string.illegal_apk_title))
+                            .setMessage(activity.getString(R.string.not_mc_apk))
+                            .setPositiveButton(activity.getString(R.string.exit), v -> processNextApk())
+                            .show();
+                    return;
+                }
+                showConfirmDialog(apkUri, initialVersionName);
+            });
+        });
+    }
+
+    private void showConfirmDialog(Uri apkUri, String initialVersionName) {
         ApkVersionConfirmDialog dialog = new ApkVersionConfirmDialog()
                 .setInitialVersionName(initialVersionName)
                 .setCallback(new ApkVersionConfirmDialog.Callback() {
@@ -88,9 +101,8 @@ public class ApkImportManager {
                                             Toast.LENGTH_LONG
                                     ).show();
                                     VersionManager.get(activity).loadAllVersions();
-                                    if (importCompleteListener != null) {
-                                        importCompleteListener.onImportComplete();
-                                    }
+                                    totalImported++;
+                                    processNextApk();
                                 });
                             }
 
@@ -99,6 +111,7 @@ public class ApkImportManager {
                                 activity.runOnUiThread(() -> {
                                     dismissProgress();
                                     Toast.makeText(activity, errorMsg, Toast.LENGTH_LONG).show();
+                                    processNextApk();
                                 });
                             }
                         });
@@ -107,14 +120,20 @@ public class ApkImportManager {
 
                     @Override
                     public void onCancelled() {
+                        processNextApk();
                     }
                 });
         dialog.show(((AppCompatActivity) activity).getSupportFragmentManager(), "ApkVersionConfirmDialog");
     }
 
     void showProgress() {
-        progressDialog.setProgress(0);
-        if (!progressDialog.isShowing()) progressDialog.show();
+        android.util.Log.i("ApkImport", "showProgress on " + activity.getClass().getSimpleName());
+        try {
+            progressDialog.setProgress(0);
+            if (!progressDialog.isShowing()) progressDialog.show();
+        } catch (Throwable t) {
+            android.util.Log.e("ApkImport", "progress dialog failed", t);
+        }
     }
 
     void dismissProgress() {
@@ -122,9 +141,37 @@ public class ApkImportManager {
     }
 
     public void handleActivityResult(int resultCode, Intent data) {
-        if (resultCode == Activity.RESULT_OK && data != null) {
-            handleApkImportResult(data);
+        if (resultCode != Activity.RESULT_OK || data == null) return;
+        List<Uri> uris = new ArrayList<>();
+        if (data.getClipData() != null) {
+            for (int i = 0; i < data.getClipData().getItemCount(); i++) {
+                Uri u = data.getClipData().getItemAt(i).getUri();
+                if (u != null) uris.add(u);
+            }
+        } else if (data.getData() != null) {
+            uris.add(data.getData());
         }
+        if (uris.isEmpty()) return;
+        pendingUris.clear();
+        pendingUris.addAll(uris);
+        totalCount = uris.size();
+        totalImported = 0;
+        processNextApk();
+    }
+
+    private void processNextApk() {
+        if (pendingUris.isEmpty()) {
+            if (totalCount > 1) {
+                Toast.makeText(activity,
+                        activity.getString(R.string.batch_import_done, totalImported),
+                        Toast.LENGTH_LONG).show();
+            }
+            if (importCompleteListener != null) {
+                importCompleteListener.onImportComplete();
+            }
+            return;
+        }
+        handleApkImportResultForUri(pendingUris.remove(0));
     }
 
     private String getFileName(Uri uri) {

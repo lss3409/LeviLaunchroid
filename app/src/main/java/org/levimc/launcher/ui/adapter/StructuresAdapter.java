@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import org.levimc.launcher.R;
 import org.levimc.launcher.core.content.StructureExtractor.StructureInfo;
+import org.levimc.launcher.util.PersonalizationManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,6 +39,8 @@ public class StructuresAdapter extends RecyclerView.Adapter<StructuresAdapter.St
     public StructureViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.item_structure, parent, false);
+        new PersonalizationManager(parent.getContext())
+                .applyAccentToView(view, parent.getContext());
         return new StructureViewHolder(view);
     }
 

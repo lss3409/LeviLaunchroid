@@ -72,6 +72,15 @@ public class MsftAccountStore {
         File f = getFile(ctx);
         try {
             JsonIOUtils.write(f, GSON.toJson(list));
+            Log.i("MsftAccountStore", "saved " + list.size() + " accounts to " + f.getAbsolutePath()
+                    + " exists=" + f.exists() + " len=" + f.length());
+            if (list.isEmpty()) {
+                // 诊断：空列表保存说明账号被意外清空，打印调用栈定位来源
+                StackTraceElement[] st = Thread.currentThread().getStackTrace();
+                StringBuilder sb = new StringBuilder("EMPTY-SAVE stack:\n");
+                for (int i = 2; i < Math.min(st.length, 12); i++) sb.append("  ").append(st[i]).append('\n');
+                Log.w("MsftAccountStore", sb.toString());
+            }
         } catch (Exception ex) {
             Log.w("XALExport", "Failed to write " + f.getAbsolutePath(), ex);
         }

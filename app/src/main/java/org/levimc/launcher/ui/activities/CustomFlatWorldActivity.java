@@ -37,11 +37,11 @@ public class CustomFlatWorldActivity extends BaseActivity {
     private ExecutorService executor;
 
     private static final String[] BIOME_NAMES = {
-            "Plains", "Desert", "Mountains", "Forest", "Taiga", "Swamp", "River", "Nether Wastes",
-            "The End", "Frozen Ocean", "Frozen River", "Snowy Plains", "Snowy Mountains", "Mushroom Fields",
-            "Beach", "Jungle", "Sparse Jungle", "Deep Ocean", "Stony Shore", "Snowy Beach",
-            "Birch Forest", "Dark Forest", "Snowy Taiga", "Old Growth Pine Taiga", "Windswept Forest",
-            "Savanna", "Savanna Plateau", "Badlands", "Wooded Badlands", "Warm Ocean"
+            "平原", "沙漠", "山地", "森林", "针叶林", "沼泽", "河流", "下界荒地",
+            "末地", "冻洋", "冻河", "积雪的平原", "积雪的山坡", "蘑菇岛",
+            "沙滩", "丛林", "稀疏丛林", "深海", "石岸", "积雪的沙滩",
+            "桦木森林", "黑森林", "积雪的针叶林", "原始松木针叶林", "风袭森林",
+            "热带草原", "热带高原", "恶地", "疏林恶地", "暖水海洋"
     };
 
     private static final int[] BIOME_IDS = {
@@ -77,7 +77,7 @@ public class CustomFlatWorldActivity extends BaseActivity {
         biomeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         binding.biomeSpinner.setAdapter(biomeAdapter);
 
-        String[] gameModes = {"Survival", "Creative", "Adventure"};
+        String[] gameModes = {"生存模式", "创造模式", "冒险模式"};
         ArrayAdapter<String> gameModeAdapter = new ArrayAdapter<>(this,
                 android.R.layout.simple_spinner_item, gameModes);
         gameModeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -113,6 +113,23 @@ public class CustomFlatWorldActivity extends BaseActivity {
             layers.add(new BlockLayer("minecraft:stone", 1));
             layersAdapter.notifyItemInserted(layers.size() - 1);
             binding.layersRecyclerView.scrollToPosition(layers.size() - 1);
+        });
+
+        binding.randomizeButton.setOnClickListener(v -> {
+            java.util.Random random = new java.util.Random();
+            for (BlockLayer layer : layers) {
+                layer.count = 1 + random.nextInt(5);
+            }
+            layersAdapter.notifyDataSetChanged();
+        });
+
+        binding.hardcoreSwitch.setOnCheckedChangeListener((btn, checked) -> {
+            // 极限模式只能生存，锁死游戏模式并置灰
+            binding.gameModeSpinner.setEnabled(!checked);
+            binding.gameModeSpinner.setAlpha(checked ? 0.5f : 1f);
+            if (checked) {
+                binding.gameModeSpinner.setSelection(0);
+            }
         });
 
         binding.createWorldButton.setOnClickListener(v -> createWorld());
@@ -167,8 +184,9 @@ public class CustomFlatWorldActivity extends BaseActivity {
         binding.loadingProgress.setVisibility(View.VISIBLE);
 
         int biomeIndex = binding.biomeSpinner.getSelectedItemPosition();
-        int biomeId = biomeIndex < BIOME_IDS.length ? BIOME_IDS[biomeIndex] : 1;
-        int gameMode = binding.gameModeSpinner.getSelectedItemPosition();
+        final int biomeId = biomeIndex < BIOME_IDS.length ? BIOME_IDS[biomeIndex] : 1;
+        final int gameMode = binding.gameModeSpinner.getSelectedItemPosition();
+        final boolean hardcore = binding.hardcoreSwitch.isChecked();
 
         List<BlockLayer> layersCopy = new ArrayList<>();
         for (BlockLayer layer : layers) {
@@ -177,7 +195,7 @@ public class CustomFlatWorldActivity extends BaseActivity {
 
         executor.execute(() -> {
             try {
-                FlatWorldGenerator.generateFlatWorld(worldsDirectory, worldName, layersCopy, biomeId, gameMode);
+                FlatWorldGenerator.generateFlatWorld(worldsDirectory, worldName, layersCopy, biomeId, gameMode, hardcore);
 
                 runOnUiThread(() -> {
                     binding.loadingProgress.setVisibility(View.GONE);

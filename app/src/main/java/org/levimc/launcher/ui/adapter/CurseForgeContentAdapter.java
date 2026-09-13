@@ -30,6 +30,7 @@ public class CurseForgeContentAdapter extends RecyclerView.Adapter<RecyclerView.
     public interface OnPageChangeListener {
         void onNextPage();
         void onPrevPage();
+        void onJumpToPage(int page);
     }
 
     private static final int VIEW_TYPE_ITEM = 0;
@@ -174,20 +175,25 @@ public class CurseForgeContentAdapter extends RecyclerView.Adapter<RecyclerView.
         }
 
         void bind(int currentPage, int totalPages, final OnPageChangeListener listener) {
-            tvPageInfo.setText("Page " + currentPage + " of " + (totalPages > 0 ? totalPages : "?"));
-            
+            String totalStr = totalPages > 0 ? String.valueOf(totalPages) : "?";
+            tvPageInfo.setText(itemView.getContext().getString(R.string.page_info, currentPage, totalStr));
+
             btnPrev.setEnabled(currentPage > 1);
             btnPrev.setAlpha(currentPage > 1 ? 1.0f : 0.5f);
-            
+
             btnNext.setEnabled(totalPages == 0 || currentPage < totalPages);
             btnNext.setAlpha((totalPages == 0 || currentPage < totalPages) ? 1.0f : 0.5f);
-            
+
             btnPrev.setOnClickListener(v -> {
                 if (listener != null) listener.onPrevPage();
             });
-            
+
             btnNext.setOnClickListener(v -> {
                 if (listener != null) listener.onNextPage();
+            });
+
+            tvPageInfo.setOnClickListener(v -> {
+                if (listener != null) listener.onJumpToPage(currentPage);
             });
         }
     }

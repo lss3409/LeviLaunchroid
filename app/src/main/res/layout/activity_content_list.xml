@@ -49,6 +49,18 @@
                     android:textColor="@color/on_primary"
                     android:textSize="12sp"
                     android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/hardcore_manage_button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:backgroundTint="@color/primary"
+                    android:fontFamily="@font/misans"
+                    android:text="@string/hardcore_manage"
+                    android:textColor="@color/on_primary"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
             </LinearLayout>
 
             <EditText

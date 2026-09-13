@@ -186,24 +186,11 @@ public class ModMenuButton {
     }
     
     private void onButtonClick() {
+        // 悬浮球：打开模组菜单
         if (menuOverlay == null) {
             menuOverlay = new ModMenuOverlay(activity);
-            menuOverlay.setCallback(new ModMenuOverlay.ModMenuCallback() {
-                @Override
-                public void onModToggled(String modId, boolean enabled) {
-                }
-                @Override
-                public void onButtonOpacityChanged(int opacity) {
-                    applyButtonOpacity();
-                }
-            });
         }
-        
-        if (menuOverlay.isShowing()) {
-            menuOverlay.hide();
-        } else {
-            menuOverlay.show();
-        }
+        menuOverlay.show();
     }
     
 

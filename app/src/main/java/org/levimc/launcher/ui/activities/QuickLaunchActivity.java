@@ -30,9 +30,27 @@ public class QuickLaunchActivity extends BaseActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_quick_launch);
+        // 个性化颜色 + 自适应 UI
+        new org.levimc.launcher.util.PersonalizationManager(this)
+                .applyAccentToView(findViewById(android.R.id.content), this);
 
         setupViews();
         loadQuickActions();
+    }
+
+    /** 让对话框里的输入框边框跟随个性化 accent 色（默认是主题深绿色）。 */
+    private void applyTextInputAccent(View view) {
+        int accent = new org.levimc.launcher.util.PersonalizationManager(this).getAccentColor();
+        if (accent == 0) return;
+        if (view instanceof com.google.android.material.textfield.TextInputLayout) {
+            ((com.google.android.material.textfield.TextInputLayout) view).setBoxStrokeColor(accent);
+        }
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                applyTextInputAccent(group.getChildAt(i));
+            }
+        }
     }
 
     private void setupViews() {
@@ -46,42 +64,6 @@ public class QuickLaunchActivity extends BaseActivity {
 
     private void loadQuickActions() {
         List<QuickLaunchAdapter.QuickLaunchItem> items = new ArrayList<>();
-
-        items.add(new QuickLaunchAdapter.QuickLaunchItem(
-                getString(R.string.quick_launch_how_to_play),
-                getString(R.string.quick_launch_how_to_play_desc),
-                QuickLaunchAdapter.ActionType.HOW_TO_PLAY
-        ));
-
-        items.add(new QuickLaunchAdapter.QuickLaunchItem(
-                getString(R.string.quick_launch_servers_tab),
-                getString(R.string.quick_launch_servers_tab_desc),
-                QuickLaunchAdapter.ActionType.SERVERS_TAB
-        ));
-
-        items.add(new QuickLaunchAdapter.QuickLaunchItem(
-                getString(R.string.quick_launch_profile),
-                getString(R.string.quick_launch_profile_desc),
-                QuickLaunchAdapter.ActionType.PROFILE_SCREEN
-        ));
-
-        items.add(new QuickLaunchAdapter.QuickLaunchItem(
-                getString(R.string.quick_launch_store_home),
-                getString(R.string.quick_launch_store_home_desc),
-                QuickLaunchAdapter.ActionType.STORE_HOME
-        ));
-
-        items.add(new QuickLaunchAdapter.QuickLaunchItem(
-                getString(R.string.quick_launch_minecoins),
-                getString(R.string.quick_launch_minecoins_desc),
-                QuickLaunchAdapter.ActionType.MINECOIN_OFFERS
-        ));
-
-        items.add(new QuickLaunchAdapter.QuickLaunchItem(
-                getString(R.string.quick_launch_marketplace_pass),
-                getString(R.string.quick_launch_marketplace_pass_desc),
-                QuickLaunchAdapter.ActionType.MARKETPLACE_PASS
-        ));
 
         items.add(new QuickLaunchAdapter.QuickLaunchItem(
                 getString(R.string.quick_launch_connect_server),
@@ -124,24 +106,6 @@ public class QuickLaunchActivity extends BaseActivity {
 
     private void handleQuickAction(QuickLaunchAdapter.ActionType actionType) {
         switch (actionType) {
-            case HOW_TO_PLAY:
-                launchWithUri(MinecraftUriHandler.buildShowHowToPlay());
-                break;
-            case SERVERS_TAB:
-                launchWithUri(MinecraftUriHandler.buildOpenServersTab());
-                break;
-            case PROFILE_SCREEN:
-                launchWithUri(MinecraftUriHandler.buildShowProfileScreen());
-                break;
-            case STORE_HOME:
-                launchWithUri(MinecraftUriHandler.buildOpenStore());
-                break;
-            case MINECOIN_OFFERS:
-                launchWithUri(MinecraftUriHandler.buildShowMinecoinOffers());
-                break;
-            case MARKETPLACE_PASS:
-                showMarketplacePassDialog();
-                break;
             case CONNECT_SERVER:
                 showConnectServerDialog();
                 break;
@@ -152,7 +116,7 @@ public class QuickLaunchActivity extends BaseActivity {
                 showRealmInviteDialog();
                 break;
             case LOAD_WORLD:
-                showLoadWorldDialog();
+                startActivity(new Intent(this, WorldPickerActivity.class));
                 break;
             case SLASH_COMMAND:
                 showCommandDialog();
@@ -172,6 +136,7 @@ public class QuickLaunchActivity extends BaseActivity {
 
     private void showMarketplacePassDialog() {
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_marketplace_pass, null);
+        applyTextInputAccent(dialogView);
         Spinner tabSpinner = dialogView.findViewById(R.id.tab_spinner);
         
         String[] tabs = {"Home", "Content", "Faq", "Subscribe"};
@@ -193,6 +158,7 @@ public class QuickLaunchActivity extends BaseActivity {
 
     private void showConnectServerDialog() {
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_connect_server, null);
+        applyTextInputAccent(dialogView);
         EditText serverIpEdit = dialogView.findViewById(R.id.server_ip_edit);
         EditText serverPortEdit = dialogView.findViewById(R.id.server_port_edit);
         serverPortEdit.setText("19132");
@@ -227,6 +193,7 @@ public class QuickLaunchActivity extends BaseActivity {
 
     private void showAddServerDialog() {
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_add_server, null);
+        applyTextInputAccent(dialogView);
         EditText serverNameEdit = dialogView.findViewById(R.id.server_name_edit);
         EditText serverIpEdit = dialogView.findViewById(R.id.server_ip_edit);
         EditText serverPortEdit = dialogView.findViewById(R.id.server_port_edit);
@@ -263,6 +230,7 @@ public class QuickLaunchActivity extends BaseActivity {
 
     private void showRealmInviteDialog() {
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_realm_invite, null);
+        applyTextInputAccent(dialogView);
         EditText inviteCodeEdit = dialogView.findViewById(R.id.invite_code_edit);
 
         new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this)
@@ -283,28 +251,12 @@ public class QuickLaunchActivity extends BaseActivity {
     }
 
     private void showLoadWorldDialog() {
-        View dialogView = getLayoutInflater().inflate(R.layout.dialog_load_world, null);
-        EditText worldNameEdit = dialogView.findViewById(R.id.world_name_edit);
-
-        new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this)
-                .setTitleText(getString(R.string.quick_launch_load_world))
-                .setCustomView(dialogView)
-                .setPositiveButton(getString(R.string.load), v -> {
-                    String worldName = worldNameEdit.getText().toString().trim();
-                    
-                    if (TextUtils.isEmpty(worldName)) {
-                        Toast.makeText(this, R.string.world_name_required, Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    
-                    launchWithUri(MinecraftUriHandler.buildConnectLocalWorld(worldName));
-                })
-                .setNegativeButton(getString(R.string.cancel), null)
-                .show();
+        // 已改用 WorldPickerActivity（版本号 + 世界列表选择），此方法保留为空避免影响其他引用。
     }
 
     private void showCommandDialog() {
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_slash_command, null);
+        applyTextInputAccent(dialogView);
         EditText commandEdit = dialogView.findViewById(R.id.command_edit);
 
         new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this)
@@ -330,6 +282,7 @@ public class QuickLaunchActivity extends BaseActivity {
 
     private void showCustomUriDialog() {
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_custom_uri, null);
+        applyTextInputAccent(dialogView);
         EditText uriEdit = dialogView.findViewById(R.id.uri_edit);
         uriEdit.setText("minecraft://");
 
@@ -340,6 +293,11 @@ public class QuickLaunchActivity extends BaseActivity {
                     String uriStr = uriEdit.getText().toString().trim();
                     
                     if (TextUtils.isEmpty(uriStr) || !uriStr.startsWith("minecraft://")) {
+                        Toast.makeText(this, R.string.invalid_minecraft_uri, Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    // 空 URI（只有 minecraft:// 没有具体操作）拦截，避免启动游戏后无操作执行
+                    if ("minecraft://".equals(uriStr.trim()) || "minecraft:///".equals(uriStr.trim())) {
                         Toast.makeText(this, R.string.invalid_minecraft_uri, Toast.LENGTH_SHORT).show();
                         return;
                     }

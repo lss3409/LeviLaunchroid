@@ -24,7 +24,7 @@ public class LanguageManager {
 
     public void applySavedLanguage() {
         SharedPreferences prefs = activity.getSharedPreferences(PREFS_NAME, Activity.MODE_PRIVATE);
-        String tag = prefs.getString(LANGUAGE_KEY, Locale.getDefault().toLanguageTag());
+        String tag = prefs.getString(LANGUAGE_KEY, "zh-CN");
         AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(tag));
     }
 

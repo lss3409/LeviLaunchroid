@@ -90,6 +90,10 @@ public class ResourcePackItem extends ContentItem {
         return version;
     }
 
+    public String getUuid() {
+        return uuid;
+    }
+
     private void loadPackInfo() {
         if (file == null || !file.exists()) {
             isValid = false;

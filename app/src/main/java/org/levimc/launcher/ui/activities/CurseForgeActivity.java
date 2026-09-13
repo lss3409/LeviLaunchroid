@@ -90,17 +90,17 @@ public class CurseForgeActivity extends BaseActivity {
     }
     
     private void setupData() {
-        categories.add(new Category("All Categories", 0));
-        categories.add(new Category("Addons", 4984));
-        categories.add(new Category("Maps", 6913));
-        categories.add(new Category("Skins", 6925));
-        categories.add(new Category("Texture Packs", 6929));
-        categories.add(new Category("Scripts", 6940));
+        categories.add(new Category(getString(R.string.curseforge_all_categories), 0));
+        categories.add(new Category(getString(R.string.curseforge_addons), 4984));
+        categories.add(new Category(getString(R.string.curseforge_maps), 6913));
+        categories.add(new Category(getString(R.string.curseforge_skins), 6925));
+        categories.add(new Category(getString(R.string.curseforge_texture_packs), 6929));
+        categories.add(new Category(getString(R.string.curseforge_scripts), 6940));
 
-        sortOptions.add(new SortOption("Relevancy", CurseForgeClient.SORT_POPULARITY, "desc"));
-        sortOptions.add(new SortOption("Total Downloads", CurseForgeClient.SORT_TOTAL_DOWNLOADS, "desc"));
-        sortOptions.add(new SortOption("Last Updated", CurseForgeClient.SORT_LAST_UPDATED, "desc"));
-        sortOptions.add(new SortOption("Name", CurseForgeClient.SORT_NAME, "asc"));
+        sortOptions.add(new SortOption(getString(R.string.curseforge_relevancy), CurseForgeClient.SORT_POPULARITY, "desc"));
+        sortOptions.add(new SortOption(getString(R.string.curseforge_total_downloads), CurseForgeClient.SORT_TOTAL_DOWNLOADS, "desc"));
+        sortOptions.add(new SortOption(getString(R.string.curseforge_last_updated), CurseForgeClient.SORT_LAST_UPDATED, "desc"));
+        sortOptions.add(new SortOption(getString(R.string.curseforge_name), CurseForgeClient.SORT_NAME, "asc"));
     }
 
     private void initViews() {
@@ -125,6 +125,31 @@ public class CurseForgeActivity extends BaseActivity {
                     currentPage--;
                     loadContent();
                 }
+            }
+
+            @Override
+            public void onJumpToPage(int page) {
+                android.widget.EditText input = new android.widget.EditText(CurseForgeActivity.this);
+                input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+                input.setHint("1 - " + totalPages);
+                input.setTextColor(getColor(R.color.on_surface));
+                input.setHintTextColor(getColor(R.color.text_secondary));
+                new org.levimc.launcher.ui.dialogs.CustomAlertDialog(CurseForgeActivity.this)
+                        .setTitleText(getString(R.string.jump_to_page))
+                        .setCustomView(input)
+                        .setPositiveButton(getString(R.string.go), v -> {
+                            String s = input.getText().toString().trim();
+                            if (s.isEmpty()) return;
+                            try {
+                                int target = Integer.parseInt(s);
+                                if (target >= 1 && target <= totalPages && target != currentPage) {
+                                    currentPage = target;
+                                    loadContent();
+                                }
+                            } catch (NumberFormatException ignored) {}
+                        })
+                        .setNegativeButton(getString(R.string.cancel), null)
+                        .show();
             }
         });
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -202,7 +227,7 @@ public class CurseForgeActivity extends BaseActivity {
         });
 
         currentSort = sortOptions.get(0);
-        btnSort.setText("Sort: " + currentSort.name);
+        btnSort.setText(getString(R.string.curseforge_sort, currentSort.name));
         btnSort.setOnClickListener(v -> {
             PopupMenu popup = new PopupMenu(this, v);
             for (int i = 0; i < sortOptions.size(); i++) {
@@ -210,7 +235,7 @@ public class CurseForgeActivity extends BaseActivity {
             }
             popup.setOnMenuItemClickListener(item -> {
                 currentSort = sortOptions.get(item.getItemId());
-                btnSort.setText("Sort: " + currentSort.name);
+                btnSort.setText(getString(R.string.curseforge_sort, currentSort.name));
                 currentPage = 1;
                 loadContent();
                 return true;

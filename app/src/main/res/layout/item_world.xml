@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="4dp"
@@ -13,6 +14,15 @@
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
+        <ImageView
+            android:id="@+id/world_icon"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="12dp"
+            android:scaleType="fitCenter"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_world" />
+
         <TextView
             android:id="@+id/world_name"
             android:layout_width="0dp"
@@ -23,6 +33,35 @@
             android:textColor="@color/on_surface"
             android:textSize="16sp"
             android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/world_hardcore_tag"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="2dp"
+            android:text="@string/hardcore_tag"
+            android:fontFamily="@font/misans"
+            android:textColor="@color/error"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/world_locate_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:backgroundTint="@color/surface_variant"
+            android:fontFamily="@font/misans"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="6dp"
+            android:text="@string/locate"
+            android:textAllCaps="false"
+            android:textColor="@color/on_surface"
+            android:textSize="10sp" />
     </LinearLayout>
 
     <TextView
@@ -61,6 +100,15 @@
             android:textSize="11sp" />
     </LinearLayout>
 
+    <TextView
+        android:id="@+id/world_seed"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:fontFamily="@font/misans"
+        android:textColor="@color/text_secondary"
+        android:textSize="11sp" />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -78,7 +126,7 @@
             android:minHeight="0dp"
             android:paddingHorizontal="10dp"
             android:paddingVertical="6dp"
-            android:text="@string/edit"
+            android:text="@string/edit_world_beta"
             android:textAllCaps="false"
             android:textColor="@color/on_primary"
             android:textSize="10sp" />

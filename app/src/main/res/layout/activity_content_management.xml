@@ -5,11 +5,17 @@
     android:layout_height="match_parent"
     android:background="@color/background">
 
-    <LinearLayout
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:fillViewport="true"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -60,27 +66,21 @@
             app:iconTint="@android:color/white"
             app:cornerRadius="8dp" />
 
-        <ImageButton
-            android:id="@+id/edit_options_button"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_settings"
-            android:contentDescription="@string/edit_options"
-            app:tint="@color/text_secondary" />
-
     </LinearLayout>
 
-    <!-- Storage Selection -->
+    <!-- View Shared Folder -->
     <LinearLayout
+        android:id="@+id/view_shared_folder_button"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="52dp"
         android:layout_marginTop="12dp"
         android:background="@drawable/card_background"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingHorizontal="12dp"
-        android:paddingVertical="8dp">
+        android:paddingVertical="8dp"
+        android:clickable="true"
+        android:focusable="true">
 
         <TextView
             android:layout_width="0dp"
@@ -88,15 +88,18 @@
             android:layout_weight="1"
             android:fontFamily="@font/misans"
             android:gravity="center_vertical"
-            android:text="@string/select_storage_label"
+            android:text="@string/view_shared_folder"
             android:textColor="@color/on_surface"
-            android:textSize="16sp" />
+            android:textSize="16sp"
+            android:textStyle="bold" />
 
-        <Spinner
-            android:id="@+id/storage_type_spinner"
+        <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical" />
+            android:fontFamily="@font/misans"
+            android:text="@string/view_shared_folder_hint"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
 
     </LinearLayout>
 
@@ -131,6 +134,7 @@
                     app:tint="@color/on_surface" />
 
                 <TextView
+                    android:id="@+id/worlds_count"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
@@ -161,6 +165,7 @@
                     app:tint="@color/on_surface" />
 
                 <TextView
+                    android:id="@+id/skin_packs_count"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
@@ -191,6 +196,7 @@
                     app:tint="@color/on_surface" />
 
                 <TextView
+                    android:id="@+id/screenshots_count"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
@@ -229,6 +235,7 @@
                     app:tint="@color/on_surface" />
 
                 <TextView
+                    android:id="@+id/resource_packs_count"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
@@ -259,6 +266,7 @@
                     app:tint="@color/on_surface" />
 
                 <TextView
+                    android:id="@+id/behavior_packs_count"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
@@ -289,6 +297,7 @@
                     app:tint="@color/on_surface" />
 
                 <TextView
+                    android:id="@+id/servers_count"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
@@ -304,5 +313,6 @@
 
     </LinearLayout>
 
-    </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
 </FrameLayout>

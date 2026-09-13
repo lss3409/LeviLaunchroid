@@ -162,6 +162,13 @@ public class MinecraftLauncher {
         File externalFilesDir = LauncherStorage.getStorageFilesRoot(context, profileId, versionIsolation, true);
         File dataDir = LauncherStorage.getStorageDataRoot(context, profileId, versionIsolation);
         File cacheDir = LauncherStorage.getStorageCacheRoot(context, profileId, versionIsolation);
+        Log.i(TAG, "fillStoragePaths: version=" + (version == null ? "null" : version.directoryName)
+                + " isInstalled=" + (version == null ? "null" : version.isInstalled)
+                + " isolation=" + versionIsolation
+                + " profileId=" + profileId
+                + " filesDir=" + filesDir.getAbsolutePath()
+                + " externalFilesDir=" + externalFilesDir.getAbsolutePath()
+                + " dataDir=" + dataDir.getAbsolutePath());
 
         sourceIntent.putExtra("MC_PATH", version.versionDir == null ? "" : version.versionDir.getAbsolutePath());
         sourceIntent.putExtra("IS_INSTALLED", version.isInstalled);
@@ -171,6 +178,22 @@ public class MinecraftLauncher {
         sourceIntent.putExtra(EXTRA_STORAGE_EXTERNAL_FILES_DIR, externalFilesDir.getAbsolutePath());
         sourceIntent.putExtra(EXTRA_STORAGE_DATA_DIR, dataDir.getAbsolutePath());
         sourceIntent.putExtra(EXTRA_STORAGE_CACHE_DIR, cacheDir.getAbsolutePath());
+    }
+
+    /**
+     * 构造用于桌面快捷方式的启动 Intent：直接指向 MinecraftLoadingActivity，
+     * 携带完整版本信息（GameVersion + 存储路径），点击后跳过主页直接进入对应版本加载流程。
+     */
+    public Intent buildShortcutLaunchIntent(GameVersion version) {
+        Intent launchIntent = new Intent(context, MinecraftLoadingActivity.class);
+        fillIntentWithStoragePaths(launchIntent, version);
+        launchIntent.putExtra(EXTRA_GAME_VERSION, version);
+        launchIntent.putExtra("MODS_ENABLED", false);
+        launchIntent.putExtra("MINECRAFT_VERSION", version.versionCode);
+        launchIntent.putExtra("MINECRAFT_VERSION_DIR", version.directoryName);
+        launchIntent.putExtra("LAUNCH_VERTICALLY", version.launchVertically);
+        launchIntent.putExtra("VERSION_ISOLATION", version.versionIsolation);
+        return launchIntent;
     }
 
     private void launchMinecraftActivity(Intent sourceIntent, GameVersion version, boolean modsEnabled) {
@@ -191,6 +214,10 @@ public class MinecraftLauncher {
         launchIntent.putExtra("LAUNCH_VERTICALLY", version.launchVertically);
         launchIntent.putExtra("VERSION_ISOLATION", version.versionIsolation);
         launchIntent.removeExtra("LAUNCH_WITH_URI");
+
+        // 游戏链路使用独立 taskAffinity，配合 NEW_TASK 让游戏进入独立任务栈，
+        // 与启动器主页（默认任务栈）分离成两个后台。
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
         activity.startActivity(launchIntent);
         activity.overridePendingTransition(R.anim.fade_in, R.anim.fade_out);

@@ -8,9 +8,11 @@ import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.view.View;
+import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -56,12 +58,14 @@ public class ContentListActivity extends BaseActivity {
     public static final String EXTRA_CONTENT_TYPE = "content_type";
     public static final String EXTRA_WORLDS_DIRECTORY = "worlds_directory";
     public static final String EXTRA_CURRENT_STORAGE_TYPE = "current_storage_type";
+    public static final String EXTRA_SHARED_MODE = "shared_mode";
     public static final int TYPE_WORLDS = 0;
     public static final int TYPE_SKIN_PACKS = 1;
     public static final int TYPE_RESOURCE_PACKS = 2;
     public static final int TYPE_BEHAVIOR_PACKS = 3;
     public static final int TYPE_SCREENSHOTS = 4;
     public static final int TYPE_SERVERS = 5;
+    public static final int TYPE_STRUCTURES = 6;
 
     private ActivityContentListBinding binding;
     private ContentManager contentManager;
@@ -69,11 +73,13 @@ public class ContentListActivity extends BaseActivity {
     private int contentType;
     private File worldsDirectory;
     private FeatureSettings.StorageType currentStorageType;
+    private boolean sharedMode;
 
     private WorldsAdapter worldsAdapter;
     private ResourcePacksAdapter packsAdapter;
     private org.levimc.launcher.ui.adapter.ScreenshotsAdapter screenshotsAdapter;
     private org.levimc.launcher.ui.adapter.ServersAdapter serversAdapter;
+    private org.levimc.launcher.ui.adapter.StructureFilesAdapter structuresAdapter;
 
     private ActivityResultLauncher<Intent> exportLauncher;
     private ActivityResultLauncher<Intent> exportPackLauncher;
@@ -88,7 +94,8 @@ public class ContentListActivity extends BaseActivity {
     private List<WorldItem> allWorlds = new ArrayList<>();
     private List<ResourcePackItem> allPacks = new ArrayList<>();
     private List<ServerItem> allServers = new ArrayList<>();
-    
+    private List<org.levimc.launcher.core.content.StructureFileItem> allStructures = new ArrayList<>();
+
     private org.levimc.launcher.ui.dialogs.LoadingDialog progressDialog;
 
     private void showProgressDialog(String message) {
@@ -114,16 +121,19 @@ public class ContentListActivity extends BaseActivity {
         DynamicAnim.applyPressScaleRecursively(binding.getRoot());
 
         contentType = getIntent().getIntExtra(EXTRA_CONTENT_TYPE, TYPE_WORLDS);
+        sharedMode = getIntent().getBooleanExtra(EXTRA_SHARED_MODE, false);
         contentManager = ContentManager.getInstance(this);
         versionManager = VersionManager.get(this);
-        
+
+        if (sharedMode) {
+            configureSharedDirectories();
+        }
+
         String storageTypeStr = getIntent().getStringExtra(EXTRA_CURRENT_STORAGE_TYPE);
         if (storageTypeStr != null) {
             currentStorageType = parseStorageType(storageTypeStr);
         } else {
-            SharedPreferences prefs = getSharedPreferences("content_management", MODE_PRIVATE);
-            String savedType = prefs.getString("storage_type", "INTERNAL");
-            currentStorageType = parseStorageType(savedType);
+            currentStorageType = parseStorageType("EXTERNAL");
         }
 
         setupActivityResultLaunchers();
@@ -190,6 +200,9 @@ public class ContentListActivity extends BaseActivity {
         String worldsPath = getIntent().getStringExtra(EXTRA_WORLDS_DIRECTORY);
         if (worldsPath != null) {
             worldsDirectory = new File(worldsPath);
+        } else if (sharedMode) {
+            File sharedGameData = LauncherStorage.getSharedGameDataDir(this, true);
+            worldsDirectory = new File(sharedGameData, "minecraftWorlds");
         } else {
             worldsDirectory = getWorldsDirectoryForType(currentStorageType);
         }
@@ -198,6 +211,8 @@ public class ContentListActivity extends BaseActivity {
             case TYPE_WORLDS:
                 binding.titleText.setText(getString(R.string.worlds_title));
                 binding.customFlatButton.setVisibility(View.VISIBLE);
+                binding.hardcoreManageButton.setVisibility(View.VISIBLE);
+                binding.hardcoreManageButton.setOnClickListener(v -> openHardcoreManager());
                 setupWorldsRecyclerView();
                 break;
             case TYPE_SKIN_PACKS:
@@ -223,6 +238,12 @@ public class ContentListActivity extends BaseActivity {
                 binding.customFlatButton.setText(getString(R.string.quick_launch_add_server));
                 binding.customFlatButton.setVisibility(View.VISIBLE);
                 setupServersRecyclerView();
+                break;
+            case TYPE_STRUCTURES:
+                binding.titleText.setText(getString(R.string.structures_category));
+                binding.searchEditText.setVisibility(View.VISIBLE);
+                binding.customFlatButton.setVisibility(View.GONE);
+                setupStructuresRecyclerView();
                 break;
         }
 
@@ -274,6 +295,15 @@ public class ContentListActivity extends BaseActivity {
                     .collect(Collectors.toList());
                 serversAdapter.updateData(filtered);
             }
+        } else if (contentType == TYPE_STRUCTURES) {
+            if (lowerQuery.isEmpty()) {
+                structuresAdapter.updateData(allStructures);
+            } else {
+                List<org.levimc.launcher.core.content.StructureFileItem> filtered = allStructures.stream()
+                    .filter(structure -> structure.getName().toLowerCase().contains(lowerQuery))
+                    .collect(Collectors.toList());
+                structuresAdapter.updateData(filtered);
+            }
         } else {
             if (lowerQuery.isEmpty()) {
                 packsAdapter.updateResourcePacks(allPacks);
@@ -318,6 +348,11 @@ public class ContentListActivity extends BaseActivity {
             public void onWorldTransfer(WorldItem world) {
                 showTransferWorldDialog(world);
             }
+
+            @Override
+            public void onWorldLocate(WorldItem world) {
+                openFileManager(world.getFile());
+            }
         });
 
         binding.contentRecyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -331,15 +366,32 @@ public class ContentListActivity extends BaseActivity {
             Toast.makeText(this, "World directory not found", Toast.LENGTH_SHORT).show();
             return;
         }
-        
+
         Intent intent = new Intent(this, WorldEditorActivity.class);
         intent.putExtra(WorldEditorActivity.EXTRA_WORLD_PATH, worldFile.getAbsolutePath());
         intent.putExtra(WorldEditorActivity.EXTRA_WORLD_NAME, world.getWorldName());
         startActivity(intent);
     }
 
+    private void openHardcoreManager() {
+        Intent intent = new Intent(this, HardcoreBackupActivity.class);
+        startActivity(intent);
+    }
+
+    private void openFileManager(File dir) {
+        if (dir == null || !dir.exists()) {
+            Toast.makeText(this, R.string.file_not_found, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Intent intent = new Intent(this, FileManagerActivity.class);
+        intent.putExtra(FileManagerActivity.EXTRA_PATH, dir.getAbsolutePath());
+        startActivity(intent);
+    }
+
     private void setupPacksRecyclerView() {
         packsAdapter = new ResourcePacksAdapter();
+        // 共享文件夹模式下，资源包/行为包显示「预加载」开关
+        packsAdapter.setShowPreloadSwitch(sharedMode);
         packsAdapter.setOnResourcePackActionListener(new ResourcePacksAdapter.OnResourcePackActionListener() {
             @Override
             public void onResourcePackDelete(ResourcePackItem pack) {
@@ -354,6 +406,16 @@ public class ContentListActivity extends BaseActivity {
             @Override
             public void onResourcePackExport(ResourcePackItem pack) {
                 startPackExport(pack);
+            }
+
+            @Override
+            public void onResourcePackLocate(ResourcePackItem pack) {
+                openFileManager(pack.getFile());
+            }
+
+            @Override
+            public void onResourcePackPreloadChanged(ResourcePackItem pack, boolean preloaded) {
+                // 预加载状态已持久化，启动游戏时会复制到目标版本并写入全局资源
             }
         });
 
@@ -373,6 +435,11 @@ public class ContentListActivity extends BaseActivity {
             public void onSaveClick(org.levimc.launcher.core.content.ScreenshotItem screenshot) {
                 saveScreenshotToGallery(screenshot);
             }
+
+            @Override
+            public void onLocateClick(org.levimc.launcher.core.content.ScreenshotItem screenshot) {
+                openFileManager(screenshot.file);
+            }
         });
         binding.contentRecyclerView.setLayoutManager(new androidx.recyclerview.widget.GridLayoutManager(this, 2));
         binding.contentRecyclerView.setAdapter(screenshotsAdapter);
@@ -383,6 +450,18 @@ public class ContentListActivity extends BaseActivity {
         serversAdapter = new org.levimc.launcher.ui.adapter.ServersAdapter(new ArrayList<>(), server -> showDeleteServerDialog(server));
         binding.contentRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         binding.contentRecyclerView.setAdapter(serversAdapter);
+        binding.contentRecyclerView.post(() -> DynamicAnim.staggerRecyclerChildren(binding.contentRecyclerView));
+    }
+
+    private void setupStructuresRecyclerView() {
+        structuresAdapter = new org.levimc.launcher.ui.adapter.StructureFilesAdapter(new org.levimc.launcher.ui.adapter.StructureFilesAdapter.OnStructureActionListener() {
+            @Override
+            public void onDelete(org.levimc.launcher.core.content.StructureFileItem structure) {
+                showDeleteStructureDialog(structure);
+            }
+        });
+        binding.contentRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+        binding.contentRecyclerView.setAdapter(structuresAdapter);
         binding.contentRecyclerView.post(() -> DynamicAnim.staggerRecyclerChildren(binding.contentRecyclerView));
     }
 
@@ -441,6 +520,15 @@ public class ContentListActivity extends BaseActivity {
                     showLoading(false);
                 });
                 break;
+            case TYPE_STRUCTURES:
+                contentManager.getStructuresLiveData().observe(this, structures -> {
+                    allStructures = structures != null ? structures : new ArrayList<>();
+                    if (structuresAdapter != null) {
+                        filterContent(binding.searchEditText.getText().toString());
+                    }
+                    showLoading(false);
+                });
+                break;
         }
     }
 
@@ -465,6 +553,9 @@ public class ContentListActivity extends BaseActivity {
             case TYPE_SERVERS:
                 contentManager.refreshServers();
                 break;
+            case TYPE_STRUCTURES:
+                contentManager.refreshStructures();
+                break;
         }
     }
 
@@ -476,7 +567,9 @@ public class ContentListActivity extends BaseActivity {
         pendingExportWorld = world;
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("application/zip");
+        // 用通用 MIME，避免部分系统把保存文件强制改成 .zip 后缀；
+        // 实际后缀由 EXTRA_TITLE（.mcworld）决定
+        intent.setType("application/octet-stream");
         intent.putExtra(Intent.EXTRA_TITLE, world.getName() + ".mcworld");
         exportLauncher.launch(intent);
     }
@@ -488,7 +581,7 @@ public class ContentListActivity extends BaseActivity {
             public void onSuccess(String message) {
                 runOnUiThread(() -> {
                     hideProgressDialog();
-                    Toast.makeText(ContentListActivity.this, message, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(ContentListActivity.this, getString(R.string.export_world_success), Toast.LENGTH_SHORT).show();
                 });
             }
 
@@ -509,7 +602,9 @@ public class ContentListActivity extends BaseActivity {
         pendingExportPack = pack;
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("application/zip");
+        // 用通用 MIME，避免部分系统把保存文件强制改成 .zip 后缀；
+        // 实际后缀由 EXTRA_TITLE（.mcpack）决定
+        intent.setType("application/octet-stream");
         intent.putExtra(Intent.EXTRA_TITLE, pack.getPackName() + ".mcpack");
         exportPackLauncher.launch(intent);
     }
@@ -521,7 +616,7 @@ public class ContentListActivity extends BaseActivity {
             public void onSuccess(String message) {
                 runOnUiThread(() -> {
                     hideProgressDialog();
-                    Toast.makeText(ContentListActivity.this, message, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(ContentListActivity.this, getString(R.string.export_pack_success), Toast.LENGTH_SHORT).show();
                 });
             }
 
@@ -539,6 +634,29 @@ public class ContentListActivity extends BaseActivity {
     }
 
     private void backupWorld(WorldItem world) {
+        // 极限存档：备份到 Hardcore backups/<版本号>/<世界_seed>/ 专属路径
+        if (world.isHardcore()) {
+            showProgressDialog(getString(R.string.backing_up_world));
+            new Thread(() -> {
+                try {
+                    String path = new org.levimc.launcher.util.HardcoreBackupManager(this).backupWorld(world);
+                    runOnUiThread(() -> {
+                        hideProgressDialog();
+                        Toast.makeText(this, getString(R.string.instance_backup_success_message, path),
+                                Toast.LENGTH_LONG).show();
+                    });
+                } catch (Exception e) {
+                    runOnUiThread(() -> {
+                        hideProgressDialog();
+                        Toast.makeText(this, getString(R.string.instance_backup_failed_message, e.getMessage()),
+                                Toast.LENGTH_LONG).show();
+                    });
+                }
+            }, "hardcore-backup").start();
+            return;
+        }
+
+        // 普通存档：备份为 .mcworld 存到 Download/LeviLauncher/Backups/minecraftWorlds backups/
         showProgressDialog(getString(R.string.backing_up_world));
         contentManager.backupWorld(world, new WorldManager.WorldOperationCallback() {
             @Override
@@ -610,12 +728,80 @@ public class ContentListActivity extends BaseActivity {
             messageResId = R.string.confirm_delete_resource_pack;
         }
 
+        // 附加包联动：RP/BP 的 manifest dependencies 声明了对端 uuid 时，删除会同时删除对端
+        ResourcePackItem linked = null;
+        if (contentType == TYPE_RESOURCE_PACKS || contentType == TYPE_BEHAVIOR_PACKS) {
+            linked = findLinkedAddonPack(pack);
+        }
+        final ResourcePackItem linkedPack = linked;
+        if (linkedPack != null) {
+            titleResId = R.string.addon_delete_linked_title;
+        }
+
+        String message = linkedPack != null
+                ? getString(R.string.addon_delete_linked_message, pack.getName(), linkedPack.getName())
+                : getString(messageResId);
+
         new CustomAlertDialog(this)
             .setTitleText(getString(titleResId))
-            .setMessage(getString(messageResId))
-            .setPositiveButton(getString(R.string.dialog_positive_delete), v -> deletePack(pack))
+            .setMessage(message)
+            .setPositiveButton(getString(R.string.dialog_positive_delete), v -> {
+                if (linkedPack != null) deletePack(linkedPack);
+                deletePack(pack);
+            })
             .setNegativeButton(getString(R.string.cancel), null)
             .show();
+    }
+
+    /** 附加包对端查找：RP 查 BP / BP 查 RP，依赖声明包含该包 uuid 即视为配对。 */
+    private ResourcePackItem findLinkedAddonPack(ResourcePackItem pack) {
+        try {
+            java.util.List<String> deps = readManifestDependencyUuids(pack);
+            if (deps.isEmpty()) return null;
+            boolean isResourcePack = contentType == TYPE_RESOURCE_PACKS;
+            org.levimc.launcher.core.content.ContentManager cm =
+                    org.levimc.launcher.core.content.ContentManager.getInstance(this);
+            androidx.lifecycle.LiveData<java.util.List<ResourcePackItem>> otherLive =
+                    isResourcePack ? cm.getBehaviorPacksLiveData() : cm.getResourcePacksLiveData();
+            java.util.List<ResourcePackItem> others = otherLive.getValue();
+            if (others == null) return null;
+            for (ResourcePackItem other : others) {
+                String uuid = other.getUuid();
+                if (uuid != null && deps.contains(uuid)) return other;
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    /** 读取包 manifest.json 里 dependencies 声明的 uuid 列表。 */
+    private java.util.List<String> readManifestDependencyUuids(ResourcePackItem pack) {
+        java.util.List<String> uuids = new java.util.ArrayList<>();
+        try {
+            java.io.File manifest = new java.io.File(pack.getFile(), "manifest.json");
+            if (!manifest.isFile()) return uuids;
+            byte[] bytes = new byte[(int) manifest.length()];
+            try (java.io.FileInputStream fis = new java.io.FileInputStream(manifest)) {
+                int off = 0;
+                while (off < bytes.length) {
+                    int read = fis.read(bytes, off, bytes.length - off);
+                    if (read < 0) break;
+                    off += read;
+                }
+            }
+            org.json.JSONObject root = new org.json.JSONObject(
+                    new String(bytes, java.nio.charset.StandardCharsets.UTF_8));
+            if (!root.has("dependencies")) return uuids;
+            org.json.JSONArray deps = root.getJSONArray("dependencies");
+            for (int i = 0; i < deps.length(); i++) {
+                org.json.JSONObject dep = deps.optJSONObject(i);
+                if (dep != null && dep.has("uuid")) {
+                    uuids.add(dep.getString("uuid"));
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return uuids;
     }
 
     private void deletePack(ResourcePackItem pack) {
@@ -771,6 +957,29 @@ public class ContentListActivity extends BaseActivity {
             .show();
     }
 
+    private void showDeleteStructureDialog(org.levimc.launcher.core.content.StructureFileItem structure) {
+        new CustomAlertDialog(this)
+            .setTitleText(getString(R.string.delete))
+            .setMessage(getString(R.string.delete_confirm, structure.getName()))
+            .setPositiveButton(getString(R.string.dialog_positive_delete), v -> deleteStructure(structure))
+            .setNegativeButton(getString(R.string.cancel), null)
+            .show();
+    }
+
+    private void deleteStructure(org.levimc.launcher.core.content.StructureFileItem structure) {
+        contentManager.deleteStructure(structure, new ContentManager.ContentOperationCallback() {
+            @Override
+            public void onSuccess(String message) {
+                runOnUiThread(() -> Toast.makeText(ContentListActivity.this, message, Toast.LENGTH_SHORT).show());
+            }
+
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> Toast.makeText(ContentListActivity.this, error, Toast.LENGTH_LONG).show());
+            }
+        });
+    }
+
     private void deleteServer(org.levimc.launcher.core.content.ServerItem server) {
         showProgressDialog(getString(R.string.deleting_server));
         contentManager.deleteServer(server, new ContentManager.ContentOperationCallback() {
@@ -845,36 +1054,29 @@ public class ContentListActivity extends BaseActivity {
 
     private void showStructureSelectionDialog(WorldItem world, List<StructureExtractor.StructureInfo> structures) {
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_structure_list, null);
-        
+
         TextView structureCount = dialogView.findViewById(R.id.structure_count);
         RecyclerView recyclerView = dialogView.findViewById(R.id.structures_recycler_view);
-        
+
         structureCount.setText(getString(R.string.structures_found_count, structures.size()));
-        
+
         StructuresAdapter adapter = new StructuresAdapter();
         adapter.setStructures(structures);
-        
+
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(adapter);
-        
-        AlertDialog dialog = new MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.structures_found_title)
-            .setView(dialogView)
-            .setNegativeButton(R.string.cancel, null)
-            .create();
-        
+
+        CustomAlertDialog dialog = new CustomAlertDialog(this)
+                .setTitleText(getString(R.string.structures_found_title))
+                .setCustomView(dialogView)
+                .setNegativeButton(getString(R.string.cancel), null);
+
         adapter.setOnStructureExportListener(structure -> {
-            dialog.dismiss();
+            dialog.dismissImmediately();
             startStructureExport(world, structure);
         });
-        
-        dialog.show();
 
-        org.levimc.launcher.util.PersonalizationManager structPm = new org.levimc.launcher.util.PersonalizationManager(this);
-        int structAccent = structPm.getAccentColor();
-        if (structAccent != 0) {
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(structAccent);
-        }
+        dialog.show();
     }
 
     private void startStructureExport(WorldItem world, StructureExtractor.StructureInfo structure) {
@@ -915,110 +1117,61 @@ public class ContentListActivity extends BaseActivity {
 
     private void showTransferWorldDialog(WorldItem world) {
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_transfer_content, null);
-        RadioGroup radioGroup = dialogView.findViewById(R.id.storage_radio_group);
-        RadioButton radioInternal = dialogView.findViewById(R.id.radio_internal);
-        RadioButton radioExternal = dialogView.findViewById(R.id.radio_external);
-        RadioButton radioVersionIsolationInternal = dialogView.findViewById(R.id.radio_version_isolation_internal);
-        RadioButton radioVersionIsolation = dialogView.findViewById(R.id.radio_version_isolation);
-        radioVersionIsolationInternal.setText(getString(R.string.storage_version_isolation) + " (" + getString(R.string.storage_internal) + ")");
-        radioVersionIsolation.setText(getString(R.string.storage_version_isolation) + " (" + getString(R.string.storage_external) + ")");
+        Spinner targetSpinner = dialogView.findViewById(R.id.target_version_spinner);
 
-        switch (currentStorageType) {
-            case INTERNAL -> radioInternal.setEnabled(false);
-            case EXTERNAL -> radioExternal.setEnabled(false);
-            case VERSION_ISOLATION_INTERNAL -> radioVersionIsolationInternal.setEnabled(false);
-            case VERSION_ISOLATION, VERSION_ISOLATION_EXTERNAL -> radioVersionIsolation.setEnabled(false);
-        }
+        List<GameVersion> allVersions = getAllVersions();
+        List<String> labels = new ArrayList<>();
+        labels.add(getString(R.string.transfer_to_shared));
+        for (GameVersion v : allVersions) labels.add(v.displayName);
 
-        AlertDialog dialog = new MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.transfer_content)
-            .setView(dialogView)
-            .setPositiveButton(R.string.transfer, (d, which) -> {
-                int selectedId = radioGroup.getCheckedRadioButtonId();
-                FeatureSettings.StorageType targetType = null;
-                
-                if (selectedId == R.id.radio_internal) {
-                    targetType = FeatureSettings.StorageType.INTERNAL;
-                } else if (selectedId == R.id.radio_external) {
-                    targetType = FeatureSettings.StorageType.EXTERNAL;
-                } else if (selectedId == R.id.radio_version_isolation_internal) {
-                    targetType = FeatureSettings.StorageType.VERSION_ISOLATION_INTERNAL;
-                } else if (selectedId == R.id.radio_version_isolation) {
-                    targetType = FeatureSettings.StorageType.VERSION_ISOLATION_EXTERNAL;
-                }
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, R.layout.spinner_item, labels);
+        adapter.setDropDownViewResource(R.layout.spinner_dropdown_item);
+        targetSpinner.setAdapter(adapter);
 
-                if (targetType != null && targetType != currentStorageType) {
-                    transferWorld(world, targetType);
-                }
-            })
-            .setNegativeButton(R.string.cancel, null)
-            .show();
-        
-        org.levimc.launcher.util.PersonalizationManager twPm = new org.levimc.launcher.util.PersonalizationManager(this);
-        int twAccent = twPm.getAccentColor();
-        if (twAccent != 0) {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(twAccent);
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(twAccent);
-        } else {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(getResources().getColor(R.color.accent_text, getTheme()));
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(getResources().getColor(R.color.accent_text, getTheme()));
-        }
+        new CustomAlertDialog(this)
+                .setTitleText(getString(R.string.transfer_content))
+                .setCustomView(dialogView)
+                .setPositiveButton(getString(R.string.transfer), v -> {
+                    int pos = targetSpinner.getSelectedItemPosition();
+                    boolean shared = pos <= 0;
+                    String profileId = shared ? null : allVersions.get(pos - 1).getStorageProfileId();
+                    File targetDir = getWorldsDirectoryForTarget(shared, profileId);
+                    transferWorldTo(world, targetDir);
+                })
+                .setNegativeButton(getString(R.string.cancel), null)
+                .show();
     }
 
     private void showTransferPackDialog(ResourcePackItem pack) {
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_transfer_content, null);
-        RadioGroup radioGroup = dialogView.findViewById(R.id.storage_radio_group);
-        RadioButton radioInternal = dialogView.findViewById(R.id.radio_internal);
-        RadioButton radioExternal = dialogView.findViewById(R.id.radio_external);
-        RadioButton radioVersionIsolationInternal = dialogView.findViewById(R.id.radio_version_isolation_internal);
-        RadioButton radioVersionIsolation = dialogView.findViewById(R.id.radio_version_isolation);
-        radioVersionIsolationInternal.setText(getString(R.string.storage_version_isolation) + " (" + getString(R.string.storage_internal) + ")");
-        radioVersionIsolation.setText(getString(R.string.storage_version_isolation) + " (" + getString(R.string.storage_external) + ")");
+        Spinner targetSpinner = dialogView.findViewById(R.id.target_version_spinner);
 
-        switch (currentStorageType) {
-            case INTERNAL -> radioInternal.setEnabled(false);
-            case EXTERNAL -> radioExternal.setEnabled(false);
-            case VERSION_ISOLATION_INTERNAL -> radioVersionIsolationInternal.setEnabled(false);
-            case VERSION_ISOLATION, VERSION_ISOLATION_EXTERNAL -> radioVersionIsolation.setEnabled(false);
-        }
+        List<GameVersion> allVersions = getAllVersions();
+        List<String> labels = new ArrayList<>();
+        labels.add(getString(R.string.transfer_to_shared));
+        for (GameVersion v : allVersions) labels.add(v.displayName);
 
-        AlertDialog dialog = new MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.transfer_content)
-            .setView(dialogView)
-            .setPositiveButton(R.string.transfer, (d, which) -> {
-                int selectedId = radioGroup.getCheckedRadioButtonId();
-                FeatureSettings.StorageType targetType = null;
-                
-                if (selectedId == R.id.radio_internal) {
-                    targetType = FeatureSettings.StorageType.INTERNAL;
-                } else if (selectedId == R.id.radio_external) {
-                    targetType = FeatureSettings.StorageType.EXTERNAL;
-                } else if (selectedId == R.id.radio_version_isolation_internal) {
-                    targetType = FeatureSettings.StorageType.VERSION_ISOLATION_INTERNAL;
-                } else if (selectedId == R.id.radio_version_isolation) {
-                    targetType = FeatureSettings.StorageType.VERSION_ISOLATION_EXTERNAL;
-                }
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, R.layout.spinner_item, labels);
+        adapter.setDropDownViewResource(R.layout.spinner_dropdown_item);
+        targetSpinner.setAdapter(adapter);
 
-                if (targetType != null && targetType != currentStorageType) {
-                    transferPack(pack, targetType);
-                }
-            })
-            .setNegativeButton(R.string.cancel, null)
-            .show();
-        
-        org.levimc.launcher.util.PersonalizationManager tpPm = new org.levimc.launcher.util.PersonalizationManager(this);
-        int tpAccent = tpPm.getAccentColor();
-        if (tpAccent != 0) {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(tpAccent);
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(tpAccent);
-        } else {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(getResources().getColor(R.color.accent_text, getTheme()));
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(getResources().getColor(R.color.accent_text, getTheme()));
-        }
+        new CustomAlertDialog(this)
+                .setTitleText(getString(R.string.transfer_content))
+                .setCustomView(dialogView)
+                .setPositiveButton(getString(R.string.transfer), v -> {
+                    int pos = targetSpinner.getSelectedItemPosition();
+                    boolean shared = pos <= 0;
+                    String profileId = shared ? null : allVersions.get(pos - 1).getStorageProfileId();
+                    String packType = pack.isBehaviorPack() ? "behavior_packs" :
+                            (contentType == TYPE_SKIN_PACKS ? "skin_packs" : "resource_packs");
+                    File targetDir = getPackDirectoryForTarget(shared, profileId, packType);
+                    transferPackTo(pack, targetDir);
+                })
+                .setNegativeButton(getString(R.string.cancel), null)
+                .show();
     }
 
-    private void transferWorld(WorldItem world, FeatureSettings.StorageType targetType) {
-        File targetDir = getWorldsDirectoryForType(targetType);
+    private void transferWorldTo(WorldItem world, File targetDir) {
         if (targetDir == null) {
             Toast.makeText(this, getString(R.string.transfer_failed), Toast.LENGTH_SHORT).show();
             return;
@@ -1048,9 +1201,7 @@ public class ContentListActivity extends BaseActivity {
         });
     }
 
-    private void transferPack(ResourcePackItem pack, FeatureSettings.StorageType targetType) {
-        File targetDir = getPackDirectoryForType(targetType, pack.isBehaviorPack() ? "behavior_packs" : 
-                (contentType == TYPE_SKIN_PACKS ? "skin_packs" : "resource_packs"));
+    private void transferPackTo(ResourcePackItem pack, File targetDir) {
         if (targetDir == null) {
             Toast.makeText(this, getString(R.string.transfer_failed), Toast.LENGTH_SHORT).show();
             return;
@@ -1080,6 +1231,64 @@ public class ContentListActivity extends BaseActivity {
         });
     }
 
+    private List<GameVersion> getAllVersions() {
+        List<GameVersion> all = new ArrayList<>();
+        if (versionManager != null) {
+            List<GameVersion> installed = versionManager.getInstalledVersions();
+            List<GameVersion> custom = versionManager.getCustomVersions();
+            if (installed != null) all.addAll(installed);
+            if (custom != null) all.addAll(custom);
+        }
+        return all;
+    }
+
+    private File getWorldsDirectoryForTarget(boolean shared, String profileId) {
+        File gameDataDir = shared
+                ? LauncherStorage.getSharedGameDataDir(this, true)
+                : LauncherStorage.getProfileGameDataDir(this, profileId, true);
+        return new File(gameDataDir, "minecraftWorlds");
+    }
+
+    private File getPackDirectoryForTarget(boolean shared, String profileId, String packType) {
+        File gameDataDir = shared
+                ? LauncherStorage.getSharedGameDataDir(this, true)
+                : LauncherStorage.getProfileGameDataDir(this, profileId, true);
+        return new File(gameDataDir, packType);
+    }
+
+    private void configureSharedDirectories() {
+        // 正版 MC 读 MC 原版目录，否则读启动器共享目录
+        File gameDataDir = null;
+        GameVersion currentVersion = versionManager.getSelectedVersion();
+        if (currentVersion != null && currentVersion.isInstalled) {
+            gameDataDir = LauncherStorage.getInstalledMinecraftGameDataDir(this, true);
+        }
+        if (gameDataDir == null) {
+            gameDataDir = LauncherStorage.getSharedGameDataDir(this, true);
+        }
+        contentManager.setStorageDirectories(
+                new File(gameDataDir, "minecraftWorlds"),
+                new File(gameDataDir, "resource_packs"),
+                new File(gameDataDir, "behavior_packs"),
+                new File(gameDataDir, "skin_packs"),
+                new File(gameDataDir, "Screenshots"),
+                new File(gameDataDir, "minecraftpe"));
+    }
+
+    private void configureDirectories() {
+        GameVersion currentVersion = versionManager.getSelectedVersion();
+        if (currentVersion == null) return;
+        File gameDataDir = getGameDataDirForType(currentStorageType);
+        if (gameDataDir == null) return;
+        contentManager.setStorageDirectories(
+                new File(gameDataDir, "minecraftWorlds"),
+                new File(gameDataDir, "resource_packs"),
+                new File(gameDataDir, "behavior_packs"),
+                new File(gameDataDir, "skin_packs"),
+                new File(gameDataDir, "Screenshots"),
+                new File(gameDataDir, "minecraftpe"));
+    }
+
     private File getWorldsDirectoryForType(FeatureSettings.StorageType storageType) {
         File gameDataDir = getGameDataDirForType(storageType);
         return gameDataDir == null ? null : new File(gameDataDir, "minecraftWorlds");
@@ -1093,6 +1302,8 @@ public class ContentListActivity extends BaseActivity {
     private File getGameDataDirForType(FeatureSettings.StorageType storageType) {
         GameVersion currentVersion = versionManager.getSelectedVersion();
         if (currentVersion == null) return null;
+        // 正版/盗版统一走启动器重定向目录（与游戏运行时 getExternalFilesDir 一致），
+        // 避免 Android 11+ 无法写入正版 MC 原版 Android/data 目录。
         FeatureSettings.StorageType resolvedType = LauncherStorage.normalizeContentStorageType(
                 storageType,
                 currentVersion.versionIsolation
@@ -1111,6 +1322,12 @@ public class ContentListActivity extends BaseActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // 自定义存储路径可能在设置页被切换，重新计算目录避免显示旧路径的包
+        if (sharedMode) {
+            configureSharedDirectories();
+        } else {
+            configureDirectories();
+        }
         loadContent();
     }
 

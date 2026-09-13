@@ -597,8 +597,7 @@
                                 android:layout_height="wrap_content"
                                 android:text="›"
                                 android:textColor="@color/text_secondary"
-                                android:textSize="16sp" />
-                        </LinearLayout>
+                                android:textSize="16sp" />                        </LinearLayout>
                     </LinearLayout>
                 </ScrollView>
             </LinearLayout>

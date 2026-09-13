@@ -1,10 +1,16 @@
 package org.levimc.launcher.ui.adapter;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.graphics.BitmapFactory;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -12,6 +18,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import org.levimc.launcher.R;
 import org.levimc.launcher.core.content.WorldItem;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,6 +34,7 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
         void onWorldEdit(WorldItem world);
         void onWorldExtractStructures(WorldItem world);
         void onWorldTransfer(WorldItem world);
+        void onWorldLocate(WorldItem world);
     }
 
     public WorldsAdapter() {
@@ -54,9 +62,46 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
         WorldItem world = worlds.get(position);
 
         holder.worldName.setText(world.getWorldName());
+        holder.hardcoreTag.setVisibility(world.isHardcore() ? View.VISIBLE : View.GONE);
         holder.worldSize.setText(holder.itemView.getContext().getString(R.string.world_size, world.getFormattedSize()));
         holder.worldLastPlayed.setText(holder.itemView.getContext().getString(R.string.world_last_played, world.getFormattedLastModified()));
         holder.worldDescription.setText(world.getDescription());
+
+        long seed = world.getSeed();
+        holder.worldSeed.setText(holder.itemView.getContext().getString(R.string.seed_label, seed));
+        holder.worldSeed.setOnClickListener(v -> {
+            ClipboardManager clipboard = (ClipboardManager) holder.itemView.getContext()
+                    .getSystemService(Context.CLIPBOARD_SERVICE);
+            if (clipboard != null) {
+                clipboard.setPrimaryClip(ClipData.newPlainText("seed", String.valueOf(seed)));
+                Toast.makeText(holder.itemView.getContext(),
+                        holder.itemView.getContext().getString(R.string.seed_copied),
+                        Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        holder.worldIcon.setImageResource(R.drawable.ic_world);
+        File iconFile = new File(world.getFile(), "world_icon.jpeg");
+        if (iconFile.exists()) {
+            final String iconPath = iconFile.getAbsolutePath();
+            holder.worldIcon.setTag(iconPath);
+            new Thread(() -> {
+                BitmapFactory.Options opts = new BitmapFactory.Options();
+                opts.inSampleSize = 4;
+                android.graphics.Bitmap bmp = BitmapFactory.decodeFile(iconPath, opts);
+                holder.worldIcon.post(() -> {
+                    if (iconPath.equals(holder.worldIcon.getTag()) && bmp != null) {
+                        holder.worldIcon.setImageBitmap(bmp);
+                    }
+                });
+            }).start();
+        }
+
+        holder.locateButton.setOnClickListener(v -> {
+            if (onWorldActionListener != null) {
+                onWorldActionListener.onWorldLocate(world);
+            }
+        });
 
         holder.editButton.setOnClickListener(v -> {
             if (onWorldActionListener != null) {
@@ -104,10 +149,14 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
     }
 
     static class WorldViewHolder extends RecyclerView.ViewHolder {
+        ImageView worldIcon;
         TextView worldName;
         TextView worldSize;
         TextView worldLastPlayed;
         TextView worldDescription;
+        TextView worldSeed;
+        TextView hardcoreTag;
+        Button locateButton;
         Button editButton;
         Button exportButton;
         Button backupButton;
@@ -117,10 +166,14 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
 
         public WorldViewHolder(@NonNull View itemView) {
             super(itemView);
+            worldIcon = itemView.findViewById(R.id.world_icon);
             worldName = itemView.findViewById(R.id.world_name);
             worldSize = itemView.findViewById(R.id.world_size);
             worldLastPlayed = itemView.findViewById(R.id.world_last_played);
             worldDescription = itemView.findViewById(R.id.world_description);
+            worldSeed = itemView.findViewById(R.id.world_seed);
+            hardcoreTag = itemView.findViewById(R.id.world_hardcore_tag);
+            locateButton = itemView.findViewById(R.id.world_locate_button);
             editButton = itemView.findViewById(R.id.world_edit_button);
             exportButton = itemView.findViewById(R.id.world_export_button);
             backupButton = itemView.findViewById(R.id.world_backup_button);

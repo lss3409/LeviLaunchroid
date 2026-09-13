@@ -11,6 +11,7 @@ import android.provider.OpenableColumns;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 
+import org.levimc.launcher.R;
 import org.levimc.launcher.core.minecraft.MinecraftLauncher;
 import org.levimc.launcher.core.versions.VersionProfileMetadataStore;
 
@@ -170,6 +171,15 @@ public class ApkInstaller {
                 }
 
                 postProgress(PROGRESS_COPY_DONE);
+
+                // 检测 base.apk.levi 是否写入成功（存储权限不足会导致空文件/缺失）
+                File baseApkLevi = new File(baseDir, APK_FILE_NAME);
+                if (!baseApkLevi.exists() || baseApkLevi.length() == 0) {
+                    deleteDir(baseDir);
+                    postError(context.getString(R.string.apk_import_empty_file));
+                    return;
+                }
+
                 extractNativeLibsWithProgress(apkFilesToExtract, libTargetDir);
 
                 String versionName = extractVersionName(apkOrApksUri, baseDir, dirName);

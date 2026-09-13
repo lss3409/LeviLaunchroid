@@ -59,13 +59,18 @@
     <string name="preloader_sigs_no_remote_url">未配置运行时数据更新地址</string>
 
     <!-- Permissions -->
-    <string name="storage_permission_title">存储迁移权限</string>
-    <string name="storage_permission_message">请授予存储权限，以便 LeviLauncher 从旧的 games/org.levimc 目录复制数据。此权限仅用于迁移步骤。</string>
+    <string name="storage_permission_title">存储权限</string>
+    <string name="storage_permission_message">LeviLauncher 需要访问所有文件才能正常安装和运行 Minecraft。如果不授予，启动器可能无法安装版本或保存游戏数据。</string>
     <string name="grant_permission">授予权限</string>
     <string name="cancel">取消</string>
 
     <!-- Feedback -->
     <string name="files_processed">成功处理 %d 个模组文件</string>
+    <string name="share_import_world_success">世界已导入到内容管理</string>
+    <string name="share_import_pack_success">资源包已导入到内容管理</string>
+    <string name="share_import_failed">导入失败：%1$s</string>
+    <string name="export_world_success">世界已导出</string>
+    <string name="export_pack_success">资源包已导出</string>
     <string name="user_cancelled">用户取消导入</string>
 
 
@@ -77,7 +82,18 @@
     <string name="storage_permission_not_granted">未授予存储权限</string>
 
     <string name="import_apk">导入APK</string>
+    <string name="hide_import">隐藏</string>
+    <string name="importing_file_detail">正在导入 %3$s（%1$d/%2$d）</string>
+    <string name="custom_path_confirm_title">更改存储路径</string>
+    <string name="custom_path_confirm_message">Android 11 及以上版本使用 FUSE 文件系统管理公共外部存储，向公共目录写入大量小文件时会产生额外系统开销，导致导入大型资源包时速度明显变慢。\n\n默认目录（应用专属的 Android/data）可绕过 FUSE，导入速度快；但卸载启动器时其中的数据会被一并删除。\n\n自定义目录位于公共存储，卸载启动器后数据会保留；但导入大型资源包时速度会明显变慢。\n\n是否继续使用自定义路径？</string>
+    <string name="game_panel_title">启动器</string>
+    <string name="game_panel_content">内容管理</string>
+    <string name="game_panel_mods">模组管理</string>
+    <string name="game_panel_web">网页</string>
+    <string name="game_panel_curseforge">CurseForge</string>
+    <string name="game_panel_web_section">常用网站</string>
     <string name="install">安装</string>
+    <string name="website">网站</string>
     <string name="version_name">版本信息</string>
     <string name="name_invalid">不符合命名规则或已存在！</string>
     <string name="install_done">安装完成，版本：%1$s</string>
@@ -169,6 +185,163 @@
     <string name="shared_storage_layout_mode_legacy">原始内部/外部目录</string>
     <string name="shared_storage_layout_status">当前模式：%1$s\n内部：%2$s\n外部：%3$s</string>
     <string name="shared_storage_layout_changed">存储目录选择已更新。请重启 Minecraft 并重新打开内容管理，以确保变更完全生效。</string>
+    <string name="custom_storage_path_title">自定义存储路径</string>
+    <string name="custom_storage_path_desc">设置 Minecraft 数据的自定义根目录。留空则使用默认路径。</string>
+    <string name="custom_storage_path_apply">应用</string>
+    <string name="custom_storage_path_select">选择</string>
+    <string name="select_version">选择版本</string>
+    <string name="add_to_desktop">添加到桌面</string>
+    <string name="add_to_desktop_failed">添加到桌面失败</string>
+    <string name="batch_import_done">批量导入完成，共导入 %1$d 个</string>
+    <string name="dead_worlds_category">已死亡存档</string>
+    <string name="dead_world_tag">已死亡</string>
+    <string name="hardcore_tag">极限</string>
+    <string name="dead_world_desc">种子：%1$d · 备份 %2$d 个 · 最近备份：%3$s</string>
+    <string name="restore_world">回档</string>
+    <string name="restore_world_confirm">将从最新备份恢复「%1$s」。恢复后死亡的存档会被替换为备份内容，是否继续？</string>
+    <string name="restore_select_backup_title">选择回档时间点</string>
+    <string name="restore_select_backup_hint">选择一个备份时间点，当前世界将被删除并替换为该备份的内容。</string>
+    <string name="restore_backup_size">大小 %1$s</string>
+    <string name="restore_world_confirm_time">确定回档到 %1$s 吗？当前世界将被删除并替换为该时间点的备份内容。</string>
+    <string name="restore_world_success">回档成功，已恢复世界</string>
+    <string name="restore_world_failed">回档失败</string>
+    <string name="shortcut_title">桌面快捷方式</string>
+    <string name="shortcut_desc">将当前版本号固定到桌面，点击即可一键启动。</string>
+    <string name="remove_shortcut">删除快捷方式</string>
+    <string name="remove_shortcut_hint">快捷方式已禁用，请在桌面长按图标并选择移除。</string>
+    <string name="game_already_running">已有游戏正在运行，请先退出当前游戏再启动新的版本号。</string>
+    <string name="shortcut_already_added">该版本号已添加到桌面</string>
+    <string name="auto_close_game_title">启动新版本号时关闭旧游戏</string>
+    <string name="custom_storage_path_reset">恢复默认</string>
+    <string name="custom_storage_path_current">当前：%1$s</string>
+    <string name="custom_storage_path_default">默认：%1$s</string>
+    <string name="custom_storage_path_applied">自定义存储路径已应用</string>
+    <string name="custom_path_restart_title">重启启动器</string>
+    <string name="custom_path_restart_message">存储路径已应用，需要重启启动器才能完全生效。是否立即重启？</string>
+    <string name="restart_now">立即重启</string>
+    <string name="later">稍后</string>
+    <string name="custom_storage_path_reset_done">存储路径已恢复默认</string>
+    <string name="apk_import_empty_file">APK 写入失败，通常是缺少存储权限，请授予“所有文件访问”权限后重试。</string>
+    <string name="version_isolation_label">版本隔离</string>
+    <string name="version_isolation_desc">开启后，内容按版本（实例）分别存储；关闭后，所有版本共享同一份内容。</string>
+    <string name="show_all_content_label">显示全部资源</string>
+    <string name="show_all_content_desc">查看所有版本与共享的资源，方便管理与删除。</string>
+    <string name="view_shared_folder">查看共享文件夹</string>
+    <string name="view_shared_folder_hint">所有版本共享</string>
+    <string name="global_config_title">全局游戏配置</string>
+    <string name="global_config_desc">安全区、视角、视距、触控方案统一应用到所有版本。</string>
+    <string name="global_config_not_set">未设置</string>
+    <string name="global_config_saved">全局配置已保存</string>
+    <string name="global_config_configure">配置</string>
+    <string name="global_config_safe_zone_x">安全区 X</string>
+    <string name="global_config_safe_zone_y">安全区 Y</string>
+    <string name="global_config_safe_zone">安全区</string>
+    <string name="global_config_fov">视角</string>
+    <string name="global_config_view_distance">视距</string>
+    <string name="global_config_touch_scheme">触摸设置</string>
+    <string name="global_config_split_control">分离控制</string>
+    <string name="global_config_graphics_mode">图形模式</string>
+    <string name="global_config_vibrant_visuals">灵动视效</string>
+    <string name="global_config_ui_type">UI 类型</string>
+    <string name="global_config_keep_default">不修改</string>
+    <string name="global_config_on">开</string>
+    <string name="global_config_off">关</string>
+    <string name="switch_on">开</string>
+    <string name="switch_off">关</string>
+    <string name="graphics_fancy">花式</string>
+    <string name="graphics_fast">快速</string>
+    <string name="graphics_simple">简约</string>
+    <string name="graphics_vibrant">灵动视效</string>
+    <string name="ui_classic">经典</string>
+    <string name="ui_pocket">携带版</string>
+    <string name="touch_default">默认</string>
+    <string name="touch_pocket">口袋</string>
+    <string name="touch_joystick">摇杆</string>
+    <string name="touch_joystick_tap">摇杆并点击交互</string>
+    <string name="touch_joystick_crosshair">摇杆并瞄准十字线</string>
+    <string name="touch_dpad_tap">方向键并点击交互</string>
+    <string name="transfer_to_shared">共享文件夹</string>
+    <string name="settings_tab_help">帮助</string>
+    <string name="help_title">帮助</string>
+    <string name="help_desc">常用 Minecraft 网站</string>
+    <string name="help_chunkbase">Chunkbase 区块查找器</string>
+    <string name="help_chunkbase_desc">种子地图 / 生物群系 / 结构查找</string>
+    <string name="help_mcwiki">Minecraft Wiki</string>
+    <string name="help_mcwiki_desc">Minecraft 百科全书</string>
+    <string name="help_bilibili">哔哩哔哩</string>
+    <string name="help_bilibili_desc">B 站视频平台</string>
+    <string name="help_minebbs">MineBBS</string>
+    <string name="help_minebbs_desc">Minecraft 社区论坛</string>
+    <string name="help_littleskin">LittleSkin</string>
+    <string name="help_littleskin_desc">Minecraft 皮肤站</string>
+    <string name="custom_color_label">自定义颜色（HEX/RGB）</string>
+    <string name="custom_color_hint">#RRGGBB 或 R,G,B</string>
+    <string name="apply">应用</string>
+    <string name="curseforge_all_categories">全部分类</string>
+    <string name="curseforge_addons">附加包</string>
+    <string name="curseforge_maps">地图</string>
+    <string name="curseforge_skins">皮肤</string>
+    <string name="curseforge_texture_packs">纹理包</string>
+    <string name="curseforge_scripts">脚本</string>
+    <string name="curseforge_relevancy">相关度</string>
+    <string name="curseforge_total_downloads">总下载量</string>
+    <string name="curseforge_last_updated">最后更新</string>
+    <string name="curseforge_name">名称</string>
+    <string name="curseforge_sort">排序：%1$s</string>
+    <string name="page_previous">上一页</string>
+    <string name="page_next">下一页</string>
+    <string name="page_info">第 %1$d 页，共 %2$s 页</string>
+    <string name="page_first">首页</string>
+    <string name="jump_to_page">跳转到页码</string>
+    <string name="go">跳转</string>
+    <string name="delete_account_title">删除账号</string>
+    <string name="delete_account_confirm">确定要删除此账号吗？</string>
+    <string name="inbuilt_mod_gyro">陀螺仪</string>
+    <string name="inbuilt_mod_gyro_desc">使用设备陀螺仪控制视角旋转</string>
+    <string name="inbuilt_mod_pojav_controls">Pojav 触控</string>
+    <string name="inbuilt_mod_pojav_controls_desc">用可自定义的 Pojav 风格触控替代原版触控</string>
+    <string name="mod_config_gyro_deadzone">死区</string>
+    <string name="mod_config_gyro_invert_x">反转水平轴</string>
+    <string name="mod_config_gyro_invert_y">反转垂直轴</string>
+    <string name="mod_config_gyro_sensitivity_x" formatted="false">水平灵敏度（%）</string>
+    <string name="mod_config_gyro_sensitivity_y" formatted="false">垂直灵敏度（%）</string>
+    <string name="mod_config_overlay_show_everywhere" formatted="false">随处显示</string>
+    <string name="mod_config_zoom_transition">过渡时长（毫秒）</string>
+    <string name="ms_activated">已激活</string>
+    <string name="ms_choose_login_method">登录 Minecraft</string>
+    <string name="ms_choose_login_method_desc">选择基于浏览器的设备码登录，或使用内嵌的微软页面继续。</string>
+    <string name="ms_choose_other_method">其他方式</string>
+    <string name="ms_default_browser_no_private_mode">默认浏览器不支持隐私登录，请更新浏览器或使用 WebView 登录。</string>
+    <string name="ms_device_code_authorized">微软已批准登录，正在完成…</string>
+    <string name="ms_device_code_browser_note">LeviLauncher 会以隐私会话打开默认浏览器，自动填入代码并请求新的微软登录。</string>
+    <string name="ms_device_code_browser_opened">请在浏览器中完成新的微软登录，然后返回此处。</string>
+    <string name="ms_device_code_checking">正在检查微软登录结果…</string>
+    <string name="ms_device_code_copied">代码已复制</string>
+    <string name="ms_device_code_copy">复制代码</string>
+    <string name="ms_device_code_expires">代码将于 %1$d:%2$02d 后过期</string>
+    <string name="ms_device_code_instructions">打开微软设备登录页，输入此代码并批准访问，LeviLauncher 会自动完成。</string>
+    <string name="ms_device_code_label">微软设备代码</string>
+    <string name="ms_device_code_login">使用浏览器继续</string>
+    <string name="ms_device_code_login_desc">以隐私会话打开浏览器，设备代码已自动填入。</string>
+    <string name="ms_device_code_open_browser">打开微软登录</string>
+    <string name="ms_device_code_option_title">设备代码（推荐）</string>
+    <string name="ms_device_code_reconnecting">连接已变更，正在自动重试…</string>
+    <string name="ms_device_code_requesting">正在请求安全代码…</string>
+    <string name="ms_device_code_step_title">在浏览器中完成登录</string>
+    <string name="ms_device_code_title">使用设备代码登录</string>
+    <string name="ms_device_code_waiting">等待你在浏览器中完成操作…</string>
+    <string name="ms_device_code_waiting_code">--------</string>
+    <string name="ms_feature_disabled_title">功能已禁用</string>
+    <string name="ms_feature_disabled_desc">请在设置中启用“使用 LeviLauncher 登录 Minecraft”以管理微软账号。</string>
+    <string name="ms_login_header_subtitle">安全登录 Minecraft</string>
+    <string name="ms_login_missing_code">微软未返回登录代码，请重新登录或使用设备代码登录。</string>
+    <string name="ms_login_retrying">连接中断，正在安全重试…</string>
+    <string name="ms_login_ssl_failed">无法验证微软安全登录页面。</string>
+    <string name="ms_login_state_failed">无法验证微软登录响应，请重新登录。</string>
+    <string name="ms_no_browser">此设备上没有可用的浏览器。</string>
+    <string name="ms_webview_login">打开内嵌登录</string>
+    <string name="ms_webview_login_desc">无需离开 LeviLauncher 即可登录，适用于浏览器流程不可用时。</string>
+    <string name="ms_webview_option_title">内嵌 WebView</string>
     
     <string name="theme_title">主题模式</string>
     <string name="theme_follow_system">跟随系统</string>
@@ -239,6 +412,36 @@
     <string name="rename_failed">重命名失败：%1$s</string>
     <string name="cannot_rename_installed">无法重命名已安装的版本</string>
 
+    <string name="locate">位置</string>
+    <string name="file_manager_title">文件管理</string>
+    <string name="seed_label">种子: %1$d</string>
+    <string name="seed_copied">种子已复制到剪贴板</string>
+    <string name="file_not_found">文件不存在</string>
+    <string name="copy">复制</string>
+    <string name="paste">粘贴</string>
+    <string name="new_folder">新建文件夹</string>
+    <string name="file_exists">已存在同名文件</string>
+    <string name="operation_failed">操作失败</string>
+    <string name="copied">已复制</string>
+    <string name="delete_confirm">确认删除「%1$s」？</string>
+    <string name="close">关闭</string>
+    <string name="playing">正在播放: %1$s</string>
+    <string name="audio_play_failed">音频播放失败</string>
+    <string name="preview">预览</string>
+    <string name="saved">已保存</string>
+    <string name="read_only">只读</string>
+    <string name="play">播放</string>
+    <string name="pause">暂停</string>
+    <string name="mt_manager">MT 管理器</string>
+    <string name="system_file_manager">系统文件管理</string>
+    <string name="open_with">打开方式</string>
+    <string name="file_too_large">文件过大，请在文件管理器中打开</string>
+    <string name="no_file_manager">未找到可用的文件管理器</string>
+    <string name="open_external">文件管理</string>
+    <string name="copied_to">已复制到 %1$s</string>
+    <string name="renamed_to">已重命名为 %1$s</string>
+    <string name="deleted">已删除 %1$s</string>
+
     <!-- Content Management -->
     <string name="content_management">内容管理</string>
     <string name="worlds_title">世界</string>
@@ -279,6 +482,8 @@
     <!-- Resource Pack Management -->
     <string name="import_resource_pack">导入资源包</string>
     <string name="import_behavior_pack">导入行为包</string>
+    <string name="addon_delete_linked_title">删除附加包组件</string>
+    <string name="addon_delete_linked_message">「%1$s」是对端包的依赖组件（附加包的一部分）。删除它将同时删除配对的「%2$s」。确定同时删除两者吗？</string>
     <string name="delete_resource_pack">删除资源包</string>
     <string name="import_skin_pack">导入皮肤包</string>
     <string name="delete_skin_pack">删除皮肤包</string>
@@ -294,6 +499,8 @@
     <string name="exporting_pack">正在导出包…</string>
     <string name="backing_up_world">正在备份世界…</string>
     <string name="deleting_world">正在删除世界…</string>
+    <string name="world_deleted_successfully">世界删除成功</string>
+    <string name="world_delete_failed">世界删除失败</string>
     <string name="deleting_pack">正在删除包…</string>
     <string name="adding_server">正在添加服务器…</string>
     <string name="deleting_screenshot">正在删除截图…</string>
@@ -302,6 +509,7 @@
     <!-- World Editor -->
     <string name="edit_world">编辑世界</string>
     <string name="edit">编辑</string>
+    <string name="edit_world_beta">编辑 (Beta)</string>
     <string name="save">保存</string>
     <string name="reset">重置</string>
     <string name="level_dat_not_found">未找到 level.dat</string>
@@ -323,6 +531,8 @@
     <string name="layers">层（从下到上）</string>
     <string name="layers_hint">拖动排序，向左滑动删除</string>
     <string name="add_layer">+ 添加层</string>
+    <string name="hardcore_mode">极限模式</string>
+    <string name="randomize_layers">随机层数</string>
     <string name="create_world">创建世界</string>
     <string name="add_at_least_one_layer">请至少添加一层</string>
     <string name="world_created_successfully">世界创建成功</string>
@@ -438,6 +648,8 @@
     <string name="ms_login_failed_detail">登录失败：%1$s</string>
     <string name="xbox_avatar">Xbox头像</string>
     <string name="launcher_managed_mc_login">使用 LeviLauncher 登录 Minecraft</string>
+    <string name="ms_login_label">登录显示</string>
+    <string name="ms_login_desc">控制右上角登录按钮的显示与隐藏。</string>
     <string name="dialog_title_login_required">需要登录</string>
     <string name="dialog_message_login_required">已开启使用启动器登录，但当前未登录。请前往账号管理登录后再启动。</string>
     <string name="go_to_accounts">账号管理</string>
@@ -606,6 +818,10 @@
 
     <!-- Quick Launch -->
     <string name="quick_launch_title">快速启动</string>
+    <string name="world_picker_version_label">选择版本号</string>
+    <string name="world_picker_loading">正在扫描世界…</string>
+    <string name="world_picker_no_worlds">该版本号下没有世界</string>
+    <string name="world_picker_launch_failed">加载世界失败</string>
     <string name="quick_launch_subtitle">使用 URI 协议执行特定操作并启动 Minecraft</string>
     <string name="quick_launch_how_to_play">玩法说明</string>
     <string name="quick_launch_how_to_play_desc">打开“玩法说明”屏幕</string>
@@ -661,6 +877,23 @@
 
     <!-- Quick Actions Menu -->
     <string name="quick_launch">快速启动</string>
+    <string name="share_launch_log">分享启动日志</string>
+    <string name="share_launch_log_empty">暂无启动日志，请先启动一次游戏</string>
+    <string name="crash_analysis_title">游戏崩溃分析</string>
+    <string name="crash_analysis_phase">上次游戏在「%1$s」阶段异常退出。</string>
+    <string name="crash_analysis_native_dump">检测到游戏原生崩溃转储，说明游戏进程本身发生了崩溃。</string>
+    <string name="crash_analysis_mods">本次启动启用了模组：%1$s。我们怀疑可能与模组有关，建议先禁用最近添加的模组再启动。</string>
+    <string name="crash_analysis_no_mods">本次启动没有启用任何模组，可能是游戏本体或环境问题。</string>
+    <string name="crash_analysis_unknown_stage">未知</string>
+    <string name="crash_analysis_dump_found">已生成崩溃转储文件，确认游戏进程发生了崩溃。</string>
+    <string name="crash_analysis_mod_loading_mods">游戏在「加载模组」时崩溃（最后一步：%1$s）。这通常由模组与游戏版本不兼容引起。本次启动启用：%2$s。建议先禁用最近添加的模组，逐一排查。</string>
+    <string name="crash_analysis_launch_phase_mods">游戏在「启动过程」中崩溃，尚未进入游戏（最后一步：%1$s）。本次启动启用：%2$s。启动期崩溃常见原因是模组不兼容，建议禁用模组后重试；若仍然崩溃，可尝试修复游戏文件。</string>
+    <string name="crash_analysis_launch_phase_no_mods">游戏在「启动过程」中崩溃，尚未进入游戏（最后一步：%1$s）。本次未启用模组，可能是游戏文件损坏或版本不兼容，建议修复游戏文件或更换版本。</string>
+    <string name="crash_analysis_in_game_mods">游戏在「游玩过程」中崩溃（已成功进入游戏）。本次启动启用：%1$s。游玩中崩溃通常由特定操作触发，建议禁用模组后复现测试。</string>
+    <string name="crash_analysis_in_game_no_mods">游戏在「游玩过程」中崩溃（已成功进入游戏）。本次未启用模组，可能是游戏本体问题或设备内存不足。</string>
+    <string name="crash_analysis_hint">点击「分享日志」可以把启动日志发给我们进一步分析。</string>
+    <string name="crash_analysis_share">分享日志</string>
+    <string name="crash_analysis_ok">知道了</string>
     <string name="quick_launch_menu_subtitle">通过 URI 操作启动</string>
 
     <!-- CurseForge -->
@@ -692,7 +925,7 @@
     <string name="settings_tab_personalize">个性化</string>
     <string name="settings_tab_updates">更新</string>
     <string name="settings_tab_about">关于</string>
-    <string name="settings_tab_migration">迁移</string>
+    <string name="settings_tab_migration">存储</string>
     <string name="settings_theme_desc">选择应用主题</string>
     <string name="launch_vertically">竖屏启动</string>
     <string name="launch_vertically_desc">强制游戏以竖屏模式启动</string>
@@ -713,7 +946,7 @@
     <string name="instance_delete_confirm_title">删除实例</string>
     <string name="instance_delete_confirm_msg">确定要删除此实例吗？包括世界在内的所有数据都将被永久移除。</string>
     <string name="instance_backup_title">备份实例</string>
-    <string name="instance_backup_desc">将此实例完整备份到 Download/LeviLauncher/Backups。</string>
+    <string name="instance_backup_desc">将此实例完整备份到 Download/LeviLauncher/Backups/minecraft item。</string>
     <string name="instance_backup_button">备份实例</string>
     <string name="instance_backup_confirm_message">现在创建此实例的完整备份吗？如果 Minecraft 正在运行，建议先退出游戏，避免备份过程中数据变化。</string>
     <string name="instance_backup_in_progress">正在备份实例…</string>
@@ -741,6 +974,8 @@
     <string name="instance_restore_success_message">已恢复：%1$s</string>
     <string name="instance_restore_failed_title">恢复失败</string>
     <string name="instance_restore_failed_message">无法恢复备份：\n%1$s</string>
+    <string name="instance_restore_already_exists_title">实例已存在</string>
+    <string name="instance_restore_already_exists_message">实例「%1$s」已经导入过，已跳过重复导入。</string>
     <string name="skin_packs_title">皮肤包</string>
     <string name="worlds_category">世界</string>
     <string name="resource_packs_category">资源包</string>
@@ -748,6 +983,7 @@
     <string name="skin_packs_category">皮肤包</string>
     <string name="screenshots_category">截图</string>
     <string name="servers_category">服务器</string>
+    <string name="structures_category">结构文件</string>
     <string name="saved_to_gallery">已保存到相册</string>
     <string name="inbuilt_mod_virtual_cursor">虚拟光标</string>
     <string name="inbuilt_mod_virtual_cursor_desc">使用虚拟触控板控制鼠标</string>
@@ -764,7 +1000,7 @@
     <string name="select_instance_title">选择实例</string>
     <string name="filter_all">全部</string>
     <string name="filter_custom">自定义</string>
-    <string name="sort_version_newest">版本（最新）</string>
+    <string name="sort_version_newest">版本</string>
     <string name="tag_installed">已安装</string>
     <string name="tag_custom">自定义</string>
     <string name="vanilla_prefix">原版 %s</string>

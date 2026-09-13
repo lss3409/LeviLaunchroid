@@ -118,6 +118,11 @@ public class ModsFullscreenActivity extends BaseActivity {
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("*/*");
+        // 支持批量选择模组（.so / .zip / .levipack），FileHandler 会按 ClipData 逐个处理
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
+                "application/zip", "application/x-zip", "application/x-zip-compressed",
+                "application/octet-stream", "application/x-sharedlib"});
         pickModLauncher.launch(intent);
     }
 

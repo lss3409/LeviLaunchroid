@@ -382,6 +382,16 @@ public class InstancesActivity extends BaseActivity {
                         .setPositiveButton(getString(R.string.confirm), null)
                         .show();
             }
+
+            @Override
+            public void onAlreadyExists(String existingName) {
+                finishRestoreProgress();
+                new CustomAlertDialog(InstancesActivity.this)
+                        .setTitleText(getString(R.string.instance_restore_already_exists_title))
+                        .setMessage(getString(R.string.instance_restore_already_exists_message, existingName))
+                        .setPositiveButton(getString(R.string.confirm), null)
+                        .show();
+            }
         });
     }
 

@@ -12,8 +12,10 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
 
+import org.levimc.launcher.core.minecraft.LauncherApplication;
 import org.levimc.launcher.core.versions.GameVersion;
 import org.levimc.launcher.core.mods.config.ModConfigManager;
+import org.levimc.launcher.util.LauncherStorage;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -181,7 +183,7 @@ public class ModManager {
         invalidateDescriptorCache();
 
         if (version != null && version.modsDir != null) {
-            modsDir = version.modsDir;
+            modsDir = resolveModsDir(version);
             modsDir.mkdirs();
             configFile = new File(modsDir, "mods_config.json");
             loadConfig();
@@ -195,6 +197,17 @@ public class ModManager {
             invalidateDescriptorCache();
         }
         notifyModsChanged();
+    }
+
+    private File resolveModsDir(GameVersion version) {
+        if (version.versionIsolation) {
+            return version.modsDir;
+        }
+        try {
+            return LauncherStorage.getSharedModsDir(LauncherApplication.getContext());
+        } catch (Exception e) {
+            return version.modsDir;
+        }
     }
 
     public GameVersion getCurrentVersion() {

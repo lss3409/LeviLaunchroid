@@ -329,8 +329,10 @@ public class MinecraftUriHandler {
     }
 
     @NonNull
-    public static Uri buildConnectLocalWorld(@NonNull String worldName) {
-        return Uri.parse(SCHEME + "://" + ACTION_CONNECT + "/?localWorld=" + Uri.encode(worldName));
+    public static Uri buildConnectLocalWorld(@NonNull String levelId) {
+        // 官方格式：minecraft://?load=levelid（用世界目录名作为 level id），
+        // 旧的 connect/?localWorld= 格式游戏不识别会静默失败。
+        return Uri.parse(SCHEME + "://?load=" + Uri.encode(levelId));
     }
 
     @NonNull

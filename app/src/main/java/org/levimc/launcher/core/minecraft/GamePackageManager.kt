@@ -62,14 +62,25 @@ class GamePackageManager private constructor(
 
     init {
         report("GamePackageManager init started")
-        val packageName = detectGamePackage() ?: throw IllegalStateException("Minecraft not found")
+        val isImportedVersion = version != null && !version.isInstalled
+        val packageName = if (isImportedVersion) {
+            // 手动导入的版本：跳过系统包管理器检测，直接伪造 ApplicationInfo
+            MinecraftLauncher.MC_PACKAGE_NAME
+        } else {
+            detectGamePackage() ?: throw IllegalStateException("Minecraft not found")
+        }
         report("Detected Minecraft package: $packageName")
-        packageContext = context.createPackageContext(
-            packageName,
-            Context.CONTEXT_IGNORE_SECURITY or Context.CONTEXT_INCLUDE_CODE
-        )
+        packageContext = if (isImportedVersion) {
+            // 手动导入版本不依赖系统包管理器；使用启动器自身 context 作为占位
+            context
+        } else {
+            context.createPackageContext(
+                packageName,
+                Context.CONTEXT_IGNORE_SECURITY or Context.CONTEXT_INCLUDE_CODE
+            )
+        }
         
-        if (version != null && !version.isInstalled) {
+        if (isImportedVersion) {
             applicationInfo = MinecraftLauncher(context).createFakeApplicationInfo(version, MinecraftLauncher.MC_PACKAGE_NAME)
             nativeLibDir = applicationInfo.nativeLibraryDir
         } else {

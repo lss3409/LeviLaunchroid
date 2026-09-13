@@ -64,7 +64,7 @@ public class InstanceBackupManager {
     private static final String RUNTIME_LIBS_PREFIX = "runtime_libs/";
     private static final String PACKAGE_PREFIX = "package/";
     private static final String DOWNLOAD_RELATIVE_PATH =
-            Environment.DIRECTORY_DOWNLOADS + "/LeviLauncher/Backups";
+            Environment.DIRECTORY_DOWNLOADS + "/LeviLauncher/Backups/minecraft item";
     private static final Gson GSON = new GsonBuilder().serializeNulls().setPrettyPrinting().create();
 
     private final Context context;
@@ -83,6 +83,7 @@ public class InstanceBackupManager {
         void onProgress(int progress);
         void onSuccess(String restoredName);
         void onError(String message);
+        void onAlreadyExists(String existingName);
     }
 
     public static class BackupManifest {
@@ -188,12 +189,17 @@ public class InstanceBackupManager {
                     BackupManifest manifest = readManifest(zipFile);
                     validateManifest(manifest);
 
+                    if (!manifest.installed && isInstanceAlreadyExists(manifest)) {
+                        String existingName = firstNonEmpty(manifest.directoryName, manifest.profileId, manifest.instanceName);
+                        postAlreadyExists(callback, existingName);
+                        return;
+                    }
+
                     boolean restoredInstalledData = manifest.installed;
                     String restoredName = restoredInstalledData
                             ? restoreInstalledData(zipFile, manifest, callback)
                             : restoreCustomInstance(zipFile, manifest, callback);
 
-                    VersionManager.get(context).loadAllVersions();
                     postRestoreSuccess(callback, restoredName);
                 }
             } catch (Exception e) {
@@ -308,24 +314,30 @@ public class InstanceBackupManager {
     }
 
     private String buildBackupFileName(BackupManifest manifest) {
-        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date(manifest.createdAt));
+        // 每个实例使用固定的备份文件名：再次备份时覆盖旧文件（更新），不产生新文件。
         return "levilauncher_instance_"
                 + sanitizeFileName(firstNonEmpty(manifest.directoryName, manifest.instanceName, "instance"))
-                + "_"
-                + timestamp
                 + BACKUP_EXTENSION;
     }
 
     private OutputTarget createOutputTarget(String fileName) throws IOException {
         OutputTarget target = new OutputTarget();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ContentResolver resolver = context.getContentResolver();
+            // 同名备份已存在：删除旧条目，实现「覆盖更新」而不是再生成一个带时间戳的新文件
+            try {
+                resolver.delete(MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                        MediaStore.MediaColumns.DISPLAY_NAME + "=?",
+                        new String[]{fileName});
+            } catch (Exception ignored) {
+            }
+
             ContentValues values = new ContentValues();
             values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
             values.put(MediaStore.MediaColumns.MIME_TYPE, "application/zip");
             values.put(MediaStore.MediaColumns.RELATIVE_PATH, DOWNLOAD_RELATIVE_PATH);
             values.put(MediaStore.MediaColumns.IS_PENDING, 1);
 
-            ContentResolver resolver = context.getContentResolver();
             target.uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
             if (target.uri == null) {
                 throw new IOException("Failed to create backup file");
@@ -340,7 +352,7 @@ public class InstanceBackupManager {
 
         File backupDir = new File(
                 Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                "LeviLauncher/Backups"
+                "LeviLauncher/Backups/minecraft item"
         );
         if (!backupDir.exists() && !backupDir.mkdirs()) {
             throw new IOException("Failed to create backup directory: " + backupDir.getAbsolutePath());
@@ -643,6 +655,28 @@ public class InstanceBackupManager {
         if (TextUtils.isEmpty(manifest.profileId) && TextUtils.isEmpty(manifest.directoryName)) {
             throw new IOException("Backup manifest is missing instance identity");
         }
+    }
+
+    private boolean isInstanceAlreadyExists(BackupManifest manifest) {
+        String targetProfileId = firstNonEmpty(manifest.profileId,
+                LauncherStorage.sanitizeProfileId(manifest.directoryName));
+        if (targetProfileId.isEmpty()) return false;
+
+        File minecraftRoot = LauncherStorage.getMinecraftRoot(context);
+        File[] dirs = minecraftRoot.listFiles(File::isDirectory);
+        if (dirs == null) return false;
+
+        for (File dir : dirs) {
+            String dirName = dir.getName();
+            if (LauncherStorage.isReservedProfileId(dirName)
+                    || LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID.equals(dirName)) {
+                continue;
+            }
+            if (targetProfileId.equals(LauncherStorage.sanitizeProfileId(dirName))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String restoreCustomInstance(ZipFile zipFile, BackupManifest manifest, RestoreCallback callback) throws IOException {
@@ -996,6 +1030,12 @@ public class InstanceBackupManager {
     private void postRestoreError(RestoreCallback callback, String message) {
         if (callback != null) {
             mainHandler.post(() -> callback.onError(firstNonEmpty(message, "Restore failed")));
+        }
+    }
+
+    private void postAlreadyExists(RestoreCallback callback, String existingName) {
+        if (callback != null) {
+            mainHandler.post(() -> callback.onAlreadyExists(existingName));
         }
     }
 

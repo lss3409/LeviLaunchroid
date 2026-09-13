@@ -16,14 +16,16 @@ public final class LauncherStorage {
     private static final String STORAGE_LAYOUT_PREFS_NAME = "storage_layout";
     private static final String KEY_SHARED_INTERNAL_MODE = "shared_internal_mode";
     private static final String KEY_SHARED_EXTERNAL_MODE = "shared_external_mode";
+    private static final String KEY_CUSTOM_STORAGE_PATH = "custom_storage_path";
     static final String SHARED_MODE_LEGACY = "legacy";
     static final String SHARED_MODE_NEW = "new";
     private static final String LEGACY_ROOT_PATH = "games/org.levimc";
     private static final String NO_MEDIA_FILE = ".nomedia";
     private static final String ANDROID_DIR = "Android";
     private static final String ANDROID_MEDIA_DIR = "media";
+    public static final String DEFAULT_STORAGE_PATH = "/storage/emulated/0/Levilauncher";
     public static final String MINECRAFT_DIR = "minecraft";
-    public static final String SHARED_PROFILE_ID = "_shared";
+    public static final String SHARED_PROFILE_ID = "shared";
     public static final String LEGACY_UNCLASSIFIED_DIR = "_legacy_unclassified";
     public static final String INSTALLED_MINECRAFT_PROFILE_ID = "com.mojang.minecraftpe";
     public static final String INTERNAL_STORAGE_DIR = "internal";
@@ -66,19 +68,44 @@ public final class LauncherStorage {
     }
 
     private static File resolveTargetAppRoot(Context context) {
-        File[] mediaDirs = context.getExternalMediaDirs();
-        if (mediaDirs != null) {
-            for (File mediaDir : mediaDirs) {
-                File appRoot = buildTargetMediaAppRoot(mediaDir);
-                if (ensureDir(appRoot)) {
-                    return appRoot;
-                }
+        // 第一级：自定义路径（设置页手动配置），非空直接返回
+        String customPath = getCustomStoragePath(context);
+        if (customPath != null) {
+            File custom = new File(customPath);
+            if (ensureDir(custom)) {
+                return custom;
             }
         }
 
-        File internalFallback = context.getFilesDir();
+        // 第二级：应用专属外部存储（Android/data，绕过 FUSE，大量小文件操作快）
+        File appExternal = context.getExternalFilesDir(null);
+        if (appExternal != null && ensureDir(appExternal)) {
+            return appExternal;
+        }
+
+        // 第三级：内部存储 fallback
+        File internalFallback = new File(context.getFilesDir(), GAMES_DIR);
         ensureDir(internalFallback);
         return internalFallback;
+    }
+
+    public static String getCustomStoragePath(Context context) {
+        String path = context.getSharedPreferences(STORAGE_LAYOUT_PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_CUSTOM_STORAGE_PATH, null);
+        return (path == null || path.trim().isEmpty()) ? null : path.trim();
+    }
+
+    public static void setCustomStoragePath(Context context, String path) {
+        String trimmed = (path == null || path.trim().isEmpty()) ? null : path.trim();
+        context.getSharedPreferences(STORAGE_LAYOUT_PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_CUSTOM_STORAGE_PATH, trimmed)
+                .apply();
+        invalidateCache();
+    }
+
+    public static void clearCustomStoragePath(Context context) {
+        setCustomStoragePath(context, null);
     }
 
     static File buildTargetMediaAppRoot(File mediaDir) {
@@ -86,27 +113,15 @@ public final class LauncherStorage {
     }
 
     public static String getTargetAppRootDisplayPath(Context context) {
+        File external = context.getExternalFilesDir(null);
+        if (external != null) {
+            return external.getAbsolutePath();
+        }
         return buildTargetAppRootDisplayPath(context.getPackageName());
     }
 
     static String buildTargetAppRootDisplayPath(String packageName) {
         return ANDROID_DIR + "/" + ANDROID_MEDIA_DIR + "/" + packageName;
-    }
-
-    public static File getLegacyRoot() {
-        return new File(Environment.getExternalStorageDirectory(), LEGACY_ROOT_PATH);
-    }
-
-    public static boolean isMigrationCompleted(Context context) {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getBoolean(KEY_COMPLETED, false);
-    }
-
-    public static void markMigrationCompleted(Context context) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .edit()
-                .putBoolean(KEY_COMPLETED, true)
-                .apply();
     }
 
     public static void invalidateCache() {
@@ -303,6 +318,12 @@ public final class LauncherStorage {
         return dir;
     }
 
+    public static File getSharedModsDir(Context context) {
+        File dir = new File(getSharedRoot(context), PROFILE_MODS_DIR);
+        ensureDir(dir);
+        return dir;
+    }
+
     public static File getProfileMetadataDir(Context context, String profileId) {
         File dir = new File(getVersionRoot(context, profileId), PROFILE_METADATA_DIR);
         ensureDir(dir);
@@ -336,6 +357,22 @@ public final class LauncherStorage {
             return getProfileGameDataDir(context, profileId, false);
         }
         return getSharedGameDataDir(context, storageType == FeatureSettings.StorageType.EXTERNAL);
+    }
+
+    // 正版（已安装）Minecraft 的原版游戏数据目录（games/com.mojang），
+    // 通过 createPackageContext 获取 MC 自己的 context，避免读到启动器重定向的目录。
+    public static File getInstalledMinecraftGameDataDir(Context context, boolean external) {
+        try {
+            android.content.Context mcContext = context.createPackageContext(
+                    INSTALLED_MINECRAFT_PROFILE_ID,
+                    android.content.Context.CONTEXT_IGNORE_SECURITY | android.content.Context.CONTEXT_INCLUDE_CODE
+            );
+            File base = external ? mcContext.getExternalFilesDir(null) : mcContext.getFilesDir();
+            if (base == null) return null;
+            return new File(base, GAME_DATA_RELATIVE_PATH);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public static FeatureSettings.StorageType normalizeContentStorageType(
@@ -378,13 +415,20 @@ public final class LauncherStorage {
     }
 
     public static File getBackupsRoot(Context context) {
-        File dir = new File(getAppRoot(context), BACKUPS_DIR);
+        File dir = new File(android.os.Environment.getExternalStorageDirectory(), "Download/LeviLauncher/Backups");
         ensureDir(dir);
         return dir;
     }
 
     public static File getWorldBackupsDir(Context context) {
-        File dir = new File(getBackupsRoot(context), WORLDS_DIR);
+        File dir = new File(getBackupsRoot(context), "minecraftWorlds backups");
+        ensureDir(dir);
+        return dir;
+    }
+
+    /** 极限存档专属备份目录：.../minecraftWorlds backups/Hardcore backups */
+    public static File getHardcoreBackupsDir(Context context) {
+        File dir = new File(getWorldBackupsDir(context), "Hardcore backups");
         ensureDir(dir);
         return dir;
     }
@@ -401,10 +445,6 @@ public final class LauncherStorage {
 
     public static boolean ensureDir(File dir) {
         return dir != null && (dir.exists() ? dir.isDirectory() : dir.mkdirs());
-    }
-
-    public static boolean hasLegacyMarker() {
-        return new File(getLegacyRoot(), NO_MEDIA_FILE).isFile();
     }
 
     public static boolean isReservedProfileId(String value) {
@@ -445,14 +485,6 @@ public final class LauncherStorage {
         return sanitized;
     }
 
-    public static boolean legacyRootHasData() {
-        File legacyRoot = getLegacyRoot();
-        if (!legacyRoot.isDirectory()) {
-            return false;
-        }
-        return hasAnyFile(legacyRoot);
-    }
-
     private static boolean hasAnyFile(File root) {
         if (root == null || !root.isDirectory()) {
             return false;
@@ -471,85 +503,4 @@ public final class LauncherStorage {
         return false;
     }
 
-    public static LegacyCleanupResult cleanupLegacyRoot(Context context) {
-        return cleanupLegacyRoot(getLegacyRoot(), getTargetAppRoot(context), isMigrationCompleted(context));
-    }
-
-    static LegacyCleanupResult cleanupLegacyRoot(File legacyRoot, File targetRoot, boolean migrationCompleted) {
-        if (!migrationCompleted) {
-            return LegacyCleanupResult.failed("Migration has not completed.");
-        }
-        if (!legacyRoot.exists()) {
-            return LegacyCleanupResult.success(0, 0L);
-        }
-        if (!legacyRoot.isDirectory()) {
-            return LegacyCleanupResult.failed("Legacy path is not a directory: " + legacyRoot.getAbsolutePath());
-        }
-
-        try {
-            String legacyPath = legacyRoot.getCanonicalPath();
-            String targetPath = targetRoot.getCanonicalPath();
-            if (legacyPath.equals(targetPath) || isPathWithin(legacyPath, targetPath)) {
-                return LegacyCleanupResult.failed("Legacy path overlaps with active storage.");
-            }
-
-            CleanupCounter counter = new CleanupCounter();
-            boolean deleted = deleteLegacyChildFirst(legacyRoot, counter);
-            if (!deleted || legacyRoot.exists()) {
-                return LegacyCleanupResult.failed("Could not delete the legacy directory completely.");
-            }
-            return LegacyCleanupResult.success(counter.files, counter.bytes);
-        } catch (IOException error) {
-            return LegacyCleanupResult.failed(error.getMessage());
-        }
-    }
-
-    private static boolean deleteLegacyChildFirst(File file, CleanupCounter counter) {
-        if (file.isDirectory()) {
-            File[] children = file.listFiles();
-            if (children == null) {
-                return false;
-            }
-            for (File child : children) {
-                if (!deleteLegacyChildFirst(child, counter)) {
-                    return false;
-                }
-            }
-        } else if (file.isFile()) {
-            counter.files++;
-            counter.bytes += Math.max(0L, file.length());
-        }
-        return file.delete();
-    }
-
-    private static boolean isPathWithin(String path, String basePath) {
-        return path.startsWith(basePath + File.separator);
-    }
-
-    private static class CleanupCounter {
-        int files;
-        long bytes;
-    }
-
-    public static class LegacyCleanupResult {
-        public final boolean success;
-        public final int deletedFiles;
-        public final long deletedBytes;
-        public final String errorMessage;
-
-        private LegacyCleanupResult(boolean success, int deletedFiles, long deletedBytes, String errorMessage) {
-            this.success = success;
-            this.deletedFiles = deletedFiles;
-            this.deletedBytes = deletedBytes;
-            this.errorMessage = errorMessage == null ? "" : errorMessage;
-        }
-
-        static LegacyCleanupResult success(int deletedFiles, long deletedBytes) {
-            return new LegacyCleanupResult(true, deletedFiles, deletedBytes, "");
-        }
-
-        static LegacyCleanupResult failed(String errorMessage) {
-            return new LegacyCleanupResult(false, 0, 0L, errorMessage);
-        }
-    }
 }

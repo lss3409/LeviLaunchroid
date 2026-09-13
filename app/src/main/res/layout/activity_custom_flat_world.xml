@@ -95,6 +95,33 @@
                     android:background="@drawable/bg_edit_text"
                     android:padding="8dp" />
 
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:background="@drawable/bg_spinner_outline"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="8dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:fontFamily="@font/misans"
+                        android:text="@string/hardcore_mode"
+                        android:textColor="@color/on_surface"
+                        android:textSize="14sp" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/hardcore_switch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:thumbTint="@color/primary"
+                        android:trackTint="#555555" />
+                </LinearLayout>
+
             </LinearLayout>
 
             <LinearLayout
@@ -132,6 +159,20 @@
                         android:paddingVertical="8dp"
                         android:text="@string/add_layer"
                         android:textColor="@color/on_primary"
+                        android:textSize="12sp" />
+
+                    <Button
+                        android:id="@+id/randomize_button"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:backgroundTint="@color/secondary"
+                        android:fontFamily="@font/misans"
+                        android:minHeight="0dp"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="8dp"
+                        android:text="@string/randomize_layers"
+                        android:textColor="@color/on_secondary"
                         android:textSize="12sp" />
 
                 </LinearLayout>
