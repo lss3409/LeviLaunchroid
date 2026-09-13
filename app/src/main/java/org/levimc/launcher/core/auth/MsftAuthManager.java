@@ -66,24 +66,39 @@ public final class MsftAuthManager {
     private MsftAuthManager() {
     }
 
+    /**
+     * 设备代码登录用的配置：redirect 与游戏 XAL 一致（minecraft 模块 strings.xml 的 xal_token）。
+     * MSA 的 refresh_token 绑定 redirect_uri，游戏刷新 token 时用 ms-xal-...://auth，
+     * 用这个 redirect 登录的账号 token 才能被游戏直接使用（启动后不弹引导窗口）。
+     * 设备码流程不走浏览器回调，不受自定义 scheme 影响，天然适用。
+     */
     public static MsaApplicationConfig getAppConfig() {
         return new MsaApplicationConfig(
                 DEFAULT_CLIENT_ID,
                 DEFAULT_SCOPE,
                 null,
-                // 必须与游戏 XAL 的 redirect_uri 一致（minecraft 模块 strings.xml 的 xal_token）：
-                // MSA 的 refresh_token 绑定 redirect_uri，游戏刷新 token 时用 ms-xal-...://auth，
-                // 若启动器用默认 oauth20_desktop.srf 登录，access_token 过期后游戏无法刷新
-                // （表现为启动器登录后进游戏「未登录/弹引导窗」）。
-                // 注意：网页登录对自定义 scheme 回调兼容性差，请使用「设备代码登录」
-                // （设备码流程不受 redirect 影响，且 token 与游戏一致）。
                 "ms-xal-0000000048183522://auth",
                 MsaEnvironment.LIVE
         );
     }
 
+    /**
+     * 网页（WebView）登录用的配置：redirect 用 MSA native client URL（https）。
+     * WebView 无法导航到自定义 scheme（ms-xal://），会卡在「获取 Minecraft 身份」，
+     * 所以网页登录必须用 https 回调；token 换 Minecraft 身份不受影响。
+     */
+    public static MsaApplicationConfig getWebAppConfig() {
+        return new MsaApplicationConfig(
+                DEFAULT_CLIENT_ID,
+                DEFAULT_SCOPE,
+                null,
+                MsaEnvironment.LIVE.getNativeClientUrl(),
+                MsaEnvironment.LIVE
+        );
+    }
+
     public static String buildAuthorizeUrl(String state) {
-        MsaApplicationConfig config = getAppConfig();
+        MsaApplicationConfig config = getWebAppConfig();
         return Uri.parse(config.getEnvironment().getAuthorizeUrl())
                 .buildUpon()
                 .appendQueryParameter("client_id", config.getClientId())
@@ -103,7 +118,7 @@ public final class MsftAuthManager {
             throw new IllegalArgumentException("Microsoft returned an empty authorization code.");
         }
         HttpClient httpClient = createHttpClient();
-        MsaApplicationConfig config = getAppConfig();
+        MsaApplicationConfig config = getWebAppConfig();
         MsaToken token = httpClient.executeAndHandle(new MsaAuthCodeTokenRequest(config, code));
         return BedrockAuthManager.create(httpClient, GAME_VERSION)
                 .msaApplicationConfig(config)

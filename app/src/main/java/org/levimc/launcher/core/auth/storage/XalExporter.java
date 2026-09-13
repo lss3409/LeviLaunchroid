@@ -250,6 +250,44 @@ public class XalExporter {
         // 实例备份/恢复能保留登录，靠的就是这些数字文件；
         // 启动器必须按同样的格式写入，游戏才会认为已登录。
         writeGameNativeFormat(root, authJson, msaUserId, tid, b64User, gamertag, xuid);
+        // 多账号一致性：清掉启动器注册列表中「非 active」账号的数字文件，
+        // 避免旧账号 Msa/User 残留在 xal 目录里与当前账号混淆。
+        cleanupOtherAccounts(ctx, root);
+    }
+
+    /**
+     * 删除 xal 目录中属于「启动器注册但非 active」账号的 Msa./User. 数字文件。
+     * 游戏内登录产生的账号（不在启动器注册列表中）不受影响。
+     */
+    public static void cleanupOtherAccounts(Context ctx, File root) {
+        try {
+            MsftAccountStore.MsftAccount active = null;
+            for (MsftAccountStore.MsftAccount acc : MsftAccountStore.list(ctx)) {
+                if (acc.active) { active = acc; break; }
+            }
+            File xalDir = new File(root, "xal");
+            if (!xalDir.isDirectory()) return;
+            File[] files = xalDir.listFiles((d, name) -> name != null && name.matches("\\d+"));
+            if (files == null) return;
+
+            for (MsftAccountStore.MsftAccount acc : MsftAccountStore.list(ctx)) {
+                if (acc.msUserId == null || acc.msUserId.isEmpty()) continue;
+                if (active != null && acc.msUserId.equals(active.msUserId)) continue;
+                String b64 = Base64.encodeToString(acc.msUserId.getBytes(StandardCharsets.UTF_8),
+                        Base64.URL_SAFE | Base64.NO_PADDING | Base64.NO_WRAP);
+                String msaHash = Long.toUnsignedString(fnv1_64("Xal.1739947436.Production.Msa." + b64));
+                String userHash = Long.toUnsignedString(fnv1_64("Xal.1739947436.Production.RETAIL.User." + b64));
+                for (File f : files) {
+                    if (f.getName().equals(msaHash) || f.getName().equals(userHash)) {
+                        //noinspection ResultOfMethodCallIgnored
+                        f.delete();
+                        Log.i(TAG, "Removed stale account file " + f.getName() + " (account " + acc.msUserId + ")");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to clean up other account files", e);
+        }
     }
 
     /** FNV-1 64 位哈希（游戏用它把 XAL key 变成数字文件名）。 */

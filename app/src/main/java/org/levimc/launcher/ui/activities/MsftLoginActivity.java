@@ -402,7 +402,7 @@ public class MsftLoginActivity extends BaseActivity {
             return false;
         }
         Uri current = Uri.parse(url);
-        Uri redirect = Uri.parse(MsftAuthManager.getAppConfig().getRedirectUri());
+        Uri redirect = Uri.parse(MsftAuthManager.getWebAppConfig().getRedirectUri());
         boolean matches = TextUtils.equals(current.getScheme(), redirect.getScheme())
                 && TextUtils.equals(current.getHost(), redirect.getHost())
                 && TextUtils.equals(current.getPath(), redirect.getPath());
