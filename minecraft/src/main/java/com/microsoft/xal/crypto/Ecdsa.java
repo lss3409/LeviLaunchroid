@@ -11,6 +11,7 @@ import org.jetbrains.annotations.Contract;
 import org.spongycastle.jce.provider.BouncyCastleProvider;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.security.*;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
@@ -43,10 +44,34 @@ public class Ecdsa {
             }
         } catch (Throwable ignored) {}
         String name = takeover ? "org.levimc.xal.crypto" : "com.microsoft.xal.crypto";
+        // 启动器导出会把密钥对 XML 直写到「版本 data/shared_prefs」（getDataDir 重定向路径），
+        // 进程内可能已缓存该文件的旧实例；先逐出缓存，确保读到磁盘最新内容。
+        evictPrefsCache(context, name);
+        SharedPreferences sp = context.getSharedPreferences(name, 0);
+        File f = new File(context.getDataDir(), "shared_prefs/" + name + ".xml");
         Log.i("Ecdsa", "getCryptoPrefs: takeover=" + takeover + " name=" + name
-                + " pkg=" + context.getPackageName() + " dataDir=" + context.getDataDir());
-        return context.getSharedPreferences(name, 0);
+                + " pkg=" + context.getPackageName() + " dataDir=" + context.getDataDir()
+                + " prefsFile=" + f.getAbsolutePath() + " exists=" + f.exists()
+                + " id=" + sp.getString("id", ""));
+        return sp;
    }
+
+    /** 逐出 SharedPreferences 进程内静态缓存，强制下次 getSharedPreferences 从磁盘重新加载。 */
+    private static void evictPrefsCache(Context context, String name) {
+        try {
+            File f = new File(context.getDataDir(), "shared_prefs/" + name + ".xml");
+            java.lang.reflect.Field field = Class.forName("android.app.ContextImpl").getDeclaredField("sSharedPrefsCache");
+            field.setAccessible(true);
+            Object cache = field.get(null);
+            if (cache != null) {
+                Object byPkg = cache.getClass().getMethod("get", Object.class)
+                        .invoke(cache, context.getPackageName());
+                if (byPkg != null) {
+                    byPkg.getClass().getMethod("remove", Object.class).invoke(byPkg, f);
+                }
+            }
+        } catch (Throwable ignored) {}
+    }
 
     @Nullable
     public static Ecdsa restoreKeyAndId(@NonNull Context context) throws ClassCastException, IllegalArgumentException, NoSuchProviderException, NoSuchAlgorithmException, InvalidKeySpecException {

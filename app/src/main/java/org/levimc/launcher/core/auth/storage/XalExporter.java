@@ -223,22 +223,36 @@ public class XalExporter {
                 String privB64 = kp.get("privateKey").getAsString();
                 String deviceId = authJson.has("deviceId") ? authJson.get("deviceId").getAsString() : "";
 
+                String pubNormalized;
+                String privNormalized;
+                try {
+                    byte[] pubBytes = android.util.Base64.decode(pubB64, android.util.Base64.DEFAULT);
+                    byte[] privBytes = android.util.Base64.decode(privB64, android.util.Base64.DEFAULT);
+                    pubNormalized = Base64.encodeToString(pubBytes, Base64.NO_WRAP | Base64.NO_PADDING | Base64.URL_SAFE);
+                    privNormalized = Base64.encodeToString(privBytes, Base64.NO_WRAP | Base64.NO_PADDING | Base64.URL_SAFE);
+                } catch (Exception e) {
+                    pubNormalized = pubB64;
+                    privNormalized = privB64;
+                }
+
                 for (String prefsName : new String[]{"com.microsoft.xal.crypto", "org.levimc.xal.crypto"}) {
                     try {
                         SharedPreferences.Editor edit = ctx.getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit();
                         edit.putString("id", "{" + deviceId + "}");
-                        try {
-                            byte[] pubBytes = android.util.Base64.decode(pubB64, android.util.Base64.DEFAULT);
-                            byte[] privBytes = android.util.Base64.decode(privB64, android.util.Base64.DEFAULT);
-                            edit.putString("public", Base64.encodeToString(pubBytes, Base64.NO_WRAP | Base64.NO_PADDING | Base64.URL_SAFE));
-                            edit.putString("private", Base64.encodeToString(privBytes, Base64.NO_WRAP | Base64.NO_PADDING | Base64.URL_SAFE));
-                        } catch (Exception e) {
-                            edit.putString("public", pubB64);
-                            edit.putString("private", privB64);
-                        }
+                        edit.putString("public", pubNormalized);
+                        edit.putString("private", privNormalized);
                         edit.apply();
+                        Log.i(TAG, "Wrote keypair to default prefs " + prefsName + " id=" + deviceId);
                     } catch (Exception e) {
                         Log.w(TAG, "Failed to write keypair prefs " + prefsName, e);
+                    }
+                    // 游戏 Ecdsa 经 MinecraftActivity 的重定向 dataDir 惰性定位 prefs 目录，
+                    // 可能读「版本 data/shared_prefs」而非启动器默认 dataDir；直接把 XML 直写到
+                    // 版本 data 目录，保证无论游戏走哪条路径都能命中预置密钥对。
+                    try {
+                        writeVersionDataPrefs(targetFilesDir, prefsName, deviceId, pubNormalized, privNormalized);
+                    } catch (Exception e) {
+                        Log.w(TAG, "Failed to write version data prefs " + prefsName, e);
                     }
                 }
             }
@@ -253,6 +267,32 @@ public class XalExporter {
         // 多账号一致性：清掉启动器注册列表中「非 active」账号的数字文件，
         // 避免旧账号 Msa/User 残留在 xal 目录里与当前账号混淆。
         cleanupOtherAccounts(ctx, root);
+    }
+
+    /**
+     * 把设备密钥对以 SharedPreferences XML 格式直写到「版本 data 目录」：
+     * <版本根>/data/shared_prefs/<name>.xml。
+     * 游戏 Ecdsa 通过 MinecraftActivity 重定向的 dataDir 惰性定位 prefs 路径，
+     * 启动器默认 dataDir 的写入可能落空；直写文件保证两条路径都命中。
+     * targetFilesDir = 版本 internal/files 目录，其父目录的 data 子目录即版本 data。
+     */
+    private static void writeVersionDataPrefs(File targetFilesDir, String name,
+                                              String deviceId, String pub, String priv) throws java.io.IOException {
+        if (targetFilesDir == null || targetFilesDir.getParentFile() == null) return;
+        File versionDataDir = new File(targetFilesDir.getParentFile(), "data");
+        File prefsDir = new File(versionDataDir, "shared_prefs");
+        if (!prefsDir.exists()) prefsDir.mkdirs();
+        File f = new File(prefsDir, name + ".xml");
+        String xml = "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n"
+                + "<map>\n"
+                + "    <string name=\"id\">{" + deviceId + "}</string>\n"
+                + "    <string name=\"public\">" + pub + "</string>\n"
+                + "    <string name=\"private\">" + priv + "</string>\n"
+                + "</map>\n";
+        try (java.io.FileOutputStream fos = new java.io.FileOutputStream(f)) {
+            fos.write(xml.getBytes(StandardCharsets.UTF_8));
+        }
+        Log.i(TAG, "Wrote version data prefs " + f.getAbsolutePath());
     }
 
     /**
