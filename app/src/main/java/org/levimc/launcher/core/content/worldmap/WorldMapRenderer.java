@@ -205,7 +205,7 @@ public class WorldMapRenderer {
             }
         }
 
-        // 4) 绘制
+        // 4) 绘制（照搬 BTR HeightmapRenderer 配色：smoothstep 高度渐变 + 邻接高度阴影）
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
         Paint paint = new Paint();
@@ -215,7 +215,13 @@ public class WorldMapRenderer {
         for (int bz = 0; bz < rows; bz++) {
             for (int bx = 0; bx < cols; bx++) {
                 int h = bucketHeight[bz * cols + bx];
-                paint.setColor(colorFor(h));
+                if (h == UNKNOWN_HEIGHT) {
+                    continue; // 未知保持底色
+                }
+                // 邻接高度（BTR：西/北方向的 chunk 高度用于坡度阴影）
+                int hW = bx > 0 ? bucketHeight[bz * cols + bx - 1] : h;
+                int hN = bz > 0 ? bucketHeight[(bz - 1) * cols + bx] : h;
+                paint.setColor(btrHeightColor(h, hW, hN));
                 canvas.drawRect(bx * pixelSize, bz * pixelSize,
                         (bx + 1) * pixelSize, (bz + 1) * pixelSize, paint);
             }
@@ -644,33 +650,50 @@ public class WorldMapRenderer {
         return blocks != null && blocks.getType() == NbtTag.TAG_LIST && !blocks.getList().isEmpty();
     }
 
-    // ---------------------------------------------------------------- 颜色映射
+    // ---------------------------------------------------------------- 颜色映射（BTR HeightmapRenderer 照搬）
 
     /**
-     * 高度 → 颜色映射（R.color 资源，浅色/深色模式共用同一调色板）：
-     * &lt;62 深水蓝 · 62-70 浅水/沙滩黄 · 70-85 草绿 · 85-100 深绿 ·
-     * 100-130 岩石灰 · &gt;130 雪白 · 未知 中灰。
+     * BTR HeightmapRenderer 配色：smoothstep 高度渐变（低=蓝、高=红白）+ 坡度阴影。
+     * 公式照搬 BTR 源码（HeightmapRenderer.renderToBitmap / SatelliteRenderer.getHeightShading）。
      */
+    private static int btrHeightColor(int height, int heightW, int heightN) {
+        float yNorm = height / 256f;
+        float yNorm2 = yNorm * yNorm;
+        // smooth step: 6x^5 - 15x^4 + 10x^3
+        yNorm = ((6f * yNorm2) - (15f * yNorm) + 10f) * yNorm2 * yNorm;
+
+        float shading = btrHeightShading(height, heightW, heightN);
+
+        int r = (int) (yNorm * shading * 256f);
+        int g = (int) (70f * shading);
+        int b = (int) (256f * (1f - yNorm) / (yNorm + 1f));
+
+        r = r < 0 ? 0 : Math.min(r, 255);
+        g = g < 0 ? 0 : Math.min(g, 255);
+        b = b < 0 ? 0 : Math.min(b, 255);
+        return 0xff000000 | (r << 16) | (g << 8) | b;
+    }
+
+    /** BTR SatelliteRenderer.getHeightShading：坡度阴影（atan 压缩高度差）。 */
+    private static float btrHeightShading(int height, int heightW, int heightN) {
+        float shadingAmp = 0.8f;
+        int samples = 0;
+        float heightDiff = 0;
+        if (heightW > 0) {
+            heightDiff += height - heightW;
+            samples++;
+        }
+        if (heightN > 0) {
+            heightDiff += height - heightN;
+            samples++;
+        }
+        heightDiff *= Math.pow(1.05f, samples);
+        return (float) ((Math.atan(heightDiff) / Math.PI) * shadingAmp) + 1f;
+    }
+
+    /** 未知高度底色。 */
     private static int colorFor(int height) {
-        if (height == UNKNOWN_HEIGHT) {
-            return getColor(R.color.world_map_unknown);
-        }
-        if (height < 62) {
-            return getColor(R.color.world_map_water_deep);
-        }
-        if (height < 70) {
-            return getColor(R.color.world_map_sand);
-        }
-        if (height < 85) {
-            return getColor(R.color.world_map_grass);
-        }
-        if (height < 100) {
-            return getColor(R.color.world_map_forest);
-        }
-        if (height < 130) {
-            return getColor(R.color.world_map_rock);
-        }
-        return getColor(R.color.world_map_snow);
+        return getColor(R.color.world_map_unknown);
     }
 
     private static int getColor(int resId) {
