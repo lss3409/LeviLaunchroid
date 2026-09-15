@@ -302,9 +302,24 @@ public class WorldMapRenderer {
             if (p + dataBytes + 4 > value.length) {
                 return UNKNOWN_HEIGHT;
             }
-            // 16 个 y 层，每层 256 值 = 32×bits 字节；从最高层往下找非空。
-            // palette 索引 0 通常为空气（全 0 位），字节级非零即存在方块；
-            // 即便索引 0 非空气，也只是把该层误判为非空，高度误差一层以内。
+            int paletteStart = p + dataBytes;
+            if (paletteStart + 4 > value.length) {
+                return UNKNOWN_HEIGHT;
+            }
+            int paletteSize = (value[paletteStart] & 0xFF) | ((value[paletteStart + 1] & 0xFF) << 8)
+                    | ((value[paletteStart + 2] & 0xFF) << 16) | ((value[paletteStart + 3] & 0xFF) << 24);
+            if (paletteSize < 0 || paletteSize > 65536) {
+                return UNKNOWN_HEIGHT;
+            }
+            int paletteEntriesStart = paletteStart + 4;
+            // palette 索引 0 是否是空气：决定全 0 字节层的语义。
+            // 索引 0 为空气 → 非零字节 = 有方块；否则（罕见）该存储无法可靠提取。
+            boolean zeroIsAir = paletteSize == 0
+                    || firstPaletteEntryIsAir(value, paletteEntriesStart, paletteSize);
+            if (!zeroIsAir) {
+                return UNKNOWN_HEIGHT;
+            }
+            // 16 个 y 层，每层 256 值 = 32×bits 字节；从最高层往下找非空
             int layerBytes = 32 * bits;
             for (int y = 15; y >= 0; y--) {
                 int layerStart = p + y * layerBytes;
@@ -315,14 +330,8 @@ public class WorldMapRenderer {
                 }
             }
             // 跳到下一个 storage：数据区 + palette 数（int32）+ palette NBT
-            p += dataBytes;
+            p = paletteEntriesStart;
             if (p + 4 > value.length) {
-                return UNKNOWN_HEIGHT;
-            }
-            int paletteSize = (value[p] & 0xFF) | ((value[p + 1] & 0xFF) << 8)
-                    | ((value[p + 2] & 0xFF) << 16) | ((value[p + 3] & 0xFF) << 24);
-            p += 4;
-            if (paletteSize < 0 || paletteSize > 65536) {
                 return UNKNOWN_HEIGHT;
             }
             // 跳过 palette NBT（每个条目至少 3 字节：类型+名长 2B）
@@ -344,6 +353,28 @@ public class WorldMapRenderer {
             }
         }
         return UNKNOWN_HEIGHT;
+    }
+
+    /** palette 第一个条目是否空气（扫描条目头 128 字节内的 "air" 字样）。 */
+    private static boolean firstPaletteEntryIsAir(byte[] value, int p, int paletteSize) {
+        try {
+            if (p + 3 > value.length) {
+                return false;
+            }
+            // 条目 = [类型][名长 2B][名][payload]，只看前 128 字节窗口
+            int type = value[p] & 0xFF;
+            int nameLen = (value[p + 1] & 0xFF) | ((value[p + 2] & 0xFF) << 8);
+            int start = p + 3 + nameLen;
+            int end = Math.min(value.length, start + 128);
+            for (int i = start; i + 2 < end; i++) {
+                if (value[i] == 'a' && value[i + 1] == 'i' && value[i + 2] == 'r') {
+                    return true;
+                }
+            }
+            return type != 10; // 非 Compound 条目无法判断，按非空气保守处理
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     /** 粗略跳过 NBT payload（网络 LE 格式，无名字），返回新偏移；失败返回 -1。 */
@@ -401,8 +432,8 @@ public class WorldMapRenderer {
 
     /**
      * Data2D 高度提取：value = int16[256] 高度图（小端）+ byte[256] biome。
-     * 高度全 0 表示该 chunk 高度图未生成，返回未知（不做 biome 近似，
-     * 否则大量未生成 chunk 会被错误染成绿色）。
+     * 与 BTR 一致：高度全 0 的 chunk 视为海平面以下（渲染为深水蓝），
+     * 而不是未知——这样已生成的大片海洋区域能正常显示，不会变成空白。
      */
     private static int extractData2dHeight(byte[] value) {
         if (value == null || value.length < 512) {
@@ -414,7 +445,7 @@ public class WorldMapRenderer {
             if (h > 512) h = h & 0xFF; // 大端脏数据（>512）取低字节
             if (h > maxH) maxH = h;
         }
-        return maxH > 0 ? maxH : UNKNOWN_HEIGHT;
+        return maxH; // 全 0 = 海平面以下（水色），与 BTR 行为一致
     }
 
     private static int readIntLE(byte[] data, int pos) {

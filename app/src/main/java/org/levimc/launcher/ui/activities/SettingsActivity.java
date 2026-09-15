@@ -946,6 +946,7 @@ public class SettingsActivity extends BaseActivity {
             });
         }
         if (resetButton != null) {
+            // 背景 primary + on_primary 文字，applyAccentColorRecursive 自动套用个性化颜色
             resetButton.setOnClickListener(v -> {
                 personalizationManager.setUiScale(PersonalizationManager.UI_SCALE_DEFAULT);
                 personalizationManager.setFontScale(PersonalizationManager.FONT_SCALE_DEFAULT);

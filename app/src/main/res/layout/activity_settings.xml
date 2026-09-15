@@ -801,17 +801,18 @@
                             <Button
                                 android:id="@+id/btn_reset_ui_scale"
                                 android:layout_width="wrap_content"
-                                android:layout_height="30dp"
+                                android:layout_height="32dp"
                                 android:layout_marginStart="8dp"
                                 android:minWidth="0dp"
                                 android:minHeight="0dp"
-                                android:paddingHorizontal="12dp"
+                                android:paddingHorizontal="14dp"
                                 android:insetTop="0dp"
                                 android:insetBottom="0dp"
-                                android:background="@drawable/bg_remove_button"
+                                android:backgroundTint="@color/primary"
                                 android:fontFamily="@font/misans"
                                 android:text="@string/ui_scale_reset"
-                                android:textColor="@color/on_surface"
+                                android:textAllCaps="false"
+                                android:textColor="@color/on_primary"
                                 android:textSize="11sp" />
                         </LinearLayout>
 
@@ -823,6 +824,7 @@
                             android:max="110"
                             android:progress="30"
                             android:progressTint="@color/primary"
+                            android:saveEnabled="false"
                             android:thumbTint="@color/primary" />
 
                         <TextView
