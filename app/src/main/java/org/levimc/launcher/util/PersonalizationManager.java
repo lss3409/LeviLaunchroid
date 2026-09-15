@@ -41,12 +41,23 @@ public class PersonalizationManager {
     private static final String KEY_BG_IMAGE_PATH = "bg_image_path";
     private static final String KEY_BG_IMAGE_BLUR = "bg_image_blur";
     private static final String KEY_BG_IMAGE_BRIGHTNESS = "bg_image_brightness";
+    private static final String KEY_UI_SCALE = "ui_scale";
+    private static final String KEY_FONT_SCALE = "font_scale";
 
     public static final int BG_BLUR_MIN = 0;
     public static final int BG_BLUR_MAX = 25;
     public static final int BG_BRIGHTNESS_MIN = 1;
     public static final int BG_BRIGHTNESS_MAX = 150;
     public static final int BG_BRIGHTNESS_DEFAULT = 100;
+
+    /** UI 整体大小倍率范围（density 缩放，按钮等控件一起变）。 */
+    public static final float UI_SCALE_MIN = 0.85f;
+    public static final float UI_SCALE_MAX = 1.4f;
+    public static final float UI_SCALE_DEFAULT = 1.0f;
+    /** 字体大小倍率范围（仅文字）。 */
+    public static final float FONT_SCALE_MIN = 0.85f;
+    public static final float FONT_SCALE_MAX = 1.4f;
+    public static final float FONT_SCALE_DEFAULT = 1.0f;
 
     private static int sChangeGeneration = 0;
 
@@ -180,6 +191,32 @@ public class PersonalizationManager {
 
     public static int getChangeGeneration() {
         return sChangeGeneration;
+    }
+
+    /** UI 整体大小倍率（0.85-1.4，默认 1.0）。重启启动器后生效。 */
+    public float getUiScale() {
+        return clamp(prefs.getFloat(KEY_UI_SCALE, UI_SCALE_DEFAULT), UI_SCALE_MIN, UI_SCALE_MAX);
+    }
+
+    public void setUiScale(float scale) {
+        float clamped = clamp(scale, UI_SCALE_MIN, UI_SCALE_MAX);
+        prefs.edit().putFloat(KEY_UI_SCALE, clamped).apply();
+        sChangeGeneration++;
+    }
+
+    /** 字体大小倍率（0.85-1.4，默认 1.0）。重启启动器后生效。 */
+    public float getFontScale() {
+        return clamp(prefs.getFloat(KEY_FONT_SCALE, FONT_SCALE_DEFAULT), FONT_SCALE_MIN, FONT_SCALE_MAX);
+    }
+
+    public void setFontScale(float scale) {
+        float clamped = clamp(scale, FONT_SCALE_MIN, FONT_SCALE_MAX);
+        prefs.edit().putFloat(KEY_FONT_SCALE, clamped).apply();
+        sChangeGeneration++;
+    }
+
+    private float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     public void applyToActivity(Activity activity) {

@@ -15,6 +15,7 @@ import android.os.Bundle;
 import android.util.Pair;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.DisplayCutout;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
@@ -91,9 +92,72 @@ public class BaseActivity extends AppCompatActivity {
         navAccountLoginLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> handleNavAccountLoginResult(result.getResultCode(), result.getData()));
+        applyCutoutMode();
         hideSystemUI();
         getWindow().getDecorView().setOnSystemUiVisibilityChangeListener(
                 visibility -> getWindow().getDecorView().post(this::hideSystemUI));
+    }
+
+    /** 异形屏适配：内容允许延伸进 cutout 区域，避免系统强制留黑边/白边。 */
+    private void applyCutoutMode() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            WindowManager.LayoutParams lp = getWindow().getAttributes();
+            lp.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            getWindow().setAttributes(lp);
+        }
+    }
+
+    /** 给内容根视图加 cutout/圆角安全边距（挖孔与圆角屏不被内容遮挡）。 */
+    private void applySafeInsets(View root) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            return;
+        }
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            int left = 0, top = 0, right = 0, bottom = 0;
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    android.graphics.Insets cutout =
+                            insets.getInsets(WindowInsets.Type.displayCutout());
+                    left = Math.max(left, cutout.left);
+                    top = Math.max(top, cutout.top);
+                    right = Math.max(right, cutout.right);
+                    bottom = Math.max(bottom, cutout.bottom);
+                    // 圆角屏安全区（四个角）
+                    try {
+                        for (int pos : new int[]{
+                                android.view.RoundedCorner.POSITION_TOP_LEFT,
+                                android.view.RoundedCorner.POSITION_TOP_RIGHT,
+                                android.view.RoundedCorner.POSITION_BOTTOM_LEFT,
+                                android.view.RoundedCorner.POSITION_BOTTOM_RIGHT}) {
+                            android.view.RoundedCorner corner = insets.getRoundedCorner(pos);
+                            if (corner != null && corner.getRadius() > 0) {
+                                int r = corner.getRadius();
+                                if (pos == android.view.RoundedCorner.POSITION_TOP_LEFT
+                                        || pos == android.view.RoundedCorner.POSITION_BOTTOM_LEFT) {
+                                    left = Math.max(left, r / 2);
+                                } else {
+                                    right = Math.max(right, r / 2);
+                                }
+                            }
+                        }
+                    } catch (Throwable ignored) {
+                    }
+                } else {
+                    DisplayCutout cutout = insets.getDisplayCutout();
+                    if (cutout != null) {
+                        left = Math.max(left, cutout.getSafeInsetLeft());
+                        top = Math.max(top, cutout.getSafeInsetTop());
+                        right = Math.max(right, cutout.getSafeInsetRight());
+                        bottom = Math.max(bottom, cutout.getSafeInsetBottom());
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
+            v.setPadding(left, top, right, bottom);
+            return insets;
+        });
+        root.requestApplyInsets();
     }
 
     @Override
@@ -114,6 +178,7 @@ public class BaseActivity extends AppCompatActivity {
 
     private void wrapWithNavBar(View contentView) {
         if (shouldSkipNavBar()) {
+            applySafeInsets(contentView);
             super.setContentView(contentView);
             applyPersonalization();
             return;
@@ -133,6 +198,7 @@ public class BaseActivity extends AppCompatActivity {
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
         contentView.setLayoutParams(contentParams);
         wrapper.addView(contentView);
+        applySafeInsets(wrapper);
 
         contentView.setAlpha(0f);
         contentView.setTranslationY(8f * getResources().getDisplayMetrics().density);

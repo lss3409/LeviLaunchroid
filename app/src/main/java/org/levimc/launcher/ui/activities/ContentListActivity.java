@@ -666,29 +666,8 @@ public class ContentListActivity extends BaseActivity {
     }
 
     private void backupWorld(WorldItem world) {
-        // 极限存档：备份到 Hardcore backups/<版本号>/<世界_seed>/ 专属路径
-        if (world.isHardcore()) {
-            showProgressDialog(getString(R.string.backing_up_world));
-            new Thread(() -> {
-                try {
-                    String path = new org.levimc.launcher.util.HardcoreBackupManager(this).backupWorld(world);
-                    runOnUiThread(() -> {
-                        hideProgressDialog();
-                        Toast.makeText(this, getString(R.string.instance_backup_success_message, path),
-                                Toast.LENGTH_LONG).show();
-                    });
-                } catch (Exception e) {
-                    runOnUiThread(() -> {
-                        hideProgressDialog();
-                        Toast.makeText(this, getString(R.string.instance_backup_failed_message, e.getMessage()),
-                                Toast.LENGTH_LONG).show();
-                    });
-                }
-            }, "hardcore-backup").start();
-            return;
-        }
-
-        // 普通存档：备份为 .mcworld 存到 Download/LeviLauncher/Backups/minecraftWorlds backups/
+        // 手动备份统一走普通路径（.mcworld 存到 Download/LeviLauncher/Backups/minecraftWorlds backups/）；
+        // 极限存档专属 Hardcore backups 文件夹只在定时备份时使用。
         showProgressDialog(getString(R.string.backing_up_world));
         contentManager.backupWorld(world, new WorldManager.WorldOperationCallback() {
             @Override

@@ -1179,6 +1179,10 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="bg_image_blur_value">%1$dpx</string>
     <string name="bg_image_brightness">Brightness</string>
     <string name="bg_image_brightness_value">%1$d%%</string>
+    <string name="ui_scale_label">UI scale (buttons, cards, etc.)</string>
+    <string name="font_scale_label">Font size</string>
+    <string name="ui_scale_percent">%1$d%%</string>
+    <string name="ui_scale_restart_hint">Restart the launcher to apply (does not affect in-game UI).</string>
     <string name="select_image">Select Image</string>
     <string name="clear">Clear</string>
 

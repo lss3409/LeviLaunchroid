@@ -832,6 +832,7 @@ public class SettingsActivity extends BaseActivity {
         if (btnSelectImage == null) return;
 
         setupBackgroundImageControls();
+        setupUiScaleControls();
         updateBgImageUI();
 
         btnSelectImage.setOnClickListener(v -> {
@@ -893,6 +894,70 @@ public class SettingsActivity extends BaseActivity {
                     if (!fromUser) return;
                     personalizationManager.setBackgroundImageBrightness(progress);
                     refreshBackgroundImageColorEffects();
+                }
+
+                @Override
+                public void onStartTrackingTouch(SeekBar seekBar) {
+                }
+
+                @Override
+                public void onStopTrackingTouch(SeekBar seekBar) {
+                }
+            });
+        }
+    }
+
+    private void setupUiScaleControls() {
+        SeekBar uiScaleSeek = findViewById(R.id.seek_ui_scale);
+        SeekBar fontScaleSeek = findViewById(R.id.seek_font_scale);
+        TextView uiScaleValue = findViewById(R.id.ui_scale_value);
+        TextView fontScaleValue = findViewById(R.id.font_scale_value);
+
+        // progress 0..110 → 0.85x..1.4x（30 = 1.0x）
+        final float span = PersonalizationManager.UI_SCALE_MAX - PersonalizationManager.UI_SCALE_MIN;
+        if (uiScaleSeek != null) {
+            uiScaleSeek.setMax(110);
+            float cur = personalizationManager.getUiScale();
+            uiScaleSeek.setProgress(Math.round((cur - PersonalizationManager.UI_SCALE_MIN) / span * 110f));
+            if (uiScaleValue != null) {
+                uiScaleValue.setText(getString(R.string.ui_scale_percent, Math.round(cur * 100)));
+            }
+            uiScaleSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                @Override
+                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                    float scale = PersonalizationManager.UI_SCALE_MIN + span * progress / 110f;
+                    if (uiScaleValue != null) {
+                        uiScaleValue.setText(getString(R.string.ui_scale_percent, Math.round(scale * 100)));
+                    }
+                    if (!fromUser) return;
+                    personalizationManager.setUiScale(scale);
+                }
+
+                @Override
+                public void onStartTrackingTouch(SeekBar seekBar) {
+                }
+
+                @Override
+                public void onStopTrackingTouch(SeekBar seekBar) {
+                }
+            });
+        }
+        if (fontScaleSeek != null) {
+            fontScaleSeek.setMax(110);
+            float cur = personalizationManager.getFontScale();
+            fontScaleSeek.setProgress(Math.round((cur - PersonalizationManager.FONT_SCALE_MIN) / span * 110f));
+            if (fontScaleValue != null) {
+                fontScaleValue.setText(getString(R.string.ui_scale_percent, Math.round(cur * 100)));
+            }
+            fontScaleSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                @Override
+                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                    float scale = PersonalizationManager.FONT_SCALE_MIN + span * progress / 110f;
+                    if (fontScaleValue != null) {
+                        fontScaleValue.setText(getString(R.string.ui_scale_percent, Math.round(scale * 100)));
+                    }
+                    if (!fromUser) return;
+                    personalizationManager.setFontScale(scale);
                 }
 
                 @Override

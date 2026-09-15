@@ -1167,6 +1167,10 @@
     <string name="bg_image_blur_value">%1$dpx</string>
     <string name="bg_image_brightness">亮度</string>
     <string name="bg_image_brightness_value">%1$d%%</string>
+    <string name="ui_scale_label">UI 大小（按钮、卡片等整体缩放）</string>
+    <string name="font_scale_label">字体大小</string>
+    <string name="ui_scale_percent">%1$d%%</string>
+    <string name="ui_scale_restart_hint">调整后重启启动器生效（不影响游戏内界面）。</string>
     <string name="select_image">选择图片</string>
     <string name="clear">清除</string>
 
