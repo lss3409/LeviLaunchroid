@@ -194,7 +194,8 @@ public class LevelDBReader {
 
     /**
      * 逐字节扫描 op 流（MCPE 日志部分 batch 头与官方不一致时回退）。
-     * 只接受 Put（type=1）：klen 合理 + key 合法 + vlen 合理 + value 头像 NBT/zlib。
+     * 只接受 Put（type=1）：klen 合理 + key 合法 + vlen 合理 + value 头像 NBT/zlib，
+     * 且 value 尾必须是记录尾 / 下个合法 op / 下个 batch 头（lookahead 防压缩流误报）。
      */
     private void scanOpsInBatch(byte[] data) {
         int pos = 0;
@@ -223,8 +224,14 @@ public class LevelDBReader {
                 pos++;
                 continue;
             }
+            int valEnd = valStart + valLen;
+            // lookahead：value 尾必须是记录尾 / 下个合法 op / 下个 batch 头
+            if (!looksLikeOpOrBatchHead(data, valEnd)) {
+                pos++;
+                continue;
+            }
             if (valLen > 0) {
-                byte[] value = Arrays.copyOfRange(data, valStart, valStart + valLen);
+                byte[] value = Arrays.copyOfRange(data, valStart, valEnd);
                 if (!looksLikeValue(value)) {
                     pos++;
                     continue;
@@ -232,8 +239,35 @@ public class LevelDBReader {
                 allData.put(new ByteArrayWrapper(key), value);
                 logStructureIfFound(key, value, "log-scan");
             }
-            pos = valStart + valLen;
+            pos = valEnd;
         }
+    }
+
+    /** value 尾后必须是合法结构：记录尾 / 下个合法 op 起点 / 下个 batch 头（seq+count）。 */
+    private boolean looksLikeOpOrBatchHead(byte[] data, int p) {
+        if (p >= data.length) {
+            return true;
+        }
+        if (p + 12 <= data.length) {
+            int count = readInt32LE(data, p + 8);
+            if (count >= 1 && count <= 50) {
+                return true; // 下个 batch 头
+            }
+        }
+        if (p + 2 <= data.length) {
+            int t = data[p] & 0xFF;
+            if (t != 0 && t != 1) {
+                return false;
+            }
+            int[] k = readVarInt(data, p + 1);
+            int klen = k[0];
+            if (klen < 1 || klen > 10000 || k[1] + klen > data.length) {
+                return false;
+            }
+            byte[] key = Arrays.copyOfRange(data, k[1], k[1] + klen);
+            return looksLikeKey(key);
+        }
+        return false;
     }
 
     /** key 合理性：9/10/13/14 字节 chunk 类 key，或可打印字符串 key，或 actorprefix/digp 复合 key。 */

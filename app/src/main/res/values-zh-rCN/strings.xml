@@ -560,7 +560,6 @@
     <string name="nbt_edit_difficulty">难度</string>
     <string name="nbt_edit_seed">种子</string>
     <string name="nbt_edit_hardcore">极限模式</string>
-    <string name="nbt_edit_player_died">已死亡（关掉可“复活”）</string>
     <string name="nbt_edit_save">保存</string>
     <string name="nbt_edit_cancel">取消</string>
     <string name="nbt_edit_saved">已保存（原文件备份为 level.dat.bak）</string>

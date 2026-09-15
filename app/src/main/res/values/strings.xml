@@ -595,7 +595,6 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="nbt_edit_difficulty">Difficulty</string>
     <string name="nbt_edit_seed">Seed</string>
     <string name="nbt_edit_hardcore">Hardcore</string>
-    <string name="nbt_edit_player_died">Player dead (turn off to revive)</string>
     <string name="nbt_edit_save">Save</string>
     <string name="nbt_edit_cancel">Cancel</string>
     <string name="nbt_edit_saved">Saved (original backed up as level.dat.bak)</string>

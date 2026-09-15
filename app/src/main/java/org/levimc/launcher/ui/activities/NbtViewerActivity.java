@@ -361,13 +361,6 @@ public class NbtViewerActivity extends BaseActivity {
         hardcoreSwitch.setChecked(hcTag != null && hcTag.getByte() != 0);
         panel.addView(hardcoreSwitch);
 
-        // 死亡标记开关
-        Switch diedSwitch = new Switch(this);
-        diedSwitch.setText(R.string.nbt_edit_player_died);
-        NbtTag diedTag = root.get("PlayerHasDied");
-        diedSwitch.setChecked(diedTag != null && diedTag.getByte() != 0);
-        panel.addView(diedSwitch);
-
         ScrollView scroll = new ScrollView(this);
         scroll.addView(panel);
 
@@ -390,7 +383,7 @@ public class NbtViewerActivity extends BaseActivity {
                 }
                 applyLevelDatEdits(root, newName, gamemodeSpinner.getSelectedItemPosition(),
                         difficultySpinner.getSelectedItemPosition(), hardcoreSwitch.isChecked(),
-                        diedSwitch.isChecked(), newSeed);
+                        newSeed);
                 dialog.dismiss();
             });
         });
@@ -411,8 +404,7 @@ public class NbtViewerActivity extends BaseActivity {
 
     /** 修改 NBT 树并写回 level.dat（写前备份为 level.dat.bak）。 */
     private void applyLevelDatEdits(Map<String, NbtTag> root, String newName, int gameType,
-                                    int difficulty, boolean hardcore, boolean playerDied,
-                                    long seed) {
+                                    int difficulty, boolean hardcore, long seed) {
         File levelDat = new File(currentWorldDir, "level.dat");
         try {
             // 备份当前文件（游戏只保留 level.dat_old，这里额外留一份启动器备份）
@@ -426,8 +418,6 @@ public class NbtViewerActivity extends BaseActivity {
             root.put("Difficulty", new NbtTag(NbtTag.TAG_INT, "Difficulty", difficulty));
             root.put("IsHardcore", new NbtTag(NbtTag.TAG_BYTE, "IsHardcore",
                     (byte) (hardcore ? 1 : 0)));
-            root.put("PlayerHasDied", new NbtTag(NbtTag.TAG_BYTE, "PlayerHasDied",
-                    (byte) (playerDied ? 1 : 0)));
             root.put("RandomSeed", new NbtTag(NbtTag.TAG_LONG, "RandomSeed", seed));
 
             BedrockNbtWriter writer = new BedrockNbtWriter();
@@ -443,7 +433,9 @@ public class NbtViewerActivity extends BaseActivity {
             info.append(getString(R.string.nbt_summary_seed, seed)).append('\n');
             info.append(getString(R.string.nbt_summary_gamemode, gamemodeName(gameType))).append('\n');
             info.append(getString(R.string.nbt_summary_hardcore, yesNo(hardcore))).append('\n');
-            info.append(getString(R.string.nbt_summary_dead, yesNo(playerDied)));
+            info.append(getString(R.string.nbt_summary_dead, yesNo(levelDatRoot != null
+                    && levelDatRoot.getTag("PlayerHasDied") != null
+                    && levelDatRoot.getTag("PlayerHasDied").getByte() != 0)));
             binding.nbtSummaryInfo.setText(info.toString());
             binding.nbtLevelTree.removeAllViews();
             addTreeRoot(binding.nbtLevelTree, levelDatRoot, getString(R.string.nbt_level_dat));

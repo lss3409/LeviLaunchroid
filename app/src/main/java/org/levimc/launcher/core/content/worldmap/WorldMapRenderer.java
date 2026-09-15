@@ -46,6 +46,8 @@ public class WorldMapRenderer {
     /** 1.18+ chunk key 类型：ChunkVersion（0x2F）与 ChunkData（0x30） */
     private static final int KEY_TYPE_LEGACY_MIXED = 0x2F;
     private static final int KEY_TYPE_CHUNK_DATA = 0x30;
+    /** Data2D：高度图（int16[256]）+ biome（byte[256]） */
+    private static final int KEY_TYPE_DATA_2D = 0x2D;
 
     /** 主世界维度 id */
     private static final int DIM_OVERWORLD = 0;
@@ -116,7 +118,8 @@ public class WorldMapRenderer {
         int failedChunks = 0;
 
         for (LevelDBEntry entry : entries) {
-            int[] chunkKey = parseChunkKey(entry.getKey().getRawKey());
+            byte[] rawKey = entry.getKey().getRawKey();
+            int[] chunkKey = parseChunkKey(rawKey);
             if (chunkKey == null || chunkKey[2] != DIM_OVERWORLD) {
                 continue;
             }
@@ -124,11 +127,28 @@ public class WorldMapRenderer {
             int z = chunkKey[1];
             scannedChunks++;
             try {
-                int height = extractChunkHeight(parseChunkNbt(entry.getValue()));
+                int height = UNKNOWN_HEIGHT;
+                if (isData2dKey(rawKey)) {
+                    // 0x2d Data2D：直接是高度图（int16[256] + biome[256]）
+                    height = extractData2dHeight(entry.getValue());
+                } else if (isSubchunkKey(rawKey)) {
+                    // 0x2f subchunk：8-bit 方块存储找最高非空层
+                    height = extractSubchunkHeight(entry.getValue(), chunkKey[3]);
+                } else {
+                    height = extractChunkHeight(parseChunkNbt(entry.getValue()));
+                }
                 if (height != UNKNOWN_HEIGHT) {
                     parsedChunks++;
+                    // 同一 chunk 多个 subchunk 条目：取最高
+                    long key = pack(x, z);
+                    Integer old = heights.get(key);
+                    if (old == null || height > old) {
+                        heights.put(key, height);
+                    }
+                } else {
+                    // 高度未知也记录坐标（用于范围计算），但不覆盖已知高度
+                    heights.putIfAbsent(pack(x, z), UNKNOWN_HEIGHT);
                 }
-                heights.put(pack(x, z), height);
                 minX = Math.min(minX, x);
                 maxX = Math.max(maxX, x);
                 minZ = Math.min(minZ, z);
@@ -214,8 +234,10 @@ public class WorldMapRenderer {
     // ---------------------------------------------------------------- key 解析
 
     /**
-     * 解析 chunk key，返回 {x, z, dimension}；非 chunk key 返回 null。
-     * 9/10 字节（旧格式，无维度段）一律视为 chunk 且维度=主世界；
+     * 解析 chunk key，返回 {x, z, dimension, subIndex}；非 chunk key 返回 null。
+     * 9/10 字节（旧格式，无维度段）：类型字节必须是 chunk 数据类
+     * （0x2C 版本 / 0x2D Data2D / 0x2E 旧 Data2D / 0x2F subchunk / 0x30 旧地形），
+     * 0x31+ 是方块实体/实体数据，不算 chunk；
      * 13/14 字节（1.18+）要求类型字节为 0x2F 或 0x30。
      */
     private static int[] parseChunkKey(byte[] rawKey) {
@@ -224,16 +246,196 @@ public class WorldMapRenderer {
         }
         int len = rawKey.length;
         if (len == 9 || len == 10) {
+            int type = rawKey[8] & 0xFF;
+            if (type < 0x2C || type > 0x30) {
+                return null; // 实体/方块实体等非 chunk 数据
+            }
             // 旧格式：无维度段，默认主世界
-            return new int[]{readIntLE(rawKey, 0), readIntLE(rawKey, 4), DIM_OVERWORLD};
+            int sub = len == 10 ? rawKey[9] : -1;
+            return new int[]{readIntLE(rawKey, 0), readIntLE(rawKey, 4), DIM_OVERWORLD, sub};
         }
         if (len == 13 || len == 14) {
             int type = rawKey[12] & 0xFF;
             if (type == KEY_TYPE_LEGACY_MIXED || type == KEY_TYPE_CHUNK_DATA) {
-                return new int[]{readIntLE(rawKey, 0), readIntLE(rawKey, 4), readIntLE(rawKey, 8)};
+                int sub = len == 14 ? rawKey[13] : -1;
+                return new int[]{readIntLE(rawKey, 0), readIntLE(rawKey, 4), readIntLE(rawKey, 8), sub};
             }
         }
         return null;
+    }
+
+    /** 9 字节且类型 0x2D 的 Data2D key（高度图）。 */
+    private static boolean isData2dKey(byte[] rawKey) {
+        return rawKey != null && rawKey.length == 9
+                && (rawKey[8] & 0xFF) == KEY_TYPE_DATA_2D;
+    }
+
+    /** 9/10 字节且类型 0x2F 的 subchunk key。 */
+    private static boolean isSubchunkKey(byte[] rawKey) {
+        if (rawKey == null || (rawKey.length != 9 && rawKey.length != 10)) {
+            return false;
+        }
+        return (rawKey[8] & 0xFF) == KEY_TYPE_LEGACY_MIXED;
+    }
+
+    /**
+     * 1.18+ subchunk 方块存储高度：value = [版本 9][storage 数][sub 索引][storage...]。
+     * storage 布局（BTR 同款）：[bits 头 1B][数据区 512×bits 字节][palette 数 int32][palette NBT...]。
+     * 数据索引 = x + (z<<4) + (y<<8)，y 层连续；从最高 y 层往下找第一个非空层
+     * （字节级非零检查，不做逐值解包）。
+     */
+    private static int extractSubchunkHeight(byte[] value, int subIndex) {
+        if (value == null || value.length < 5 || subIndex < 0) {
+            return UNKNOWN_HEIGHT;
+        }
+        int p = 3; // 跳过版本 + storage 数 + sub 索引
+        int count = value[1] & 0xFF;
+        if (count < 1 || count > 2) {
+            return UNKNOWN_HEIGHT;
+        }
+        for (int s = 0; s < count && p + 2 <= value.length; s++) {
+            int header = value[p++] & 0xFF;
+            int bits = header >> 1;
+            if (bits < 1 || bits > 16) {
+                return UNKNOWN_HEIGHT;
+            }
+            int dataBytes = 512 * bits; // 4096 值 × bits / 8
+            if (p + dataBytes + 4 > value.length) {
+                return UNKNOWN_HEIGHT;
+            }
+            // 16 个 y 层，每层 256 值 = 32×bits 字节；从最高层往下找非空
+            int layerBytes = 32 * bits;
+            for (int y = 15; y >= 0; y--) {
+                int layerStart = p + y * layerBytes;
+                for (int i = 0; i < layerBytes; i++) {
+                    if (value[layerStart + i] != 0) {
+                        return subIndex * 16 + y + 1;
+                    }
+                }
+            }
+            // 跳到下一个 storage：数据区 + palette 数（int32）+ palette NBT
+            p += dataBytes;
+            if (p + 4 > value.length) {
+                return UNKNOWN_HEIGHT;
+            }
+            int paletteSize = (value[p] & 0xFF) | ((value[p + 1] & 0xFF) << 8)
+                    | ((value[p + 2] & 0xFF) << 16) | ((value[p + 3] & 0xFF) << 24);
+            p += 4;
+            if (paletteSize < 0 || paletteSize > 65536) {
+                return UNKNOWN_HEIGHT;
+            }
+            // 跳过 palette NBT（每个条目至少 3 字节：类型+名长 2B）
+            for (int i = 0; i < paletteSize && p + 3 <= value.length; i++) {
+                int type = value[p++] & 0xFF;
+                if (type == 0) {
+                    continue;
+                }
+                int nameLen = (value[p] & 0xFF) | ((value[p + 1] & 0xFF) << 8);
+                p += 2 + nameLen;
+                if (p > value.length) {
+                    return UNKNOWN_HEIGHT;
+                }
+                // 条目 payload 粗略跳过：按类型定长，Compound 按 TAG_END 扫描
+                p = skipNbtPayload(value, p, type);
+                if (p < 0) {
+                    return UNKNOWN_HEIGHT;
+                }
+            }
+        }
+        return UNKNOWN_HEIGHT;
+    }
+
+    /** 粗略跳过 NBT payload（网络 LE 格式，无名字），返回新偏移；失败返回 -1。 */
+    private static int skipNbtPayload(byte[] value, int p, int type) {
+        switch (type) {
+            case NbtTag.TAG_BYTE: return p + 1;
+            case NbtTag.TAG_SHORT: return p + 2;
+            case NbtTag.TAG_INT: case NbtTag.TAG_FLOAT: return p + 4;
+            case NbtTag.TAG_LONG: case NbtTag.TAG_DOUBLE: return p + 8;
+            case NbtTag.TAG_STRING: {
+                if (p + 2 > value.length) return -1;
+                int len = (value[p] & 0xFF) | ((value[p + 1] & 0xFF) << 8);
+                return p + 2 + len;
+            }
+            case NbtTag.TAG_COMPOUND: {
+                int depth = 0;
+                while (p < value.length) {
+                    int t = value[p++] & 0xFF;
+                    if (t == 0) {
+                        depth--;
+                        if (depth <= 0) return p;
+                        continue;
+                    }
+                    if (t == NbtTag.TAG_COMPOUND || t == NbtTag.TAG_LIST) depth++;
+                    int nameLen = (value[p] & 0xFF) | ((value[p + 1] & 0xFF) << 8);
+                    p += 2 + nameLen;
+                    if (p > value.length) return -1;
+                    p = skipNbtPayload(value, p, t);
+                    if (p < 0) return -1;
+                }
+                return -1;
+            }
+            case NbtTag.TAG_LIST: {
+                if (p + 5 > value.length) return -1;
+                int elemType = value[p] & 0xFF;
+                int n = (value[p + 1] & 0xFF) | ((value[p + 2] & 0xFF) << 8)
+                        | ((value[p + 3] & 0xFF) << 16) | ((value[p + 4] & 0xFF) << 24);
+                p += 5;
+                for (int i = 0; i < n && p < value.length; i++) {
+                    p = skipNbtPayload(value, p, elemType);
+                    if (p < 0) return -1;
+                }
+                return p;
+            }
+            case NbtTag.TAG_INT_ARRAY: {
+                if (p + 4 > value.length) return -1;
+                int n = (value[p] & 0xFF) | ((value[p + 1] & 0xFF) << 8)
+                        | ((value[p + 2] & 0xFF) << 16) | ((value[p + 3] & 0xFF) << 24);
+                return p + 4 + n * 4;
+            }
+            default:
+                return -1;
+        }
+    }
+
+    /**
+     * Data2D 高度提取：value = int16[256] 高度图（小端）+ byte[256] biome。
+     * 高度全 0（未生成）时回退 biome 众数映射到近似高度（平原 72/沙漠 66/水 40）。
+     */
+    private static int extractData2dHeight(byte[] value) {
+        if (value == null || value.length < 512) {
+            return UNKNOWN_HEIGHT;
+        }
+        int maxH = 0;
+        for (int i = 0; i < 256; i++) {
+            int h = (value[i * 2] & 0xFF) | ((value[i * 2 + 1] & 0xFF) << 8);
+            if (h > 512) h = h & 0xFF; // 大端脏数据（>512）取低字节
+            if (h > maxH) maxH = h;
+        }
+        if (maxH > 0) {
+            return maxH;
+        }
+        // 高度图未填充：用 biome 近似
+        if (value.length >= 768) {
+            int[] counts = new int[256];
+            int bestBiome = 1, bestCount = 0;
+            for (int i = 0; i < 256; i++) {
+                int b = value[512 + i] & 0xFF;
+                if (++counts[b] > bestCount) {
+                    bestCount = counts[b];
+                    bestBiome = b;
+                }
+            }
+            // 常见 biome 近似高度：1 平原 72 · 2 沙漠 66 · 3 森林 78 · 4 山地 95 · 0/9 海洋 40
+            switch (bestBiome) {
+                case 2: return 66;
+                case 3: return 78;
+                case 4: return 95;
+                case 0: case 9: return 40;
+                default: return 72;
+            }
+        }
+        return UNKNOWN_HEIGHT;
     }
 
     private static int readIntLE(byte[] data, int pos) {
