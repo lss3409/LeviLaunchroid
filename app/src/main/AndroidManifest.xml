@@ -527,6 +527,15 @@
             android:taskAffinity="org.levimc.launcher.game"
             tools:replace="android:configChanges,android:exported" />
 
+        <activity
+            android:name="org.levimc.launcher.ui.activities.CrashActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:process=":crash"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@style/Base.Theme.FullScreen"
+            android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:exported="false"

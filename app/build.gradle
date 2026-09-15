@@ -46,6 +46,7 @@ android {
         versionName getGitTag()
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField "String", "CURSEFORGE_API_KEY", "\"${localProperties.getProperty('curseforge.api_key', '')}\""
+        buildConfigField "String", "BUILD_TYPE", "\"debug\""
         ndk {
             //noinspection ChromeOsAbiSupport
             abiFilters 'arm64-v8a'

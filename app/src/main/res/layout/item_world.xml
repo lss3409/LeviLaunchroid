@@ -121,9 +121,9 @@
         android:layout_width="40dp"
         android:layout_height="40dp"
         android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/edit"
+        android:contentDescription="@string/world_view_map"
         android:padding="9dp"
-        android:src="@drawable/ic_edit"
+        android:src="@drawable/ic_map"
         app:tint="@color/on_surface" />
 
     <ImageButton

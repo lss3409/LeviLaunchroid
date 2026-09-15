@@ -296,6 +296,7 @@ public class ContentListActivity extends BaseActivity {
         });
 
         binding.selectButton.setOnClickListener(v -> enterSelectionMode());
+        binding.selectionCancelButton.setOnClickListener(v -> exitSelectionMode());
         binding.selectAllButton.setOnClickListener(v -> toggleSelectAllVisible());
         binding.batchExportButton.setOnClickListener(v -> startBatchExport());
         binding.batchTransferButton.setOnClickListener(v -> showBatchTransferDialog());
@@ -376,6 +377,11 @@ public class ContentListActivity extends BaseActivity {
             }
 
             @Override
+            public void onWorldViewMap(WorldItem world) {
+                openNbtViewer(world);
+            }
+
+            @Override
             public void onWorldExtractStructures(WorldItem world) {
                 showExtractStructuresDialog(world);
             }
@@ -407,6 +413,20 @@ public class ContentListActivity extends BaseActivity {
         Intent intent = new Intent(this, WorldEditorActivity.class);
         intent.putExtra(WorldEditorActivity.EXTRA_WORLD_PATH, worldFile.getAbsolutePath());
         intent.putExtra(WorldEditorActivity.EXTRA_WORLD_NAME, world.getWorldName());
+        startActivity(intent);
+    }
+
+    /** 地图按钮：直接打开世界数据/地图查看（NBT 查看器）。 */
+    private void openNbtViewer(WorldItem world) {
+        File worldFile = world.getFile();
+        if (worldFile == null || !worldFile.exists()) {
+            Toast.makeText(this, R.string.world_directory_not_found, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Intent intent = new Intent(this, NbtViewerActivity.class);
+        intent.putExtra(NbtViewerActivity.EXTRA_WORLD_DIR, worldFile.getAbsolutePath());
+        intent.putExtra(NbtViewerActivity.EXTRA_WORLD_NAME, world.getWorldName());
         startActivity(intent);
     }
 

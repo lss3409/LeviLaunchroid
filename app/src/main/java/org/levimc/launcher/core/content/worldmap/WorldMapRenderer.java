@@ -145,14 +145,13 @@ public class WorldMapRenderer {
                     if (old == null || height > old) {
                         heights.put(key, height);
                     }
-                } else {
-                    // 高度未知也记录坐标（用于范围计算），但不覆盖已知高度
-                    heights.putIfAbsent(pack(x, z), UNKNOWN_HEIGHT);
+                    // 只有高度已知的 chunk 才参与范围计算，
+                    // 否则大量未生成的 0x2d 空 chunk 会把地图撑成大片空白
+                    minX = Math.min(minX, x);
+                    maxX = Math.max(maxX, x);
+                    minZ = Math.min(minZ, z);
+                    maxZ = Math.max(maxZ, z);
                 }
-                minX = Math.min(minX, x);
-                maxX = Math.max(maxX, x);
-                minZ = Math.min(minZ, z);
-                maxZ = Math.max(maxZ, z);
             } catch (Exception e) {
                 // 单个 chunk 解析失败不影响整体
                 failedChunks++;
@@ -303,7 +302,9 @@ public class WorldMapRenderer {
             if (p + dataBytes + 4 > value.length) {
                 return UNKNOWN_HEIGHT;
             }
-            // 16 个 y 层，每层 256 值 = 32×bits 字节；从最高层往下找非空
+            // 16 个 y 层，每层 256 值 = 32×bits 字节；从最高层往下找非空。
+            // palette 索引 0 通常为空气（全 0 位），字节级非零即存在方块；
+            // 即便索引 0 非空气，也只是把该层误判为非空，高度误差一层以内。
             int layerBytes = 32 * bits;
             for (int y = 15; y >= 0; y--) {
                 int layerStart = p + y * layerBytes;
@@ -400,7 +401,8 @@ public class WorldMapRenderer {
 
     /**
      * Data2D 高度提取：value = int16[256] 高度图（小端）+ byte[256] biome。
-     * 高度全 0（未生成）时回退 biome 众数映射到近似高度（平原 72/沙漠 66/水 40）。
+     * 高度全 0 表示该 chunk 高度图未生成，返回未知（不做 biome 近似，
+     * 否则大量未生成 chunk 会被错误染成绿色）。
      */
     private static int extractData2dHeight(byte[] value) {
         if (value == null || value.length < 512) {
@@ -412,30 +414,7 @@ public class WorldMapRenderer {
             if (h > 512) h = h & 0xFF; // 大端脏数据（>512）取低字节
             if (h > maxH) maxH = h;
         }
-        if (maxH > 0) {
-            return maxH;
-        }
-        // 高度图未填充：用 biome 近似
-        if (value.length >= 768) {
-            int[] counts = new int[256];
-            int bestBiome = 1, bestCount = 0;
-            for (int i = 0; i < 256; i++) {
-                int b = value[512 + i] & 0xFF;
-                if (++counts[b] > bestCount) {
-                    bestCount = counts[b];
-                    bestBiome = b;
-                }
-            }
-            // 常见 biome 近似高度：1 平原 72 · 2 沙漠 66 · 3 森林 78 · 4 山地 95 · 0/9 海洋 40
-            switch (bestBiome) {
-                case 2: return 66;
-                case 3: return 78;
-                case 4: return 95;
-                case 0: case 9: return 40;
-                default: return 72;
-            }
-        }
-        return UNKNOWN_HEIGHT;
+        return maxH > 0 ? maxH : UNKNOWN_HEIGHT;
     }
 
     private static int readIntLE(byte[] data, int pos) {

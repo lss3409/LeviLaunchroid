@@ -42,6 +42,7 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
         void onWorldDelete(WorldItem world);
         void onWorldBackup(WorldItem world);
         void onWorldEdit(WorldItem world);
+        void onWorldViewMap(WorldItem world);
         void onWorldExtractStructures(WorldItem world);
         void onWorldTransfer(WorldItem world);
         void onWorldLocate(WorldItem world);
@@ -191,7 +192,8 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
             return true;
         });
         holder.editButton.setOnClickListener(v -> {
-            if (onWorldActionListener != null) onWorldActionListener.onWorldEdit(world);
+            // 地图按钮：直接打开世界数据/地图查看（NBT 查看器）
+            if (onWorldActionListener != null) onWorldActionListener.onWorldViewMap(world);
         });
         holder.overflowButton.setOnClickListener(v -> showOverflow(holder.overflowButton, world));
 

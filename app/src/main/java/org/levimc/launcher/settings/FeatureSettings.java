@@ -12,6 +12,7 @@ public class FeatureSettings {
     private boolean foregroundServiceEnabled = false;
     private boolean autoCloseGameOnLaunchNew = false;
     private boolean memoryMonitorOverlay = false;
+    private Boolean crashUploadEnabled = true;
 
     public enum StorageType {
         INTERNAL,
@@ -61,6 +62,8 @@ public class FeatureSettings {
     public void setAutoCloseGameOnLaunchNew(boolean enabled) { this.autoCloseGameOnLaunchNew = enabled; autoSave(); }
 
     public boolean isMemoryMonitorOverlayEnabled() { return memoryMonitorOverlay; }
+    public boolean isCrashUploadEnabled() { return crashUploadEnabled == null || crashUploadEnabled; }
+    public void setCrashUploadEnabled(boolean enabled) { this.crashUploadEnabled = enabled; autoSave(); }
     public void setMemoryMonitorOverlayEnabled(boolean enabled) { this.memoryMonitorOverlay = enabled; autoSave(); }
 
 

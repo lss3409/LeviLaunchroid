@@ -37,6 +37,7 @@ import org.levimc.launcher.core.content.worldmap.WorldMapRenderer;
 import org.levimc.launcher.databinding.ActivityNbtViewerBinding;
 import org.levimc.launcher.databinding.ItemNbtDbEntryBinding;
 import org.levimc.launcher.ui.animation.DynamicAnim;
+import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
 import org.levimc.launcher.util.PersonalizationManager;
 
 import java.io.File;
@@ -364,29 +365,25 @@ public class NbtViewerActivity extends BaseActivity {
         ScrollView scroll = new ScrollView(this);
         scroll.addView(panel);
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(R.string.nbt_edit_leveldat)
-                .setView(scroll)
-                .setPositiveButton(R.string.nbt_edit_save, null)
-                .setNegativeButton(R.string.nbt_edit_cancel, null)
-                .create();
-        dialog.setOnShowListener(d -> {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-                String newName = nameEdit.getText().toString().trim();
-                String seedText = seedEdit.getText().toString().trim();
-                long newSeed;
-                try {
-                    newSeed = Long.parseLong(seedText);
-                } catch (NumberFormatException e) {
-                    Toast.makeText(this, R.string.nbt_edit_seed_invalid, Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                applyLevelDatEdits(root, newName, gamemodeSpinner.getSelectedItemPosition(),
-                        difficultySpinner.getSelectedItemPosition(), hardcoreSwitch.isChecked(),
-                        newSeed);
-                dialog.dismiss();
-            });
-        });
+        // 使用启动器统一弹窗 UI
+        CustomAlertDialog dialog = new CustomAlertDialog(this)
+                .setTitleText(getString(R.string.nbt_edit_leveldat))
+                .setCustomView(scroll)
+                .setPositiveButton(getString(R.string.nbt_edit_save), v -> {
+                    String newName = nameEdit.getText().toString().trim();
+                    String seedText = seedEdit.getText().toString().trim();
+                    long newSeed;
+                    try {
+                        newSeed = Long.parseLong(seedText);
+                    } catch (NumberFormatException e) {
+                        Toast.makeText(this, R.string.nbt_edit_seed_invalid, Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    applyLevelDatEdits(root, newName, gamemodeSpinner.getSelectedItemPosition(),
+                            difficultySpinner.getSelectedItemPosition(), hardcoreSwitch.isChecked(),
+                            newSeed);
+                })
+                .setNegativeButton(getString(R.string.nbt_edit_cancel), null);
         dialog.show();
     }
 

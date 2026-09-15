@@ -771,7 +771,7 @@
                                 android:thumbTint="@color/primary" />
                         </LinearLayout>
 
-                        <!-- UI 大小 / 字体大小 -->
+                        <!-- 界面缩放（UI 与字体一起缩放） -->
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -797,6 +797,22 @@
                                 android:fontFamily="@font/misans"
                                 android:textColor="@color/text_secondary"
                                 android:textSize="12sp" />
+
+                            <Button
+                                android:id="@+id/btn_reset_ui_scale"
+                                android:layout_width="wrap_content"
+                                android:layout_height="30dp"
+                                android:layout_marginStart="8dp"
+                                android:minWidth="0dp"
+                                android:minHeight="0dp"
+                                android:paddingHorizontal="12dp"
+                                android:insetTop="0dp"
+                                android:insetBottom="0dp"
+                                android:background="@drawable/bg_remove_button"
+                                android:fontFamily="@font/misans"
+                                android:text="@string/ui_scale_reset"
+                                android:textColor="@color/on_surface"
+                                android:textSize="11sp" />
                         </LinearLayout>
 
                         <SeekBar
@@ -809,48 +825,11 @@
                             android:progressTint="@color/primary"
                             android:thumbTint="@color/primary" />
 
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="10dp"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal">
-
-                            <TextView
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="@string/font_scale_label"
-                                android:fontFamily="@font/misans"
-                                android:textColor="@color/on_surface"
-                                android:textSize="12sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:id="@+id/font_scale_value"
-                                android:layout_width="56dp"
-                                android:layout_height="wrap_content"
-                                android:gravity="end"
-                                android:fontFamily="@font/misans"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="12sp" />
-                        </LinearLayout>
-
-                        <SeekBar
-                            android:id="@+id/seek_font_scale"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:max="110"
-                            android:progress="30"
-                            android:progressTint="@color/primary"
-                            android:thumbTint="@color/primary" />
-
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:text="@string/ui_scale_restart_hint"
+                            android:text="@string/ui_scale_realtime_hint"
                             android:fontFamily="@font/misans"
                             android:textColor="@color/text_secondary"
                             android:textSize="11sp" />

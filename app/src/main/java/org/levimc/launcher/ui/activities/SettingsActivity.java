@@ -909,9 +909,8 @@ public class SettingsActivity extends BaseActivity {
 
     private void setupUiScaleControls() {
         SeekBar uiScaleSeek = findViewById(R.id.seek_ui_scale);
-        SeekBar fontScaleSeek = findViewById(R.id.seek_font_scale);
         TextView uiScaleValue = findViewById(R.id.ui_scale_value);
-        TextView fontScaleValue = findViewById(R.id.font_scale_value);
+        Button resetButton = findViewById(R.id.btn_reset_ui_scale);
 
         // progress 0..110 → 0.85x..1.4x（30 = 1.0x）
         final float span = PersonalizationManager.UI_SCALE_MAX - PersonalizationManager.UI_SCALE_MIN;
@@ -930,33 +929,8 @@ public class SettingsActivity extends BaseActivity {
                         uiScaleValue.setText(getString(R.string.ui_scale_percent, Math.round(scale * 100)));
                     }
                     if (!fromUser) return;
+                    // 一个滑块同时控制 UI 与字体（density + fontScale 叠加）
                     personalizationManager.setUiScale(scale);
-                }
-
-                @Override
-                public void onStartTrackingTouch(SeekBar seekBar) {
-                }
-
-                @Override
-                public void onStopTrackingTouch(SeekBar seekBar) {
-                }
-            });
-        }
-        if (fontScaleSeek != null) {
-            fontScaleSeek.setMax(110);
-            float cur = personalizationManager.getFontScale();
-            fontScaleSeek.setProgress(Math.round((cur - PersonalizationManager.FONT_SCALE_MIN) / span * 110f));
-            if (fontScaleValue != null) {
-                fontScaleValue.setText(getString(R.string.ui_scale_percent, Math.round(cur * 100)));
-            }
-            fontScaleSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                @Override
-                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                    float scale = PersonalizationManager.FONT_SCALE_MIN + span * progress / 110f;
-                    if (fontScaleValue != null) {
-                        fontScaleValue.setText(getString(R.string.ui_scale_percent, Math.round(scale * 100)));
-                    }
-                    if (!fromUser) return;
                     personalizationManager.setFontScale(scale);
                 }
 
@@ -966,7 +940,16 @@ public class SettingsActivity extends BaseActivity {
 
                 @Override
                 public void onStopTrackingTouch(SeekBar seekBar) {
+                    // 实时生效：重建当前 Activity，attachBaseContext 重新应用缩放
+                    recreate();
                 }
+            });
+        }
+        if (resetButton != null) {
+            resetButton.setOnClickListener(v -> {
+                personalizationManager.setUiScale(PersonalizationManager.UI_SCALE_DEFAULT);
+                personalizationManager.setFontScale(PersonalizationManager.FONT_SCALE_DEFAULT);
+                recreate();
             });
         }
     }
