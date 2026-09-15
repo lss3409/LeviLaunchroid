@@ -8,14 +8,11 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.content.pm.ShortcutInfo;
-import android.content.pm.ShortcutManager;
 import android.content.res.ColorStateList;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
-import android.graphics.drawable.Icon;
 import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
@@ -59,9 +56,9 @@ import org.levimc.launcher.util.HardcoreBackupManager;
 import org.levimc.launcher.util.LanguageManager;
 import org.levimc.launcher.util.LauncherStorage;
 import org.levimc.launcher.util.PermissionsHandler;
+import org.levimc.launcher.util.InstanceShortcutManager;
 import org.levimc.launcher.util.PersonalizationManager;
 import org.levimc.launcher.util.ResourcepackHandler;
-import org.levimc.launcher.util.ShortcutHelper;
 import org.levimc.launcher.util.UIHelper;
 import org.levimc.launcher.core.content.ContentManager;
 import java.util.ArrayList;
@@ -155,6 +152,12 @@ import okhttp3.OkHttpClient;
 
         initAccountHeader();
         initializeAfterMigrationGate();
+        // 版本更新日志（官方新闻体系）：版本升级后展示一次 What's new
+        try {
+            org.levimc.launcher.core.news.ChangelogManager.showIfNeeded(this, () -> {});
+        } catch (Throwable t) {
+            android.util.Log.w("MainActivity", "Changelog failed", t);
+        }
     }
 
     @Override
@@ -596,10 +599,61 @@ import okhttp3.OkHttpClient;
 
     private void handleVersionDependentIntent() {
         if (versionManager == null || fileHandler == null) return;
+        if (handleInstanceShortcutLaunch()) return;
         handleIncomingMinecraftResource();
         checkResourcepack();
         handleIncomingFiles();
         handleMinecraftUriLaunch();
+    }
+
+    /** 官方快捷方式点击进入：直接选中对应版本并启动（InstanceShortcutManager）。 */
+    private boolean handleInstanceShortcutLaunch() {
+        Intent intent = getIntent();
+        if (intent == null || !InstanceShortcutManager.ACTION_LAUNCH_INSTANCE.equals(intent.getAction())) {
+            return false;
+        }
+
+        String type = intent.getStringExtra(InstanceShortcutManager.EXTRA_INSTANCE_TYPE);
+        String key = intent.getStringExtra(InstanceShortcutManager.EXTRA_INSTANCE_KEY);
+        intent.setAction(null);
+        intent.removeExtra(InstanceShortcutManager.EXTRA_INSTANCE_TYPE);
+        intent.removeExtra(InstanceShortcutManager.EXTRA_INSTANCE_KEY);
+        setIntent(intent);
+
+        GameVersion target = findShortcutVersion(type, key);
+        if (target == null) {
+            Toast.makeText(this, R.string.instance_shortcut_missing, Toast.LENGTH_LONG).show();
+            return true;
+        }
+
+        versionManager.selectVersion(target);
+        setTextMinecraftVersion();
+        updateViewModelVersion();
+        if (viewModel != null) viewModel.refreshMods();
+        binding.getRoot().post(this::performActualLaunch);
+        return true;
+    }
+
+    private GameVersion findShortcutVersion(String type, String key) {
+        if (key == null || key.isEmpty()) return null;
+        if (InstanceShortcutManager.TYPE_INSTALLED.equals(type)) {
+            List<GameVersion> installed = versionManager.getInstalledVersions();
+            if (installed != null) {
+                for (GameVersion candidate : installed) {
+                    if (key.equals(candidate.packageName)) return candidate;
+                }
+            }
+            return null;
+        }
+        if (InstanceShortcutManager.TYPE_CUSTOM.equals(type)) {
+            List<GameVersion> custom = versionManager.getCustomVersions();
+            if (custom != null) {
+                for (GameVersion candidate : custom) {
+                    if (key.equals(candidate.directoryName)) return candidate;
+                }
+            }
+        }
+        return null;
     }
 
     /** 外部分享的 .mcworld/.mcpack/.mcaddon/.mctemplate 由启动器导入到内容管理。
@@ -728,7 +782,8 @@ import okhttp3.OkHttpClient;
             binding.launchButton.setEnabled(true);
         }
         checkHardcoreBackups();
-        captureXalTemplate();
+        // 延迟执行：冷启动时版本列表可能尚未加载完成，立即扫描会空转。
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(this::captureXalTemplate, 5000);
     }
 
     /** 游戏退出回到启动器时，扫描版本的 xal 目录，
@@ -1138,24 +1193,18 @@ import okhttp3.OkHttpClient;
         popup.showAsDropDown(binding.selectVersionButton, xOffset, 4);
     }
 
-    /** 把某个版本号添加到桌面快捷方式（版本号命名）。 */
+    /** 把某个版本号添加到桌面快捷方式（官方 InstanceShortcutManager 逻辑）。 */
     private void addShortcut(GameVersion version) {
         if (version == null) return;
-        String label = ShortcutHelper.getDefaultLabel(version);
-        if (ShortcutHelper.isPinned(this, version)) {
-            Toast.makeText(this, getString(R.string.shortcut_already_added), Toast.LENGTH_SHORT).show();
-            return;
-        }
-        boolean ok = ShortcutHelper.pinShortcut(this, version, label);
-        if (!ok) {
-            ok = ShortcutHelper.pinShortcutLegacy(this, version, label);
-        }
-        if (!ok) {
-            Toast.makeText(this, getString(R.string.add_to_desktop_failed), Toast.LENGTH_SHORT).show();
+        boolean accepted = InstanceShortcutManager.createOrUpdate(this, version, null, null);
+        if (!accepted) {
+            Toast.makeText(this, getString(R.string.instance_shortcut_not_supported), Toast.LENGTH_SHORT).show();
         }
     }
 
     private static class InstancePopupAdapter extends RecyclerView.Adapter<InstancePopupAdapter.VH> {
+        private static final int TYPE_ITEM = 0;
+
         private final List<GameVersion> allVersions;
         private List<GameVersion> filteredVersions;
         private final GameVersion selectedVersion;

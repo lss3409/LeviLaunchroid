@@ -9,7 +9,9 @@ public class FeatureSettings {
     private boolean launcherManagedMcLoginEnabled = true;
     private boolean msLoginEnabled = false;
     private boolean logcatOverlayEnabled = false;
+    private boolean foregroundServiceEnabled = false;
     private boolean autoCloseGameOnLaunchNew = false;
+    private boolean memoryMonitorOverlay = false;
 
     public enum StorageType {
         INTERNAL,
@@ -52,8 +54,14 @@ public class FeatureSettings {
     public boolean isLogcatOverlayEnabled() { return logcatOverlayEnabled; }
     public void setLogcatOverlayEnabled(boolean enabled) { this.logcatOverlayEnabled = enabled; autoSave(); }
 
+    public boolean isForegroundServiceEnabled() { return foregroundServiceEnabled; }
+    public void setForegroundServiceEnabled(boolean enabled) { this.foregroundServiceEnabled = enabled; autoSave(); }
+
     public boolean isAutoCloseGameOnLaunchNew() { return autoCloseGameOnLaunchNew; }
     public void setAutoCloseGameOnLaunchNew(boolean enabled) { this.autoCloseGameOnLaunchNew = enabled; autoSave(); }
+
+    public boolean isMemoryMonitorOverlayEnabled() { return memoryMonitorOverlay; }
+    public void setMemoryMonitorOverlayEnabled(boolean enabled) { this.memoryMonitorOverlay = enabled; autoSave(); }
 
 
     private void autoSave() {

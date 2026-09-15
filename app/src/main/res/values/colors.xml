@@ -11,8 +11,12 @@
     <color name="tertiary">#01579B</color>
     <color name="on_tertiary">#FFFFFF</color>
 
+    <color name="external_mod_ad">#E65100</color>
+
     <color name="error">#F44336</color>
     <color name="on_error">#FFFFFF</color>
+
+    <color name="warning">#FFB74D</color>
 
     <color name="background">#F8FFF0</color>
     <color name="surface">#F1F8E9</color>
@@ -37,4 +41,13 @@
     <color name="text_secondary">#757575</color>
     <color name="qa_icon_color">#000000</color>
     <color name="ic_launcher_adaptive_back">#F6F3EA</color>
+
+    <!-- World map (Blocktopograph-style terrain palette) -->
+    <color name="world_map_water_deep">#1E56A0</color>
+    <color name="world_map_sand">#E8DC8F</color>
+    <color name="world_map_grass">#55A64A</color>
+    <color name="world_map_forest">#2E7D32</color>
+    <color name="world_map_rock">#8A8A8A</color>
+    <color name="world_map_snow">#F2F2F2</color>
+    <color name="world_map_unknown">#9E9E9E</color>
 </resources>

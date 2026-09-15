@@ -18,11 +18,10 @@ import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.LinearLayoutManager;
-
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import org.levimc.launcher.R;
 import org.levimc.launcher.core.content.ContentManager;
@@ -44,13 +43,16 @@ import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
 import org.levimc.launcher.util.LauncherStorage;
 
 import android.provider.MediaStore;
+import android.provider.DocumentsContract;
 import android.content.ContentValues;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import java.io.OutputStream;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class ContentListActivity extends BaseActivity {
@@ -66,6 +68,8 @@ public class ContentListActivity extends BaseActivity {
     public static final int TYPE_SCREENSHOTS = 4;
     public static final int TYPE_SERVERS = 5;
     public static final int TYPE_STRUCTURES = 6;
+    private static final String STATE_SELECTION_MODE = "selection_mode";
+    private static final String STATE_SELECTED_PATHS = "selected_paths";
 
     private ActivityContentListBinding binding;
     private ContentManager contentManager;
@@ -85,11 +89,14 @@ public class ContentListActivity extends BaseActivity {
     private ActivityResultLauncher<Intent> exportPackLauncher;
     private ActivityResultLauncher<Intent> customFlatWorldLauncher;
     private ActivityResultLauncher<Intent> structureExportLauncher;
+    private ActivityResultLauncher<Intent> batchExportFolderLauncher;
     private WorldItem pendingExportWorld;
     private ResourcePackItem pendingExportPack;
     private WorldItem pendingStructureExportWorld;
     private StructureExtractor.StructureInfo pendingStructureInfo;
     private StructureExtractor structureExtractor;
+    private List<WorldItem> pendingBatchWorlds = new ArrayList<>();
+    private List<ResourcePackItem> pendingBatchPacks = new ArrayList<>();
 
     private List<WorldItem> allWorlds = new ArrayList<>();
     private List<ResourcePackItem> allPacks = new ArrayList<>();
@@ -138,6 +145,7 @@ public class ContentListActivity extends BaseActivity {
 
         setupActivityResultLaunchers();
         setupUI();
+        restoreSelectionState(savedInstanceState);
         setupObservers();
         loadContent();
     }
@@ -192,6 +200,34 @@ public class ContentListActivity extends BaseActivity {
             }
         );
 
+        batchExportFolderLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                    Uri treeUri = result.getData().getData();
+                    if (treeUri != null) {
+                        int flags = result.getData().getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                        try {
+                            getContentResolver().takePersistableUriPermission(treeUri, flags);
+                        } catch (Exception ignored) {
+                        }
+                        if (!pendingBatchWorlds.isEmpty()) {
+                            List<WorldItem> items = new ArrayList<>(pendingBatchWorlds);
+                            pendingBatchWorlds.clear();
+                            new Thread(() -> exportWorldBatch(treeUri, items, 0, 0, 0, new HashSet<>())).start();
+                        } else if (!pendingBatchPacks.isEmpty()) {
+                            List<ResourcePackItem> items = new ArrayList<>(pendingBatchPacks);
+                            pendingBatchPacks.clear();
+                            new Thread(() -> exportPackBatch(treeUri, items, 0, 0, 0, new HashSet<>())).start();
+                        }
+                    }
+                } else {
+                    pendingBatchWorlds.clear();
+                    pendingBatchPacks.clear();
+                }
+            }
+        );
+
         structureExtractor = new StructureExtractor(this);
     }
 
@@ -213,18 +249,22 @@ public class ContentListActivity extends BaseActivity {
                 binding.customFlatButton.setVisibility(View.VISIBLE);
                 binding.hardcoreManageButton.setVisibility(View.VISIBLE);
                 binding.hardcoreManageButton.setOnClickListener(v -> openHardcoreManager());
+                binding.selectButton.setVisibility(View.VISIBLE);
                 setupWorldsRecyclerView();
                 break;
             case TYPE_SKIN_PACKS:
                 binding.titleText.setText(getString(R.string.skin_packs_title));
+                binding.selectButton.setVisibility(View.VISIBLE);
                 setupPacksRecyclerView();
                 break;
             case TYPE_RESOURCE_PACKS:
                 binding.titleText.setText(getString(R.string.resource_packs_title));
+                binding.selectButton.setVisibility(View.VISIBLE);
                 setupPacksRecyclerView();
                 break;
             case TYPE_BEHAVIOR_PACKS:
                 binding.titleText.setText(getString(R.string.behavior_packs_title));
+                binding.selectButton.setVisibility(View.VISIBLE);
                 setupPacksRecyclerView();
                 break;
             case TYPE_SCREENSHOTS:
@@ -255,7 +295,14 @@ public class ContentListActivity extends BaseActivity {
             }
         });
 
+        binding.selectButton.setOnClickListener(v -> enterSelectionMode());
+        binding.selectAllButton.setOnClickListener(v -> toggleSelectAllVisible());
+        binding.batchExportButton.setOnClickListener(v -> startBatchExport());
+        binding.batchTransferButton.setOnClickListener(v -> showBatchTransferDialog());
+        binding.batchDeleteButton.setOnClickListener(v -> showBatchDeleteDialog());
+
         setupSearchFilter();
+        updateSelectionToolbar();
     }
 
     private void setupSearchFilter() {
@@ -274,45 +321,34 @@ public class ContentListActivity extends BaseActivity {
     }
 
     private void filterContent(String query) {
-        String lowerQuery = query.toLowerCase().trim();
+        String rawQuery = query == null ? "" : query.trim();
+        String lowerQuery = rawQuery.toLowerCase();
 
-        if (contentType == TYPE_WORLDS) {
-            if (lowerQuery.isEmpty()) {
-                worldsAdapter.updateWorlds(allWorlds);
-            } else {
-                List<WorldItem> filtered = allWorlds.stream()
-                    .filter(world -> world.getWorldName().toLowerCase().contains(lowerQuery))
-                    .collect(Collectors.toList());
-                worldsAdapter.updateWorlds(filtered);
-            }
-        } else if (contentType == TYPE_SERVERS) {
-            if (lowerQuery.isEmpty()) {
-                serversAdapter.updateData(allServers);
-            } else {
-                List<org.levimc.launcher.core.content.ServerItem> filtered = allServers.stream()
-                    .filter(server -> server.name.toLowerCase().contains(lowerQuery) || 
-                                     server.ip.toLowerCase().contains(lowerQuery))
-                    .collect(Collectors.toList());
-                serversAdapter.updateData(filtered);
-            }
-        } else if (contentType == TYPE_STRUCTURES) {
-            if (lowerQuery.isEmpty()) {
-                structuresAdapter.updateData(allStructures);
-            } else {
-                List<org.levimc.launcher.core.content.StructureFileItem> filtered = allStructures.stream()
-                    .filter(structure -> structure.getName().toLowerCase().contains(lowerQuery))
-                    .collect(Collectors.toList());
-                structuresAdapter.updateData(filtered);
-            }
-        } else {
-            if (lowerQuery.isEmpty()) {
-                packsAdapter.updateResourcePacks(allPacks);
-            } else {
-                List<ResourcePackItem> filtered = allPacks.stream()
-                    .filter(pack -> pack.getPackName().toLowerCase().contains(lowerQuery))
-                    .collect(Collectors.toList());
-                packsAdapter.updateResourcePacks(filtered);
-            }
+        if (contentType == TYPE_WORLDS && worldsAdapter != null) {
+            List<WorldItem> filtered = lowerQuery.isEmpty() ? new ArrayList<>(allWorlds) : allWorlds.stream()
+                .filter(world -> world.getWorldName() != null && world.getWorldName().toLowerCase().contains(lowerQuery))
+                .collect(Collectors.toList());
+            worldsAdapter.updateWorlds(filtered);
+            updateListState(filtered.size(), allWorlds.size(), rawQuery);
+        } else if (contentType == TYPE_SERVERS && serversAdapter != null) {
+            List<ServerItem> filtered = lowerQuery.isEmpty() ? new ArrayList<>(allServers) : allServers.stream()
+                .filter(server -> (server.name != null && server.name.toLowerCase().contains(lowerQuery)) ||
+                                 (server.ip != null && server.ip.toLowerCase().contains(lowerQuery)))
+                .collect(Collectors.toList());
+            serversAdapter.updateData(filtered);
+            updateListState(filtered.size(), allServers.size(), rawQuery);
+        } else if (contentType == TYPE_STRUCTURES && structuresAdapter != null) {
+            List<org.levimc.launcher.core.content.StructureFileItem> filtered = lowerQuery.isEmpty() ? new ArrayList<>(allStructures) : allStructures.stream()
+                .filter(structure -> structure.getName() != null && structure.getName().toLowerCase().contains(lowerQuery))
+                .collect(Collectors.toList());
+            structuresAdapter.updateData(filtered);
+            updateListState(filtered.size(), allStructures.size(), rawQuery);
+        } else if (isPackType() && packsAdapter != null) {
+            List<ResourcePackItem> filtered = lowerQuery.isEmpty() ? new ArrayList<>(allPacks) : allPacks.stream()
+                .filter(pack -> pack.getPackName() != null && pack.getPackName().toLowerCase().contains(lowerQuery))
+                .collect(Collectors.toList());
+            packsAdapter.updateResourcePacks(filtered);
+            updateListState(filtered.size(), allPacks.size(), rawQuery);
         }
     }
 
@@ -354,6 +390,7 @@ public class ContentListActivity extends BaseActivity {
                 openFileManager(world.getFile());
             }
         });
+        worldsAdapter.setOnSelectionChangedListener(count -> updateSelectionToolbar());
 
         binding.contentRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         binding.contentRecyclerView.setAdapter(worldsAdapter);
@@ -363,7 +400,7 @@ public class ContentListActivity extends BaseActivity {
     private void openWorldEditor(WorldItem world) {
         File worldFile = world.getFile();
         if (worldFile == null || !worldFile.exists()) {
-            Toast.makeText(this, "World directory not found", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.world_directory_not_found, Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -418,6 +455,7 @@ public class ContentListActivity extends BaseActivity {
                 // 预加载状态已持久化，启动游戏时会复制到目标版本并写入全局资源
             }
         });
+        packsAdapter.setOnSelectionChangedListener(count -> updateSelectionToolbar());
 
         binding.contentRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         binding.contentRecyclerView.setAdapter(packsAdapter);
@@ -471,43 +509,28 @@ public class ContentListActivity extends BaseActivity {
                 contentManager.getWorldsLiveData().observe(this, worlds -> {
                     allWorlds = worlds != null ? worlds : new ArrayList<>();
                     if (worldsAdapter != null) {
+                        worldsAdapter.retainSelections(allWorlds);
                         filterContent(binding.searchEditText.getText().toString());
                     }
                     showLoading(false);
                 });
                 break;
             case TYPE_SKIN_PACKS:
-                contentManager.getSkinPacksLiveData().observe(this, packs -> {
-                    allPacks = packs != null ? packs : new ArrayList<>();
-                    if (packsAdapter != null) {
-                        filterContent(binding.searchEditText.getText().toString());
-                    }
-                    showLoading(false);
-                });
+                contentManager.getSkinPacksLiveData().observe(this, packs -> updatePacksFromObserver(packs));
                 break;
             case TYPE_RESOURCE_PACKS:
-                contentManager.getResourcePacksLiveData().observe(this, packs -> {
-                    allPacks = packs != null ? packs : new ArrayList<>();
-                    if (packsAdapter != null) {
-                        filterContent(binding.searchEditText.getText().toString());
-                    }
-                    showLoading(false);
-                });
+                contentManager.getResourcePacksLiveData().observe(this, packs -> updatePacksFromObserver(packs));
                 break;
             case TYPE_BEHAVIOR_PACKS:
-                contentManager.getBehaviorPacksLiveData().observe(this, packs -> {
-                    allPacks = packs != null ? packs : new ArrayList<>();
-                    if (packsAdapter != null) {
-                        filterContent(binding.searchEditText.getText().toString());
-                    }
-                    showLoading(false);
-                });
+                contentManager.getBehaviorPacksLiveData().observe(this, packs -> updatePacksFromObserver(packs));
                 break;
             case TYPE_SCREENSHOTS:
                 contentManager.getScreenshotsLiveData().observe(this, screenshots -> {
+                    List<org.levimc.launcher.core.content.ScreenshotItem> items = screenshots != null ? screenshots : new ArrayList<>();
                     if (screenshotsAdapter != null) {
-                        screenshotsAdapter.updateData(screenshots != null ? screenshots : new ArrayList<>());
+                        screenshotsAdapter.updateData(items);
                     }
+                    updateListState(items.size(), items.size(), "");
                     showLoading(false);
                 });
                 break;
@@ -530,6 +553,15 @@ public class ContentListActivity extends BaseActivity {
                 });
                 break;
         }
+    }
+
+    private void updatePacksFromObserver(List<ResourcePackItem> packs) {
+        allPacks = packs != null ? packs : new ArrayList<>();
+        if (packsAdapter != null) {
+            packsAdapter.retainSelections(allPacks);
+            filterContent(binding.searchEditText.getText().toString());
+        }
+        showLoading(false);
     }
 
     private void loadContent() {
@@ -856,7 +888,7 @@ public class ContentListActivity extends BaseActivity {
             }
             runOnUiThread(() -> {
                 showLoading(false);
-                Toast.makeText(ContentListActivity.this, "Save failed", Toast.LENGTH_SHORT).show();
+                Toast.makeText(ContentListActivity.this, R.string.save_failed, Toast.LENGTH_SHORT).show();
             });
         }).start();
     }
@@ -864,7 +896,7 @@ public class ContentListActivity extends BaseActivity {
     private void showDeleteScreenshotDialog(org.levimc.launcher.core.content.ScreenshotItem screenshot) {
         new CustomAlertDialog(this)
             .setTitleText(getString(R.string.delete))
-            .setMessage("Are you sure you want to delete this screenshot?")
+            .setMessage(getString(R.string.delete_screenshot_confirm))
             .setPositiveButton(getString(R.string.dialog_positive_delete), v -> deleteScreenshot(screenshot))
             .setNegativeButton(getString(R.string.cancel), null)
             .show();
@@ -951,7 +983,7 @@ public class ContentListActivity extends BaseActivity {
     private void showDeleteServerDialog(org.levimc.launcher.core.content.ServerItem server) {
         new CustomAlertDialog(this)
             .setTitleText(getString(R.string.delete))
-            .setMessage("Are you sure you want to delete this server?")
+            .setMessage(getString(R.string.delete_server_confirm))
             .setPositiveButton(getString(R.string.dialog_positive_delete), v -> deleteServer(server))
             .setNegativeButton(getString(R.string.cancel), null)
             .show();
@@ -1003,10 +1035,10 @@ public class ContentListActivity extends BaseActivity {
 
     private void openCustomFlatWorld() {
         if (worldsDirectory == null || !worldsDirectory.exists()) {
-            Toast.makeText(this, "Worlds directory not available", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.worlds_directory_unavailable, Toast.LENGTH_SHORT).show();
             return;
         }
-        
+
         Intent intent = new Intent(this, CustomFlatWorldActivity.class);
         intent.putExtra(CustomFlatWorldActivity.EXTRA_WORLDS_DIRECTORY, worldsDirectory.getAbsolutePath());
         customFlatWorldLauncher.launch(intent);
@@ -1015,7 +1047,7 @@ public class ContentListActivity extends BaseActivity {
     private void showExtractStructuresDialog(WorldItem world) {
         File worldFile = world.getFile();
         if (worldFile == null || !worldFile.exists()) {
-            Toast.makeText(this, "World directory not found", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.world_directory_not_found, Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -1082,7 +1114,7 @@ public class ContentListActivity extends BaseActivity {
     private void startStructureExport(WorldItem world, StructureExtractor.StructureInfo structure) {
         pendingStructureExportWorld = world;
         pendingStructureInfo = structure;
-        
+
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("application/octet-stream");
@@ -1273,6 +1305,7 @@ public class ContentListActivity extends BaseActivity {
                 new File(gameDataDir, "skin_packs"),
                 new File(gameDataDir, "Screenshots"),
                 new File(gameDataDir, "minecraftpe"));
+        contentManager.setStructuresDirectory(new File(gameDataDir, "structures"));
     }
 
     private void configureDirectories() {
@@ -1287,6 +1320,7 @@ public class ContentListActivity extends BaseActivity {
                 new File(gameDataDir, "skin_packs"),
                 new File(gameDataDir, "Screenshots"),
                 new File(gameDataDir, "minecraftpe"));
+        contentManager.setStructuresDirectory(new File(gameDataDir, "structures"));
     }
 
     private File getWorldsDirectoryForType(FeatureSettings.StorageType storageType) {
@@ -1319,6 +1353,393 @@ public class ContentListActivity extends BaseActivity {
         }
     }
 
+    // ------------------------------------------------------------------
+    // 选择模式 / 批量操作 / 空状态（同步自上游，含本地「取消全选」切换）
+    // ------------------------------------------------------------------
+
+    private boolean isPackType() {
+        return contentType == TYPE_SKIN_PACKS || contentType == TYPE_RESOURCE_PACKS || contentType == TYPE_BEHAVIOR_PACKS;
+    }
+
+    private void enterSelectionMode() {
+        if (contentType == TYPE_WORLDS && worldsAdapter != null) worldsAdapter.setSelectionMode(true);
+        else if (isPackType() && packsAdapter != null) packsAdapter.setSelectionMode(true);
+        updateSelectionToolbar();
+    }
+
+    private void exitSelectionMode() {
+        if (worldsAdapter != null) worldsAdapter.setSelectionMode(false);
+        if (packsAdapter != null) packsAdapter.setSelectionMode(false);
+        updateSelectionToolbar();
+    }
+
+    private boolean isSelectionMode() {
+        if (contentType == TYPE_WORLDS) return worldsAdapter != null && worldsAdapter.isSelectionMode();
+        if (isPackType()) return packsAdapter != null && packsAdapter.isSelectionMode();
+        return false;
+    }
+
+    private int getSelectedCount() {
+        if (contentType == TYPE_WORLDS) return worldsAdapter != null ? worldsAdapter.getSelectedCount() : 0;
+        if (isPackType()) return packsAdapter != null ? packsAdapter.getSelectedCount() : 0;
+        return 0;
+    }
+
+    private boolean areAllVisibleSelected() {
+        if (contentType == TYPE_WORLDS) return worldsAdapter != null && worldsAdapter.areAllVisibleSelected();
+        if (isPackType()) return packsAdapter != null && packsAdapter.areAllVisibleSelected();
+        return false;
+    }
+
+    private void updateSelectionToolbar() {
+        boolean active = isSelectionMode();
+        int count = getSelectedCount();
+        binding.normalToolbar.setVisibility(active ? View.GONE : View.VISIBLE);
+        binding.selectionToolbar.setVisibility(active ? View.VISIBLE : View.GONE);
+        binding.selectionCountText.setText(getString(R.string.selected_count, count));
+        binding.batchExportButton.setEnabled(count > 0);
+        binding.batchTransferButton.setEnabled(count > 0);
+        binding.batchDeleteButton.setEnabled(count > 0);
+        // 全选按钮文字/图标在「全选」与「取消全选」之间切换（同一位置）
+        binding.selectAllButton.setText(areAllVisibleSelected() ? R.string.cancel_select_all : R.string.select_all);
+    }
+
+    private void toggleSelectAllVisible() {
+        if (areAllVisibleSelected()) {
+            if (contentType == TYPE_WORLDS && worldsAdapter != null) worldsAdapter.clearSelection();
+            else if (isPackType() && packsAdapter != null) packsAdapter.clearSelection();
+        } else {
+            if (contentType == TYPE_WORLDS && worldsAdapter != null) worldsAdapter.selectAllVisible();
+            else if (isPackType() && packsAdapter != null) packsAdapter.selectAllVisible();
+        }
+        updateSelectionToolbar();
+    }
+
+    private void handleBackNavigation() {
+        if (isSelectionMode()) exitSelectionMode();
+        else finish();
+    }
+
+    @Override
+    public void onBackPressed() {
+        handleBackNavigation();
+    }
+
+    private void restoreSelectionState(Bundle state) {
+        if (state == null || !state.getBoolean(STATE_SELECTION_MODE, false)) return;
+        ArrayList<String> paths = state.getStringArrayList(STATE_SELECTED_PATHS);
+        if (contentType == TYPE_WORLDS && worldsAdapter != null) worldsAdapter.restoreSelection(paths, true);
+        else if (isPackType() && packsAdapter != null) packsAdapter.restoreSelection(paths, true);
+        updateSelectionToolbar();
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putBoolean(STATE_SELECTION_MODE, isSelectionMode());
+        if (contentType == TYPE_WORLDS && worldsAdapter != null) outState.putStringArrayList(STATE_SELECTED_PATHS, worldsAdapter.getSelectedPaths());
+        else if (isPackType() && packsAdapter != null) outState.putStringArrayList(STATE_SELECTED_PATHS, packsAdapter.getSelectedPaths());
+    }
+
+    private void updateListState(int visibleCount, int totalCount, String query) {
+        binding.itemCountText.setText(String.valueOf(totalCount));
+        boolean empty = visibleCount == 0;
+        binding.emptyState.setVisibility(empty ? View.VISIBLE : View.GONE);
+        binding.contentRecyclerView.setVisibility(empty ? View.GONE : View.VISIBLE);
+        if (!empty) return;
+
+        if (query != null && !query.isEmpty()) {
+            binding.emptyStateTitle.setText(getString(R.string.no_search_results, query));
+            binding.emptyStateMessage.setText("");
+        } else if (contentType == TYPE_WORLDS) {
+            binding.emptyStateTitle.setText(R.string.no_worlds_found);
+            binding.emptyStateMessage.setText(R.string.no_worlds_message);
+        } else if (isPackType()) {
+            binding.emptyStateTitle.setText(R.string.no_packs_found);
+            binding.emptyStateMessage.setText(R.string.no_packs_message);
+        } else if (contentType == TYPE_SERVERS) {
+            binding.emptyStateTitle.setText(R.string.no_servers_found);
+            binding.emptyStateMessage.setText(R.string.no_servers_message);
+        } else if (contentType == TYPE_STRUCTURES) {
+            binding.emptyStateTitle.setText(R.string.no_structures_found_list);
+            binding.emptyStateMessage.setText(R.string.no_structures_message_list);
+        } else {
+            binding.emptyStateTitle.setText(R.string.no_screenshots_found);
+            binding.emptyStateMessage.setText(R.string.no_screenshots_message);
+        }
+
+        if (contentType == TYPE_WORLDS) binding.emptyStateIcon.setImageResource(R.drawable.ic_world);
+        else if (contentType == TYPE_BEHAVIOR_PACKS) binding.emptyStateIcon.setImageResource(R.drawable.ic_behavior);
+        else if (contentType == TYPE_SKIN_PACKS) binding.emptyStateIcon.setImageResource(R.drawable.ic_tshirt);
+        else if (contentType == TYPE_STRUCTURES) binding.emptyStateIcon.setImageResource(R.drawable.ic_structure);
+        else binding.emptyStateIcon.setImageResource(R.drawable.ic_photo);
+    }
+
+    private List<WorldItem> getSelectedWorlds() {
+        return worldsAdapter != null ? worldsAdapter.getSelectedItems(allWorlds) : new ArrayList<>();
+    }
+
+    private List<ResourcePackItem> getSelectedPacks() {
+        return packsAdapter != null ? packsAdapter.getSelectedItems(allPacks) : new ArrayList<>();
+    }
+
+    private void startBatchExport() {
+        if (contentType == TYPE_WORLDS) {
+            pendingBatchWorlds = getSelectedWorlds();
+            pendingBatchPacks.clear();
+            if (pendingBatchWorlds.isEmpty()) return;
+        } else if (isPackType()) {
+            pendingBatchPacks = getSelectedPacks();
+            pendingBatchWorlds.clear();
+            if (pendingBatchPacks.isEmpty()) return;
+        } else {
+            return;
+        }
+
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        batchExportFolderLauncher.launch(intent);
+    }
+
+    private Uri createExportDocument(Uri treeUri, String displayName) {
+        try {
+            Uri parent = DocumentsContract.buildDocumentUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri));
+            return DocumentsContract.createDocument(getContentResolver(), parent, "application/octet-stream", displayName);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private String uniqueExportName(String name, String extension, Set<String> usedNames) {
+        String base = name == null ? "content" : name.trim();
+        base = base.replace('\\', '_').replaceAll("[/:*?\"<>|]", "_").replaceAll("\\s+", " ").trim();
+        if (base.isEmpty()) base = "content";
+        if (base.length() > 96) base = base.substring(0, 96).trim();
+        String candidate = base + extension;
+        int suffix = 2;
+        while (!usedNames.add(candidate.toLowerCase())) {
+            candidate = base + " (" + suffix++ + ")" + extension;
+        }
+        return candidate;
+    }
+
+    private void exportWorldBatch(Uri treeUri, List<WorldItem> items, int index, int success, int failed, Set<String> usedNames) {
+        if (index >= items.size()) {
+            finishBatch(success, failed, false);
+            return;
+        }
+        runOnUiThread(() -> showProgressDialog(getString(R.string.batch_exporting, index + 1, items.size())));
+        WorldItem world = items.get(index);
+        Uri output = createExportDocument(treeUri, uniqueExportName(world.getWorldName(), ".mcworld", usedNames));
+        if (output == null) {
+            exportWorldBatch(treeUri, items, index + 1, success, failed + 1, usedNames);
+            return;
+        }
+        contentManager.exportWorld(world, output, new WorldManager.WorldOperationCallback() {
+            @Override
+            public void onSuccess(String message) {
+                exportWorldBatch(treeUri, items, index + 1, success + 1, failed, usedNames);
+            }
+
+            @Override
+            public void onError(String error) {
+                exportWorldBatch(treeUri, items, index + 1, success, failed + 1, usedNames);
+            }
+
+            @Override
+            public void onProgress(int progress) {
+            }
+        });
+    }
+
+    private void exportPackBatch(Uri treeUri, List<ResourcePackItem> items, int index, int success, int failed, Set<String> usedNames) {
+        if (index >= items.size()) {
+            finishBatch(success, failed, false);
+            return;
+        }
+        runOnUiThread(() -> showProgressDialog(getString(R.string.batch_exporting, index + 1, items.size())));
+        ResourcePackItem pack = items.get(index);
+        Uri output = createExportDocument(treeUri, uniqueExportName(pack.getPackName(), ".mcpack", usedNames));
+        if (output == null) {
+            exportPackBatch(treeUri, items, index + 1, success, failed + 1, usedNames);
+            return;
+        }
+        contentManager.exportResourcePack(pack, output, new ResourcePackManager.PackOperationCallback() {
+            @Override
+            public void onSuccess(String message) {
+                exportPackBatch(treeUri, items, index + 1, success + 1, failed, usedNames);
+            }
+
+            @Override
+            public void onError(String error) {
+                exportPackBatch(treeUri, items, index + 1, success, failed + 1, usedNames);
+            }
+
+            @Override
+            public void onProgress(int progress) {
+            }
+        });
+    }
+
+    private void showBatchDeleteDialog() {
+        int count = getSelectedCount();
+        if (count == 0) return;
+        boolean worlds = contentType == TYPE_WORLDS;
+        new CustomAlertDialog(this)
+                .setTitleText(getString(worlds ? R.string.batch_delete_worlds_title : R.string.batch_delete_packs_title))
+                .setMessage(getString(worlds ? R.string.batch_delete_worlds_message : R.string.batch_delete_packs_message, count))
+                .setPositiveButton(getString(R.string.dialog_positive_delete), v -> {
+                    if (worlds) deleteWorldBatch(getSelectedWorlds(), 0, 0, 0);
+                    else deletePackBatch(getSelectedPacks(), 0, 0, 0);
+                })
+                .setNegativeButton(getString(R.string.cancel), null)
+                .show();
+    }
+
+    private void deleteWorldBatch(List<WorldItem> items, int index, int success, int failed) {
+        if (index >= items.size()) {
+            finishBatch(success, failed, true);
+            return;
+        }
+        showProgressDialog(getString(R.string.batch_deleting, index + 1, items.size()));
+        contentManager.deleteWorld(items.get(index), false, new WorldManager.WorldOperationCallback() {
+            @Override
+            public void onSuccess(String message) {
+                runOnUiThread(() -> deleteWorldBatch(items, index + 1, success + 1, failed));
+            }
+
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> deleteWorldBatch(items, index + 1, success, failed + 1));
+            }
+
+            @Override
+            public void onProgress(int progress) {
+            }
+        });
+    }
+
+    private void deletePackBatch(List<ResourcePackItem> items, int index, int success, int failed) {
+        if (index >= items.size()) {
+            finishBatch(success, failed, true);
+            return;
+        }
+        showProgressDialog(getString(R.string.batch_deleting, index + 1, items.size()));
+        contentManager.deleteResourcePack(items.get(index), false, new ResourcePackManager.PackOperationCallback() {
+            @Override
+            public void onSuccess(String message) {
+                runOnUiThread(() -> deletePackBatch(items, index + 1, success + 1, failed));
+            }
+
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> deletePackBatch(items, index + 1, success, failed + 1));
+            }
+
+            @Override
+            public void onProgress(int progress) {
+            }
+        });
+    }
+
+    private void showBatchTransferDialog() {
+        if (getSelectedCount() == 0) return;
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_transfer_content, null);
+        Spinner targetSpinner = dialogView.findViewById(R.id.target_version_spinner);
+
+        List<GameVersion> allVersions = getAllVersions();
+        List<String> labels = new ArrayList<>();
+        labels.add(getString(R.string.transfer_to_shared));
+        for (GameVersion v : allVersions) labels.add(v.displayName);
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, R.layout.spinner_item, labels);
+        adapter.setDropDownViewResource(R.layout.spinner_dropdown_item);
+        targetSpinner.setAdapter(adapter);
+
+        new CustomAlertDialog(this)
+                .setTitleText(getString(R.string.transfer_content))
+                .setCustomView(dialogView)
+                .setPositiveButton(getString(R.string.transfer), v -> {
+                    int pos = targetSpinner.getSelectedItemPosition();
+                    boolean shared = pos <= 0;
+                    String profileId = shared ? null : allVersions.get(pos - 1).getStorageProfileId();
+                    if (contentType == TYPE_WORLDS) {
+                        File targetDir = getWorldsDirectoryForTarget(shared, profileId);
+                        if (targetDir == null) {
+                            Toast.makeText(this, getString(R.string.transfer_failed), Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        transferWorldBatch(getSelectedWorlds(), targetDir, 0, 0, 0);
+                    } else {
+                        String packType = contentType == TYPE_BEHAVIOR_PACKS ? "behavior_packs" :
+                                (contentType == TYPE_SKIN_PACKS ? "skin_packs" : "resource_packs");
+                        File targetDir = getPackDirectoryForTarget(shared, profileId, packType);
+                        if (targetDir == null) {
+                            Toast.makeText(this, getString(R.string.transfer_failed), Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        transferPackBatch(getSelectedPacks(), targetDir, 0, 0, 0);
+                    }
+                })
+                .setNegativeButton(getString(R.string.cancel), null)
+                .show();
+    }
+
+    private void transferWorldBatch(List<WorldItem> items, File targetDir, int index, int success, int failed) {
+        if (index >= items.size()) {
+            finishBatch(success, failed, true);
+            return;
+        }
+        showProgressDialog(getString(R.string.batch_transferring, index + 1, items.size()));
+        contentManager.transferWorld(items.get(index), targetDir, false, new WorldManager.WorldOperationCallback() {
+            @Override
+            public void onSuccess(String message) {
+                runOnUiThread(() -> transferWorldBatch(items, targetDir, index + 1, success + 1, failed));
+            }
+
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> transferWorldBatch(items, targetDir, index + 1, success, failed + 1));
+            }
+
+            @Override
+            public void onProgress(int progress) {
+            }
+        });
+    }
+
+    private void transferPackBatch(List<ResourcePackItem> items, File targetDir, int index, int success, int failed) {
+        if (index >= items.size()) {
+            finishBatch(success, failed, true);
+            return;
+        }
+        showProgressDialog(getString(R.string.batch_transferring, index + 1, items.size()));
+        contentManager.transferResourcePack(items.get(index), targetDir, false, new ResourcePackManager.PackOperationCallback() {
+            @Override
+            public void onSuccess(String message) {
+                runOnUiThread(() -> transferPackBatch(items, targetDir, index + 1, success + 1, failed));
+            }
+
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> transferPackBatch(items, targetDir, index + 1, success, failed + 1));
+            }
+
+            @Override
+            public void onProgress(int progress) {
+            }
+        });
+    }
+
+    private void finishBatch(int success, int failed, boolean refresh) {
+        runOnUiThread(() -> {
+            hideProgressDialog();
+            Toast.makeText(this, getString(R.string.batch_result, success, failed), failed > 0 ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT).show();
+            exitSelectionMode();
+            if (refresh) loadContent();
+        });
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -1336,6 +1757,9 @@ public class ContentListActivity extends BaseActivity {
         super.onDestroy();
         if (structureExtractor != null) {
             structureExtractor.shutdown();
+        }
+        if (screenshotsAdapter != null) {
+            screenshotsAdapter.shutdown();
         }
     }
 }

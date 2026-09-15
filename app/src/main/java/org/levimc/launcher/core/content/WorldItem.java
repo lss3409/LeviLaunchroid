@@ -2,6 +2,8 @@ package org.levimc.launcher.core.content;
 
 import android.util.Log;
 
+import org.levimc.launcher.core.content.leveldb.LevelDBEntry;
+import org.levimc.launcher.core.content.leveldb.LevelDBReader;
 import org.levimc.launcher.core.content.nbt.BedrockNbtReader;
 import org.levimc.launcher.core.content.nbt.NbtTag;
 
@@ -9,6 +11,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 
 public class WorldItem extends ContentItem {
@@ -20,11 +23,14 @@ public class WorldItem extends ContentItem {
     private long seed;
     private boolean isValid;
     private boolean isHardcore;
+    private boolean playerDead;
+    private float playerHealth = -1f;
 
     public WorldItem(String name, File worldDir) {
         super(name, worldDir);
         this.worldName = name;
         loadWorldInfo();
+        loadPlayerState();
     }
 
     @Override
@@ -47,8 +53,93 @@ public class WorldItem extends ContentItem {
         return worldName;
     }
 
+    public String getGameMode() {
+        return gameMode != null ? gameMode : "Unknown";
+    }
+
+    public File getIconFile() {
+        if (file == null) return null;
+        String[] names = {"world_icon.jpeg", "world_icon.jpg", "world_icon.png"};
+        for (String name : names) {
+            File icon = new File(file, name);
+            if (icon.isFile()) return icon;
+        }
+        return null;
+    }
+
     public long getSeed() {
         return seed;
+    }
+
+    /** 极限模式玩家是否已死亡（读取 LevelDB 本地玩家 NBT 的 DeathTime/Health）。 */
+    public boolean isPlayerDead() {
+        return playerDead;
+    }
+
+    /** 玩家当前生命值（-1 = 未读到）。 */
+    public float getPlayerHealth() {
+        return playerHealth;
+    }
+
+    /** 读本地玩家状态（db 的玩家 NBT）：死亡标记 + 生命值。 */
+    private void loadPlayerState() {
+        File dbDir = new File(file, "db");
+        if (!dbDir.isDirectory()) return;
+        try {
+            LevelDBReader dbReader = new LevelDBReader(dbDir);
+            List<LevelDBEntry> entries = dbReader.readAllEntries();
+            for (LevelDBEntry entry : entries) {
+                String name = entry.getKey().getDisplayName();
+                byte[] rawKey = entry.getKey().getRawKey();
+                boolean isPlayerKey = false;
+                if (name != null && (name.contains("local_player") || name.startsWith("player"))) {
+                    isPlayerKey = true;
+                } else if (rawKey != null && (rawKey.length == 9 || rawKey.length == 10)
+                        && !entry.getKey().isChunkKey()) {
+                    // 1.19+ actor 二进制 key（8 字节 id + 类型字节）：
+                    // 非 chunk 的 9/10 字节 key 大概率是玩家/实体数据，按内容判定。
+                    isPlayerKey = true;
+                }
+                if (!isPlayerKey) continue;
+                try {
+                    NbtTag root = new BedrockNbtReader().readFromBytes(entry.getValue());
+                    if (root == null || root.getType() != NbtTag.TAG_COMPOUND) continue;
+                    Map<String, NbtTag> compound = root.getCompound();
+
+                    NbtTag deathTag = compound.get("DeathTime");
+                    NbtTag healthTag = compound.get("Health");
+                    NbtTag deadTag = compound.get("Dead");
+                    NbtTag gameModeTag = compound.get("PlayerGameMode");
+                    if (deathTag == null && healthTag == null && deadTag == null) continue;
+                    if (deathTag != null && deathTag.getInt() > 0) {
+                        // 死亡画面倒计时（TAG_Short ticks，硬核死亡后退出时仍 >0）
+                        playerDead = true;
+                    }
+                    if (deadTag != null && deadTag.getByte() != 0) {
+                        // 1.19+ 玩家数据的 Dead 标记（TAG_Byte）
+                        playerDead = true;
+                    }
+                    if (healthTag != null) {
+                        playerHealth = healthTag.getFloat();
+                        if (playerHealth <= 0f) {
+                            playerDead = true;
+                        }
+                    }
+                    if (isHardcore && gameModeTag != null) {
+                        // 硬核死亡后玩家模式变为观察者（实测死亡存档 PlayerGameMode=5）
+                        int gm = gameModeTag.getInt();
+                        if (gm == 5 || gm == 6) {
+                            playerDead = true;
+                        }
+                    }
+                    break;
+                } catch (Exception ignored) {
+                }
+            }
+            dbReader.close();
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to read player state for " + file.getName(), e);
+        }
     }
 
     public boolean isHardcore() {
@@ -110,6 +201,12 @@ public class WorldItem extends ContentItem {
                 NbtTag hardcoreTag = compound.get("IsHardcore");
                 if (hardcoreTag != null) {
                     isHardcore = hardcoreTag.getByte() != 0;
+                }
+
+                // 官方死亡标记（硬核死亡后游戏写入 level.dat）
+                NbtTag diedTag = compound.get("PlayerHasDied");
+                if (diedTag != null && diedTag.getByte() != 0) {
+                    playerDead = true;
                 }
 
                 if (worldName == null || worldName.isEmpty() || worldName.equals(file.getName())) {

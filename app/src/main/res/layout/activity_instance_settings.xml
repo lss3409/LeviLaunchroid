@@ -201,7 +201,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="@string/shortcut_title"
+                            android:text="@string/instance_shortcut_title"
                             android:fontFamily="@font/misans"
                             android:textColor="@color/on_surface"
                             android:textSize="15sp"
@@ -211,16 +211,26 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="@string/shortcut_desc"
+                            android:text="@string/instance_shortcut_desc"
                             android:fontFamily="@font/misans"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="14dp"
+                            android:text="@string/instance_shortcut_name"
+                            android:fontFamily="@font/misans"
+                            android:textColor="@color/on_surface"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
 
                         <EditText
                             android:id="@+id/edit_shortcut_name"
                             android:layout_width="match_parent"
                             android:layout_height="44dp"
-                            android:layout_marginTop="10dp"
+                            android:layout_marginTop="8dp"
                             android:paddingHorizontal="14dp"
                             android:background="@drawable/bg_search_field_light"
                             android:fontFamily="@font/misans"
@@ -230,18 +240,68 @@
                             android:singleLine="true"
                             android:importantForAutofill="no" />
 
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:text="@string/instance_shortcut_icon"
+                            android:fontFamily="@font/misans"
+                            android:textColor="@color/on_surface"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
+                            android:layout_marginTop="8dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <ImageView
+                                android:id="@+id/shortcut_icon_preview"
+                                android:layout_width="56dp"
+                                android:layout_height="56dp"
+                                android:contentDescription="@string/instance_shortcut_icon"
+                                android:scaleType="centerCrop"
+                                android:src="@drawable/ic_minecraft_cube" />
+
+                            <Button
+                                android:id="@+id/btn_choose_shortcut_icon"
+                                android:layout_width="wrap_content"
+                                android:layout_height="36dp"
+                                android:layout_marginStart="12dp"
+                                android:backgroundTint="@color/primary"
+                                android:fontFamily="@font/misans"
+                                android:paddingHorizontal="16dp"
+                                android:text="@string/instance_shortcut_choose_icon"
+                                android:textAllCaps="false"
+                                android:textColor="@color/on_primary"
+                                android:textSize="12sp" />
+
+                            <Button
+                                android:id="@+id/btn_reset_shortcut_icon"
+                                android:layout_width="wrap_content"
+                                android:layout_height="36dp"
+                                android:layout_marginStart="8dp"
+                                android:fontFamily="@font/misans"
+                                android:paddingHorizontal="14dp"
+                                android:text="@string/instance_shortcut_default_icon"
+                                android:textAllCaps="false"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="14dp"
                             android:orientation="horizontal">
 
                             <Button
-                                android:id="@+id/btn_add_shortcut"
+                                android:id="@+id/btn_add_instance_shortcut"
                                 android:layout_width="0dp"
                                 android:layout_height="40dp"
                                 android:layout_weight="1"
-                                android:text="@string/add_to_desktop"
+                                android:text="@string/instance_shortcut_add_button"
                                 android:fontFamily="@font/misans"
                                 android:textSize="13sp"
                                 android:textColor="@color/on_primary"
@@ -257,8 +317,8 @@
                                 android:text="@string/remove_shortcut"
                                 android:fontFamily="@font/misans"
                                 android:textSize="13sp"
-                                android:textColor="#FFFFFF"
-                                android:backgroundTint="#E53935"
+                                android:textColor="@color/on_error"
+                                android:backgroundTint="@color/error"
                                 android:textAllCaps="false" />
                         </LinearLayout>
                     </LinearLayout>

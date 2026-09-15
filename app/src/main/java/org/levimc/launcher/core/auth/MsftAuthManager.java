@@ -66,17 +66,17 @@ public final class MsftAuthManager {
     private MsftAuthManager() {
     }
 
-    /**
-     * 设备代码登录用的配置：redirect 与游戏 XAL 一致（minecraft 模块 strings.xml 的 xal_token）。
-     * MSA 的 refresh_token 绑定 redirect_uri，游戏刷新 token 时用 ms-xal-...://auth，
-     * 用这个 redirect 登录的账号 token 才能被游戏直接使用（启动后不弹引导窗口）。
-     * 设备码流程不走浏览器回调，不受自定义 scheme 影响，天然适用。
-     */
     public static MsaApplicationConfig getAppConfig() {
         return new MsaApplicationConfig(
                 DEFAULT_CLIENT_ID,
                 DEFAULT_SCOPE,
                 null,
+                // 必须与游戏 XAL 的 redirect_uri 一致（minecraft 模块 strings.xml 的 xal_token）：
+                // MSA 的 refresh_token 绑定 redirect_uri，游戏刷新 token 时用 ms-xal-...://auth，
+                // 若启动器用默认 oauth20_desktop.srf 登录，access_token 过期后游戏无法刷新
+                // （表现为启动器登录后进游戏「未登录/弹引导窗」）。
+                // 注意：网页登录对自定义 scheme 回调兼容性差，请使用「设备代码登录」
+                // （设备码流程不受 redirect 影响，且 token 与游戏一致）。
                 "ms-xal-0000000048183522://auth",
                 MsaEnvironment.LIVE
         );

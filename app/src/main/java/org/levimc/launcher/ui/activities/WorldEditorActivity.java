@@ -1,5 +1,6 @@
 package org.levimc.launcher.ui.activities;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -40,6 +41,9 @@ public class WorldEditorActivity extends BaseActivity {
     private WorldPropertiesAdapter adapter;
     private ExecutorService executor;
 
+    private String worldPath;
+    private String worldName;
+
     private List<WorldProperty> allProperties = new ArrayList<>();
     private boolean hasUnsavedChanges = false;
 
@@ -53,11 +57,11 @@ public class WorldEditorActivity extends BaseActivity {
 
         executor = Executors.newSingleThreadExecutor();
 
-        String worldPath = getIntent().getStringExtra(EXTRA_WORLD_PATH);
-        String worldName = getIntent().getStringExtra(EXTRA_WORLD_NAME);
+        worldPath = getIntent().getStringExtra(EXTRA_WORLD_PATH);
+        worldName = getIntent().getStringExtra(EXTRA_WORLD_NAME);
 
         if (worldPath == null) {
-            Toast.makeText(this, "Invalid world path", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.invalid_world_path, Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
@@ -73,6 +77,13 @@ public class WorldEditorActivity extends BaseActivity {
 
         binding.saveButton.setOnClickListener(v -> saveChanges());
         binding.saveButton.setEnabled(false);
+
+        binding.nbtViewerButton.setOnClickListener(v -> {
+            Intent intent = new Intent(this, NbtViewerActivity.class);
+            intent.putExtra(NbtViewerActivity.EXTRA_WORLD_DIR, worldPath);
+            intent.putExtra(NbtViewerActivity.EXTRA_WORLD_NAME, worldName);
+            startActivity(intent);
+        });
 
         adapter = new WorldPropertiesAdapter();
         adapter.setOnPropertyChangedListener((property, newValue) -> {

@@ -2,6 +2,7 @@ package org.levimc.launcher.ui.activities;
 
 import android.os.Bundle;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
@@ -35,6 +36,7 @@ public class CustomFlatWorldActivity extends BaseActivity {
     private List<BlockLayer> layers;
     private File worldsDirectory;
     private ExecutorService executor;
+    private ItemTouchHelper itemTouchHelper;
 
     private static final String[] BIOME_NAMES = {
             "平原", "沙漠", "山地", "森林", "针叶林", "沼泽", "河流", "下界荒地",
@@ -59,28 +61,23 @@ public class CustomFlatWorldActivity extends BaseActivity {
 
         String worldsPath = getIntent().getStringExtra(EXTRA_WORLDS_DIRECTORY);
         if (worldsPath == null) {
-            Toast.makeText(this, "Invalid worlds directory", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.invalid_worlds_directory, Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
         worldsDirectory = new File(worldsPath);
-
         layers = new ArrayList<>(FlatWorldGenerator.getDefaultLayers());
-
         setupUI();
     }
 
     private void setupUI() {
-
-        ArrayAdapter<String> biomeAdapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_item, BIOME_NAMES);
-        biomeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        ArrayAdapter<String> biomeAdapter = new ArrayAdapter<>(this, R.layout.item_flat_spinner, BIOME_NAMES);
+        biomeAdapter.setDropDownViewResource(R.layout.item_flat_spinner_dropdown);
         binding.biomeSpinner.setAdapter(biomeAdapter);
 
         String[] gameModes = {"生存模式", "创造模式", "冒险模式"};
-        ArrayAdapter<String> gameModeAdapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_item, gameModes);
-        gameModeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        ArrayAdapter<String> gameModeAdapter = new ArrayAdapter<>(this, R.layout.item_flat_spinner, gameModes);
+        gameModeAdapter.setDropDownViewResource(R.layout.item_flat_spinner_dropdown);
         binding.gameModeSpinner.setAdapter(gameModeAdapter);
         binding.gameModeSpinner.setSelection(1);
 
@@ -88,31 +85,47 @@ public class CustomFlatWorldActivity extends BaseActivity {
         binding.layersRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         binding.layersRecyclerView.setAdapter(layersAdapter);
 
-        ItemTouchHelper touchHelper = new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(
+        itemTouchHelper = new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(
                 ItemTouchHelper.UP | ItemTouchHelper.DOWN, ItemTouchHelper.LEFT) {
             @Override
+            public boolean isLongPressDragEnabled() {
+                return false;
+            }
+
+            @Override
             public boolean onMove(@NonNull RecyclerView recyclerView,
-                                  @NonNull RecyclerView.ViewHolder viewHolder, @NonNull RecyclerView.ViewHolder target) {
-                int from = viewHolder.getAdapterPosition();
-                int to = target.getAdapterPosition();
+                                  @NonNull RecyclerView.ViewHolder viewHolder,
+                                  @NonNull RecyclerView.ViewHolder target) {
+                int from = viewHolder.getBindingAdapterPosition();
+                int to = target.getBindingAdapterPosition();
+                if (from == RecyclerView.NO_POSITION || to == RecyclerView.NO_POSITION || from == to) {
+                    return false;
+                }
                 Collections.swap(layers, from, to);
                 layersAdapter.notifyItemMoved(from, to);
                 return true;
             }
 
             @Override
+            public void clearView(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
+                super.clearView(recyclerView, viewHolder);
+                layersAdapter.notifyItemRangeChanged(0, layersAdapter.getItemCount());
+                updateLayersUi();
+            }
+
+            @Override
             public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
-                int pos = viewHolder.getAdapterPosition();
-                layers.remove(pos);
-                layersAdapter.notifyItemRemoved(pos);
+                removeLayer(viewHolder.getBindingAdapterPosition());
             }
         });
-        touchHelper.attachToRecyclerView(binding.layersRecyclerView);
+        itemTouchHelper.attachToRecyclerView(binding.layersRecyclerView);
 
         binding.addLayerButton.setOnClickListener(v -> {
             layers.add(new BlockLayer("minecraft:stone", 1));
-            layersAdapter.notifyItemInserted(layers.size() - 1);
-            binding.layersRecyclerView.scrollToPosition(layers.size() - 1);
+            int position = layers.size() - 1;
+            layersAdapter.notifyItemInserted(position);
+            updateLayersUi();
+            binding.layersRecyclerView.post(() -> binding.layersRecyclerView.smoothScrollToPosition(position));
         });
 
         binding.randomizeButton.setOnClickListener(v -> {
@@ -133,6 +146,26 @@ public class CustomFlatWorldActivity extends BaseActivity {
         });
 
         binding.createWorldButton.setOnClickListener(v -> createWorld());
+        updateLayersUi();
+    }
+
+    private void removeLayer(int position) {
+        if (position < 0 || position >= layers.size()) {
+            return;
+        }
+        layers.remove(position);
+        layersAdapter.notifyItemRemoved(position);
+        if (position < layersAdapter.getItemCount()) {
+            layersAdapter.notifyItemRangeChanged(position, layersAdapter.getItemCount() - position);
+        }
+        updateLayersUi();
+    }
+
+    private void updateLayersUi() {
+        int count = layers.size();
+        binding.layersSummary.setText(getResources().getQuantityString(R.plurals.flat_layers_count, count, count));
+        binding.emptyLayersState.setVisibility(count == 0 ? View.VISIBLE : View.GONE);
+        binding.layersRecyclerView.setVisibility(count == 0 ? View.GONE : View.VISIBLE);
     }
 
     private void saveAllLayerValues() {
@@ -140,7 +173,7 @@ public class CustomFlatWorldActivity extends BaseActivity {
             View child = binding.layersRecyclerView.getChildAt(i);
             RecyclerView.ViewHolder holder = binding.layersRecyclerView.getChildViewHolder(child);
             if (holder != null) {
-                int position = holder.getAdapterPosition();
+                int position = holder.getBindingAdapterPosition();
                 if (position >= 0 && position < layers.size()) {
                     EditText countEdit = child.findViewById(R.id.count_edit);
                     EditText blockEdit = child.findViewById(R.id.block_edit);
@@ -163,7 +196,6 @@ public class CustomFlatWorldActivity extends BaseActivity {
         }
     }
 
-
     private void createWorld() {
         binding.getRoot().clearFocus();
 
@@ -181,6 +213,7 @@ public class CustomFlatWorldActivity extends BaseActivity {
         saveAllLayerValues();
 
         binding.createWorldButton.setEnabled(false);
+        binding.createWorldButton.setAlpha(0.45f);
         binding.loadingProgress.setVisibility(View.VISIBLE);
 
         int biomeIndex = binding.biomeSpinner.getSelectedItemPosition();
@@ -196,7 +229,6 @@ public class CustomFlatWorldActivity extends BaseActivity {
         executor.execute(() -> {
             try {
                 FlatWorldGenerator.generateFlatWorld(worldsDirectory, worldName, layersCopy, biomeId, gameMode, hardcore);
-
                 runOnUiThread(() -> {
                     binding.loadingProgress.setVisibility(View.GONE);
                     Toast.makeText(this, R.string.world_created_successfully, Toast.LENGTH_SHORT).show();
@@ -207,6 +239,7 @@ public class CustomFlatWorldActivity extends BaseActivity {
                 runOnUiThread(() -> {
                     binding.loadingProgress.setVisibility(View.GONE);
                     binding.createWorldButton.setEnabled(true);
+                    binding.createWorldButton.setAlpha(1f);
                     Toast.makeText(this, getString(R.string.failed_to_create_world) + ": " + e.getMessage(),
                             Toast.LENGTH_LONG).show();
                 });
@@ -227,15 +260,13 @@ public class CustomFlatWorldActivity extends BaseActivity {
         @NonNull
         @Override
         public LayerViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            View view = LayoutInflater.from(parent.getContext())
-                    .inflate(R.layout.item_flat_layer, parent, false);
+            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_flat_layer, parent, false);
             return new LayerViewHolder(view);
         }
 
         @Override
         public void onBindViewHolder(@NonNull LayerViewHolder holder, int position) {
-            BlockLayer layer = layers.get(position);
-            holder.bind(layer, position);
+            holder.bind(layers.get(position), position);
         }
 
         @Override
@@ -244,25 +275,45 @@ public class CustomFlatWorldActivity extends BaseActivity {
         }
 
         class LayerViewHolder extends RecyclerView.ViewHolder {
-            EditText blockEdit;
-            EditText countEdit;
-            TextView layerNumber;
-            private boolean isBinding = false;
+            final EditText blockEdit;
+            final EditText countEdit;
+            final TextView layerNumber;
+            final View dragHandle;
+            final View deleteButton;
+            private boolean isBinding;
 
             LayerViewHolder(View itemView) {
                 super(itemView);
                 blockEdit = itemView.findViewById(R.id.block_edit);
                 countEdit = itemView.findViewById(R.id.count_edit);
                 layerNumber = itemView.findViewById(R.id.layer_number);
+                dragHandle = itemView.findViewById(R.id.drag_handle);
+                deleteButton = itemView.findViewById(R.id.delete_layer_button);
+
+                dragHandle.setOnTouchListener((v, event) -> {
+                    if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                        itemTouchHelper.startDrag(this);
+                        return true;
+                    }
+                    return false;
+                });
+
+                deleteButton.setOnClickListener(v -> removeLayer(getBindingAdapterPosition()));
 
                 blockEdit.addTextChangedListener(new android.text.TextWatcher() {
                     @Override
-                    public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                    public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                    }
+
                     @Override
-                    public void onTextChanged(CharSequence s, int start, int before, int count) {}
+                    public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    }
+
                     @Override
                     public void afterTextChanged(android.text.Editable s) {
-                        if (isBinding) return;
+                        if (isBinding) {
+                            return;
+                        }
                         int adapterPos = getBindingAdapterPosition();
                         if (adapterPos >= 0 && adapterPos < layers.size()) {
                             String blockName = s.toString().trim();
@@ -275,18 +326,24 @@ public class CustomFlatWorldActivity extends BaseActivity {
 
                 countEdit.addTextChangedListener(new android.text.TextWatcher() {
                     @Override
-                    public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                    public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                    }
+
                     @Override
-                    public void onTextChanged(CharSequence s, int start, int before, int count) {}
+                    public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    }
+
                     @Override
                     public void afterTextChanged(android.text.Editable s) {
-                        if (isBinding) return;
+                        if (isBinding) {
+                            return;
+                        }
                         int adapterPos = getBindingAdapterPosition();
                         if (adapterPos >= 0 && adapterPos < layers.size()) {
                             try {
                                 int count = Integer.parseInt(s.toString());
                                 layers.get(adapterPos).count = Math.max(1, Math.min(count, 256));
-                            } catch (NumberFormatException e) {
+                            } catch (NumberFormatException ignored) {
                             }
                         }
                     }

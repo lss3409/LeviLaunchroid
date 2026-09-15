@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -337,9 +338,6 @@ public class HardcoreBackupActivity extends BaseActivity {
         card.addView(header);
 
         ImageView icon = new ImageView(this);
-        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(44), dp(44));
-        iconParams.setMarginEnd(dp(12));
-        header.addView(icon, iconParams);
         icon.setImageResource(R.drawable.ic_world);
         File iconFile = new File(world.getFile(), "world_icon.jpeg");
         if (iconFile.exists()) {
@@ -356,6 +354,21 @@ public class HardcoreBackupActivity extends BaseActivity {
                 });
             }).start();
         }
+
+        // 极限红心角标：活着=红心，已死亡=死亡红心（NBT 判定）
+        FrameLayout iconFrame = new FrameLayout(this);
+        iconFrame.addView(icon, new FrameLayout.LayoutParams(dp(44), dp(44)));
+        if (world.isHardcore()) {
+            ImageView heart = new ImageView(this);
+            heart.setImageResource(world.isPlayerDead()
+                    ? R.drawable.ic_hardcore_heart_dead : R.drawable.ic_hardcore_heart_alive);
+            FrameLayout.LayoutParams heartParams = new FrameLayout.LayoutParams(dp(16), dp(16));
+            heartParams.gravity = Gravity.BOTTOM | Gravity.END;
+            iconFrame.addView(heart, heartParams);
+        }
+        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(44), dp(44));
+        iconParams.setMarginEnd(dp(12));
+        header.addView(iconFrame, iconParams);
 
         LinearLayout info = new LinearLayout(this);
         info.setOrientation(LinearLayout.VERTICAL);

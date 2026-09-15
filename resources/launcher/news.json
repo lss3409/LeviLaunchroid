@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "items": [
+    {
+      "id": "2026-09-09-android-17-supported",
+      "title": "Android 17 is now supported",
+      "summary": "LeviLauncher now supports Android 17. You can now use the launcher on devices running Android 17.",
+      "publishedAt": "2026-09-08T23:02:00Z",
+      "category": "Important",
+      "url": "https://github.com/LiteLDev/LeviLaunchroid/commit/8dce7b88a53b57883d69885357d027cf8c2763e4",
+      "important": true,
+      "notify": false
+    },
+    {
+      "id": "2026-09-02-xbox-servers-restored",
+      "title": "Xbox servers are back online",
+      "summary": "Xbox servers have been restored and are working again. You should now be able to log in to your account normally. Thank you for your patience!",
+      "publishedAt": "2026-09-02T14:50:00Z",
+      "category": "Important",
+      "url": "",
+      "important": true,
+      "notify": true
+    },
+    {
+      "id": "2026-09-02-xbox-servers-down",
+      "title": "Xbox servers are currently down",
+      "summary": "Xbox servers are experiencing an outage right now. If you can't log in to your account, this is not a launcher issue — it's an issue with Xbox itself. Please wait for Xbox to resolve the problem.",
+      "publishedAt": "2026-09-02T14:00:00Z",
+      "category": "Important",
+      "url": "",
+      "important": true,
+      "notify": true
+    },
+    {
+      "id": "2026-08-26-android-17-compatibility",
+      "title": "Android 17 compatibility issue",
+      "summary": "LeviLauncher currently does not support Android 17. If you rely on LeviLauncher, do not update your device to Android 17 yet. Please wait until Android 17 support is announced.",
+      "publishedAt": "2026-08-26T21:13:00Z",
+      "category": "Important",
+      "url": "",
+      "important": true,
+      "notify": true
+    },
+    {
+      "id": "2026-08-26-launcher-news",
+      "title": "Launcher news is now built in",
+      "summary": "Tap the bell at the top of LeviLauncher to see announcements, release information, and important notices in one place.",
+      "publishedAt": "2026-08-26T18:00:00Z",
+      "category": "Launcher",
+      "url": "https://github.com/LiteLDev/LeviLaunchroid/releases",
+      "important": false,
+      "notify": false
+    }
+  ]
+}

@@ -10,6 +10,8 @@ public class ExternalModBridge {
     private static native int nativeGetExternalModCount();
     private static native String nativeGetExternalModInfo(int index);
     private static native String nativeGetExternalModsInfo();
+    private static native String nativeGetExternalModConfigSchema(String moduleId);
+    private static native long nativeGetExternalModConfigSchemaRevision(String moduleId);
     private static native void nativeToggleExternalMod(String moduleId, boolean enabled);
     private static native void nativeSetExternalModConfig(String moduleId, String key, String value);
     private static native int nativeGetExternalButtonCount();
@@ -45,6 +47,24 @@ public class ExternalModBridge {
             return nativeGetExternalModsInfo();
         } catch (UnsatisfiedLinkError e) {
             return null;
+        }
+    }
+
+    public static String getExternalModConfigSchema(String moduleId) {
+        if (!ModManager.ensurePreloaderLoaded()) return null;
+        try {
+            return nativeGetExternalModConfigSchema(moduleId);
+        } catch (UnsatisfiedLinkError e) {
+            return null;
+        }
+    }
+
+    public static long getExternalModConfigSchemaRevision(String moduleId) {
+        if (!ModManager.ensurePreloaderLoaded()) return 0L;
+        try {
+            return nativeGetExternalModConfigSchemaRevision(moduleId);
+        } catch (UnsatisfiedLinkError e) {
+            return 0L;
         }
     }
 
@@ -195,6 +215,8 @@ public class ExternalModBridge {
 
     public static native Object[] nativeGetDrawCommands();
     private static native long nativeGetDrawCommandsRevision();
+    private static native String nativeGetHudEditorElementsInfo();
+    private static native void nativeSetHudSurfaceSize(float width, float height);
 
     public static class DrawCommand {
         public static final int TYPE_TEXT = 0;
@@ -214,6 +236,65 @@ public class ExternalModBridge {
         public String moduleId;
         public String fontId;
         public String imageId;
+    }
+
+    public static class HudEditorElement {
+        public static final int SNAP_GRID = 1;
+        public static final int SNAP_ELEMENTS = 1 << 1;
+        public static final int SNAP_SCREEN_CENTER = 1 << 2;
+
+        public String moduleId;
+        public String elementId;
+        public String displayName;
+        public String positionKeyX;
+        public String positionKeyY;
+        public String snapGroup;
+        public float x, y, width, height;
+        public float gridSize;
+        public float snapThreshold;
+        public float gridGap;
+        public int snapFlags;
+    }
+
+    public static HudEditorElement[] getHudEditorElements() {
+        if (!ModManager.ensurePreloaderLoaded()) return new HudEditorElement[0];
+        try {
+            String json = nativeGetHudEditorElementsInfo();
+            if (json == null || json.isEmpty()) return new HudEditorElement[0];
+            org.json.JSONArray array = new org.json.JSONArray(json);
+            HudEditorElement[] elements = new HudEditorElement[array.length()];
+            for (int i = 0; i < array.length(); i++) {
+                org.json.JSONObject obj = array.optJSONObject(i);
+                if (obj == null) continue;
+                HudEditorElement element = new HudEditorElement();
+                element.moduleId = obj.optString("module_id", "");
+                element.elementId = obj.optString("element_id", "");
+                element.displayName = obj.optString("display_name", element.elementId);
+                element.positionKeyX = obj.optString("position_key_x", "hudPosX");
+                element.positionKeyY = obj.optString("position_key_y", "hudPosY");
+                element.snapGroup = obj.optString("snap_group", "");
+                element.x = (float) obj.optDouble("x", 0.0);
+                element.y = (float) obj.optDouble("y", 0.0);
+                element.width = (float) obj.optDouble("width", 0.0);
+                element.height = (float) obj.optDouble("height", 0.0);
+                element.gridSize = (float) obj.optDouble("grid_size", 0.0);
+                element.snapThreshold = (float) obj.optDouble("snap_threshold", 12.0);
+                element.gridGap = (float) obj.optDouble("grid_gap", 4.0);
+                element.snapFlags = obj.optInt("snap_flags", 0);
+                elements[i] = element;
+            }
+            return elements;
+        } catch (Throwable e) {
+            return new HudEditorElement[0];
+        }
+    }
+
+    public static void setHudSurfaceSize(float width, float height) {
+        if (!ModManager.ensurePreloaderLoaded()) return;
+        try {
+            nativeSetHudSurfaceSize(width, height);
+        } catch (UnsatisfiedLinkError ignored) {
+        }
     }
 
     public static long getDrawCommandsRevision() {

@@ -223,36 +223,22 @@ public class XalExporter {
                 String privB64 = kp.get("privateKey").getAsString();
                 String deviceId = authJson.has("deviceId") ? authJson.get("deviceId").getAsString() : "";
 
-                String pubNormalized;
-                String privNormalized;
-                try {
-                    byte[] pubBytes = android.util.Base64.decode(pubB64, android.util.Base64.DEFAULT);
-                    byte[] privBytes = android.util.Base64.decode(privB64, android.util.Base64.DEFAULT);
-                    pubNormalized = Base64.encodeToString(pubBytes, Base64.NO_WRAP | Base64.NO_PADDING | Base64.URL_SAFE);
-                    privNormalized = Base64.encodeToString(privBytes, Base64.NO_WRAP | Base64.NO_PADDING | Base64.URL_SAFE);
-                } catch (Exception e) {
-                    pubNormalized = pubB64;
-                    privNormalized = privB64;
-                }
-
                 for (String prefsName : new String[]{"com.microsoft.xal.crypto", "org.levimc.xal.crypto"}) {
                     try {
                         SharedPreferences.Editor edit = ctx.getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit();
                         edit.putString("id", "{" + deviceId + "}");
-                        edit.putString("public", pubNormalized);
-                        edit.putString("private", privNormalized);
+                        try {
+                            byte[] pubBytes = android.util.Base64.decode(pubB64, android.util.Base64.DEFAULT);
+                            byte[] privBytes = android.util.Base64.decode(privB64, android.util.Base64.DEFAULT);
+                            edit.putString("public", Base64.encodeToString(pubBytes, Base64.NO_WRAP | Base64.NO_PADDING | Base64.URL_SAFE));
+                            edit.putString("private", Base64.encodeToString(privBytes, Base64.NO_WRAP | Base64.NO_PADDING | Base64.URL_SAFE));
+                        } catch (Exception e) {
+                            edit.putString("public", pubB64);
+                            edit.putString("private", privB64);
+                        }
                         edit.apply();
-                        Log.i(TAG, "Wrote keypair to default prefs " + prefsName + " id=" + deviceId);
                     } catch (Exception e) {
                         Log.w(TAG, "Failed to write keypair prefs " + prefsName, e);
-                    }
-                    // 游戏 Ecdsa 经 MinecraftActivity 的重定向 dataDir 惰性定位 prefs 目录，
-                    // 可能读「版本 data/shared_prefs」而非启动器默认 dataDir；直接把 XML 直写到
-                    // 版本 data 目录，保证无论游戏走哪条路径都能命中预置密钥对。
-                    try {
-                        writeVersionDataPrefs(targetFilesDir, prefsName, deviceId, pubNormalized, privNormalized);
-                    } catch (Exception e) {
-                        Log.w(TAG, "Failed to write version data prefs " + prefsName, e);
                     }
                 }
             }
@@ -263,71 +249,10 @@ public class XalExporter {
         // 直接写入 <filesDir>/xal/ 下（无 .json 后缀、无用户子目录）。
         // 实例备份/恢复能保留登录，靠的就是这些数字文件；
         // 启动器必须按同样的格式写入，游戏才会认为已登录。
-        writeGameNativeFormat(root, authJson, msaUserId, tid, b64User, gamertag, xuid);
-        // 多账号一致性：清掉启动器注册列表中「非 active」账号的数字文件，
-        // 避免旧账号 Msa/User 残留在 xal 目录里与当前账号混淆。
-        cleanupOtherAccounts(ctx, root);
-    }
-
-    /**
-     * 把设备密钥对以 SharedPreferences XML 格式直写到「版本 data 目录」：
-     * <版本根>/data/shared_prefs/<name>.xml。
-     * 游戏 Ecdsa 通过 MinecraftActivity 重定向的 dataDir 惰性定位 prefs 路径，
-     * 启动器默认 dataDir 的写入可能落空；直写文件保证两条路径都命中。
-     * targetFilesDir = 版本 internal/files 目录，其父目录的 data 子目录即版本 data。
-     */
-    private static void writeVersionDataPrefs(File targetFilesDir, String name,
-                                              String deviceId, String pub, String priv) throws java.io.IOException {
-        if (targetFilesDir == null || targetFilesDir.getParentFile() == null) return;
-        File versionDataDir = new File(targetFilesDir.getParentFile(), "data");
-        File prefsDir = new File(versionDataDir, "shared_prefs");
-        if (!prefsDir.exists()) prefsDir.mkdirs();
-        File f = new File(prefsDir, name + ".xml");
-        String xml = "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n"
-                + "<map>\n"
-                + "    <string name=\"id\">{" + deviceId + "}</string>\n"
-                + "    <string name=\"public\">" + pub + "</string>\n"
-                + "    <string name=\"private\">" + priv + "</string>\n"
-                + "</map>\n";
-        try (java.io.FileOutputStream fos = new java.io.FileOutputStream(f)) {
-            fos.write(xml.getBytes(StandardCharsets.UTF_8));
-        }
-        Log.i(TAG, "Wrote version data prefs " + f.getAbsolutePath());
-    }
-
-    /**
-     * 删除 xal 目录中属于「启动器注册但非 active」账号的 Msa./User. 数字文件。
-     * 游戏内登录产生的账号（不在启动器注册列表中）不受影响。
-     */
-    public static void cleanupOtherAccounts(Context ctx, File root) {
-        try {
-            MsftAccountStore.MsftAccount active = null;
-            for (MsftAccountStore.MsftAccount acc : MsftAccountStore.list(ctx)) {
-                if (acc.active) { active = acc; break; }
-            }
-            File xalDir = new File(root, "xal");
-            if (!xalDir.isDirectory()) return;
-            File[] files = xalDir.listFiles((d, name) -> name != null && name.matches("\\d+"));
-            if (files == null) return;
-
-            for (MsftAccountStore.MsftAccount acc : MsftAccountStore.list(ctx)) {
-                if (acc.msUserId == null || acc.msUserId.isEmpty()) continue;
-                if (active != null && acc.msUserId.equals(active.msUserId)) continue;
-                String b64 = Base64.encodeToString(acc.msUserId.getBytes(StandardCharsets.UTF_8),
-                        Base64.URL_SAFE | Base64.NO_PADDING | Base64.NO_WRAP);
-                String msaHash = Long.toUnsignedString(fnv1_64("Xal.1739947436.Production.Msa." + b64));
-                String userHash = Long.toUnsignedString(fnv1_64("Xal.1739947436.Production.RETAIL.User." + b64));
-                for (File f : files) {
-                    if (f.getName().equals(msaHash) || f.getName().equals(userHash)) {
-                        //noinspection ResultOfMethodCallIgnored
-                        f.delete();
-                        Log.i(TAG, "Removed stale account file " + f.getName() + " (account " + acc.msUserId + ")");
-                    }
-                }
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "Failed to clean up other account files", e);
-        }
+        // v184 风格：不写数字文件/WebViewStateParams/ClockSkew（这些是 v185+ 的干预，
+        // 让游戏走它自己的「引导窗 → Xbox 立即游玩」登录流程，步骤最少）。
+        // 游戏登录后自己写出的完整状态由 XalTemplateStore 捕获并传播到其他版本。
+        // writeGameNativeFormat(root, authJson, msaUserId, tid, b64User, gamertag, xuid);
     }
 
     /** FNV-1 64 位哈希（游戏用它把 XAL key 变成数字文件名）。 */

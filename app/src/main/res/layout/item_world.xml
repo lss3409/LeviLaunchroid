@@ -1,218 +1,149 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/world_card"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="4dp"
-    android:background="@drawable/bg_rounded_card"
-    android:orientation="vertical"
-    android:padding="12dp">
+    android:minHeight="84dp"
+    android:layout_marginHorizontal="4dp"
+    android:layout_marginVertical="3dp"
+    android:background="@drawable/bg_content_item"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingHorizontal="10dp"
+    android:paddingVertical="8dp">
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+    <FrameLayout
+        android:layout_width="60dp"
+        android:layout_height="60dp">
 
-        <ImageView
+        <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/world_icon"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginEnd="12dp"
-            android:scaleType="fitCenter"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
             android:contentDescription="@null"
-            android:src="@drawable/ic_world" />
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_world"
+            app:shapeAppearanceOverlay="@style/LeviContentThumbnailShape"
+            app:strokeColor="@color/outline"
+            app:strokeWidth="1dp" />
 
-        <TextView
-            android:id="@+id/world_name"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:fontFamily="@font/misans"
-            android:text="World Name"
-            android:textColor="@color/on_surface"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/world_hardcore_tag"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:paddingHorizontal="8dp"
-            android:paddingVertical="2dp"
-            android:text="@string/hardcore_tag"
-            android:fontFamily="@font/misans"
-            android:textColor="@color/error"
-            android:textSize="10sp"
-            android:textStyle="bold"
+        <!-- 极限模式红心角标：活着=红心，已死亡=死亡红心，叠在存档图标右下角 -->
+        <ImageView
+            android:id="@+id/world_hardcore_heart_badge"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_gravity="bottom|end"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_hardcore_heart_alive"
             android:visibility="gone" />
-
-        <Button
-            android:id="@+id/world_locate_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:backgroundTint="@color/surface_variant"
-            android:fontFamily="@font/misans"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:paddingHorizontal="12dp"
-            android:paddingVertical="6dp"
-            android:text="@string/locate"
-            android:textAllCaps="false"
-            android:textColor="@color/on_surface"
-            android:textSize="10sp" />
-    </LinearLayout>
-
-    <TextView
-        android:id="@+id/world_description"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:fontFamily="@font/misans"
-        android:text="Game Mode: Survival"
-        android:textColor="@color/on_surface"
-        android:textSize="12sp" />
+    </FrameLayout>
 
     <LinearLayout
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:orientation="horizontal">
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/world_name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:fontFamily="@font/misans"
+                android:maxLines="1"
+                android:text="@string/world_name_placeholder"
+                android:textColor="@color/on_surface"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/world_hardcore_tag"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="2dp"
+                android:background="@drawable/bg_hardcore_tag"
+                android:text="@string/hardcore_tag"
+                android:fontFamily="@font/misans"
+                android:textColor="@color/error"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+        </LinearLayout>
 
         <TextView
-            android:id="@+id/world_size"
-            android:layout_width="0dp"
+            android:id="@+id/world_description"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
             android:fontFamily="@font/misans"
-            android:text="Size: 15.2 MB"
-            android:textColor="@color/on_surface"
-            android:textSize="11sp" />
+            android:maxLines="1"
+            android:text="@string/world_game_mode_survival_placeholder"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
 
         <TextView
             android:id="@+id/world_last_played"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:fontFamily="@font/misans"
+            android:maxLines="1"
+            android:text="@string/world_last_played_placeholder"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/world_seed"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
             android:fontFamily="@font/misans"
-            android:text="Last played: Dec 25, 2024 14:30"
-            android:textColor="@color/on_surface"
+            android:textColor="@color/text_secondary"
             android:textSize="11sp" />
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/world_seed"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:fontFamily="@font/misans"
-        android:textColor="@color/text_secondary"
-        android:textSize="11sp" />
+    <ImageButton
+        android:id="@+id/world_edit_button"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/edit"
+        android:padding="9dp"
+        android:src="@drawable/ic_edit"
+        app:tint="@color/on_surface" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:orientation="horizontal">
+    <ImageButton
+        android:id="@+id/world_overflow_button"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/more_actions"
+        android:padding="8dp"
+        android:src="@drawable/ic_more_vert"
+        app:tint="@color/on_surface" />
 
-        <Button
-            android:id="@+id/world_edit_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="4dp"
-            android:backgroundTint="@color/primary"
-            android:fontFamily="@font/misans"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:paddingHorizontal="10dp"
-            android:paddingVertical="6dp"
-            android:text="@string/edit_world_beta"
-            android:textAllCaps="false"
-            android:textColor="@color/on_primary"
-            android:textSize="10sp" />
-
-        <Button
-            android:id="@+id/world_extract_structures_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="4dp"
-            android:backgroundTint="@color/tertiary"
-            android:fontFamily="@font/misans"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:paddingHorizontal="10dp"
-            android:paddingVertical="6dp"
-            android:text="@string/extract_structures"
-            android:textAllCaps="false"
-            android:textColor="@color/on_tertiary"
-            android:textSize="10sp" />
-
-        <Button
-            android:id="@+id/world_transfer_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="4dp"
-            android:backgroundTint="@color/secondary"
-            android:fontFamily="@font/misans"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:paddingHorizontal="10dp"
-            android:paddingVertical="6dp"
-            android:text="@string/transfer"
-            android:textAllCaps="false"
-            android:textColor="@color/on_secondary"
-            android:textSize="10sp" />
-
-        <View
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
-
-        <Button
-            android:id="@+id/world_export_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="4dp"
-            android:backgroundTint="@color/primary"
-            android:fontFamily="@font/misans"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:paddingHorizontal="10dp"
-            android:paddingVertical="6dp"
-            android:text="@string/export"
-            android:textAllCaps="false"
-            android:textColor="@color/on_primary"
-            android:textSize="10sp" />
-
-        <Button
-            android:id="@+id/world_backup_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="4dp"
-            android:backgroundTint="@color/primary"
-            android:fontFamily="@font/misans"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:paddingHorizontal="10dp"
-            android:paddingVertical="6dp"
-            android:text="@string/backup"
-            android:textAllCaps="false"
-            android:textColor="@color/on_primary"
-            android:textSize="10sp" />
-
-        <Button
-            android:id="@+id/world_delete_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:backgroundTint="@color/error"
-            android:fontFamily="@font/misans"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:paddingHorizontal="10dp"
-            android:paddingVertical="6dp"
-            android:text="@string/delete"
-            android:textAllCaps="false"
-            android:textColor="@android:color/white"
-            android:textSize="10sp" />
-    </LinearLayout>
+    <ImageView
+        android:id="@+id/world_selection_indicator"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:background="@drawable/bg_search_box"
+        android:contentDescription="@string/selected"
+        android:padding="7dp"
+        android:src="@drawable/ic_check"
+        android:visibility="gone"
+        app:tint="@color/primary" />
 </LinearLayout>

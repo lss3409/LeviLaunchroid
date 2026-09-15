@@ -4,8 +4,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.AssetManager
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.InputType
+import android.view.Gravity
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -15,12 +18,17 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputConnectionWrapper
 import android.view.inputmethod.InputMethodManager
+import android.widget.FrameLayout
+import android.widget.TextView
 import androidx.appcompat.widget.AppCompatEditText
 import com.mojang.minecraftpe.MainActivity
+import org.levimc.launcher.R
+import org.levimc.launcher.core.memory.MemoryMonitor
 import org.levimc.launcher.core.mods.ModManager
 import org.levimc.launcher.core.mods.inbuilt.nativemod.PojavControlsMod
 import org.levimc.launcher.core.mods.inbuilt.overlay.InbuiltOverlayManager
 import org.levimc.launcher.preloader.PreloaderInput
+import org.levimc.launcher.settings.FeatureSettings
 import org.levimc.launcher.util.HardcoreBackupManager
 import org.levimc.pojavcontrols.PojavControls
 import org.levimc.pojavcontrols.PojavControlsHost
@@ -36,6 +44,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     private var gameRuntimeStarted = false
     private var preloaderTextInput: PreloaderTextInput? = null
     private var previousInputFocus: View? = null
+    private var memoryOverlayView: TextView? = null
     private val hardcoreBackupHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var hardcoreBackupRunning = false
     private val hardcoreBackupRunnable = object : Runnable {
@@ -128,6 +137,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         trace.mark("Native mod enable started")
         ModManager.enableLoadedMods()
         trace.mark("Native mod enable finished")
+        setLeviKeepRunningInBackground(FeatureSettings.getInstance().isForegroundServiceEnabled())
         trace.mark("Mojang MainActivity super.onCreate starting")
         try {
             gameRuntimeStarted = true
@@ -139,6 +149,8 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         }
         trace.mark("Mojang MainActivity super.onCreate finished")
 
+        MinecraftForegroundService.startIfEnabled(this)
+
         val launchVertically = intent.getBooleanExtra("LAUNCH_VERTICALLY", false)
         if (launchVertically) {
             requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
@@ -147,6 +159,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         initializePreloaderTextInput()
         PreloaderInput.setActivity(this)
         MinecraftActivityState.onCreated(this)
+        startMemoryMonitorOverlay()
         trace.mark("MinecraftActivity onCreate finished")
     }
 
@@ -195,6 +208,75 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     private fun stopInbuiltModServices() {
         overlayManager?.hideAllOverlays()
         overlayManager = null
+    }
+
+    /** 游戏内性能监控悬浮窗（微星小飞机 RTSS 风格）：右上角深色 OSD，等宽淡绿字多行展示内存/CPU 频率/帧率。 */
+    private fun startMemoryMonitorOverlay() {
+        if (!FeatureSettings.getInstance().isMemoryMonitorOverlayEnabled()) return
+        if (memoryOverlayView != null) return
+
+        val contentRoot = findViewById<ViewGroup>(android.R.id.content) ?: return
+        val density = resources.displayMetrics.density
+
+        val overlay = TextView(this).apply {
+            // 不拦截任何输入：不可点击、不可聚焦，触摸会直接落到游戏
+            isClickable = false
+            isFocusable = false
+            isFocusableInTouchMode = false
+            typeface = Typeface.MONOSPACE // RTSS 等宽字体
+            textSize = 10f
+            setTextColor(Color.rgb(0xB9, 0xFF, 0xB9)) // RTSS 经典淡绿
+            setLineSpacing(2f, 1f) // 行距紧凑
+            val hPad = (8f * density).toInt()
+            val vPad = (4f * density).toInt()
+            setPadding(hPad, vPad, hPad, vPad)
+            background = GradientDrawable().apply {
+                setColor(Color.argb(200, 10, 10, 10)) // 深色半透明底（近似黑）
+                cornerRadius = 4f * density // 极小圆角、无描边（RTSS 特征）
+            }
+        }
+
+        val params = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            topMargin = (12f * density).toInt()
+            marginEnd = (12f * density).toInt()
+        }
+        contentRoot.addView(overlay, params)
+        memoryOverlayView = overlay
+
+        MemoryMonitor.init(applicationContext)
+        MemoryMonitor.registerFrameCounter()
+        MemoryMonitor.startForegroundMonitoring { current, peak ->
+            runOnUiThread {
+                val cpuText = if (current.cpuFreqMhz > 0) "${current.cpuFreqMhz} MHz" else "—"
+                val fpsText = if (current.fps >= 0) "${current.fps}" else "—"
+                // 功率估算：|电流| × 3.7V（锂电标称电压），方向保留正负
+                val powerText = if (current.currentMa > -50000)
+                    String.format("%+.1fW", current.currentMa * 3.7f / 1000f) else "—"
+                val battText = if (current.battTempC > -500) "${current.battTempC}°C" else "—"
+                memoryOverlayView?.text = getString(
+                    R.string.memory_monitor_overlay_value,
+                    current.totalUsed / (1024L * 1024L),
+                    peak.totalUsed / (1024L * 1024L),
+                    cpuText,
+                    fpsText,
+                    powerText,
+                    battText
+                )
+            }
+        }
+    }
+
+    private fun stopMemoryMonitorOverlay() {
+        MemoryMonitor.stop()
+        MemoryMonitor.unregisterFrameCounter()
+        memoryOverlayView?.let { view ->
+            (view.parent as? ViewGroup)?.removeView(view)
+        }
+        memoryOverlayView = null
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -258,6 +340,14 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
                 manager.checkAndBackup(hardcoreWorlds, object : HardcoreBackupManager.Callback {
                     override fun onBackedUp(world: org.levimc.launcher.core.content.WorldItem, backupPath: String) {
                         android.util.Log.i("HardcoreBackup", "In-game backed up: " + backupPath)
+                        // 游戏内 Toast 提示备份完成
+                        runOnUiThread {
+                            android.widget.Toast.makeText(
+                                this@MinecraftActivity,
+                                getString(R.string.hardcore_backup_completed_toast, world.getWorldName()),
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }
                     }
 
                     override fun onSkipped(world: org.levimc.launcher.core.content.WorldItem, reason: String) {
@@ -491,6 +581,9 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         MinecraftActivityState.onDestroyed(this)
         MinecraftLaunchSession.clear()
         stopInbuiltModServices()
+        stopMemoryMonitorOverlay()
+        setLeviKeepRunningInBackground(false)
+        MinecraftForegroundService.stop(this)
 
         try {
             super.onDestroy()

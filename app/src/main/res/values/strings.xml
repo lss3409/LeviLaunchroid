@@ -248,6 +248,15 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="remove_shortcut_hint">Shortcut disabled. Long-press the icon on your home screen to remove it.</string>
     <string name="game_already_running">A game is already running. Please exit it before launching another version.</string>
     <string name="shortcut_already_added">This version is already on your home screen.</string>
+    <string name="instance_shortcut_title">Home Screen Shortcut</string>
+    <string name="instance_shortcut_desc">Name and icon changes save automatically. Tap Add Shortcut to create or update the home screen shortcut.</string>
+    <string name="instance_shortcut_name">Shortcut Name</string>
+    <string name="instance_shortcut_icon">Shortcut Icon</string>
+    <string name="instance_shortcut_choose_icon">Choose Icon</string>
+    <string name="instance_shortcut_default_icon">Use Default</string>
+    <string name="instance_shortcut_add_button">Add Shortcut</string>
+    <string name="instance_shortcut_not_supported">Your home screen launcher does not support pinned shortcuts.</string>
+    <string name="instance_shortcut_missing">This Minecraft instance is no longer available.</string>
     <string name="auto_close_game_title">Close Running Game on Launch</string>
     <string name="custom_storage_path_reset">Reset to Default</string>
     <string name="custom_storage_path_current">Current: %1$s</string>
@@ -557,6 +566,50 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="discard_changes_message">You have unsaved changes. Do you want to discard them?</string>
     <string name="discard">Discard</string>
 
+    <!-- NBT Viewer / World Data -->
+    <string name="nbt_viewer_title">Save Data</string>
+    <string name="world_data_title">World Data</string>
+    <string name="world_map_title">World Map</string>
+    <string name="world_map_unavailable">Map unavailable</string>
+    <string name="world_map_loading">Rendering map…</string>
+    <string name="nbt_view_world_data">View NBT</string>
+    <string name="nbt_level_dat">level.dat</string>
+    <string name="nbt_db_entries">DB Entries</string>
+    <string name="nbt_no_data">No data</string>
+    <string name="nbt_items_hidden">…%1$d more hidden</string>
+    <string name="nbt_items">%1$d items</string>
+    <string name="nbt_not_nbt">Not NBT data (binary)</string>
+    <string name="nbt_back_to_list">Back to list</string>
+    <string name="nbt_value_too_large">Value too large to display</string>
+    <string name="nbt_summary_seed">Seed: %1$d</string>
+    <string name="nbt_summary_gamemode">Game mode: %1$s</string>
+    <string name="nbt_summary_hardcore">Hardcore: %1$s</string>
+    <string name="nbt_summary_dead">Player dead: %1$s</string>
+    <string name="nbt_summary_health">Health: %1$.1f</string>
+    <string name="nbt_yes">Yes</string>
+    <string name="nbt_no">No</string>
+    <string name="nbt_ticks_time">%1$dd %2$dh %3$dm</string>
+    <string name="nbt_edit_leveldat">Edit World Settings</string>
+    <string name="nbt_edit_name">World name</string>
+    <string name="nbt_edit_gamemode">Game mode</string>
+    <string name="nbt_edit_difficulty">Difficulty</string>
+    <string name="nbt_edit_seed">Seed</string>
+    <string name="nbt_edit_hardcore">Hardcore</string>
+    <string name="nbt_edit_player_died">Player dead (turn off to revive)</string>
+    <string name="nbt_edit_save">Save</string>
+    <string name="nbt_edit_cancel">Cancel</string>
+    <string name="nbt_edit_saved">Saved (original backed up as level.dat.bak)</string>
+    <string name="nbt_edit_failed">Save failed: %1$s</string>
+    <string name="nbt_edit_seed_invalid">Seed must be a number</string>
+    <string name="nbt_gamemode_survival">Survival</string>
+    <string name="nbt_gamemode_creative">Creative</string>
+    <string name="nbt_gamemode_adventure">Adventure</string>
+    <string name="nbt_difficulty_peaceful">Peaceful</string>
+    <string name="nbt_difficulty_easy">Easy</string>
+    <string name="nbt_difficulty_normal">Normal</string>
+    <string name="nbt_difficulty_hard">Hard</string>
+    <string name="nbt_unknown">Unknown</string>
+
     <!-- Custom Flat World -->
     <string name="custom_flat_world">Custom Flat World</string>
     <string name="world_name">World Name</string>
@@ -572,6 +625,21 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="add_at_least_one_layer">Add at least one layer</string>
     <string name="world_created_successfully">World created successfully</string>
     <string name="failed_to_create_world">Failed to create world</string>
+    <string name="custom_flat_world_subtitle">Create a world with your own biome and block layers</string>
+    <string name="world_settings">World Settings</string>
+    <string name="world_settings_hint">Choose the basic settings for the new world</string>
+    <string name="layers_title">Layers</string>
+    <string name="add_layer_compact">Add Layer</string>
+    <string name="no_layers_title">No layers yet</string>
+    <string name="no_layers_hint">Add at least one block layer to create the world</string>
+    <string name="reorder_layer">Reorder layer</string>
+    <string name="delete_layer">Delete layer</string>
+    <string name="block_id_hint">minecraft:stone</string>
+    <string name="invalid_worlds_directory">Invalid worlds directory</string>
+    <plurals name="flat_layers_count">
+        <item quantity="one">%1$d layer • bottom → top</item>
+        <item quantity="other">%1$d layers • bottom → top</item>
+    </plurals>
 
     <!-- Play Store Validation -->
     <string name="minecraft_playstore_required_title">Play Store Version Required</string>
@@ -587,6 +655,57 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="total_mods">Total Mods:</string>
     <string name="enabled_mods">Enabled:</string>
     <string name="add_mod">Add Mod</string>
+    <string name="scan_downloads">Scan</string>
+    <string name="scan_downloads_scanning">Scanning…</string>
+    <string name="scan_downloads_none_found">No .levipack or .so mods found in Downloads</string>
+    <string name="scan_downloads_failed">Could not scan Downloads</string>
+    <string name="scan_downloads_permission_denied">Storage access is needed to scan Downloads</string>
+    <string name="scan_downloads_results_title">Mods in Downloads</string>
+    <string name="scan_downloads_results_subtitle">Choose a mod to add. Scan checks only the main Downloads folder.</string>
+    <string name="scan_downloads_add">Add</string>
+    <string name="scan_downloads_adding">Adding…</string>
+    <string name="scan_downloads_added">Added</string>
+    <string name="scan_downloads_added_message">%1$s added</string>
+    <string name="scan_downloads_levipack">LeviPack</string>
+    <string name="scan_downloads_native_library">Native library</string>
+    <string name="scan_downloads_file_details">%1$s • %2$s</string>
+    <string name="external_mods">External Mods</string>
+    <string name="external_mods_subtitle">Community mods for Minecraft %1$s</string>
+    <string name="external_mods_no_version">Select a Minecraft version before installing mods</string>
+    <string name="external_mods_search_hint">Search mods, authors, or versions…</string>
+    <string name="external_mods_compatible_only">Compatible only</string>
+    <string name="external_mods_all_versions">All Minecraft versions</string>
+    <string name="external_mods_sort_newest">Newest</string>
+    <string name="external_mods_sort_name">Name A–Z</string>
+    <string name="external_mods_empty">No mods match these filters</string>
+    <string name="external_mods_load_failed">Could not refresh the catalog. Showing the saved copy.</string>
+    <string name="external_mods_refresh">Refresh catalog</string>
+    <string name="external_mods_refreshed">Catalog refreshed</string>
+    <string name="external_mods_join_discord">Join Community Discord</string>
+    <string name="external_mods_discord_open_failed">No app can open the Discord invite</string>
+    <string name="external_mods_download">Downloading %1$s</string>
+    <string name="external_mods_choose_download">Choose download</string>
+    <string name="external_mods_download_file">Mod %1$s • %2$s</string>
+    <string name="external_mods_verification_failed">Download verification failed</string>
+    <string name="external_mods_importing">Importing mod…</string>
+    <string name="external_mods_installed">%1$s installed</string>
+    <string name="external_mods_install_failed">Could not install %1$s: %2$s</string>
+    <string name="external_mods_open_failed">No browser can open this download</string>
+    <string name="external_mods_direct_download">Direct download</string>
+    <string name="external_mods_ad_download">Ad download</string>
+    <string name="external_mods_external_link">External link</string>
+    <string name="external_mods_open_link">Open Link</string>
+    <string name="external_mods_external_dialog_title">External Download</string>
+    <string name="external_mods_ad_dialog_title">Ad-Supported Download</string>
+    <string name="external_mods_external_dialog_message">%1$s uses a download page outside LeviLauncher.\n\n1. Tap Open Link and download the .levipack or .so file.\n2. Return to LeviLauncher and open Mods.\n3. Tap Scan.\n4. Tap Add next to the mod you want to import.\n\nScan checks only the main Downloads folder. Move the file there if your browser saved it somewhere else.</string>
+    <string name="external_mods_ad_dialog_message">%1$s uses an ad-supported download page chosen by its developer. LeviLauncher does not control that page or its ads.\n\n1. Tap Open Link and download the .levipack or .so file.\n2. Return to LeviLauncher and open Mods.\n3. Tap Scan.\n4. Tap Add next to the mod you want to import.\n\nScan checks only the main Downloads folder. Only download the mod file; do not install unrelated apps or allow notifications.</string>
+    <string name="external_mods_by_author">by %1$s</string>
+    <string name="external_mods_version">Mod %1$s</string>
+    <string name="external_mods_minecraft_versions">Minecraft %1$s</string>
+    <string name="external_mods_update">Update</string>
+    <string name="external_mods_installed_button">Installed</string>
+    <string name="external_mods_incompatible">Incompatible</string>
+    <string name="sort">Sort</string>
 
     <!-- Mod Detail -->
     <string name="mod_detail_title">Mod Details</string>
@@ -756,6 +875,10 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="dialog_message_exit_app">Are you sure you want to exit?</string>
     <string name="dialog_positive_exit">Exit</string>
     <string name="show_logcat_overlay">Logcat overlay</string>
+    <!-- Memory monitor overlay -->
+    <string name="memory_monitor_overlay_title">Performance overlay</string>
+    <string name="memory_monitor_overlay_desc">Show memory, CPU frequency and FPS in the corner of the screen while playing.</string>
+    <string name="memory_monitor_overlay_value">MEM %1$d / %2$d MB\nCPU %3$s\nFPS %4$s\nPWR %5$s\nBATT %6$s</string>
     <string name="logcat_live">Logcat: <b>live</b></string>
     <string name="logcat_paused">Logcat: paused</string>
     <!-- Logcat Overlay i18n -->
@@ -1079,6 +1202,7 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="hardcore_manage_title">极限存档定时备份</string>
     <string name="hardcore_manage_desc">检测到极限模式的世界，可按设定间隔自动备份到专属目录。</string>
     <string name="hardcore_backup_enabled">启用定时备份</string>
+    <string name="hardcore_backup_completed_toast">极限存档已备份：%1$s</string>
     <string name="hardcore_backup_interval">备份间隔</string>
     <string name="hardcore_backup_minutes">分钟</string>
     <string name="hardcore_backup_days">天</string>
@@ -1099,4 +1223,88 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="hardcore_never_backup">尚未备份</string>
     <string name="hardcore_no_change_skip">世界自上次备份后无变化，跳过重复备份</string>
     <string name="hardcore_settings_applied">设置已生效</string>
+    <string name="news_title">Launcher news</string>
+    <string name="news_subtitle">Updates, announcements, and important notices from the LeviLauncher team.</string>
+    <string name="news_enable_notifications">Enable notifications</string>
+    <string name="news_refresh">Refresh news</string>
+    <string name="news_empty">No news has been published yet.</string>
+    <string name="news_read_more">Read more</string>
+    <string name="news_important">Important</string>
+    <string name="news_refreshed">News updated</string>
+    <string name="news_refresh_failed">Could not refresh. Showing saved news.</string>
+    <string name="news_unread_description">Launcher news, %1$d unread</string>
+    <string name="news_notification_channel">Launcher news</string>
+    <string name="news_notification_channel_description">New LeviLauncher announcements and important notices</string>
+    <string name="changelog_title">What’s new</string>
+    <string name="changelog_version">LeviLauncher %1$s</string>
+    <string name="changelog_continue">Continue</string>
+
+    <!-- Content list selection & batch (synced from upstream) -->
+    <string name="select">Select</string>
+    <string name="select_all">Select All</string>
+    <string name="cancel_select_all">Cancel Select All</string>
+    <string name="selected">Selected</string>
+    <string name="selected_count_zero">0 selected</string>
+    <string name="selected_count">%1$d selected</string>
+    <string name="more_actions">More actions</string>
+    <string name="world_meta">%1$s • %2$s</string>
+    <string name="pack_meta">v%1$s • %2$s</string>
+    <string name="batch_delete_worlds_title">Delete selected worlds?</string>
+    <string name="batch_delete_worlds_message">Delete %1$d selected worlds? Backups will be created before deletion.</string>
+    <string name="batch_delete_packs_title">Delete selected packs?</string>
+    <string name="batch_delete_packs_message">Delete %1$d selected packs?</string>
+    <string name="batch_exporting">Exporting %1$d of %2$d…</string>
+    <string name="batch_deleting">Deleting %1$d of %2$d…</string>
+    <string name="batch_transferring">Transferring %1$d of %2$d…</string>
+    <string name="batch_result">%1$d completed, %2$d failed</string>
+    <string name="choose_export_folder">Choose export folder</string>
+
+    <!-- Content list empty states (synced from upstream) -->
+    <string name="no_worlds_found">No worlds found</string>
+    <string name="no_worlds_message">Your worlds will appear here.</string>
+    <string name="no_packs_found">No packs found</string>
+    <string name="no_packs_message">Installed packs will appear here.</string>
+    <string name="no_servers_found">No servers found</string>
+    <string name="no_servers_message">Saved servers will appear here.</string>
+    <string name="no_screenshots_found">No screenshots found</string>
+    <string name="no_screenshots_message">Minecraft screenshots will appear here.</string>
+    <string name="no_search_results">No results for “%1$s”</string>
+
+    <!-- Content UI strings (synced from upstream) -->
+    <string name="world_directory_not_found">World directory not found</string>
+    <string name="worlds_directory_unavailable">Worlds directory not available</string>
+    <string name="delete_screenshot_confirm">Are you sure you want to delete this screenshot?</string>
+    <string name="delete_server_confirm">Are you sure you want to delete this server?</string>
+    <string name="cannot_open_link">Cannot open link: %1$s</string>
+    <string name="no_files_found">No files found</string>
+    <string name="failed_to_load_files">Failed to load files: %1$s</string>
+    <string name="no_website_link_available">No website link available</string>
+    <string name="description">Description</string>
+    <string name="screenshot_date_format">Date: %1$s</string>
+    <string name="world_name_placeholder">World Name</string>
+    <string name="world_game_mode_survival_placeholder">Game Mode: Survival</string>
+    <string name="world_last_played_placeholder">Last played: Dec 25, 2024 14:30</string>
+    <string name="resource_pack_name_placeholder">Resource Pack Name</string>
+    <string name="resource_pack_description_placeholder">Pack description goes here</string>
+    <string name="screenshot_name_placeholder">Screenshot Name</string>
+    <string name="screenshot_date_placeholder">Date: 2024-01-01 12:00:00</string>
+    <string name="no_structures_found_list">No structure files found</string>
+    <string name="invalid_world_path">Invalid world path</string>
+    <string name="no_structures_message_list">Extracted structure files will appear here.</string>
+
+    <!-- Foreground service -->
+    <string name="foreground_service">Foreground service</string>
+    <string name="foreground_service_desc">Keep Minecraft running when you switch apps by preventing Bedrock from suspending the active session and keeping the process, CPU, and Wi-Fi active.</string>
+    <string name="foreground_service_warning">Note: May make your phone heat up faster and increase battery usage.</string>
+    <string name="foreground_service_channel">Minecraft background protection</string>
+    <string name="foreground_service_notification_title">Minecraft is being kept active</string>
+    <string name="foreground_service_notification_text">Minecraft background mode is active. CPU and network access are being kept available for the current session.</string>
+    <string name="invalid_color_format">Invalid color format</string>
+
+    <!-- Quick launch add card -->
+    <string name="add_shortcut_card">Add Shortcut</string>
+    <string name="shortcut_pinned_hint">Already added</string>
+
+    <!-- World map viewer -->
+    <string name="world_map_hint">Pinch to zoom · double-tap to reset</string>
 </resources>

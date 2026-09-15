@@ -170,13 +170,58 @@ public class ModNativeLoader {
             return false;
         }
 
-        int wildcardIndex = normalizedPattern.indexOf('*');
-        if (wildcardIndex < 0) {
+        if (normalizedPattern.startsWith(">=")) {
+            String minimumVersion = normalizedPattern.substring(2).trim();
+            return !minimumVersion.isEmpty()
+                    && compareMinecraftVersions(normalizedVersion, minimumVersion) >= 0;
+        }
+
+        if (normalizedPattern.indexOf('*') < 0
+                && normalizedPattern.indexOf('X') < 0
+                && normalizedPattern.indexOf('x') < 0) {
             return normalizedVersion.equals(normalizedPattern);
         }
 
-        String prefix = normalizedPattern.substring(0, wildcardIndex);
-        return normalizedVersion.startsWith(prefix);
+        StringBuilder expression = new StringBuilder("^");
+        for (int i = 0; i < normalizedPattern.length(); i++) {
+            char current = normalizedPattern.charAt(i);
+            if (current == '*') {
+                expression.append(".*");
+            } else if (current == 'X' || current == 'x') {
+                boolean wholeComponent = (i == 0 || normalizedPattern.charAt(i - 1) == '.')
+                        && (i == normalizedPattern.length() - 1 || normalizedPattern.charAt(i + 1) == '.');
+                expression.append(wholeComponent ? "\\d+" : "\\d");
+            } else {
+                expression.append(java.util.regex.Pattern.quote(String.valueOf(current)));
+            }
+        }
+        expression.append('$');
+        return normalizedVersion.matches(expression.toString());
+    }
+
+    private static int compareMinecraftVersions(String left, String right) {
+        String[] leftParts = left.split("\\.", -1);
+        String[] rightParts = right.split("\\.", -1);
+        int count = Math.max(leftParts.length, rightParts.length);
+        for (int i = 0; i < count; i++) {
+            String leftPart = i < leftParts.length ? leftParts[i] : "0";
+            String rightPart = i < rightParts.length ? rightParts[i] : "0";
+            if (!leftPart.matches("\\d+") || !rightPart.matches("\\d+")) {
+                return Integer.MIN_VALUE;
+            }
+            long leftValue;
+            long rightValue;
+            try {
+                leftValue = Long.parseLong(leftPart);
+                rightValue = Long.parseLong(rightPart);
+            } catch (NumberFormatException error) {
+                return Integer.MIN_VALUE;
+            }
+            if (leftValue != rightValue) {
+                return Long.compare(leftValue, rightValue);
+            }
+        }
+        return 0;
     }
 
     private static void notifySkipped(LoadListener listener, Mod mod, String minecraftVersion) {

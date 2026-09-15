@@ -117,6 +117,10 @@ public class LevelDBKey {
         return sb.toString();
     }
 
+    public boolean isChunkKey() {
+        return isChunkKey;
+    }
+
     public boolean isStructureKey() {
         if (stringKey != null && stringKey.startsWith("structuretemplate_")) {
             return true;

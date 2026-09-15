@@ -211,6 +211,15 @@
     <string name="remove_shortcut_hint">快捷方式已禁用，请在桌面长按图标并选择移除。</string>
     <string name="game_already_running">已有游戏正在运行，请先退出当前游戏再启动新的版本号。</string>
     <string name="shortcut_already_added">该版本号已添加到桌面</string>
+    <string name="instance_shortcut_title">桌面快捷方式</string>
+    <string name="instance_shortcut_desc">名称与图标修改后自动保存，点击「添加快捷方式」即可在桌面创建或更新图标。</string>
+    <string name="instance_shortcut_name">快捷方式名称</string>
+    <string name="instance_shortcut_icon">快捷方式图标</string>
+    <string name="instance_shortcut_choose_icon">选择图标</string>
+    <string name="instance_shortcut_default_icon">使用默认</string>
+    <string name="instance_shortcut_add_button">添加快捷方式</string>
+    <string name="instance_shortcut_not_supported">当前桌面启动器不支持固定快捷方式。</string>
+    <string name="instance_shortcut_missing">该 Minecraft 版本已不存在。</string>
     <string name="auto_close_game_title">启动新版本号时关闭旧游戏</string>
     <string name="custom_storage_path_reset">恢复默认</string>
     <string name="custom_storage_path_current">当前：%1$s</string>
@@ -522,6 +531,50 @@
     <string name="discard_changes_message">您有未保存的更改。要放弃这些更改吗？</string>
     <string name="discard">放弃</string>
 
+    <!-- NBT 查看器 / 世界数据 -->
+    <string name="nbt_viewer_title">存档数据</string>
+    <string name="world_data_title">世界数据</string>
+    <string name="world_map_title">世界地图</string>
+    <string name="world_map_unavailable">地图不可用</string>
+    <string name="world_map_loading">地图渲染中…</string>
+    <string name="nbt_view_world_data">查看 NBT</string>
+    <string name="nbt_level_dat">level.dat</string>
+    <string name="nbt_db_entries">数据库条目</string>
+    <string name="nbt_no_data">无数据</string>
+    <string name="nbt_items_hidden">…共 %1$d 项</string>
+    <string name="nbt_items">%1$d 项</string>
+    <string name="nbt_not_nbt">非 NBT 数据（二进制）</string>
+    <string name="nbt_back_to_list">返回列表</string>
+    <string name="nbt_value_too_large">数据过大，无法展示</string>
+    <string name="nbt_summary_seed">种子：%1$d</string>
+    <string name="nbt_summary_gamemode">游戏模式：%1$s</string>
+    <string name="nbt_summary_hardcore">极限模式：%1$s</string>
+    <string name="nbt_summary_dead">玩家死亡：%1$s</string>
+    <string name="nbt_summary_health">生命值：%1$.1f</string>
+    <string name="nbt_yes">是</string>
+    <string name="nbt_no">否</string>
+    <string name="nbt_ticks_time">%1$d 天 %2$d 时 %3$d 分</string>
+    <string name="nbt_edit_leveldat">编辑世界设置</string>
+    <string name="nbt_edit_name">世界名称</string>
+    <string name="nbt_edit_gamemode">游戏模式</string>
+    <string name="nbt_edit_difficulty">难度</string>
+    <string name="nbt_edit_seed">种子</string>
+    <string name="nbt_edit_hardcore">极限模式</string>
+    <string name="nbt_edit_player_died">已死亡（关掉可“复活”）</string>
+    <string name="nbt_edit_save">保存</string>
+    <string name="nbt_edit_cancel">取消</string>
+    <string name="nbt_edit_saved">已保存（原文件备份为 level.dat.bak）</string>
+    <string name="nbt_edit_failed">保存失败：%1$s</string>
+    <string name="nbt_edit_seed_invalid">种子必须是数字</string>
+    <string name="nbt_gamemode_survival">生存</string>
+    <string name="nbt_gamemode_creative">创造</string>
+    <string name="nbt_gamemode_adventure">冒险</string>
+    <string name="nbt_difficulty_peaceful">和平</string>
+    <string name="nbt_difficulty_easy">简单</string>
+    <string name="nbt_difficulty_normal">普通</string>
+    <string name="nbt_difficulty_hard">困难</string>
+    <string name="nbt_unknown">未知</string>
+
     <!-- Custom Flat World -->
     <string name="custom_flat_world">自定义超平坦世界</string>
     <string name="world_name">世界名称</string>
@@ -537,6 +590,20 @@
     <string name="add_at_least_one_layer">请至少添加一层</string>
     <string name="world_created_successfully">世界创建成功</string>
     <string name="failed_to_create_world">创建世界失败</string>
+    <string name="custom_flat_world_subtitle">使用自定义生物群系和方块层创建世界</string>
+    <string name="world_settings">世界设置</string>
+    <string name="world_settings_hint">选择新世界的基本设置</string>
+    <string name="layers_title">层</string>
+    <string name="add_layer_compact">添加层</string>
+    <string name="no_layers_title">还没有层</string>
+    <string name="no_layers_hint">至少添加一层方块才能创建世界</string>
+    <string name="reorder_layer">重新排序此层</string>
+    <string name="delete_layer">删除此层</string>
+    <string name="block_id_hint">minecraft:stone</string>
+    <string name="invalid_worlds_directory">世界目录无效</string>
+    <plurals name="flat_layers_count">
+        <item quantity="other">%1$d 层 • 从下到上</item>
+    </plurals>
 
     <!-- Play Store Validation -->
     <string name="minecraft_playstore_required_title">需要 Play 商店版本</string>
@@ -553,6 +620,57 @@
     <string name="total_mods">模组总数：</string>
     <string name="enabled_mods">已启用：</string>
     <string name="add_mod">添加模组</string>
+    <string name="scan_downloads">扫描</string>
+    <string name="scan_downloads_scanning">扫描中…</string>
+    <string name="scan_downloads_none_found">下载目录中没有找到 .levipack 或 .so 模组</string>
+    <string name="scan_downloads_failed">无法扫描下载目录</string>
+    <string name="scan_downloads_permission_denied">扫描下载目录需要存储访问权限</string>
+    <string name="scan_downloads_results_title">下载目录中的模组</string>
+    <string name="scan_downloads_results_subtitle">选择要添加的模组。扫描仅检查主下载文件夹。</string>
+    <string name="scan_downloads_add">添加</string>
+    <string name="scan_downloads_adding">添加中…</string>
+    <string name="scan_downloads_added">已添加</string>
+    <string name="scan_downloads_added_message">已添加 %1$s</string>
+    <string name="scan_downloads_levipack">LeviPack</string>
+    <string name="scan_downloads_native_library">原生库</string>
+    <string name="scan_downloads_file_details">%1$s • %2$s</string>
+    <string name="external_mods">外部模组</string>
+    <string name="external_mods_subtitle">适用于 Minecraft %1$s 的社区模组</string>
+    <string name="external_mods_no_version">安装模组前请先选择 Minecraft 版本</string>
+    <string name="external_mods_search_hint">搜索模组、作者或版本…</string>
+    <string name="external_mods_compatible_only">仅兼容</string>
+    <string name="external_mods_all_versions">所有 Minecraft 版本</string>
+    <string name="external_mods_sort_newest">最新</string>
+    <string name="external_mods_sort_name">名称 A–Z</string>
+    <string name="external_mods_empty">没有符合筛选条件的模组</string>
+    <string name="external_mods_load_failed">无法刷新目录，正在显示已保存的副本。</string>
+    <string name="external_mods_refresh">刷新目录</string>
+    <string name="external_mods_refreshed">目录已刷新</string>
+    <string name="external_mods_join_discord">加入社区 Discord</string>
+    <string name="external_mods_discord_open_failed">没有应用可以打开 Discord 邀请链接</string>
+    <string name="external_mods_download">正在下载 %1$s</string>
+    <string name="external_mods_choose_download">选择下载</string>
+    <string name="external_mods_download_file">模组 %1$s • %2$s</string>
+    <string name="external_mods_verification_failed">下载校验失败</string>
+    <string name="external_mods_importing">正在导入模组…</string>
+    <string name="external_mods_installed">%1$s 已安装</string>
+    <string name="external_mods_install_failed">无法安装 %1$s：%2$s</string>
+    <string name="external_mods_open_failed">没有浏览器可以打开此下载链接</string>
+    <string name="external_mods_direct_download">直接下载</string>
+    <string name="external_mods_ad_download">广告下载</string>
+    <string name="external_mods_external_link">外部链接</string>
+    <string name="external_mods_open_link">打开链接</string>
+    <string name="external_mods_external_dialog_title">外部下载</string>
+    <string name="external_mods_ad_dialog_title">广告支持下载</string>
+    <string name="external_mods_external_dialog_message">%1$s 使用 LeviLauncher 之外的下载页面。\n\n1. 点击「打开链接」并下载 .levipack 或 .so 文件。\n2. 返回 LeviLauncher 并打开模组页。\n3. 点击「扫描」。\n4. 在要导入的模组旁点击「添加」。\n\n扫描仅检查主下载文件夹。如果浏览器把文件保存到了其他位置，请先将文件移动过去。</string>
+    <string name="external_mods_ad_dialog_message">%1$s 使用其开发者选择的广告支持下载页面。LeviLauncher 不控制该页面或其广告。\n\n1. 点击「打开链接」并下载 .levipack 或 .so 文件。\n2. 返回 LeviLauncher 并打开模组页。\n3. 点击「扫描」。\n4. 在要导入的模组旁点击「添加」。\n\n扫描仅检查主下载文件夹。只下载模组文件本身，不要安装无关应用或允许通知。</string>
+    <string name="external_mods_by_author">by %1$s</string>
+    <string name="external_mods_version">模组 %1$s</string>
+    <string name="external_mods_minecraft_versions">Minecraft %1$s</string>
+    <string name="external_mods_update">更新</string>
+    <string name="external_mods_installed_button">已安装</string>
+    <string name="external_mods_incompatible">不兼容</string>
+    <string name="sort">排序</string>
 
     <!-- Mod Detail -->
     <string name="mod_detail_title">模组详情</string>
@@ -681,6 +799,11 @@
 
      <!-- Logcat Overlay i18n additions -->
      <string name="show_logcat_overlay">显示日志悬浮窗</string>
+
+     <!-- 性能监控悬浮窗 -->
+     <string name="memory_monitor_overlay_title">性能监控悬浮窗</string>
+     <string name="memory_monitor_overlay_desc">游戏运行时在屏幕右上角显示内存占用、CPU 频率与帧率。</string>
+     <string name="memory_monitor_overlay_value">MEM %1$d / %2$d MB\nCPU %3$s\nFPS %4$s\nPWR %5$s\nBATT %6$s</string>
     <string name="logcat_live">Logcat：<b>实时</b></string>
      <string name="logcat_paused">Logcat：已暂停</string>
 
@@ -1050,4 +1173,88 @@
 
     <string name="unsupported_version_title">不支持的版本</string>
     <string name="unsupported_version_msg">此启动器不支持早于 1.21.80 的 Minecraft 版本。</string>
+    <string name="news_title">启动器新闻</string>
+    <string name="news_subtitle">来自 LeviLauncher 团队的更新、公告和重要通知。</string>
+    <string name="news_enable_notifications">启用通知</string>
+    <string name="news_refresh">刷新新闻</string>
+    <string name="news_empty">暂时还没有发布新闻。</string>
+    <string name="news_read_more">阅读更多</string>
+    <string name="news_important">重要</string>
+    <string name="news_refreshed">新闻已更新</string>
+    <string name="news_refresh_failed">无法刷新。正在显示已保存的新闻。</string>
+    <string name="news_unread_description">启动器新闻，%1$d 条未读</string>
+    <string name="news_notification_channel">启动器新闻</string>
+    <string name="news_notification_channel_description">LeviLauncher 的新公告和重要通知</string>
+    <string name="changelog_title">新增内容</string>
+    <string name="changelog_version">LeviLauncher %1$s</string>
+    <string name="changelog_continue">继续</string>
+
+    <!-- 内容列表选择与批量操作（同步自上游） -->
+    <string name="select">选择</string>
+    <string name="select_all">全选</string>
+    <string name="cancel_select_all">取消全选</string>
+    <string name="selected">已选择</string>
+    <string name="selected_count_zero">已选择 0 项</string>
+    <string name="selected_count">已选择 %1$d 项</string>
+    <string name="more_actions">更多操作</string>
+    <string name="world_meta">%1$s • %2$s</string>
+    <string name="pack_meta">v%1$s • %2$s</string>
+    <string name="batch_delete_worlds_title">删除选中的世界？</string>
+    <string name="batch_delete_worlds_message">删除选中的 %1$d 个世界？删除前会创建备份。</string>
+    <string name="batch_delete_packs_title">删除选中的资源包？</string>
+    <string name="hardcore_backup_completed_toast">极限存档已备份：%1$s</string>
+    <string name="batch_delete_packs_message">删除选中的 %1$d 个资源包？</string>
+    <string name="batch_exporting">正在导出 %1$d/%2$d…</string>
+    <string name="batch_deleting">正在删除 %1$d/%2$d…</string>
+    <string name="batch_transferring">正在传输 %1$d/%2$d…</string>
+    <string name="batch_result">%1$d 个已完成，%2$d 个失败</string>
+    <string name="choose_export_folder">选择导出文件夹</string>
+
+    <!-- 内容列表空状态（同步自上游） -->
+    <string name="no_worlds_found">未找到世界</string>
+    <string name="no_worlds_message">您的世界会显示在这里。</string>
+    <string name="no_packs_found">未找到资源包</string>
+    <string name="no_packs_message">已安装的资源包会显示在这里。</string>
+    <string name="no_servers_found">未找到服务器</string>
+    <string name="no_servers_message">已保存的服务器会显示在这里。</string>
+    <string name="no_screenshots_found">未找到截图</string>
+    <string name="no_screenshots_message">Minecraft 截图会显示在这里。</string>
+    <string name="no_search_results">没有“%1$s”的结果</string>
+
+    <!-- 内容界面字符串（同步自上游） -->
+    <string name="world_directory_not_found">未找到世界目录</string>
+    <string name="worlds_directory_unavailable">世界目录不可用</string>
+    <string name="delete_screenshot_confirm">确定要删除此截图吗？</string>
+    <string name="delete_server_confirm">确定要删除此服务器吗？</string>
+    <string name="cannot_open_link">无法打开链接：%1$s</string>
+    <string name="no_files_found">未找到文件</string>
+    <string name="failed_to_load_files">加载文件失败：%1$s</string>
+    <string name="no_website_link_available">没有可用的网站链接</string>
+    <string name="description">描述</string>
+    <string name="screenshot_date_format">日期：%1$s</string>
+    <string name="world_name_placeholder">世界名称</string>
+    <string name="world_game_mode_survival_placeholder">游戏模式：生存</string>
+    <string name="world_last_played_placeholder">上次游玩：2024年12月25日 14:30</string>
+    <string name="resource_pack_name_placeholder">资源包名称</string>
+    <string name="resource_pack_description_placeholder">资源包描述显示在这里</string>
+    <string name="screenshot_name_placeholder">截图名称</string>
+    <string name="screenshot_date_placeholder">日期：2024-01-01 12:00:00</string>
+    <string name="no_structures_found_list">未找到结构文件</string>
+    <string name="invalid_world_path">世界路径无效</string>
+    <string name="no_structures_message_list">导出的结构文件会显示在这里。</string>
+    <!-- 前台服务 -->
+    <string name="foreground_service">前台服务</string>
+    <string name="foreground_service_desc">切换应用时阻止 Bedrock 暂停当前会话，并保持进程、CPU 和 Wi-Fi 活跃，从而让 Minecraft 继续运行。</string>
+    <string name="foreground_service_warning">注意：可能会让手机更快发热并增加电池消耗。</string>
+    <string name="foreground_service_channel">Minecraft 后台保护</string>
+    <string name="foreground_service_notification_title">正在保持 Minecraft 活跃</string>
+    <string name="foreground_service_notification_text">Minecraft 后台模式已启用。当前会话会持续保持 CPU 和网络访问可用。</string>
+    <string name="invalid_color_format">颜色格式无效</string>
+
+    <!-- 快速启动新增卡片 -->
+    <string name="add_shortcut_card">新增卡片</string>
+    <string name="shortcut_pinned_hint">已添加</string>
+
+    <!-- 世界地图查看器 -->
+    <string name="world_map_hint">双指缩放 · 双击重置</string>
 </resources>

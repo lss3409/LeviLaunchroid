@@ -300,6 +300,16 @@ public class SettingsActivity extends BaseActivity {
             } catch (Throwable ignored) {}
         });
 
+        SwitchMaterial switchMemoryMonitor = findViewById(R.id.switch_memory_monitor);
+        if (switchMemoryMonitor != null) {
+            switchMemoryMonitor.setChecked(fs.isMemoryMonitorOverlayEnabled());
+            switchMemoryMonitor.setOnCheckedChangeListener((btn, checked) -> fs.setMemoryMonitorOverlayEnabled(checked));
+        }
+
+        SwitchMaterial switchForegroundService = findViewById(R.id.switch_foreground_service);
+        switchForegroundService.setChecked(fs.isForegroundServiceEnabled());
+        switchForegroundService.setOnCheckedChangeListener((btn, checked) -> fs.setForegroundServiceEnabled(checked));
+
         // 登录入口开关已移除：登录按钮一直显示
 
         SwitchMaterial switchAutoCloseGame = findViewById(R.id.switch_auto_close_game);
@@ -641,7 +651,7 @@ public class SettingsActivity extends BaseActivity {
                     personalizationManager.setAccentColor(color);
                     refreshColorPickerInPlace();
                 } catch (Exception e) {
-                    Toast.makeText(this, "Invalid color format", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, R.string.invalid_color_format, Toast.LENGTH_SHORT).show();
                 }
             });
         }
@@ -741,6 +751,22 @@ public class SettingsActivity extends BaseActivity {
             switchLogcat.setThumbTintList(new ColorStateList(states, new int[]{accent, 0xFFAAAAAA}));
             int trackChecked = Color.argb(100, Color.red(accent), Color.green(accent), Color.blue(accent));
             switchLogcat.setTrackTintList(new ColorStateList(states, new int[]{trackChecked, 0xFF555555}));
+        }
+
+        SwitchMaterial switchMemoryMonitor = findViewById(R.id.switch_memory_monitor);
+        if (switchMemoryMonitor != null && accent != 0) {
+            int[][] states = {{android.R.attr.state_checked}, {}};
+            switchMemoryMonitor.setThumbTintList(new ColorStateList(states, new int[]{accent, 0xFFAAAAAA}));
+            int trackChecked = Color.argb(100, Color.red(accent), Color.green(accent), Color.blue(accent));
+            switchMemoryMonitor.setTrackTintList(new ColorStateList(states, new int[]{trackChecked, 0xFF555555}));
+        }
+
+        SwitchMaterial switchForegroundService = findViewById(R.id.switch_foreground_service);
+        if (switchForegroundService != null && accent != 0) {
+            int[][] states = {{android.R.attr.state_checked}, {}};
+            switchForegroundService.setThumbTintList(new ColorStateList(states, new int[]{accent, 0xFFAAAAAA}));
+            int trackChecked = Color.argb(100, Color.red(accent), Color.green(accent), Color.blue(accent));
+            switchForegroundService.setTrackTintList(new ColorStateList(states, new int[]{trackChecked, 0xFF555555}));
         }
         
         Button btnApplyStorage = findViewById(R.id.btn_apply_custom_storage_path);

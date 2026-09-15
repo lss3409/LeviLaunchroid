@@ -38,7 +38,8 @@ public class LevelDBReader {
             name.endsWith(".ldb") || name.endsWith(".sst"));
 
         if (sstFiles != null) {
-            Arrays.sort(sstFiles, Comparator.comparing(File::getName));
+            // 文件名数字越大越新；新文件先读，配合 putIfAbsent 保留最新版本
+            Arrays.sort(sstFiles, Comparator.comparing(File::getName).reversed());
             for (File sstFile : sstFiles) {
                 try {
                     readSSTable(sstFile);
@@ -142,6 +143,7 @@ public class LevelDBReader {
     private void parseWriteBatch(byte[] data) {
         if (data.length < 12) return;
 
+        // 1) 标准解析：seq(8B) + count(4B) + ops
         try {
             int count = readInt32LE(data, 8);
             int pos = 12;
@@ -154,7 +156,9 @@ public class LevelDBReader {
                 pos = keyLenResult[1];
 
                 if (keyLen <= 0 || keyLen > 10000 || pos + keyLen > data.length) {
-                    break;
+                    // 解析失败：回退逐字节扫描
+                    scanOpsInBatch(data);
+                    return;
                 }
 
                 byte[] key = Arrays.copyOfRange(data, pos, pos + keyLen);
@@ -171,14 +175,97 @@ public class LevelDBReader {
 
                         allData.put(new ByteArrayWrapper(key), value);
                         logStructureIfFound(key, value, "log");
+                    } else {
+                        scanOpsInBatch(data);
+                        return;
                     }
                 } else if (recordType == 0) {
                     allData.put(new ByteArrayWrapper(key), null);
+                } else {
+                    // 非法 op 类型：回退逐字节扫描
+                    scanOpsInBatch(data);
+                    return;
                 }
             }
         } catch (Exception e) {
             Log.w(TAG, "Error parsing write batch", e);
         }
+    }
+
+    /**
+     * 逐字节扫描 op 流（MCPE 日志部分 batch 头与官方不一致时回退）。
+     * 只接受 Put（type=1）：klen 合理 + key 合法 + vlen 合理 + value 头像 NBT/zlib。
+     */
+    private void scanOpsInBatch(byte[] data) {
+        int pos = 0;
+        while (pos < data.length - 2) {
+            if ((data[pos] & 0xFF) != 1) {
+                pos++;
+                continue;
+            }
+            int[] keyLenResult = readVarInt(data, pos + 1);
+            int keyLen = keyLenResult[0];
+            int keyStart = keyLenResult[1];
+            if (keyLen < 1 || keyLen > 10000 || keyStart + keyLen > data.length) {
+                pos++;
+                continue;
+            }
+            byte[] key = Arrays.copyOfRange(data, keyStart, keyStart + keyLen);
+            if (!looksLikeKey(key)) {
+                pos++;
+                continue;
+            }
+            int keyEnd = keyStart + keyLen;
+            int[] valLenResult = readVarInt(data, keyEnd);
+            int valLen = valLenResult[0];
+            int valStart = valLenResult[1];
+            if (valLen < 0 || valLen > 10 * 1024 * 1024 || valStart + valLen > data.length) {
+                pos++;
+                continue;
+            }
+            if (valLen > 0) {
+                byte[] value = Arrays.copyOfRange(data, valStart, valStart + valLen);
+                if (!looksLikeValue(value)) {
+                    pos++;
+                    continue;
+                }
+                allData.put(new ByteArrayWrapper(key), value);
+                logStructureIfFound(key, value, "log-scan");
+            }
+            pos = valStart + valLen;
+        }
+    }
+
+    /** key 合理性：9/10/13/14 字节 chunk 类 key，或可打印字符串 key，或 actorprefix/digp 复合 key。 */
+    private boolean looksLikeKey(byte[] key) {
+        int n = key.length;
+        if (n == 9 || n == 10 || n == 13 || n == 14) {
+            int t = key[n == 9 || n == 10 ? 8 : 12] & 0xFF;
+            return (t >= 0x2b && t <= 0x41) || t == 0x76 || t == 0x77;
+        }
+        if (n >= 1 && n <= 200) {
+            boolean printable = true;
+            for (byte b : key) {
+                if (b < 0x20 || b > 0x7E) {
+                    printable = false;
+                    break;
+                }
+            }
+            if (printable) return true;
+        }
+        String head = new String(key, 0, Math.min(n, 16), StandardCharsets.ISO_8859_1);
+        return head.startsWith("actorprefix") || head.startsWith("digp");
+    }
+
+    /** value 头合理性：NBT Compound / zlib 压缩流 / 空。 */
+    private boolean looksLikeValue(byte[] value) {
+        int b0 = value[0] & 0xFF;
+        if (b0 == 0x0a || b0 == 0x00) return true;
+        if (b0 == 0x78 && value.length > 1) {
+            int b1 = value[1] & 0xFF;
+            return b1 == 0x9c || b1 == 0xda || b1 == 0x01;
+        }
+        return false;
     }
 
     private void logStructureIfFound(byte[] key, byte[] value, String source) {
@@ -350,10 +437,10 @@ public class LevelDBReader {
         byte[] decompressed = blockData;
         if (compressionType == 1) {
             decompressed = decompressSnappy(blockData);
-        } else if (compressionType == 2) {
+        } else if (compressionType == 2 || compressionType == 4 || compressionType == 5) {
+            // MCPE LevelDB：type 2/4/5 均为 zlib 变体（实测 type 4 = raw deflate 无头）。
+            // decompressZlib 内部先按带 zlib 头解压，失败自动回退 raw deflate。
             decompressed = decompressZlib(blockData);
-        } else if (compressionType == 4 || compressionType == 5) {
-            decompressed = decompressLZ4(blockData);
         } else if (compressionType == 7) {
             decompressed = decompressZstd(blockData);
         }
@@ -658,10 +745,11 @@ public class LevelDBReader {
 
                 if (userKey.length > 0) {
                     if (isValue) {
-                        allData.put(new ByteArrayWrapper(userKey), value);
+                        // data block 内同 key 版本按 seq 降序（新在前），putIfAbsent 保留最新版本
+                        allData.putIfAbsent(new ByteArrayWrapper(userKey), value);
                         logStructureIfFound(userKey, value, "SST");
                     } else {
-                        allData.put(new ByteArrayWrapper(userKey), null);
+                        allData.putIfAbsent(new ByteArrayWrapper(userKey), null);
                     }
                 }
             }

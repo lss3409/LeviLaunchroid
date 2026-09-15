@@ -48,6 +48,18 @@
                 android:textSize="13sp" />
 
             <Button
+                android:id="@+id/nbt_viewer_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:backgroundTint="@color/surface_variant"
+                android:fontFamily="@font/misans"
+                android:text="@string/nbt_view_world_data"
+                android:textAllCaps="false"
+                android:textColor="@color/on_surface"
+                android:textSize="12sp" />
+
+            <Button
                 android:id="@+id/save_button"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
