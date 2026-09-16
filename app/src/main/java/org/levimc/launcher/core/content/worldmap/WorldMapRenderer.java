@@ -2444,19 +2444,6 @@ public class WorldMapRenderer {
                 || tnt)
                 ? "desert_temple"
                 : darkOak && darkOakLog && stone ? "outpost" : null;
-        if (type == null && (cutSandstone || chiseledSandstone)) {
-            StringBuilder names = new StringBuilder();
-            for (SubChunk sc : subs.values()) {
-                for (String pn : sc.palette) {
-                    if (pn != null && (pn.contains("sandstone") || pn.contains("terracotta")
-                            || pn.contains("tnt"))) {
-                        if (names.length() > 0) names.append(",");
-                        names.append(pn);
-                    }
-                }
-            }
-            Log.i(TAG, "砂岩chunk(" + cx + "," + cz + ") palette: " + names);
-        }
         if (type == null) {
             return;
         }
