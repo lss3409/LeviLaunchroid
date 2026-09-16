@@ -1865,23 +1865,11 @@ public class WorldMapRenderer {
                 subs.keySet().removeIf(s -> s < fMin || s > fMax);
             }
             int[] colors = new int[256];
-            java.util.HashSet<Integer> distinct = new java.util.HashSet<>();
-            int opaque = 0;
             for (int i = 0; i < 256; i++) {
                 int lx = i & 15;
                 int lz = i >> 4;
                 colors[i] = surfaceColor(hmap[i], lx, lz, subs, biomes, dimension);
-                if ((colors[i] & 0xFF000000) != 0) {
-                    opaque++;
-                    distinct.add(colors[i]);
-                }
             }
-            Log.i(TAG, "按需渲染 chunk(" + cx + "," + cz + "): 条目=" + entries.size()
-                    + " hmap=" + hmap.length + " subs=" + subs.keySet()
-                    + " biomes=" + (biomes != null) + " 非透明=" + opaque
-                    + " 颜色数=" + distinct.size() + " 样例="
-                    + distinct.stream().limit(5).map(v -> String.format("#%06X", v & 0xFFFFFF))
-                            .reduce((x, y) -> x + "," + y).orElse("-"));
             return colors;
         } catch (Exception e) {
             Log.w(TAG, "按需渲染 chunk(" + cx + "," + cz + ") 失败", e);
