@@ -1027,7 +1027,17 @@ public class WorldMapRenderer {
         for (LevelDBEntry entry : entries) {
             byte[] rawKey = entry.getKey().getRawKey();
             int[] chunkKey = parseChunkKey(rawKey);
-            if (chunkKey == null || chunkKey[2] != dimension) {
+            if (chunkKey == null) {
+                continue;
+            }
+            boolean legacyKey = rawKey.length == 9 || rawKey.length == 10;
+            if (dimension == DIM_END) {
+                // 末地：1.26 末地 chunk 用 9/10B 无维度 key（与主世界共享 key 空间），
+                // 13/14B 严格要求 dim=2；9/10B 作为候选（解码后按 end_stone 判定过滤）
+                if (!legacyKey && chunkKey[2] != DIM_END) {
+                    continue;
+                }
+            } else if (chunkKey[2] != dimension) {
                 continue;
             }
             int x = chunkKey[0];
@@ -1098,7 +1108,14 @@ public class WorldMapRenderer {
         for (LevelDBEntry entry : entries) {
             byte[] rawKey = entry.getKey().getRawKey();
             int[] chunkKey = parseChunkKey(rawKey);
-            if (chunkKey == null || chunkKey[2] != dimension || !isSubchunkKey(rawKey)) {
+            if (chunkKey == null || !isSubchunkKey(rawKey)) {
+                continue;
+            }
+            boolean legacyKey = rawKey.length == 9 || rawKey.length == 10;
+            if (dimension != DIM_END && chunkKey[2] != dimension) {
+                continue;
+            }
+            if (dimension == DIM_END && !legacyKey && chunkKey[2] != DIM_END) {
                 continue;
             }
             long key = pack(chunkKey[0], chunkKey[1]);
@@ -1110,7 +1127,15 @@ public class WorldMapRenderer {
         for (LevelDBEntry entry : entries) {
             byte[] rawKey = entry.getKey().getRawKey();
             int[] chunkKey = parseChunkKey(rawKey);
-            if (chunkKey == null || chunkKey[2] != dimension || !isSubchunkKey(rawKey)) {
+            if (chunkKey == null || !isSubchunkKey(rawKey)) {
+                continue;
+            }
+            boolean legacyKey = rawKey.length == 9 || rawKey.length == 10;
+            if (dimension == DIM_END) {
+                if (!legacyKey && chunkKey[2] != DIM_END) {
+                    continue;
+                }
+            } else if (chunkKey[2] != dimension) {
                 continue;
             }
             subKeys++;
@@ -1138,6 +1163,37 @@ public class WorldMapRenderer {
         }
         Log.i(TAG, "第二遍 subchunk: 命中=" + subKeys + " 跳过=" + skipped
                 + " 解码=" + decoded + " surfaceSubs=" + surfaceSubs.size());
+
+        // 末地/主世界维度互斥过滤：1.26 末地 chunk 用 9/10B 无维度 key（共享主世界空间），
+        // 按 subchunk palette 是否含 end_stone 判定归属（end_stone 为末地独有方块）。
+        // 末地渲染保留 end_stone chunk、主世界渲染排除 end_stone chunk。
+        if (dimension == DIM_END || dimension == DIM_OVERWORLD) {
+            java.util.Iterator<Long> it = heightMaps.keySet().iterator();
+            while (it.hasNext()) {
+                Long key = it.next();
+                boolean hasEndStone = chunkHasEndStone(subChunks.get(key));
+                if (dimension == DIM_END ? !hasEndStone : hasEndStone) {
+                    it.remove();
+                    biomeMaps.remove(key);
+                    subChunks.remove(key);
+                }
+            }
+            // 过滤后重算地图范围
+            minX = Integer.MAX_VALUE;
+            maxX = Integer.MIN_VALUE;
+            minZ = Integer.MAX_VALUE;
+            maxZ = Integer.MIN_VALUE;
+            for (Long key : heightMaps.keySet()) {
+                minX = Math.min(minX, unpackX(key));
+                maxX = Math.max(maxX, unpackX(key));
+                minZ = Math.min(minZ, unpackZ(key));
+                maxZ = Math.max(maxZ, unpackZ(key));
+            }
+            if (heightMaps.isEmpty()) {
+                Log.i(TAG, "卫星模式失败: 无" + (dimension == DIM_END ? "末地" : "主世界") + " chunk (维度=" + dimension + ")");
+                return null;
+            }
+        }
 
         // 2) 组装全图：每 chunk 16×16 表面色
         int spanX = maxX - minX + 1;
@@ -1632,14 +1688,15 @@ public class WorldMapRenderer {
                     return COLOR_WATER; // 水面优先
                 }
                 int color = colorForBlock(name);
-                // MC 着色器机制：草地/树叶贴图是灰度模板，乘群系色调
+                // BTR 卫星模式行为：草地/树叶直接用群系色调（亮绿），
+                // 不乘灰度模板（模板乘色调后偏暗，观感像土/枯草）
                 if (biomes != null) {
                     int[] tint = biomeTintTable.get(biomeId);
                     if (tint != null) {
                         if (isGrassTinted(name)) {
-                            color = multiplyTint(color, tint, 3);
+                            color = 0xFF000000 | (tint[3] << 16) | (tint[4] << 8) | tint[5];
                         } else if (isLeavesTinted(name)) {
-                            color = multiplyTint(color, tint, 6);
+                            color = 0xFF000000 | (tint[6] << 16) | (tint[7] << 8) | tint[8];
                         }
                     }
                 }
@@ -1708,6 +1765,21 @@ public class WorldMapRenderer {
         int g = ((template >> 8) & 0xFF) * tint[offset + 1] / 255;
         int b = (template & 0xFF) * tint[offset + 2] / 255;
         return 0xFF000000 | (r << 16) | (g << 8) | b;
+    }
+
+    /** chunk 的 subchunk palette 是否含 end_stone（末地独有方块，用于判定 9/10B 共享 key 归属）。 */
+    private static boolean chunkHasEndStone(Map<Integer, SubChunk> subs) {
+        if (subs == null) {
+            return false;
+        }
+        for (SubChunk sc : subs.values()) {
+            for (String pn : sc.palette) {
+                if (pn != null && pn.contains("end_stone")) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** BTR 老版方块颜色表（minecraft: 名 → ARGB；优先 bedrockmap 色表）。 */
