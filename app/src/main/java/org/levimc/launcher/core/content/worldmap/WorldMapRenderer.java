@@ -983,12 +983,19 @@ public class WorldMapRenderer {
                 return new int[]{worldX, worldZ};
             }
             if (chunkColors != null) {
+                // 按需渲染模式的 bounds-only 空地图：无数据可搜，直接停目标点
+                // （曾在这里螺旋搜索全图 474 万次 CHM 查找，主线程卡 7.5 秒）
+                if (chunkColors.isEmpty()) {
+                    return new int[]{worldX, worldZ};
+                }
                 int tcx = Math.floorDiv(minBlockX + cx, 16);
                 int tcz = Math.floorDiv(minBlockZ + cz, 16);
                 if (chunkHasData(tcx, tcz)) {
                     return new int[]{worldX, worldZ};
                 }
-                int maxRc = Math.max(width, height) / 16 + 1;
+                // 螺旋搜索上限 128 圈（~6.5 万次查找 ≈ 100ms）；
+                // 按需渲染的数据只在视口附近，远距离搜索无意义且卡主线程
+                int maxRc = Math.min(Math.max(width, height) / 16 + 1, 128);
                 for (int r = 1; r <= maxRc; r++) {
                     for (int dx = -r; dx <= r; dx++) {
                         for (int dz = -r; dz <= r; dz++) {
@@ -1003,7 +1010,7 @@ public class WorldMapRenderer {
                         }
                     }
                 }
-                // 全空（视口按需渲染尚未填充）：停在目标点，滑动/渲染后自然填补
+                // 附近无数据（视口按需渲染尚未填充）：停在目标点，渲染后自然填补
                 return new int[]{worldX, worldZ};
             }
             int maxR = Math.max(width, height);
