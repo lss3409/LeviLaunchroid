@@ -28,6 +28,9 @@ public class VoxelView extends View {
     private float angle;
     /** 缩放倍率（0.5x - 4x）。 */
     private float zoom = 1f;
+    /** 预渲染场景位图（数据加载后画一次；旋转/缩放只变换位图，
+     *  每帧 17 万 path 重绘是"卡死界面"的根因）。 */
+    private android.graphics.Bitmap sceneBmp;
 
     private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -93,7 +96,61 @@ public class VoxelView extends View {
     public void setVoxelData(WorldMapRenderer.VoxelColumn[][] data, int size) {
         this.data = data;
         this.size = size;
+        // 后台线程预渲染场景位图（离屏 Canvas 线程安全），完成后回填
+        new Thread(() -> {
+            android.graphics.Bitmap bmp = renderScene();
+            post(() -> {
+                if (sceneBmp != null) {
+                    sceneBmp.recycle();
+                }
+                sceneBmp = bmp;
+                invalidate();
+            });
+        }, "voxel-scene").start();
         invalidate();
+    }
+
+    /** 预渲染场景位图（原角度快照；旋转/缩放时变换位图）。 */
+    private android.graphics.Bitmap renderScene() {
+        if (data == null || size <= 0) {
+            return null;
+        }
+        float unit = 8f;
+        float unitH = 10f;
+        float cosA = 1f;
+        float sinA = 0f;
+        int bw = (int) (size * unit * 2.2f);
+        int bh = (int) (size * unit * 1.3f + 30 * unitH * 0.12f + 80);
+        android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(
+                bw, bh, android.graphics.Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bmp);
+        float cx = bw / 2f;
+        float cy = bh / 2f - size * 1.2f;
+        int[][] order = drawOrder(cosA, sinA);
+        for (int[] p : order) {
+            int dx = p[0];
+            int dz = p[1];
+            WorldMapRenderer.VoxelColumn col = data[dz][dx];
+            int n = 0;
+            for (int c : col.colors) {
+                if (c == 0) {
+                    break;
+                }
+                n++;
+            }
+            if (n == 0) {
+                continue;
+            }
+            int baseY = col.ys[0];
+            for (int i = n - 1; i >= 0; i--) {
+                int y = col.ys[i];
+                float px = cx + (dx * cosA - dz * sinA) * unit;
+                float py = cy + (dx * sinA + dz * cosA) * unit * 0.5f
+                        - (y - baseY) * unitH * 0.12f;
+                drawBlock(canvas, px, py, col.colors[i], (y - baseY) * 0.6f, cosA, sinA, 8f, 10f);
+            }
+        }
+        return bmp;
     }
 
     public void rotateClockwise() {
@@ -121,42 +178,27 @@ public class VoxelView extends View {
             p.setColor(0xFF8A93A3);
             p.setTextSize(30);
             p.setTextAlign(Paint.Align.CENTER);
-            canvas.drawText("无数据", getWidth() / 2f, getHeight() / 2f, p);
+            canvas.drawText("加载中…", getWidth() / 2f, getHeight() / 2f, p);
             return;
         }
-        // 等距投影（连续角度）：世界 (dx, dz) → 屏幕 ((dx cosθ - dz sinθ)·u,
-        // (dx sinθ + dz cosθ)·u·0.5 - 高度)，u 随 zoom
-        float unit = 8f * zoom;
-        float unitH = 10f * zoom;
-        float cosA = (float) Math.cos(angle);
-        float sinA = (float) Math.sin(angle);
-        float cx = getWidth() / 2f;
-        float cy = getHeight() / 2f - size * 1.2f * zoom;
-        // 画家算法：投影深度 (dx·sinθ + dz·cosθ) 降序（远→近）
-        int[][] order = drawOrder(cosA, sinA);
-        for (int[] p : order) {
-            int dx = p[0];
-            int dz = p[1];
-            WorldMapRenderer.VoxelColumn col = data[dz][dx];
-            int n = 0;
-            for (int c : col.colors) {
-                if (c == 0) {
-                    break;
-                }
-                n++;
-            }
-            if (n == 0) {
-                continue;
-            }
-            int baseY = col.ys[0];
-            for (int i = n - 1; i >= 0; i--) {
-                int y = col.ys[i];
-                float px = cx + (dx * cosA - dz * sinA) * unit;
-                float py = cy + (dx * sinA + dz * cosA) * unit * 0.5f
-                        - (y - baseY) * unitH * 0.12f;
-                drawBlock(canvas, px, py, col.colors[i], (y - baseY) * 0.6f, cosA, sinA);
-            }
+        if (sceneBmp == null) {
+            Paint p = new Paint();
+            p.setColor(0xFF8A93A3);
+            p.setTextSize(30);
+            p.setTextAlign(Paint.Align.CENTER);
+            canvas.drawText("生成中…", getWidth() / 2f, getHeight() / 2f, p);
+            return;
         }
+        // 场景位图旋转 + 缩放（每次交互只 1 次 drawBitmap，不再逐方块重绘）
+        canvas.save();
+        float cx = getWidth() / 2f;
+        float cy = getHeight() / 2f;
+        canvas.translate(cx, cy);
+        canvas.rotate((float) Math.toDegrees(angle));
+        canvas.scale(zoom, zoom);
+        canvas.drawBitmap(sceneBmp, -sceneBmp.getWidth() / 2f,
+                -sceneBmp.getHeight() / 2f, null);
+        canvas.restore();
         drawAxis(canvas);
     }
 
@@ -180,9 +222,7 @@ public class VoxelView extends View {
 
     /** 画一个等距方块（顶面菱形 + 两个侧面），侧面明暗随旋转角变化。 */
     private void drawBlock(Canvas canvas, float cx, float topY, int color, float shade,
-                           float cosA, float sinA) {
-        float u = 8f * zoom;
-        float h = 10f * zoom;
+                           float cosA, float sinA, float u, float h) {
         int base = color;
         int r = Math.max(0, Math.min(255, ((base >> 16) & 0xFF) + (int) shade));
         int g = Math.max(0, Math.min(255, ((base >> 8) & 0xFF) + (int) shade));

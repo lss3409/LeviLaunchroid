@@ -66,18 +66,11 @@ public class WorldMapRenderer {
      *  硬编码剔除 bedrock+netherrack）。 */
     public static volatile java.util.Set<String> netherExcludeBlocks = null;
 
-    /** 玻璃类方块（视为空气穿透，全维度）。 */
-    private static boolean isGlassName(String name) {
-        return name != null && (name.equals("minecraft:glass")
-                || name.equals("minecraft:glass_pane")
-                || name.endsWith("_stained_glass")
-                || name.endsWith("_stained_glass_pane"));
-    }
-
     /** 下界窗口裁剪：sub 与 [yMin,yMax] 无交集则剔除。
-     *  未设 y 范围（全量档）时也跳过基岩天花板层（sub 6+，y96+ 只有基岩/
-     *  空气——实测下界 hmap max=64 是地表高度，主世界同款经验：高空层
-     *  解码纯浪费，surfaceColor 从基岩顶向下找会跳过剔除的基岩）。 */
+     *  未设 y 范围（全量档）时也跳过基岩天花板层。推演：下界顶基岩在
+     *  y123-127（sub 7），y96-111（sub 6）有堡垒顶/玄武岩柱——只裁
+     *  sub 7（纯基岩+空气），裁 sub 6 会把 y96+ 建筑顶切掉（v351 显示
+     *  异常根因之一）。 */
     private static void applyNetherWindow(Map<Integer, SubChunk> subs) {
         if (subs == null || subs.isEmpty()) {
             return;
@@ -85,7 +78,7 @@ public class WorldMapRenderer {
         if (netherYMin >= 0) {
             subs.keySet().removeIf(s -> s * 16 + 15 < netherYMin || s * 16 > netherYMax);
         } else {
-            subs.keySet().removeIf(s -> s >= 6);
+            subs.keySet().removeIf(s -> s >= 7);
         }
     }
 
@@ -94,7 +87,7 @@ public class WorldMapRenderer {
         if (netherYMin >= 0) {
             return sub * 16 + 15 >= netherYMin && sub * 16 <= netherYMax;
         }
-        return sub < 6;
+        return sub < 7;
     }
     /** 末地维度 id（内部逻辑编号） */
     private static final int DIM_END = 2;
@@ -1771,7 +1764,9 @@ public class WorldMapRenderer {
     // v3：v301 readChunk 多块读取 + v304 地表窗口修复前渲染的缓存数据是错的
     // （subchunk 缺失/地表层被裁），必须失效重渲染——村庄/建筑错乱的直接来源
     // v4：缓存加入 biome 图层色（v3 只存地形色，缓存命中后 biome 图层永远没数据）
-    private static final int MAP_CACHE_VERSION = 4;
+    // v5：玻璃穿透回滚（玻璃恢复不透明色表渲染）+ 下界裁剪 sub7（v4 的
+    // 玻璃穿透与 s>=6 裁剪渲染结果已错，必须失效）
+    private static final int MAP_CACHE_VERSION = 5;
 
     /** 缓存文件：db 目录旁 map_cache_<dim>.bin（随世界走，卸载备份都在）。
      *  下界缓存文件名带渲染参数后缀（y 范围 + 剔除名单 hash）——不同设置
@@ -3052,11 +3047,6 @@ public class WorldMapRenderer {
                     }
                 }
                 if (name == null || isAirName(name)) {
-                    continue;
-                }
-                // 玻璃类视为空气穿透（玩家玻璃屋顶/温室不遮挡建筑内部——
-                // 染色玻璃同；卫星图透视屋顶观感）
-                if (isGlassName(name)) {
                     continue;
                 }
                 // 下界剔除黑名单（设置页可选）：视为空气向下穿透，

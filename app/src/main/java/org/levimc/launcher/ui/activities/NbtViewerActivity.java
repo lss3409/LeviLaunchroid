@@ -806,7 +806,7 @@ public class NbtViewerActivity extends BaseActivity {
         binding.worldMapImage.setOnRegionSelectListener((minX, minZ, maxX, maxZ) -> {
             int w = maxX - minX + 1;
             int h = maxZ - minZ + 1;
-            int side = Math.max(2, Math.min(64, Math.max(w, h)));
+            int side = Math.max(2, Math.min(32, Math.max(w, h)));
             int cx = (minX + maxX) / 2;
             int cz = (minZ + maxZ) / 2;
             startVoxelRender(cx, cz, side);
@@ -2786,7 +2786,7 @@ public class NbtViewerActivity extends BaseActivity {
         dialog.show();
         executor.execute(() -> {
             WorldMapRenderer.VoxelColumn[][] data = WorldMapRenderer.renderVoxelRegion(
-                    dbDir, fCenterX, fCenterZ, dim, size, 14);
+                    dbDir, fCenterX, fCenterZ, dim, size, 8);
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed()) {
                     return;
