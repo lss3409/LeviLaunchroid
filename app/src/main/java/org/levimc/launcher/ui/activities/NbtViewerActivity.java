@@ -261,6 +261,8 @@ public class NbtViewerActivity extends BaseActivity {
         accentColor = pm.getAccentColor();
         if (accentColor != 0) {
             binding.nbtTitle.setTextColor(accentColor);
+            // 个性化主题色贯通：FAB/维度高亮/抽屉图标高亮不再用默认主题深绿色
+            binding.mapFab.setBackgroundTintList(ColorStateList.valueOf(accentColor));
         }
 
         binding.nbtBack.setOnClickListener(v -> finish());
@@ -395,7 +397,8 @@ public class NbtViewerActivity extends BaseActivity {
 
         // 左栏：图标条点击切换 Tab（展开抽屉）；再点当前 Tab 收回抽屉。
         // ImageView 高亮用 colorFilter（setTextColor 是 TextView API）
-        int activeColor = ContextCompat.getColor(this, R.color.primary);
+        int activeColor = accentColor != 0 ? accentColor
+                : ContextCompat.getColor(this, R.color.primary);
         int inactiveColor = ContextCompat.getColor(this, R.color.text_secondary);
         View.OnClickListener lbClick = v -> {
             boolean same = currentLbTab == v
@@ -655,7 +658,8 @@ public class NbtViewerActivity extends BaseActivity {
     /** 统一维度切换：按钮高亮 + 标题显示当前维度名 + 重载地图。 */
     private void switchToDimension(String dim) {
         mapDimension = dim;
-        int active = getResources().getColor(R.color.primary, getTheme());
+        int active = accentColor != 0 ? accentColor
+                : getResources().getColor(R.color.primary, getTheme());
         int inactive = getResources().getColor(R.color.text_secondary, getTheme());
         binding.worldDimOverworld.setTextColor("overworld".equals(dim) ? active : inactive);
         binding.worldDimNether.setTextColor("nether".equals(dim) ? active : inactive);
@@ -2131,7 +2135,9 @@ public class NbtViewerActivity extends BaseActivity {
         l.fromId = linkModeFrom;
         l.toId = p.id;
         l.type = BlueprintDb.LINK_LOGISTICS;
-        l.color = "#64b5f6";
+        // 连线颜色跟随起点标点颜色（无起点色回退默认蓝）
+        l.color = from != null && from.color != null && !from.color.isEmpty()
+                ? from.color : "#64b5f6";
         l.id = blueprintDb.addLink(l);
         mapLinks.add(l);
         linkModeActive = false;
