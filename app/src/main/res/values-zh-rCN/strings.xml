@@ -1288,6 +1288,7 @@
     <string name="tool_ruler">测距</string>
     <string name="tool_point_list">标点列表</string>
     <string name="tool_blueprint">导出世界为 HTML</string>
+    <string name="tool_voxel">3D 视图</string>
     <string name="point_add_title">添加标点</string>
     <string name="point_edit_title">编辑标点</string>
     <string name="point_name">名称</string>

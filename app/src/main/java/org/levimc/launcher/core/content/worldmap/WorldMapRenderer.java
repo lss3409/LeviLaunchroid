@@ -2097,6 +2097,112 @@ public class WorldMapRenderer {
         }
     }
 
+    /** 3D 体素区域数据：每列从顶向下 N 层方块（颜色 + y）。 */
+    public static final class VoxelColumn {
+        public final int[] colors; // 从顶向下的方块颜色（不含空气）
+        public final int[] ys;
+
+        VoxelColumn(int[] colors, int[] ys) {
+            this.colors = colors;
+            this.ys = ys;
+        }
+    }
+
+    /**
+     * 渲染 3D 体素视图数据：以 (centerX, centerZ) 为中心的 size×size 方块区域，
+     * 每列从顶向下收集 depth 层非空气方块（等距投影用）。
+     */
+    public static VoxelColumn[][] renderVoxelRegion(File dbDir, int centerX, int centerZ,
+                                                    int dimension, int size, int depth) {
+        try {
+            int half = size / 2;
+            int minCx = Math.floorDiv(centerX - half, 16);
+            int maxCx = Math.floorDiv(centerX + half - 1, 16);
+            int minCz = Math.floorDiv(centerZ - half, 16);
+            int maxCz = Math.floorDiv(centerZ + half - 1, 16);
+            LevelDBReader reader = new LevelDBReader(dbDir);
+            try {
+                // 区域覆盖的 chunk 全解码（不窗口裁剪——3D 需要完整高度）
+                Map<Long, int[]> hmapByChunk = new HashMap<>();
+                Map<Long, Map<Integer, SubChunk>> subsByChunk = new HashMap<>();
+                for (int cz = minCz; cz <= maxCz; cz++) {
+                    for (int cx = minCx; cx <= maxCx; cx++) {
+                        List<LevelDBEntry> entries = reader.readChunk(cx, cz);
+                        int[] hmap = null;
+                        Map<Integer, SubChunk> subs = new HashMap<>();
+                        for (LevelDBEntry e : entries) {
+                            byte[] rawKey = e.getKey().getRawKey();
+                            int[] ck = parseChunkKey(rawKey);
+                            if (ck == null || ck[2] != dimension) {
+                                continue;
+                            }
+                            if (isSubchunkKey(rawKey)) {
+                                SubChunk sc = decodeSubChunk(e.getValue());
+                                if (sc != null) {
+                                    subs.put(ck[3], sc);
+                                }
+                            } else if (isData2dKey(rawKey)) {
+                                int[] hm = extractData2d(e.getValue());
+                                if (hm != null && hmap == null) {
+                                    hmap = hm;
+                                }
+                            }
+                        }
+                        if (hmap != null) {
+                            long key = pack(cx, cz);
+                            hmapByChunk.put(key, hmap);
+                            subsByChunk.put(key, subs);
+                        }
+                    }
+                }
+                int startX = centerX - half;
+                int startZ = centerZ - half;
+                VoxelColumn[][] out = new VoxelColumn[size][size];
+                for (int dz = 0; dz < size; dz++) {
+                    for (int dx = 0; dx < size; dx++) {
+                        int wx = startX + dx;
+                        int wz = startZ + dz;
+                        int cx = Math.floorDiv(wx, 16);
+                        int cz = Math.floorDiv(wz, 16);
+                        long key = pack(cx, cz);
+                        int[] hmap = hmapByChunk.get(key);
+                        Map<Integer, SubChunk> subs = subsByChunk.get(key);
+                        int lx = wx - cx * 16;
+                        int lz = wz - cz * 16;
+                        int[] colors = new int[depth];
+                        int[] ys = new int[depth];
+                        java.util.Arrays.fill(colors, 0);
+                        int n = 0;
+                        int h = hmap != null ? hmap[(lz << 4) | lx] : 128;
+                        int yStart = Math.min(h + 4, 319);
+                        for (int y = yStart; y >= -64 && n < depth; y--) {
+                            SubChunk sub = subs.get(Math.floorDiv(y, 16));
+                            if (sub == null) {
+                                continue;
+                            }
+                            int localY = y - Math.floorDiv(y, 16) * 16;
+                            int idx = sub.getIndex(lx, localY, lz);
+                            String name = idx < sub.palette.length ? sub.palette[idx] : null;
+                            if (name == null || isAirName(name)) {
+                                continue;
+                            }
+                            colors[n] = tintColor(name, colorForBlock(name), -1);
+                            ys[n] = y;
+                            n++;
+                        }
+                        out[dz][dx] = new VoxelColumn(colors, ys);
+                    }
+                }
+                return out;
+            } finally {
+                reader.close();
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "renderVoxelRegion 失败", t);
+            return null;
+        }
+    }
+
     /** 大世界流式实体解析：只读实体/玩家相关 key。 */
     public static List<EntityPos> parseEntitiesStreaming(File dbDir, int dimension) {
         try {

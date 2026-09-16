@@ -40,6 +40,7 @@ import org.levimc.launcher.databinding.ItemNbtDbEntryBinding;
 import org.levimc.launcher.ui.animation.DynamicAnim;
 import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
 import org.levimc.launcher.ui.views.WorldMapView;
+import org.levimc.launcher.ui.views.VoxelView;
 import org.levimc.launcher.util.PersonalizationManager;
 
 import java.io.File;
@@ -780,6 +781,11 @@ public class NbtViewerActivity extends BaseActivity {
         binding.toolBlueprint.setOnClickListener(v -> {
             closeToolMenu();
             exportWorldHtmlAsync();
+        });
+        // 3D 体素视图（BedrockMap voxel 同款交互的 Canvas 最小实现）
+        binding.toolVoxel.setOnClickListener(v -> {
+            closeToolMenu();
+            showVoxelDialog();
         });
 
         // 维度切换
@@ -2660,6 +2666,92 @@ public class NbtViewerActivity extends BaseActivity {
             sb.append(t.getInt());
         }
         return sb.toString();
+    }
+
+    /** 3D 体素视图：视口中心 24×24 区域，后台全解码后弹全屏对话框。 */
+    private void showVoxelDialog() {
+        if (currentWorldDir == null || currentMap == null) {
+            Toast.makeText(this, "地图尚未加载", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final File dbDir = new File(currentWorldDir, "db");
+        final int dim = "nether".equals(mapDimension) ? 1 : "end".equals(mapDimension) ? 2 : 0;
+        int vcx = viewCenterX.get();
+        int vcz = viewCenterZ.get();
+        if (vcx == Integer.MIN_VALUE) {
+            vcx = currentMap.playerBlockX >= 0 ? currentMap.playerBlockX : 0;
+            vcz = currentMap.playerBlockZ >= 0 ? currentMap.playerBlockZ : 0;
+        }
+        final int centerX = vcx;
+        final int centerZ = vcz;
+        binding.nbtLoading.setVisibility(View.VISIBLE);
+        executor.execute(() -> {
+            WorldMapRenderer.VoxelColumn[][] data = WorldMapRenderer.renderVoxelRegion(
+                    dbDir, centerX, centerZ, dim, 24, 14);
+            runOnUiThread(() -> {
+                binding.nbtLoading.setVisibility(View.GONE);
+                if (data == null) {
+                    Toast.makeText(this, "该区域无数据", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                showVoxelView(data, 24, centerX, centerZ);
+            });
+        });
+    }
+
+    /** 全屏 3D 体素对话框：VoxelView + 旋转/缩放/关闭按钮。 */
+    private void showVoxelView(WorldMapRenderer.VoxelColumn[][] data, int size,
+                               int centerX, int centerZ) {
+        android.app.Dialog dialog = new android.app.Dialog(this,
+                android.R.style.Theme_Black_NoTitleBar_Fullscreen);
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(ContextCompat.getColor(this, R.color.background));
+        float d = getResources().getDisplayMetrics().density;
+
+        TextView title = new TextView(this);
+        title.setText(getString(R.string.tool_voxel) + "  ·  "
+                + centerX + ", " + centerZ + "  ·  " + dimName(mapDimension));
+        title.setTextColor(ContextCompat.getColor(this, R.color.primary));
+        title.setTextSize(14);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        title.setPadding((int) (16 * d), (int) (10 * d), (int) (16 * d), (int) (10 * d));
+        root.addView(title);
+
+        VoxelView voxel = new VoxelView(this);
+        voxel.setVoxelData(data, size);
+        root.addView(voxel, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        LinearLayout btns = new LinearLayout(this);
+        btns.setOrientation(LinearLayout.HORIZONTAL);
+        btns.setGravity(android.view.Gravity.CENTER);
+        btns.setPadding(0, 0, 0, (int) (16 * d));
+        String[] labels = {"⟲ 旋转", "放大", "关闭"};
+        android.view.View.OnClickListener[] clicks = {
+                v2 -> voxel.rotateClockwise(),
+                v2 -> voxel.toggleZoom(),
+                v2 -> dialog.dismiss()
+        };
+        for (int i = 0; i < labels.length; i++) {
+            TextView btn = new TextView(this);
+            btn.setText(labels[i]);
+            btn.setTextColor(ContextCompat.getColor(this, R.color.on_surface));
+            btn.setTextSize(13);
+            btn.setBackgroundResource(R.drawable.bg_rounded_card);
+            btn.setPadding((int) (16 * d), (int) (8 * d), (int) (16 * d), (int) (8 * d));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            if (i > 0) {
+                lp.leftMargin = (int) (12 * d);
+            }
+            btn.setLayoutParams(lp);
+            btn.setOnClickListener(clicks[i]);
+            btns.addView(btn);
+        }
+        root.addView(btns);
+        dialog.setContentView(root);
+        dialog.show();
     }
 
     private void showBlueprintDialog() {
