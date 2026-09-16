@@ -3528,6 +3528,7 @@ public class WorldMapRenderer {
                 .append("<style>")
                 .append("body{margin:0;background:#12141a;font-family:system-ui,sans-serif}")
                 .append("#map{position:absolute;top:0;bottom:0;width:100%}")
+                .append("#map img{image-rendering:pixelated}")
                 .append("#panel{position:absolute;top:10px;right:10px;z-index:1000;background:rgba(20,24,32,.93);")
                 .append("color:#e8eaf0;border:1px solid #3a6b8a;border-radius:12px;padding:12px 14px;")
                 .append("max-width:300px;font-size:13px;box-shadow:0 2px 12px rgba(0,0,0,.5)}")
@@ -3580,7 +3581,12 @@ public class WorldMapRenderer {
                 .append(maxZ).append(',').append(minX).append("]];")
                 .append("L.imageOverlay('data:image/png;base64,").append(b64)
                 .append("',BOUNDS).addTo(map);")
-                .append("var MR=Math.pow(2,-map.getBoundsZoom(BOUNDS))*8;")
+                .append("var FZ=map.getBoundsZoom(BOUNDS);")
+                .append("function mkCircle(z,x,opts){var px=opts.px||8;delete opts.px;")
+                .append("var c=L.circle([z,x],L.extend({radius:1},opts));")
+                .append("var up=function(){var s=Math.min(px,Math.max(3,px*Math.pow(2,map.getZoom()-FZ)));")
+                .append("c.setRadius(s/Math.pow(2,map.getZoom()));};")
+                .append("map.on('zoomend',up);up();return c;}")
                 .append("var groups={p:L.layerGroup(),l:L.layerGroup(),s:L.layerGroup(),")
                 .append("e:L.layerGroup(),sl:L.layerGroup()};")
                 .append("function tg(k){if(document.getElementById('ck-'+k).checked){groups[k].addTo(map);}")
@@ -3589,12 +3595,12 @@ public class WorldMapRenderer {
                 .append("var b=document.getElementById('collapse');")
                 .append("if(p.style.display==='none'){p.style.display='block';b.textContent='收起';}")
                 .append("else{p.style.display='none';b.textContent='信息';}}");
-        // 标点（数据库内标点固定；新增标点走 localStorage + Shift 点击）
+        // 标点（数据库内标点固定；新增标点走 localStorage + 长按）
         if (points != null && !points.isEmpty()) {
             html.append("var pts=");
             html.append(jsonArray(points));
-            html.append(";pts.forEach(function(p){groups.p.addLayer(L.circle([p.z,p.x],")
-                    .append("{radius:MR,color:p.c,weight:2,fillOpacity:.85})")
+            html.append(";pts.forEach(function(p){groups.p.addLayer(mkCircle(p.z,p.x,")
+                    .append("{px:8,color:p.c,weight:2,fillOpacity:.85})")
                     .append(".bindPopup('<b>'+p.n+'</b><br>X:'+p.x+' Z:'+p.z));});");
         }
         // 连线（虚线 + 距离标注）
@@ -3621,8 +3627,8 @@ public class WorldMapRenderer {
             }
             sb.append(']');
             html.append(sb);
-            html.append(";sts.forEach(function(s){groups.s.addLayer(L.circle([s.z,s.x],")
-                    .append("{radius:MR*1.3,color:'#f5a623',weight:2,fillOpacity:.85})")
+            html.append(";sts.forEach(function(s){groups.s.addLayer(mkCircle(s.z,s.x,")
+                    .append("{px:10,color:'#f5a623',weight:2,fillOpacity:.85})")
                     .append(".bindPopup('<b>'+s.t+'</b><br>X:'+s.x+' Z:'+s.z));});");
         }
         // 实体（数量大，默认关闭，上限 6000）
@@ -3640,8 +3646,8 @@ public class WorldMapRenderer {
             }
             eb.append(']');
             html.append("var ents=").append(eb);
-            html.append(";ents.forEach(function(e){groups.e.addLayer(L.circle([e.z,e.x],")
-                    .append("{radius:MR*0.6,color:'#ff7043',weight:1,fillOpacity:.7})")
+            html.append(";ents.forEach(function(e){groups.e.addLayer(mkCircle(e.z,e.x,")
+                    .append("{px:6,color:'#ff7043',weight:1,fillOpacity:.7})")
                     .append(".bindPopup('<b>'+e.n+'</b><br>X:'+e.x+' Z:'+e.z));});");
         }
         // 史莱姆区块（只列有地形数据的 chunk：大世界查 chunkColors key，
@@ -3699,14 +3705,14 @@ public class WorldMapRenderer {
                 .append("{color:'#4ade80',weight:1,fillOpacity:.18}));});");
         // 玩家/出生点
         if (playerX != Integer.MIN_VALUE) {
-            html.append("L.circle([").append(playerZ).append(',').append(playerX)
-                    .append("],{radius:MR*0.9,color:'#4ade80',weight:2,fillOpacity:.95}).addTo(map)")
+            html.append("mkCircle(").append(playerZ).append(',').append(playerX)
+                    .append(",{px:7,color:'#4ade80',weight:2,fillOpacity:.95}).addTo(map)")
                     .append(".bindPopup('<b>玩家</b><br>X:").append(playerX).append(" Z:")
                     .append(playerZ).append("');");
         }
         if (spawnX != Integer.MIN_VALUE) {
-            html.append("L.circle([").append(spawnZ).append(',').append(spawnX)
-                    .append("],{radius:MR*0.9,color:'#5b9cf6',weight:2,fillOpacity:.95}).addTo(map)")
+            html.append("mkCircle(").append(spawnZ).append(',').append(spawnX)
+                    .append(",{px:7,color:'#5b9cf6',weight:2,fillOpacity:.95}).addTo(map)")
                     .append(".bindPopup('<b>出生点</b><br>X:").append(spawnX).append(" Z:")
                     .append(spawnZ).append("');");
         }
@@ -3717,10 +3723,12 @@ public class WorldMapRenderer {
                 .append("var savedPts=[];try{savedPts=JSON.parse(localStorage.getItem(SAVED_KEY))||[];}catch(e){}")
                 .append("var ptRecs=[];")
                 .append("function redrawPts(){ptRecs.forEach(function(r){groups.p.removeLayer(r.c);});ptRecs=[];")
-                .append("savedPts.forEach(function(p){var c=L.circle([p.z,p.x],")
-                .append("{radius:MR,color:p.c||'#ffd54f',weight:2,fillOpacity:.85});")
+                .append("savedPts.forEach(function(p){var c=mkCircle(p.z,p.x,")
+                .append("{px:8,color:p.c||'#ffd54f',weight:2,fillOpacity:.85});")
                 .append("c.bindPopup('<div class=\"pt-popup\"><b>'+p.n+'</b><br>X:'+p.x+' Z:'+p.z")
-                .append("+'<span class=\"del\" onclick=\"delPt('+(ptRecs.length)+')\">删除</span></div>');")
+                .append("+'<span class=\"del\">删除</span></div>');")
+                .append("c.on('popupopen',function(ev){var el=ev.popup.getElement().querySelector('.del');")
+                .append("if(el){el.onclick=function(){delPt(ptRecs.indexOf(c));c.closePopup();};}});")
                 .append("groups.p.addLayer(c);ptRecs.push(c);});}")
                 .append("function delPt(i){var c=ptRecs[i];if(!c)return;")
                 .append("savedPts.splice(i,1);localStorage.setItem(SAVED_KEY,JSON.stringify(savedPts));redrawPts();}")
@@ -3731,7 +3739,8 @@ public class WorldMapRenderer {
                 .append("savedPts.push({n:n,x:Math.round(pendingPt.lng),z:Math.round(pendingPt.lat),c:'#ffd54f'});")
                 .append("localStorage.setItem(SAVED_KEY,JSON.stringify(savedPts));cancelPt();redrawPts();}")
                 .append("map.on('contextmenu',function(e){if(e.originalEvent){e.originalEvent.preventDefault();}")
-                .append("pendingPt=e.latlng;")
+                .append("var ll=e.latlng||(e.originalEvent?map.mouseEventToLatLng(e.originalEvent):null);")
+                .append("if(!ll){return;}pendingPt=ll;")
                 .append("var d=document.createElement('div');d.id='pt-dlg';")
                 .append("d.style.cssText='position:fixed;left:50%;top:35%;transform:translate(-50%,-50%);")
                 .append("z-index:2000;background:#20262e;color:#e8eaf0;padding:14px;border:1px solid #3a6b8a;")
@@ -3740,12 +3749,17 @@ public class WorldMapRenderer {
                 .append("<input id=\"pt-name\" placeholder=\"标点名称\" style=\"width:220px;padding:6px;")
                 .append("background:#12141a;color:#fff;border:1px solid #3a6b8a;border-radius:6px\">")
                 .append("<div style=\"margin-top:10px;text-align:right\">")
-                .append("<button onclick=\"cancelPt()\" style=\"margin-right:8px;background:#2a3342;color:#a8b4c4;")
+                .append("<button id=\"pt-cancel\" style=\"margin-right:8px;background:#2a3342;color:#a8b4c4;")
                 .append("border:1px solid #3a6b8a;border-radius:6px;padding:5px 12px\">取消</button>")
-                .append("<button onclick=\"savePt()\" style=\"background:#5b9cf6;color:#fff;border:none;")
+                .append("<button id=\"pt-save\" style=\"background:#5b9cf6;color:#fff;border:none;")
                 .append("border-radius:6px;padding:5px 12px\">保存</button></div>';")
                 .append("document.body.appendChild(d);")
-                .append("var inp=document.getElementById('pt-name');if(inp){inp.focus();}});")
+                .append("var inp=document.getElementById('pt-name');")
+                .append("var cbtn=document.getElementById('pt-cancel');")
+                .append("var sbtn=document.getElementById('pt-save');")
+                .append("if(cbtn){cbtn.onclick=cancelPt;}")
+                .append("if(sbtn){sbtn.onclick=function(){if(inp){inp.blur();}setTimeout(savePt,120);}}")
+                .append("if(inp){inp.focus();}});")
                 .append("function exportJson(){var a=document.createElement('a');")
                 .append("a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(savedPts,null,2));")
                 .append("a.download='points.json';a.click();}")
