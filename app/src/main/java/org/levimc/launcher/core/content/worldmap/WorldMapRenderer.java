@@ -1376,6 +1376,7 @@ public class WorldMapRenderer {
      * 3) readEntries：只解码窗口内 subchunk（maxSub±2）
      */
     public static WorldMap buildSatelliteMapStreaming(File dbDir, int dimension) {
+        List<StructureMarker> detected = new ArrayList<>();
         Map<Long, Integer> monumentChunks = new HashMap<>();
         Map<Long, Integer> endCityChunks = new HashMap<>();
         java.util.Set<Long> renderedChunks = new java.util.HashSet<>();
