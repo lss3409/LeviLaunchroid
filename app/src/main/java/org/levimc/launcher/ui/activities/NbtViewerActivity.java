@@ -511,6 +511,22 @@ public class NbtViewerActivity extends BaseActivity {
         binding.layerMemory.setOnCheckedChangeListener((b, checked) ->
                 binding.worldMapImage.setMemoryOptimized(checked));
         binding.worldMapImage.setMemoryOptimized(binding.layerMemory.isChecked());
+        // 忽略光源方块（火把/灯笼等非固体光源俯视渲染成黄色杂点）：
+        // 开启后渲染视为空气穿透——生电建筑周围插满火把时边缘一圈黄色
+        binding.layerIgnoreLight.setOnCheckedChangeListener((b, checked) -> {
+            WorldMapRenderer.ignoreLightBlocks = checked;
+            // 渲染结果变化：当前内存数据已按旧设置渲染，需要重新渲染
+            // （简单起见：失效当前视图数据，视口按需重渲染）
+            if (currentMap != null && currentMap.chunkColors != null) {
+                currentMap.chunkColors.clear();
+                if (currentMap.chunkBiomeColors != null) {
+                    currentMap.chunkBiomeColors.clear();
+                }
+            }
+            binding.worldMapImage.cancelPendingChunks(java.util.Collections.emptySet());
+            binding.worldMapImage.invalidate();
+        });
+        WorldMapRenderer.ignoreLightBlocks = binding.layerIgnoreLight.isChecked();
 
         // 预渲染全部区块（后台独立线程逐 chunk 渲染，与视口按需互不冲突：
         // 双方都检查 chunkColors 已渲染跳过；拖动时视口报告照常优先）

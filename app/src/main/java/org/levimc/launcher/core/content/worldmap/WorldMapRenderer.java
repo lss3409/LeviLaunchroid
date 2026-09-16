@@ -65,6 +65,9 @@ public class WorldMapRenderer {
     /** 下界剔除方块黑名单（渲染时视为空气向下穿透；null = 默认
      *  硬编码剔除 bedrock+netherrack）。 */
     public static volatile java.util.Set<String> netherExcludeBlocks = null;
+    /** 忽略光源方块（设置页开关）：火把等非固体光源俯视渲染成黄色杂点，
+     *  开启后视为空气向下穿透显示地表。 */
+    public static volatile boolean ignoreLightBlocks = false;
 
     /** 下界窗口裁剪：sub 与 [yMin,yMax] 无交集则剔除。
      *  未设 y 范围（全量档）时也跳过基岩天花板层。推演：下界顶基岩在
@@ -942,12 +945,6 @@ public class WorldMapRenderer {
             samples++;
         }
         heightDiff *= Math.pow(1.05f, samples);
-        // 高度差 < 2 不产生阴影：超平坦世界建筑边缘仅 1 方块高差就出现
-        // ±20% 亮暗带，平坦草绿背景上非常突兀（"建筑区块边缘不一样
-        // 的颜色"根因）。山地/树冠大高差保留立体感（BTR 观感不受影响）
-        if (Math.abs(heightDiff) < 2f) {
-            return 1f;
-        }
         return (float) ((Math.atan(heightDiff) / Math.PI) * shadingAmp) + 1f;
     }
 
@@ -1840,7 +1837,8 @@ public class WorldMapRenderer {
     // "海晶蓝"必须失效）
     // v10：chunk 边界阴影减半（v9 缓存边界阴影未减半，边缘色差须失效）
     // v11：阴影高度差 <2 阈值（v10 缓存仍含建筑边缘 ±20% 亮暗带须失效）
-    private static final int MAP_CACHE_VERSION = 11;
+    // v12：忽略光源方块开关（火把等光源方块渲染结果变化须失效）
+    private static final int MAP_CACHE_VERSION = 12;
 
     /** 缓存根目录（应用私有，卸载即清——缓存可再生）。null 时回退旧路径。 */
     private static java.io.File sCacheBase;
@@ -3322,6 +3320,12 @@ public class WorldMapRenderer {
                 if (name == null || isAirName(name)) {
                     continue;
                 }
+                // 忽略光源方块（设置页开关）：火把/灯笼/蜡烛等非固体光源
+                // 俯视图渲染成黄色杂点——生电建筑周围插满火把时"边缘一圈
+                // 黄色"的根因。视为空气向下穿透显示地表（卫星图语义）
+                if (ignoreLightBlocks && isLightSourceName(name)) {
+                    continue;
+                }
                 // 下界剔除黑名单（设置页可选）：视为空气向下穿透，
                 // 用于看穿下界岩/灵魂沙显示矿物与洞穴。
                 // null = 默认硬编码剔除 bedrock+netherrack（基岩天花板 + 大面
@@ -3407,6 +3411,23 @@ public class WorldMapRenderer {
 
     private static boolean isAirName(String name) {
         return name.endsWith("air"); // minecraft:air / cave_air / void_air
+    }
+
+    /** 非固体光源方块（忽略光源开关用）：俯视图渲染成黄色/亮色杂点。
+     *  固体光源（萤石/海晶灯/菌光体/南瓜灯）是真实建筑方块，不忽略——
+     *  穿透会显示地下。 */
+    private static boolean isLightSourceName(String name) {
+        return name.equals("minecraft:torch")
+                || name.equals("minecraft:soul_torch")
+                || name.equals("minecraft:redstone_torch")
+                || name.equals("minecraft:lantern")
+                || name.equals("minecraft:soul_lantern")
+                || name.equals("minecraft:end_rod")
+                || name.endsWith("_candle")
+                || name.equals("minecraft:fire")
+                || name.equals("minecraft:soul_fire")
+                || name.equals("minecraft:glow_lichen")
+                || name.equals("minecraft:light_block");
     }
 
     /** 水方块（含流动水）判定。 */
