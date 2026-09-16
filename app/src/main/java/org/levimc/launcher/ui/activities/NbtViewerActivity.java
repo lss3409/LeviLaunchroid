@@ -81,6 +81,26 @@ public class NbtViewerActivity extends BaseActivity {
     private ExecutorService executor;
     /** 视口按需渲染线程池（多 chunk 并行渲染；LevelDBReader 每次新建实例，线程安全）。 */
     private final ExecutorService renderPool = Executors.newFixedThreadPool(4);
+    /** 渲染完成 chunk 的批量重绘缓冲：80ms 窗口合并，一次局部重绘处理多个 chunk。 */
+    private final java.util.Set<Long> renderedChunkBuffer = new java.util.HashSet<>();
+    private final android.os.Handler flushHandler = new android.os.Handler(
+            android.os.Looper.getMainLooper());
+    private boolean flushScheduled = false;
+    private final Runnable flushRenderedChunks = () -> {
+        flushScheduled = false;
+        java.util.Set<Long> batch;
+        synchronized (renderedChunkBuffer) {
+            if (renderedChunkBuffer.isEmpty()) {
+                return;
+            }
+            batch = new java.util.HashSet<>(renderedChunkBuffer);
+            renderedChunkBuffer.clear();
+        }
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
+        binding.worldMapImage.onChunksRendered(batch);
+    };
 
     /**
      * 启动后台任务：取消上一个未完成的加载再新建线程池。
@@ -233,15 +253,17 @@ public class NbtViewerActivity extends BaseActivity {
                     } finally {
                         inFlight.remove(key);
                         remaining.decrementAndGet();
-                        // 每完成一个 chunk 立即局部重绘（WorldMapView 局部重采样，
-                        // 主线程几十 ms），地图渐进出现
+                        // 批量节流重绘：80ms 窗口内的完成 chunk 合并成一次
+                        // 局部重绘（同一 chunk 行的重叠行区间只采样一次）
                         runOnUiThread(() -> {
-                            if (isFinishing() || isDestroyed()) {
-                                return;
+                            synchronized (renderedChunkBuffer) {
+                                renderedChunkBuffer.add(key);
+                                if (flushScheduled) {
+                                    return;
+                                }
+                                flushScheduled = true;
                             }
-                            java.util.Set<Long> one = new java.util.HashSet<>(2);
-                            one.add(key);
-                            binding.worldMapImage.onChunksRendered(one);
+                            flushHandler.postDelayed(flushRenderedChunks, 80);
                         });
                     }
                 });

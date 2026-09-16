@@ -530,7 +530,9 @@ public class WorldMapView extends View {
         final java.util.Set<Long> missingChunks = map.chunkColors != null
                 && chunksNeededListener != null ? new java.util.HashSet<>() : null;
         if (map.chunkColors != null) {
-            // 大世界 chunk 缓存路径（BTR 同款）：逐像素查 chunk 16×16 色表
+            // 大世界 chunk 缓存路径（BTR 同款）：逐像素查 chunk 16×16 色表。
+            // chunk 查找只在 chunk 边界变化时做（一行 3840 像素只有 ~12 次
+            // HashMap 查找），否则 920 万次 get/帧把主线程钉死在 300-500ms。
             for (int sy = sy0; sy < sy1; sy++) {
                 int by = (int) ((sy - offsetY) * invPpb);
                 if (by < 0 || by >= map.height) {
@@ -542,6 +544,9 @@ public class WorldMapView extends View {
                 int cz = Math.floorDiv(wbz, 16);
                 int lz = wbz - cz * 16;
                 int zRow = lz << 4;
+                long curCk = Long.MIN_VALUE;
+                int[] cc = null;
+                int[] bc = null;
                 for (int sx = 0; sx < viewW; sx++) {
                     int bx = (int) ((sx - offsetX) * invPpb);
                     if (bx < 0 || bx >= map.width) {
@@ -552,7 +557,12 @@ public class WorldMapView extends View {
                     int cx = Math.floorDiv(wbx, 16);
                     int lx = wbx - cx * 16;
                     long ck = packChunk(cx, cz);
-                    int[] cc = map.chunkColors.get(ck);
+                    if (ck != curCk) {
+                        curCk = ck;
+                        cc = map.chunkColors.get(ck);
+                        bc = biomeSrc != null && map.chunkBiomeColors != null
+                                ? map.chunkBiomeColors.get(ck) : null;
+                    }
                     if (cc == null) {
                         pixelsBuf[sx] = 0;
                         // 视口按需渲染：收集缺失 chunk（限一次，避免每帧重复报告）
@@ -563,12 +573,8 @@ public class WorldMapView extends View {
                         continue;
                     }
                     int c = cc[zRow | lx];
-                    if (biomeSrc != null) {
-                        int[] bc = map.chunkBiomeColors != null
-                                ? map.chunkBiomeColors.get(packChunk(cx, cz)) : null;
-                        if (bc != null && bc[zRow | lx] != 0) {
-                            c = bc[zRow | lx];
-                        }
+                    if (bc != null && bc[zRow | lx] != 0) {
+                        c = bc[zRow | lx];
                     }
                     pixelsBuf[sx] = c;
                 }
