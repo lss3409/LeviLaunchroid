@@ -898,6 +898,24 @@ public class WorldMapRenderer {
         return (float) ((Math.atan(heightDiff) / Math.PI) * shadingAmp) + 1f;
     }
 
+    /** chunk 内坡度阴影（BTR btrHeightShading 同款：西/北邻居高度差，
+     * chunk 边界取自身高度——樱花树冠/山地的立体感来源）。 */
+    private static int applyShading(int color, int[] hmap, int i) {
+        if ((color & 0xFF000000) == 0) {
+            return color;
+        }
+        int lx = i & 15;
+        int lz = i >> 4;
+        int h = hmap[i];
+        int hW = lx > 0 ? hmap[i - 1] : h;
+        int hN = lz > 0 ? hmap[i - 16] : h;
+        float shading = btrHeightShading(h, hW, hN);
+        int r = Math.min(255, (int) (((color >> 16) & 0xFF) * shading));
+        int g = Math.min(255, (int) (((color >> 8) & 0xFF) * shading));
+        int b = Math.min(255, (int) ((color & 0xFF) * shading));
+        return 0xFF000000 | (r << 16) | (g << 8) | b;
+    }
+
     /** 未知高度底色。 */
     private static int colorFor(int height) {
         return getColor(R.color.world_map_unknown);
@@ -1617,6 +1635,8 @@ public class WorldMapRenderer {
             int lz = i >> 4;
             int h = hmap[i];
             int color = surfaceColor(h, lx, lz, subs, biomes, dimension);
+            // BTR 坡度阴影（樱花树冠/山地的立体感来源；chunk 边界取自身高度）
+            color = applyShading(color, hmap, i);
             colors[i] = color;
             if ((color & 0xFF000000) != 0) {
                 hasAny = true;
@@ -1903,7 +1923,8 @@ public class WorldMapRenderer {
             for (int i = 0; i < 256; i++) {
                 int lx = i & 15;
                 int lz = i >> 4;
-                colors[i] = surfaceColor(hmap[i], lx, lz, subs, biomes, dimension);
+                int c = surfaceColor(hmap[i], lx, lz, subs, biomes, dimension);
+                colors[i] = applyShading(c, hmap, i);
             }
             return colors;
         } catch (Exception e) {
