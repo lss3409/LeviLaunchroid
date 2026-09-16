@@ -45,7 +45,22 @@ public class LevelDBManager {
                 }
 
                 LevelDBReader reader = new LevelDBReader(dbDir);
-                entries = reader.readAllEntries();
+                // 结构提取只读结构条目：此前 readAllEntries 全量读 183MB
+                // 大世界（56.9 万条目）→ 512MB 堆 OOM 崩溃（实测 TK 纯净
+                // 生电提取结构必崩）。readEntries 带过滤只保留
+                // "structuretemplate_" 前缀 key，内存从 183MB 降到 KB 级
+                byte[] prefix = "structuretemplate_".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+                entries = reader.readEntries(key -> {
+                    if (key == null || key.length <= prefix.length) {
+                        return false;
+                    }
+                    for (int i = 0; i < prefix.length; i++) {
+                        if (key[i] != prefix[i]) {
+                            return false;
+                        }
+                    }
+                    return true;
+                });
                 reader.close();
 
                 Log.d(TAG, "Loaded " + entries.size() + " entries from database");

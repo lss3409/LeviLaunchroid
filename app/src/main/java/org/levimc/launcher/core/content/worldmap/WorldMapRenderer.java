@@ -1450,6 +1450,19 @@ public class WorldMapRenderer {
      * 3) readEntries：只解码窗口内 subchunk（maxSub±2）
      */
     public static WorldMap buildSatelliteMapStreaming(File dbDir, int dimension) {
+        return buildSatelliteMapStreaming(dbDir, dimension, null);
+    }
+
+    /** 流式渲染进度回调：每渲染 20 chunk 回调一次（预渲染渐进显示用——
+     *  此前整轮渲染完成才一次性合并，UI 上"过一会刷的一下全出来"）。 */
+    public interface StreamProgress {
+        void onChunksRendered(java.util.Map<Long, int[]> colors,
+                              java.util.Map<Long, int[]> biomes,
+                              java.util.List<Long> newKeys);
+    }
+
+    public static WorldMap buildSatelliteMapStreaming(File dbDir, int dimension,
+                                                      StreamProgress progress) {
         List<StructureMarker> detected = new ArrayList<>();
         Map<Long, Integer> monumentChunks = new HashMap<>();
         Map<Long, Integer> endCityChunks = new HashMap<>();
@@ -1546,6 +1559,7 @@ public class WorldMapRenderer {
             int[] curHmap = null;
             byte[] curBiomes = null;
             Map<Integer, SubChunk> curSubs = new HashMap<>();
+            java.util.List<Long> progressBatch = new java.util.ArrayList<>();
             for (LevelDBEntry entry : heightEntries) {
                 byte[] rawKey = entry.getKey().getRawKey();
                 int[] chunkKey = parseChunkKey(rawKey);
@@ -1560,6 +1574,14 @@ public class WorldMapRenderer {
                                 monumentChunks, endCityChunks,
                                 finalMinCx, finalMaxCx, finalMinCz, finalMaxCz);
                         decoded += curSubs.size();
+                        if (progress != null) {
+                            progressBatch.add(pack(curCx, curCz));
+                            if (progressBatch.size() >= 20) {
+                                progress.onChunksRendered(chunkColors, chunkBiomeColors,
+                                        new java.util.ArrayList<>(progressBatch));
+                                progressBatch.clear();
+                            }
+                        }
                     }
                     curCx = chunkKey[0];
                     curCz = chunkKey[1];
@@ -1613,6 +1635,14 @@ public class WorldMapRenderer {
                         monumentChunks, endCityChunks,
                         finalMinCx, finalMaxCx, finalMinCz, finalMaxCz);
                 decoded += curSubs.size();
+                if (progress != null) {
+                    progressBatch.add(pack(curCx, curCz));
+                }
+            }
+            if (progress != null && !progressBatch.isEmpty()) {
+                progress.onChunksRendered(chunkColors, chunkBiomeColors,
+                        new java.util.ArrayList<>(progressBatch));
+                progressBatch.clear();
             }
             Log.i(TAG, "流式第二遍: 渲染 chunk 数=" + renderedChunks.size()
                     + " 解码 subchunk=" + decoded);
@@ -3092,6 +3122,73 @@ public class WorldMapRenderer {
         return Math.floorMod(mt.next(), 10) == 0;
     }
 
+    /** Bedrock 实体标识符 → 中文名（1.26 全量 156 个，含 villager_v2 等
+     *  Bedrock 实际标识符——地图标签/结构详情/HTML 导出统一用）。 */
+    public static final java.util.Map<String, String> ENTITY_ZH =
+            new java.util.HashMap<>();
+    static {
+        String[][] pairs = {
+                {"agent", "智能体"}, {"alex", "亚历克斯"}, {"allay", "悦灵"}, {"anvil", "铁砧"},
+                {"area_effect_cloud", "区域效果云"}, {"armadillo", "犰狳"}, {"armor_stand", "盔甲架"},
+                {"armorer", "盔甲匠"}, {"arrow", "箭"}, {"axolotl", "美西螈"}, {"balloon", "气球"},
+                {"barnacle", "藤壶"}, {"bat", "蝙蝠"}, {"bee", "蜜蜂"}, {"blaze", "烈焰人"},
+                {"boat", "船"}, {"bogged", "沼泽骷髅"}, {"breeze", "旋风人"}, {"butcher", "屠夫"},
+                {"camel", "骆驼"}, {"camera", "相机"}, {"cartographer", "制图师"}, {"cat", "猫"},
+                {"cave_spider", "洞穴蜘蛛"}, {"chest_boat", "运输船"}, {"chest_minecart", "运输矿车"},
+                {"chicken", "鸡"}, {"cleric", "牧师"}, {"cluckshroom", "咯咯菇"}, {"cod", "鳕鱼"},
+                {"command_block_minecart", "命令方块矿车"}, {"copper_golem", "铜傀儡"}, {"cow", "牛"},
+                {"creaking", "嘎吱怪"}, {"creeper", "苦力怕"}, {"dolphin", "海豚"}, {"donkey", "驴"},
+                {"dragon_fireball", "末影龙火球"}, {"drowned", "溺尸"}, {"efe", "埃菲"},
+                {"elder_guardian", "远古守卫者"}, {"ender_crystal", "末影水晶"}, {"enderman", "末影人"},
+                {"endermite", "末影螨"}, {"evocation_illager", "唤魔者"}, {"falling_block", "下落的方块"},
+                {"farmer", "农民"}, {"fireball", "火球"}, {"firefly", "萤火虫"},
+                {"fireworks_rocket", "烟花火箭"}, {"fisherman", "渔夫"}, {"fletcher", "制箭师"},
+                {"fox", "狐狸"}, {"frog", "青蛙"}, {"ghast", "恶魂"}, {"glow_squid", "发光鱿鱼"},
+                {"goat", "山羊"}, {"guardian", "守卫者"}, {"happy_ghast", "快乐恶魂"},
+                {"herobrine", "Herobrine"}, {"hoglin", "疣猪兽"}, {"hopper_minecart", "漏斗矿车"},
+                {"horse", "马"}, {"husk", "尸壳"}, {"ice_bomb", "冰弹"}, {"iceologer", "冰术士"},
+                {"illusioner", "幻术师"}, {"iron_golem", "铁傀儡"}, {"item", "掉落物"},
+                {"jeb_", "Jeb"}, {"jellie", "Jellie"}, {"johnny", "Johnny"}, {"kai", "凯"},
+                {"leash_knot", "拴绳结"}, {"leatherworker", "皮匠"}, {"librarian", "图书管理员"},
+                {"lightning", "闪电"}, {"llama", "羊驼"}, {"magma_cube", "岩浆怪"},
+                {"makena", "梅克娜"}, {"mars", "马尔斯"}, {"meerkat", "猫鼬"}, {"merl", "梅尔"},
+                {"minecart", "矿车"}, {"moobloom", "哞花"}, {"moolip", "哞唇"},
+                {"mooshroom", "哞菇"}, {"mule", "骡"}, {"nautilus", "鹦鹉螺"}, {"noor", "努尔"},
+                {"npc", "NPC"}, {"ocelot", "豹猫"}, {"ominous_item_spawner", "不祥物品生成器"},
+                {"ostrich", "鸵鸟"}, {"painting", "画"}, {"panda", "熊猫"}, {"parrot", "鹦鹉"},
+                {"phantom", "幻翼"}, {"pig", "猪"}, {"piglin", "猪灵"}, {"piglin_brute", "猪灵蛮兵"},
+                {"pillager", "掠夺者"}, {"player", "玩家"}, {"polar_bear", "北极熊"},
+                {"pufferfish", "河豚"}, {"rabbit", "兔子"}, {"rana", "拉娜"}, {"rascal", "捣蛋鬼"},
+                {"ravager", "劫掠兽"}, {"salmon", "鲑鱼"}, {"scaffolding", "脚手架"},
+                {"sheep", "绵羊"}, {"shepherd", "牧羊人"}, {"shulker", "潜影贝"},
+                {"shulker_bullet", "潜影贝导弹"}, {"silverfish", "蠹虫"}, {"skeleton", "骷髅"},
+                {"skeleton_horse", "骷髅马"}, {"slime", "史莱姆"}, {"small_fireball", "小火球"},
+                {"sniffer", "嗅探兽"}, {"snow_golem", "雪傀儡"}, {"snowball", "雪球"},
+                {"spider", "蜘蛛"}, {"squid", "鱿鱼"}, {"stray", "流髑"}, {"strider", "炽足兽"},
+                {"sunny", "桑尼"}, {"tadpole", "蝌蚪"}, {"thrown_trident", "三叉戟"},
+                {"tnt", "TNT"}, {"tnt_minecart", "TNT矿车"}, {"toast", "Toast"},
+                {"trader_llama", "行商羊驼"}, {"tripod_camera", "三脚架相机"},
+                {"tropicalfish", "热带鱼"}, {"turtle", "海龟"}, {"vex", "恼鬼"},
+                {"villager", "村民"}, {"villager_v2", "村民"}, {"vindicator", "卫道士"},
+                {"vulture", "秃鹫"}, {"wandering_trader", "流浪商人"}, {"warden", "监守者"},
+                {"wind_charge_projectile", "风弹"}, {"witch", "女巫"}, {"wither", "凋灵"},
+                {"wither_skeleton", "凋零骷髅"}, {"wither_skull", "凋灵之首"},
+                {"wither_skull_dangerous", "危险凋灵之首"}, {"wolf", "狼"}, {"xp_orb", "经验球"},
+                {"zoglin", "僵尸疣猪兽"}, {"zombie", "僵尸"}, {"zombie_horse", "僵尸马"},
+                {"zombie_pigman", "僵尸猪人"}, {"zombie_villager", "僵尸村民"},
+                {"zombie_villager_v2", "僵尸村民"},
+        };
+        for (String[] p : pairs) {
+            ENTITY_ZH.put(p[0], p[1]);
+        }
+    }
+
+    /** 实体名 → 中文（未知返回原名）。 */
+    public static String entityLabelZh(String name) {
+        String zh = ENTITY_ZH.get(name);
+        return zh != null ? zh : name;
+    }
+
     /** 实体标识符简化：minecraft:zombie<...> → zombie。 */
     private static String simplifyEntityName(String identifier) {
         String name = identifier;
@@ -4076,7 +4173,7 @@ public class WorldMapRenderer {
                 if (i > 0) {
                     eb.append(',');
                 }
-                eb.append("{n:'").append(escapeHtml(ep.name)).append("',x:")
+                eb.append("{n:'").append(escapeHtml(entityLabelZh(ep.name))).append("',x:")
                         .append(Math.round(ep.x)).append(",z:")
                         .append(Math.round(ep.z)).append('}');
             }
