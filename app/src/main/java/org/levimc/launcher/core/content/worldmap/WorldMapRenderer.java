@@ -897,6 +897,16 @@ public class WorldMapRenderer {
     /* 未生成区域：透明（露出启动器卡片/个性化背景，含背景图片） */
     private static final int COLOR_BACKGROUND = 0x00000000;
 
+    /**
+     * bedrockmap 默认色调（bedrock-level color.cpp default_water/leave/grass_color）：
+     * biome_color.json 查不到色调时的兜底。色表里的草地/树叶/水都是灰度模板
+     * （grass_top 147/147/147、short_grass 119/119/119、water_still_grey 163/163/163），
+     * 必须乘群系色调才是真实颜色（MC 着色器机制）。
+     */
+    private static final int[] DEFAULT_WATER_TINT = {63, 118, 228};
+    private static final int[] DEFAULT_LEAVES_TINT = {113, 167, 77};
+    private static final int[] DEFAULT_GRASS_TINT = {142, 185, 113};
+
     /** 整世界的逐方块表面颜色图（含高度阴影）。 */
     public static class WorldMap {
         public final int width;
@@ -974,6 +984,8 @@ public class WorldMapRenderer {
         final int blocksPerWord;
         final byte[] data;      // word 数据区
         final String[] palette; // 索引 → 方块名
+        /** 第二个 storage（水层）——bedrock-level sub_chunk 多 layer 同款 */
+        SubChunk waterLayer;
 
         SubChunk(int bits, byte[] data, String[] palette) {
             this.bits = bits;
@@ -1030,15 +1042,9 @@ public class WorldMapRenderer {
             if (chunkKey == null) {
                 continue;
             }
-            boolean legacyKey = rawKey.length == 9 || rawKey.length == 10;
-            if (dimension == DIM_END) {
-                // 末地整合（v264 行为 + 9/10B 兜底）：
-                // v264 末地数据在 13/14B dim=2 key；1.26 某些世界末地 chunk 用 9/10B
-                // 无维度 key（共享主世界空间），9/10B 进候选后按 end_stone 判定过滤
-                if (!legacyKey && chunkKey[2] != DIM_END) {
-                    continue;
-                }
-            } else if (chunkKey[2] != dimension) {
+            // v264 行为：严格按 key 内维度段过滤（末地数据都在 13/14B dim=2 key，
+            // 不需要 9/10B 候选 + end_stone 判定兜底）
+            if (chunkKey[2] != dimension) {
                 continue;
             }
             int x = chunkKey[0];
@@ -1112,12 +1118,7 @@ public class WorldMapRenderer {
             if (chunkKey == null || !isSubchunkKey(rawKey)) {
                 continue;
             }
-            boolean legacyKey = rawKey.length == 9 || rawKey.length == 10;
-            if (dimension == DIM_END) {
-                if (!legacyKey && chunkKey[2] != DIM_END) {
-                    continue;
-                }
-            } else if (chunkKey[2] != dimension) {
+            if (chunkKey[2] != dimension) {
                 continue;
             }
             long key = pack(chunkKey[0], chunkKey[1]);
@@ -1132,12 +1133,7 @@ public class WorldMapRenderer {
             if (chunkKey == null || !isSubchunkKey(rawKey)) {
                 continue;
             }
-            boolean legacyKey = rawKey.length == 9 || rawKey.length == 10;
-            if (dimension == DIM_END) {
-                if (!legacyKey && chunkKey[2] != DIM_END) {
-                    continue;
-                }
-            } else if (chunkKey[2] != dimension) {
+            if (chunkKey[2] != dimension) {
                 continue;
             }
             subKeys++;
@@ -1165,34 +1161,6 @@ public class WorldMapRenderer {
         }
         Log.i(TAG, "第二遍 subchunk: 命中=" + subKeys + " 跳过=" + skipped
                 + " 解码=" + decoded + " surfaceSubs=" + surfaceSubs.size());
-
-        // 末地维度（9/10B 候选路径）：按 end_stone 判定过滤，
-        // 排除主世界 chunk（含 grass/dirt/stone/ore 等主世界特征方块）
-        if (dimension == DIM_END) {
-            java.util.Iterator<Long> it = heightMaps.keySet().iterator();
-            while (it.hasNext()) {
-                Long key = it.next();
-                if (!chunkIsEndChunk(subChunks.get(key))) {
-                    it.remove();
-                    biomeMaps.remove(key);
-                    subChunks.remove(key);
-                }
-            }
-            minX = Integer.MAX_VALUE;
-            maxX = Integer.MIN_VALUE;
-            minZ = Integer.MAX_VALUE;
-            maxZ = Integer.MIN_VALUE;
-            for (Long key : heightMaps.keySet()) {
-                minX = Math.min(minX, unpackX(key));
-                maxX = Math.max(maxX, unpackX(key));
-                minZ = Math.min(minZ, unpackZ(key));
-                maxZ = Math.max(maxZ, unpackZ(key));
-            }
-            if (heightMaps.isEmpty()) {
-                Log.i(TAG, "卫星模式失败: 无末地 chunk (维度=2)");
-                return null;
-            }
-        }
 
         // 2) 组装全图：每 chunk 16×16 表面色
         int spanX = maxX - minX + 1;
@@ -1654,11 +1622,13 @@ public class WorldMapRenderer {
             int yStart = maxSubTop > Integer.MIN_VALUE
                     ? Math.min(maxSubTop * 16 + 15, 320)
                     : height - 1;
-            // 河/浅水场景：从河床往下找会先命中海草/河床植物。
-            // 水类群系启用"水面优先"：向下 12 层内遇到水方块直接返回水色
-            boolean waterPriority = dimension == DIM_OVERWORLD && isWaterBiome(biomeId);
-            int firstY = -1;
-            int firstColor = 0;
+            // bedrockmap 方案（color.cpp classify_tint + maptile.cpp TRANSPARENT_WATER）：
+            // 逐列找 top_y（第一个非空气，可能是水）与 solid_y（第一个非空气非水）。
+            // 灰度模板按子串分类乘群系色调；有水覆盖时渲染河床色并叠水面色，
+            // opacity = min(0.15×水深, 0.85)——深海几乎纯水色，浅滩透出河床，
+            // 解决"海洋显示干河床"（水面数据在 storage 1，只读 storage 0 会漏掉）
+            int waterY = -1;
+            int waterColor = 0;
             for (int y = yStart; y >= -64; y--) {
                 int subIndex = Math.floorDiv(y, 16);
                 SubChunk sub = subs.get(subIndex);
@@ -1666,11 +1636,19 @@ public class WorldMapRenderer {
                     continue;
                 }
                 int localY = y - subIndex * 16;
+                // 主方块层（storage 0）；空气处查水层（storage 1）——1.18+ 水方块在第二层
                 int idx = sub.getIndex(lx, localY, lz);
-                if (idx == 0) {
-                    continue; // 索引 0 = 空气（BTR 假设）
-                }
                 String name = idx < sub.palette.length ? sub.palette[idx] : null;
+                if (name == null || isAirName(name)) {
+                    if (sub.waterLayer != null) {
+                        int widx = sub.waterLayer.getIndex(lx, localY, lz);
+                        String wname = widx < sub.waterLayer.palette.length
+                                ? sub.waterLayer.palette[widx] : null;
+                        if (wname != null && !isAirName(wname)) {
+                            name = wname;
+                        }
+                    }
+                }
                 if (name == null || isAirName(name)) {
                     continue;
                 }
@@ -1682,36 +1660,23 @@ public class WorldMapRenderer {
                         || name.equals("minecraft:netherrack"))) {
                     continue;
                 }
-                if (name.equals("minecraft:water") || name.equals("minecraft:flowing_water")) {
-                    return COLOR_WATER; // 水面优先
+                int color = tintColor(name, colorForBlock(name), biomeId);
+                if (isWaterName(name)) {
+                    if (waterY < 0) {
+                        waterY = y;
+                        waterColor = color;
+                    }
+                    continue; // 继续向下找河床（solid）
                 }
-                int color = colorForBlock(name);
-                // v270 行为：草地/树叶灰度模板 × 群系色调（MC 着色器机制）
-                if (biomes != null) {
-                    int[] tint = biomeTintTable.get(biomeId);
-                    if (tint != null) {
-                        if (isGrassTinted(name)) {
-                            color = multiplyTint(color, tint, 3);
-                        } else if (isLeavesTinted(name)) {
-                            color = multiplyTint(color, tint, 6);
-                        }
-                    }
-                }
-                if (waterPriority) {
-                    // 浅水场景：先记住第一个非水方块，继续向下找水（最多 12 层）
-                    if (firstY < 0) {
-                        firstY = y;
-                        firstColor = color;
-                    }
-                    if (firstY - y > 12) {
-                        return firstColor;
-                    }
-                    continue;
+                if (waterY >= 0) {
+                    // 水覆盖：河床色 + 水面色（maptile.cpp applyWaterOverlay）
+                    float opacity = Math.min(0.15f * (waterY - y), 0.85f);
+                    return blendColors(waterColor, color, opacity);
                 }
                 return color;
             }
-            if (waterPriority && firstY >= 0) {
-                return firstColor; // 12 层内没找到水 → 用第一个方块
+            if (waterY >= 0) {
+                return waterColor; // 整列只有水（河床无数据）
             }
         }
         // 无 subchunk 数据或找不到方块：
@@ -1728,36 +1693,50 @@ public class WorldMapRenderer {
             // 末地：无高度数据 = 虚空（透明）
             return COLOR_BACKGROUND;
         }
-        return height <= SEA_LEVEL ? COLOR_WATER : COLOR_BACKGROUND;
+        // 海平面以下无数据：bedrockmap 水色（灰度水模板 × 群系 water 色调）
+        return height <= SEA_LEVEL
+                ? tintColor("minecraft:water", colorForBlock("minecraft:water"), biomeId)
+                : COLOR_BACKGROUND;
     }
 
     private static boolean isAirName(String name) {
         return name.endsWith("air"); // minecraft:air / cave_air / void_air
     }
 
-    /** 水类群系（海洋/河流）：水面优先渲染。 */
-    private static boolean isWaterBiome(int biomeId) {
-        return biomeId == 0 || biomeId == 7 || biomeId == 24
-                || (biomeId >= 40 && biomeId <= 47);
+    /** 水方块（含流动水）判定。 */
+    private static boolean isWaterName(String name) {
+        return name.equals("minecraft:water") || name.equals("minecraft:flowing_water");
     }
 
-    /** 草地类方块：灰度模板 × 群系 grass 色调（MC 着色器机制）。 */
-    private static boolean isGrassTinted(String name) {
-        return name.equals("minecraft:grass_block")
-                || name.equals("minecraft:grass")
-                || name.equals("minecraft:tallgrass")
-                || name.equals("minecraft:fern")
-                || name.equals("minecraft:vine")
-                || name.equals("minecraft:waterlily")
-                || name.equals("minecraft:sugar_cane")
-                || name.equals("minecraft:reeds");
+    /**
+     * bedrockmap 着色器（bedrock-level color.cpp blend_color_with_biome 同款）：
+     * 按子串分类 water→leave→grass（含 minecraft: 前缀），灰度模板 × 群系色调/255。
+     * 子串匹配保证 short_grass（119,119,119 灰模板）等 equals 列表漏掉的
+     * 新方块也能乘上色调（MC 着色器机制）；查不到色调时用 bedrock-level 默认色。
+     */
+    private static int tintColor(String name, int color, int biomeId) {
+        int[] tint = biomeTintTable.get(biomeId);
+        if (name.contains("water")) {
+            return tint != null ? multiplyTint(color, tint, 9)
+                    : multiplyTint(color, DEFAULT_WATER_TINT, 0);
+        }
+        if (name.contains("leave")) {
+            return tint != null ? multiplyTint(color, tint, 6)
+                    : multiplyTint(color, DEFAULT_LEAVES_TINT, 0);
+        }
+        if (name.contains("grass")) {
+            return tint != null ? multiplyTint(color, tint, 3)
+                    : multiplyTint(color, DEFAULT_GRASS_TINT, 0);
+        }
+        return color;
     }
 
-    /** 树叶类方块：灰度模板 × 群系 leaves 色调。 */
-    private static boolean isLeavesTinted(String name) {
-        return name.endsWith("_leaves")
-                || name.equals("minecraft:leaves")
-                || name.equals("minecraft:leaves2");
+    /** maptile.cpp applyWaterOverlay 同款：水面色按 opacity 覆盖在河床色上。 */
+    private static int blendColors(int top, int bottom, float opacity) {
+        int r = Math.round((1 - opacity) * ((bottom >> 16) & 0xFF) + opacity * ((top >> 16) & 0xFF));
+        int g = Math.round((1 - opacity) * ((bottom >> 8) & 0xFF) + opacity * ((top >> 8) & 0xFF));
+        int b = Math.round((1 - opacity) * (bottom & 0xFF) + opacity * (top & 0xFF));
+        return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
 
     /** 灰度模板 × 色调（tint 数组内偏移：0=rgb 3=grass 6=leaves 9=water）。 */
@@ -1766,32 +1745,6 @@ public class WorldMapRenderer {
         int g = ((template >> 8) & 0xFF) * tint[offset + 1] / 255;
         int b = (template & 0xFF) * tint[offset + 2] / 255;
         return 0xFF000000 | (r << 16) | (g << 8) | b;
-    }
-
-    /** 末地 chunk 判定（9/10B 共享 key 归属）：palette 含 end_stone 且无主世界特征方块。 */
-    private static boolean chunkIsEndChunk(Map<Integer, SubChunk> subs) {
-        if (subs == null) {
-            return false;
-        }
-        boolean hasEndStone = false;
-        for (SubChunk sc : subs.values()) {
-            for (String pn : sc.palette) {
-                if (pn == null) {
-                    continue;
-                }
-                if (pn.contains("end_stone")) {
-                    hasEndStone = true;
-                }
-                // 主世界特征方块：草地/土/水/石/深板岩/矿物 → 该 chunk 属于主世界
-                if (pn.equals("minecraft:grass_block") || pn.equals("minecraft:dirt")
-                        || pn.equals("minecraft:water") || pn.equals("minecraft:flowing_water")
-                        || pn.equals("minecraft:stone") || pn.equals("minecraft:deepslate")
-                        || pn.contains("_ore")) {
-                    return false;
-                }
-            }
-        }
-        return hasEndStone;
     }
 
     /** BTR 老版方块颜色表（minecraft: 名 → ARGB；优先 bedrockmap 色表）。 */
@@ -1978,8 +1931,8 @@ public class WorldMapRenderer {
                 || name.equals("minecraft:wildflowers") || name.contains("tulip")) return 0xFFC86FA8;
         if (name.contains("mushroom")) return 0xFFB03B3B;
         if (name.equals("minecraft:cactus")) return 0xFF4E7A2E;
-        // 草地类兜底（biome 未解析时）
-        if (isGrassTinted(name) || isLeavesTinted(name)) return 0xFF6FA84C;
+        // 草地/树叶类兜底（biome 未解析时；子串匹配覆盖 short_grass 等新名字）
+        if (name.contains("grass") || name.contains("leave")) return 0xFF6FA84C;
         return 0xFF7F7F7F; // 未知方块：灰
     }
 
@@ -2139,6 +2092,9 @@ public class WorldMapRenderer {
         if (count < 1 || count > 2) {
             return null;
         }
+        // bedrock-level sub_chunk 多层结构：storage 0 = 主方块层，storage 1 = 水层。
+        // 只解码第一个 storage 会导致海面水方块缺失（海洋显示河床的根因）。
+        SubChunk primary = null;
         for (int s = 0; s < count && p + 2 <= value.length; s++) {
             int header = value[p++] & 0xFF;
             int bits = header >> 1;
@@ -2193,9 +2149,13 @@ public class WorldMapRenderer {
                 System.arraycopy(palette, 0, withAir, 1, palette.length);
                 palette = withAir;
             }
-            return new SubChunk(bits, data, palette); // 只取第一个 storage（主方块）
+            if (s == 0) {
+                primary = new SubChunk(bits, data, palette);
+            } else {
+                primary.waterLayer = new SubChunk(bits, data, palette);
+            }
         }
-        return null;
+        return primary;
     }
 
     /** 调试导出：渲染整图到 PNG 存应用外部目录（截屏服务异常时的替代验证手段）。 */
