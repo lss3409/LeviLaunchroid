@@ -134,15 +134,10 @@ public class WorldMapView extends View {
     /** 外部按需渲染完成后调用：清除 pending 标记并重绘。 */
     public void onChunksRendered(java.util.Set<Long> chunkKeys) {
         pendingChunks.removeAll(chunkKeys);
-        // 新 chunk 已渲染：LOD 缩略图快照过期（预渲染渐进铺图时缩小视图
-        // 应能看到新 chunk），置空重建——节流 1 秒（每 20 chunk 回调一次，
-        // 不节流会连续重建 LOD 卡死缩小视图）
-        long now = android.os.SystemClock.uptimeMillis();
-        if (lodMini != null && now - lastLodInvalidate > 1000) {
-            lastLodInvalidate = now;
-            lodMini.recycle();
-            lodMini = null;
-        }
+        // 新 chunk 已渲染：LOD 缩略图增量更新对应像素（此前置空全量重建
+        // ——2.5 万 chunk × 256 像素众数统计每秒触发一次，0.3 倍率缩小
+        // 视图卡死的根因。增量只重算几个 chunk、各 setPixel 一个点）
+        updateLodPixels(chunkKeys);
         // chunk tile 路径：tile 在下一帧 onDraw 惰性生成，只需重绘
         invalidate();
     }
@@ -665,7 +660,6 @@ public class WorldMapView extends View {
     private Bitmap lodMini;
     /** LOD 模式（迟滞切换：>5000 进入 <3500 退出，缩放中不切换）。 */
     private boolean lodMode;
-    private long lastLodInvalidate;
 
     /** 大世界底层绘制：视口 chunk 多时画 LOD 缩略图，否则 tile 平铺。 */
     private void drawChunkLayer(android.graphics.Canvas canvas) {
@@ -797,22 +791,9 @@ public class WorldMapView extends View {
                     src = bc;
                 }
             }
-            // 代表色 = 出现次数最多的非透明色（此前取第一个非透明 =
-            // chunk 角落方块，角落是沙则整块沙黄——LOD 视图水边大
-            // 片异常色的根因候选之一）
-            java.util.HashMap<Integer, Integer> freq = new java.util.HashMap<>();
-            int best = 0;
-            int bestN = 0;
-            for (int v : src) {
-                if ((v & 0xFF000000) == 0) {
-                    continue;
-                }
-                int n = freq.merge(v, 1, Integer::sum);
-                if (n > bestN) {
-                    bestN = n;
-                    best = v;
-                }
-            }
+            // 代表色 = 采样众数（16 点均匀采样——HashMap 全量统计在
+            // 2.5 万 chunk 上重建一次卡 1-3 秒，"0.3 倍率卡死"的根因）
+            int best = sampleDominant(src);
             if (best != 0) {
                 mini.setPixel(px, pz, best);
             }
@@ -821,6 +802,79 @@ public class WorldMapView extends View {
             lodMini.recycle();
         }
         lodMini = mini;
+    }
+
+    /** LOD 增量更新：只重算新渲染 chunk 对应的 1 像素（全量重建在大
+     *  世界上每秒触发一次会卡死缩小视图）。 */
+    private void updateLodPixels(java.util.Set<Long> chunkKeys) {
+        if (lodMini == null || chunkKeys == null || chunkKeys.isEmpty()
+                || map == null || map.chunkColors == null) {
+            return;
+        }
+        int minCx = Math.floorDiv(map.minBlockX, 16);
+        int minCz = Math.floorDiv(map.minBlockZ, 16);
+        for (Long k : chunkKeys) {
+            int cx = (int) (k >> 32);
+            int cz = (int) (long) k;
+            int px = cx - minCx;
+            int pz = cz - minCz;
+            if (px < 0 || px >= lodMini.getWidth()
+                    || pz < 0 || pz >= lodMini.getHeight()) {
+                continue;
+            }
+            int[] src = map.chunkColors.get(k);
+            if (src == null) {
+                continue;
+            }
+            if (showBiomeLayer && map.chunkBiomeColors != null) {
+                int[] bc = map.chunkBiomeColors.get(k);
+                if (bc != null) {
+                    src = bc;
+                }
+            }
+            int best = sampleDominant(src);
+            if (best != 0) {
+                lodMini.setPixel(px, pz, best);
+            }
+        }
+    }
+
+    /** 16 点均匀采样众数（LOD 每 chunk 1 像素代表色）。HashMap 全量
+     *  统计 256 像素在 2.5 万 chunk 上重建一次卡 1-3 秒；采样版只有
+     *  16 次线性槽位扫描，量级低一个数量级。 */
+    private static int sampleDominant(int[] src) {
+        int[] samples = new int[16];
+        int[] counts = new int[16];
+        int sc = 0;
+        for (int i = 0; i < 256; i += 16) {
+            int v = src[i];
+            if ((v & 0xFF000000) == 0) {
+                continue;
+            }
+            int slot = -1;
+            for (int j = 0; j < sc; j++) {
+                if (samples[j] == v) {
+                    slot = j;
+                    break;
+                }
+            }
+            if (slot < 0) {
+                samples[sc] = v;
+                counts[sc] = 1;
+                sc++;
+            } else {
+                counts[slot]++;
+            }
+        }
+        int best = 0;
+        int bestN = 0;
+        for (int j = 0; j < sc; j++) {
+            if (counts[j] > bestN) {
+                bestN = counts[j];
+                best = samples[j];
+            }
+        }
+        return best;
     }
 
     /**
