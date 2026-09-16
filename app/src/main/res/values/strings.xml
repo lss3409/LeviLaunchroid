@@ -1374,6 +1374,7 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="lb_info">World Info</string>
     <string name="lb_layers">Layers</string>
     <string name="lb_points">Points</string>
+    <string name="lb_settings">Settings</string>
     <string name="layer_grid">Chunk grid</string>
     <string name="layer_biome">Biomes</string>
     <string name="layer_entity">Entities</string>

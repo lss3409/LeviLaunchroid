@@ -76,10 +76,14 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="2dp"
                 android:layout_weight="1"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
                 android:ellipsize="end"
+                android:focusable="true"
                 android:fontFamily="@font/misans"
                 android:maxLines="1"
-                android:text="@string/world_data_title"
+                android:paddingVertical="6dp"
+                android:text="@string/dim_overworld"
                 android:textColor="@color/primary"
                 android:textSize="16sp"
                 android:textStyle="bold" />
@@ -156,19 +160,6 @@
                 android:text="@string/dim_end"
                 android:textColor="@color/text_secondary"
                 android:textSize="11sp" />
-
-            <TextView
-                android:id="@+id/btn_data_panel"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:background="@drawable/bg_rounded_card"
-                android:fontFamily="@font/misans"
-                android:paddingHorizontal="12dp"
-                android:paddingVertical="8dp"
-                android:text="@string/btn_data_panel"
-                android:textColor="@color/on_surface"
-                android:textSize="11sp" />
         </LinearLayout>
     </LinearLayout>
 
@@ -179,46 +170,64 @@
         android:layout_height="wrap_content"
         android:layout_gravity="start"
         android:layout_marginStart="10dp"
-        android:layout_marginTop="60dp"
+        android:layout_marginTop="110dp"
         android:background="@drawable/bg_rounded_card"
         android:orientation="horizontal">
 
-        <!-- 图标条 -->
+        <!-- 图标条（wiki/chunkbase 风格：纯图标，文字进抽屉） -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:padding="5dp">
 
-            <TextView
+            <ImageView
                 android:id="@+id/lb_info"
                 android:layout_width="34dp"
                 android:layout_height="34dp"
-                android:fontFamily="@font/misans"
-                android:gravity="center"
-                android:text="@string/lb_info"
-                android:textColor="@color/primary"
-                android:textSize="15sp" />
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:contentDescription="@string/lb_info"
+                android:focusable="true"
+                android:padding="7dp"
+                android:src="@drawable/ic_world"
+                app:tint="@color/primary" />
 
-            <TextView
+            <ImageView
                 android:id="@+id/lb_layers"
                 android:layout_width="34dp"
                 android:layout_height="34dp"
-                android:fontFamily="@font/misans"
-                android:gravity="center"
-                android:text="@string/lb_layers"
-                android:textColor="@color/text_secondary"
-                android:textSize="15sp" />
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:contentDescription="@string/lb_layers"
+                android:focusable="true"
+                android:padding="7dp"
+                android:src="@drawable/ic_layers"
+                app:tint="@color/text_secondary" />
 
-            <TextView
+            <ImageView
                 android:id="@+id/lb_points"
                 android:layout_width="34dp"
                 android:layout_height="34dp"
-                android:fontFamily="@font/misans"
-                android:gravity="center"
-                android:text="@string/lb_points"
-                android:textColor="@color/text_secondary"
-                android:textSize="15sp" />
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:contentDescription="@string/lb_points"
+                android:focusable="true"
+                android:padding="7dp"
+                android:src="@drawable/ic_map"
+                app:tint="@color/text_secondary" />
+
+            <ImageView
+                android:id="@+id/lb_settings"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:contentDescription="@string/lb_settings"
+                android:focusable="true"
+                android:padding="7dp"
+                android:src="@drawable/ic_settings"
+                app:tint="@color/text_secondary" />
         </LinearLayout>
 
         <!-- 抽屉 body（3 个 Tab） -->
@@ -365,15 +374,7 @@
                         android:textColor="@color/on_surface"
                         android:textSize="12sp" />
 
-                    <CheckBox
-                        android:id="@+id/layer_memory"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:checked="false"
-                        android:fontFamily="@font/misans"
-                        android:text="@string/layer_memory"
-                        android:textColor="@color/on_surface"
-                        android:textSize="12sp" />                </LinearLayout>
+                </LinearLayout>
 
                 <!-- Tab3 标点管理器 -->
                 <LinearLayout
@@ -413,6 +414,35 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
                         android:orientation="vertical" />
+                </LinearLayout>
+
+                <!-- Tab4 设置 -->
+                <LinearLayout
+                    android:id="@+id/tab_settings"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/misans"
+                        android:text="@string/lb_settings"
+                        android:textColor="@color/primary"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <CheckBox
+                        android:id="@+id/layer_memory"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:checked="false"
+                        android:fontFamily="@font/misans"
+                        android:text="@string/layer_memory"
+                        android:textColor="@color/on_surface"
+                        android:textSize="12sp" />
                 </LinearLayout>
             </LinearLayout>
         </ScrollView>

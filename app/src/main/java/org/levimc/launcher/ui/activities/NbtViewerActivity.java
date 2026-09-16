@@ -389,17 +389,14 @@ public class NbtViewerActivity extends BaseActivity {
             }
             @Override public void afterTextChanged(android.text.Editable s) {}
         });
-        // 数据面板（level.dat 树 / db 条目）
-        binding.btnDataPanel.setOnClickListener(v -> {
-            binding.dataPanel.setVisibility(View.VISIBLE);
-            binding.topbarFull.setVisibility(View.GONE);
-        });
         binding.dataPanelClose.setOnClickListener(v ->
                 binding.dataPanel.setVisibility(View.GONE));
-        DynamicAnim.applyPressScale(binding.btnDataPanel);
         DynamicAnim.applyPressScale(binding.dataPanelClose);
 
-        // 左栏：图标条点击切换 Tab（展开抽屉）；再点当前 Tab 收回抽屉
+        // 左栏：图标条点击切换 Tab（展开抽屉）；再点当前 Tab 收回抽屉。
+        // ImageView 高亮用 colorFilter（setTextColor 是 TextView API）
+        int activeColor = ContextCompat.getColor(this, R.color.primary);
+        int inactiveColor = ContextCompat.getColor(this, R.color.text_secondary);
         View.OnClickListener lbClick = v -> {
             boolean same = currentLbTab == v
                     && binding.leftbarBody.getVisibility() == View.VISIBLE;
@@ -407,9 +404,7 @@ public class NbtViewerActivity extends BaseActivity {
                 // 收回：隐藏抽屉主体并复位图标高亮
                 binding.leftbarBody.setVisibility(View.GONE);
                 currentLbTab = null;
-                binding.lbInfo.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
-                binding.lbLayers.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
-                binding.lbPoints.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+                resetLbTints(inactiveColor);
                 return;
             }
             currentLbTab = v;
@@ -417,16 +412,14 @@ public class NbtViewerActivity extends BaseActivity {
             binding.tabInfo.setVisibility(v == binding.lbInfo ? View.VISIBLE : View.GONE);
             binding.tabLayers.setVisibility(v == binding.lbLayers ? View.VISIBLE : View.GONE);
             binding.tabPoints.setVisibility(v == binding.lbPoints ? View.VISIBLE : View.GONE);
-            binding.lbInfo.setTextColor(ContextCompat.getColor(this,
-                    v == binding.lbInfo ? R.color.primary : R.color.text_secondary));
-            binding.lbLayers.setTextColor(ContextCompat.getColor(this,
-                    v == binding.lbLayers ? R.color.primary : R.color.text_secondary));
-            binding.lbPoints.setTextColor(ContextCompat.getColor(this,
-                    v == binding.lbPoints ? R.color.primary : R.color.text_secondary));
+            binding.tabSettings.setVisibility(v == binding.lbSettings ? View.VISIBLE : View.GONE);
+            resetLbTints(inactiveColor);
+            ((android.widget.ImageView) v).setColorFilter(activeColor);
         };
         binding.lbInfo.setOnClickListener(lbClick);
         binding.lbLayers.setOnClickListener(lbClick);
         binding.lbPoints.setOnClickListener(lbClick);
+        binding.lbSettings.setOnClickListener(lbClick);
 
         // 图层控制（复选框状态与视图双向同步，初始状态也要下发）
         binding.layerGrid.setOnCheckedChangeListener((b, checked) ->
@@ -461,6 +454,14 @@ public class NbtViewerActivity extends BaseActivity {
             }
             @Override public void afterTextChanged(android.text.Editable s) {}
         });
+    }
+
+    /** 复位左栏图标条高亮（ViewBinding 对旧 id 推断为 View，运行时实为 ImageView）。 */
+    private void resetLbTints(int inactiveColor) {
+        ((android.widget.ImageView) binding.lbInfo).setColorFilter(inactiveColor);
+        ((android.widget.ImageView) binding.lbLayers).setColorFilter(inactiveColor);
+        ((android.widget.ImageView) binding.lbPoints).setColorFilter(inactiveColor);
+        binding.lbSettings.setColorFilter(inactiveColor);
     }
 
     /** 左栏 Tab3 标点列表渲染（搜索过滤 + 点击跳转视角）。 */
@@ -557,6 +558,7 @@ public class NbtViewerActivity extends BaseActivity {
             binding.tabInfo.setVisibility(View.GONE);
             binding.tabLayers.setVisibility(View.GONE);
             binding.tabPoints.setVisibility(View.VISIBLE);
+            binding.tabSettings.setVisibility(View.GONE);
         });
         // 导出世界为 HTML（PRD 7.4：Leaflet 交互式地图，单文件）
         binding.toolBlueprint.setOnClickListener(v -> {
@@ -617,14 +619,7 @@ public class NbtViewerActivity extends BaseActivity {
             if (v == binding.worldDimOverworld) dim = "overworld";
             else if (v == binding.worldDimNether) dim = "nether";
             else dim = "end";
-            mapDimension = dim;
-            int active = getResources().getColor(R.color.primary, getTheme());
-            int inactive = getResources().getColor(R.color.text_secondary, getTheme());
-            binding.worldDimOverworld.setTextColor("overworld".equals(dim) ? active : inactive);
-            binding.worldDimNether.setTextColor("nether".equals(dim) ? active : inactive);
-            binding.worldDimEnd.setTextColor("end".equals(dim) ? active : inactive);
-            binding.worldMapImage.setDimension(dim);
-            loadMapForDimension(dim);
+            switchToDimension(dim);
         };
         binding.worldDimOverworld.setOnClickListener(dimClick);
         binding.worldDimNether.setOnClickListener(dimClick);
@@ -632,6 +627,31 @@ public class NbtViewerActivity extends BaseActivity {
         DynamicAnim.applyPressScale(binding.worldDimOverworld);
         DynamicAnim.applyPressScale(binding.worldDimNether);
         DynamicAnim.applyPressScale(binding.worldDimEnd);
+        // 标题 = 维度切换：点击循环切换（主世界→下界→末地）
+        binding.nbtTitle.setOnClickListener(v -> {
+            String next;
+            if ("overworld".equals(mapDimension)) next = "nether";
+            else if ("nether".equals(mapDimension)) next = "end";
+            else next = "overworld";
+            switchToDimension(next);
+        });
+        DynamicAnim.applyPressScale(binding.nbtTitle);
+    }
+
+    /** 统一维度切换：按钮高亮 + 标题显示当前维度名 + 重载地图。 */
+    private void switchToDimension(String dim) {
+        mapDimension = dim;
+        int active = getResources().getColor(R.color.primary, getTheme());
+        int inactive = getResources().getColor(R.color.text_secondary, getTheme());
+        binding.worldDimOverworld.setTextColor("overworld".equals(dim) ? active : inactive);
+        binding.worldDimNether.setTextColor("nether".equals(dim) ? active : inactive);
+        binding.worldDimEnd.setTextColor("end".equals(dim) ? active : inactive);
+        String name = "overworld".equals(dim) ? getString(R.string.dim_overworld)
+                : "nether".equals(dim) ? getString(R.string.dim_nether)
+                : getString(R.string.dim_end);
+        binding.nbtTitle.setText(name);
+        binding.worldMapImage.setDimension(dim);
+        loadMapForDimension(dim);
     }
 
     /** 切换维度后重新渲染地图（下界/末地无数据时提示）+ 解析实体/结构图层数据。 */

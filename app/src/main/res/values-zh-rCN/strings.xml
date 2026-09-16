@@ -1324,6 +1324,7 @@
     <string name="lb_info">世界信息</string>
     <string name="lb_layers">图层</string>
     <string name="lb_points">标点</string>
+    <string name="lb_settings">设置</string>
     <string name="layer_grid">区块网格</string>
     <string name="layer_biome">生物群系</string>
     <string name="layer_entity">实体</string>
