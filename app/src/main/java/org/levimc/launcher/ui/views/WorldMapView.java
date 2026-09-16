@@ -262,18 +262,32 @@ public class WorldMapView extends View {
         return ((long) cx << 32) | (cz & 0xFFFFFFFFL);
     }
 
-    /** 屏幕坐标 → 世界 block 坐标。 */
+    /**
+     * 世界块坐标 → 屏幕坐标。double 计算：float 在大数抵消时精度只剩
+     * ~0.04px（offsetX 可达 -30 万），相邻 tile 的 dst 之间会出现亚像素
+     * 缝隙/重叠毛刺——BTR 同款 rounding errors 教训（HALF_WORLDSIZE 必须
+     * 2 的幂、tile 网格原点对齐，就是为了消灭这类误差）。
+     */
+    private float worldToScreenX(float worldBlockX) {
+        return (float) ((double) offsetX + (worldBlockX - map.minBlockX) * (double) pixelsPerBlock);
+    }
+
+    private float worldToScreenY(float worldBlockZ) {
+        return (float) ((double) offsetY + (worldBlockZ - map.minBlockZ) * (double) pixelsPerBlock);
+    }
+
+    /** 屏幕坐标 → 世界 block 坐标（double 计算，同精度修复）。 */
     public int[] screenToBlock(float sx, float sy) {
-        int bx = (int) ((sx - offsetX) / pixelsPerBlock) + map.minBlockX;
-        int bz = (int) ((sy - offsetY) / pixelsPerBlock) + map.minBlockZ;
+        int bx = (int) ((sx - (double) offsetX) / (double) pixelsPerBlock) + map.minBlockX;
+        int bz = (int) ((sy - (double) offsetY) / (double) pixelsPerBlock) + map.minBlockZ;
         return new int[]{bx, bz};
     }
 
     /** 世界坐标 → 屏幕坐标（世界可能换维度坐标系，直接用 block 偏移）。 */
     public float[] blockToScreen(int blockX, int blockZ) {
         return new float[]{
-                offsetX + (blockX - map.minBlockX + 0.5f) * pixelsPerBlock,
-                offsetY + (blockZ - map.minBlockZ + 0.5f) * pixelsPerBlock
+                worldToScreenX(blockX + 0.5f),
+                worldToScreenY(blockZ + 0.5f)
         };
     }
 
@@ -530,10 +544,10 @@ public class WorldMapView extends View {
         float ppb = pixelsPerBlock;
         float invPpb = 1f / ppb;
         // 视口 chunk 范围（钳到地图边界）
-        float leftWorld = (0 - offsetX) * invPpb + map.minBlockX;
-        float rightWorld = (viewW - offsetX) * invPpb + map.minBlockX;
-        float topWorld = (0 - offsetY) * invPpb + map.minBlockZ;
-        float bottomWorld = (viewH - offsetY) * invPpb + map.minBlockZ;
+        double leftWorld = (0 - (double) offsetX) * invPpb + map.minBlockX;
+        double rightWorld = (viewW - (double) offsetX) * invPpb + map.minBlockX;
+        double topWorld = (0 - (double) offsetY) * invPpb + map.minBlockZ;
+        double bottomWorld = (viewH - (double) offsetY) * invPpb + map.minBlockZ;
         int minCx = Math.floorDiv(map.minBlockX, 16);
         int minCz = Math.floorDiv(map.minBlockZ, 16);
         int maxCx = Math.floorDiv(map.minBlockX + map.width - 1, 16);
@@ -550,8 +564,8 @@ public class WorldMapView extends View {
             // tile 平铺 2.5 万次 drawBitmap 每帧会卡死）
             ensureLodMini();
             if (lodMini != null) {
-                float left = offsetX + (minCx * 16 - map.minBlockX) * ppb;
-                float top = offsetY + (minCz * 16 - map.minBlockZ) * ppb;
+                float left = worldToScreenX(minCx * 16f);
+                float top = worldToScreenY(minCz * 16f);
                 android.graphics.RectF dst = new android.graphics.RectF(left, top,
                         left + (maxCx - minCx + 1) * 16f * ppb,
                         top + (maxCz - minCz + 1) * 16f * ppb);
@@ -565,7 +579,7 @@ public class WorldMapView extends View {
         tilePaint.setFilterBitmap(false); // 最近邻放大，保持块状像素风
         android.graphics.RectF dst = new android.graphics.RectF();
         for (int cz = firstCz; cz <= lastCz; cz++) {
-            float top = offsetY + (cz * 16 - map.minBlockZ) * ppb;
+            float top = worldToScreenY(cz * 16f);
             for (int cx = firstCx; cx <= lastCx; cx++) {
                 long ck = packChunk(cx, cz);
                 Bitmap tile = chunkTiles.get(ck);
@@ -580,8 +594,8 @@ public class WorldMapView extends View {
                         continue;
                     }
                 }
-                dst.set(offsetX + (cx * 16 - map.minBlockX) * ppb, top,
-                        offsetX + (cx * 16 - map.minBlockX + 16) * ppb, top + 16f * ppb);
+                dst.set(worldToScreenX(cx * 16f), top,
+                        worldToScreenX(cx * 16f + 16f), top + 16f * ppb);
                 canvas.drawBitmap(tile, null, dst, tilePaint);
             }
         }
@@ -706,10 +720,10 @@ public class WorldMapView extends View {
         }
         // 只遍历视口内的 chunk：全图遍历在 928×1089 大世界上是每帧
         // 100 万次 isSlimeChunk（"开了史莱姆区块好卡"的根因）
-        float leftWorld = (0 - offsetX) / pixelsPerBlock + map.minBlockX;
-        float rightWorld = (getWidth() - offsetX) / pixelsPerBlock + map.minBlockX;
-        float topWorld = (0 - offsetY) / pixelsPerBlock + map.minBlockZ;
-        float bottomWorld = (getHeight() - offsetY) / pixelsPerBlock + map.minBlockZ;
+        double leftWorld = (0 - (double) offsetX) / pixelsPerBlock + map.minBlockX;
+        double rightWorld = (getWidth() - (double) offsetX) / pixelsPerBlock + map.minBlockX;
+        double topWorld = (0 - (double) offsetY) / pixelsPerBlock + map.minBlockZ;
+        double bottomWorld = (getHeight() - (double) offsetY) / pixelsPerBlock + map.minBlockZ;
         int firstCx = Math.floorDiv((int) Math.floor(leftWorld), 16);
         int firstCz = Math.floorDiv((int) Math.floor(topWorld), 16);
         int lastCx = Math.floorDiv((int) Math.ceil(rightWorld), 16);
@@ -729,8 +743,8 @@ public class WorldMapView extends View {
                 if (!chunkRendered(cx, cz)) {
                     continue;
                 }
-                float sx = offsetX + (cx * 16 - map.minBlockX) * pixelsPerBlock;
-                float sy = offsetY + (cz * 16 - map.minBlockZ) * pixelsPerBlock;
+                float sx = worldToScreenX(cx * 16f);
+                float sy = worldToScreenY(cz * 16f);
                 if (sx + chunkPx < 0 || sx > getWidth() || sy + chunkPx < 0 || sy > getHeight()) {
                     continue;
                 }
@@ -769,19 +783,19 @@ public class WorldMapView extends View {
             return;
         }
         // 屏幕边缘对应的世界 block 坐标（绝对坐标对齐，不依赖 offset 起点）
-        float leftWorld = (0 - offsetX) / pixelsPerBlock + map.minBlockX;
-        float rightWorld = (getWidth() - offsetX) / pixelsPerBlock + map.minBlockX;
-        float topWorld = (0 - offsetY) / pixelsPerBlock + map.minBlockZ;
-        float bottomWorld = (getHeight() - offsetY) / pixelsPerBlock + map.minBlockZ;
+        double leftWorld = (0 - (double) offsetX) / pixelsPerBlock + map.minBlockX;
+        double rightWorld = (getWidth() - (double) offsetX) / pixelsPerBlock + map.minBlockX;
+        double topWorld = (0 - (double) offsetY) / pixelsPerBlock + map.minBlockZ;
+        double bottomWorld = (getHeight() - (double) offsetY) / pixelsPerBlock + map.minBlockZ;
         Paint chunk = new Paint();
         chunk.setColor(0x55FFFFFF);
         chunk.setStrokeWidth(1.5f);
         for (int bx = (int) Math.ceil(leftWorld / 16f) * 16; bx <= rightWorld; bx += 16) {
-            float sx = offsetX + (bx - map.minBlockX) * pixelsPerBlock;
+            float sx = worldToScreenX(bx);
             canvas.drawLine(sx, 0, sx, getHeight(), chunk);
         }
         for (int bz = (int) Math.ceil(topWorld / 16f) * 16; bz <= bottomWorld; bz += 16) {
-            float sy = offsetY + (bz - map.minBlockZ) * pixelsPerBlock;
+            float sy = worldToScreenY(bz);
             canvas.drawLine(0, sy, getWidth(), sy, chunk);
         }
         // 放大到 4px/block 以上时叠加 4-block 细线（区块内细分，与主线重叠的跳过）
@@ -793,14 +807,14 @@ public class WorldMapView extends View {
                 if (Math.floorMod(bx, 16) == 0) {
                     continue;
                 }
-                float sx = offsetX + (bx - map.minBlockX) * pixelsPerBlock;
+                float sx = worldToScreenX(bx);
                 canvas.drawLine(sx, 0, sx, getHeight(), fine);
             }
             for (int bz = (int) Math.ceil(topWorld / 4f) * 4; bz <= bottomWorld; bz += 4) {
                 if (Math.floorMod(bz, 16) == 0) {
                     continue;
                 }
-                float sy = offsetY + (bz - map.minBlockZ) * pixelsPerBlock;
+                float sy = worldToScreenY(bz);
                 canvas.drawLine(0, sy, getWidth(), sy, fine);
             }
         }
@@ -975,8 +989,8 @@ public class WorldMapView extends View {
             if (!chunkRendered(Math.floorDiv((int) e.x, 16), Math.floorDiv((int) e.z, 16))) {
                 continue;
             }
-            float sx = offsetX + (e.x - map.minBlockX + 0.5f) * pixelsPerBlock;
-            float sy = offsetY + (e.z - map.minBlockZ + 0.5f) * pixelsPerBlock;
+            float sx = worldToScreenX(e.x + 0.5f);
+            float sy = worldToScreenY(e.z + 0.5f);
             if (sx < -40 || sx > getWidth() + 40 || sy < -40 || sy > getHeight() + 40) {
                 continue;
             }
@@ -1138,8 +1152,8 @@ public class WorldMapView extends View {
             if (!chunkRendered(Math.floorDiv(m.x, 16), Math.floorDiv(m.z, 16))) {
                 continue;
             }
-            float sx = offsetX + (m.x - map.minBlockX + 0.5f) * pixelsPerBlock;
-            float sy = offsetY + (m.z - map.minBlockZ + 0.5f) * pixelsPerBlock;
+            float sx = worldToScreenX(m.x + 0.5f);
+            float sy = worldToScreenY(m.z + 0.5f);
             if (sx < -60 || sx > getWidth() + 60 || sy < -60 || sy > getHeight() + 60) {
                 continue;
             }
@@ -1306,8 +1320,8 @@ public class WorldMapView extends View {
         if (tapBlockX < 0 || tapBlockZ < 0 || map == null) {
             return;
         }
-        float sx = offsetX + (tapBlockX - map.minBlockX + 0.5f) * pixelsPerBlock;
-        float sy = offsetY + (tapBlockZ - map.minBlockZ + 0.5f) * pixelsPerBlock;
+        float sx = worldToScreenX(tapBlockX + 0.5f);
+        float sy = worldToScreenY(tapBlockZ + 0.5f);
         if (sx < 0 || sx > getWidth() || sy < 0 || sy > getHeight()) {
             return;
         }

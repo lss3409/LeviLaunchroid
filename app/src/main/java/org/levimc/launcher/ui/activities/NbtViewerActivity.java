@@ -25,6 +25,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 
 import org.levimc.launcher.R;
+import org.levimc.launcher.core.CpuScheduler;
 import org.levimc.launcher.core.content.BlueprintDb;
 import org.levimc.launcher.core.content.WorldItem;
 import org.levimc.launcher.core.content.leveldb.LevelDBEntry;
@@ -80,7 +81,11 @@ public class NbtViewerActivity extends BaseActivity {
     private ActivityNbtViewerBinding binding;
     private ExecutorService executor;
     /** 视口按需渲染线程池（多 chunk 并行渲染；LevelDBReader 每次新建实例，线程安全）。 */
-    private final ExecutorService renderPool = Executors.newFixedThreadPool(4);
+    private final ExecutorService renderPool = Executors.newFixedThreadPool(4, r -> {
+        Thread t = new Thread(r, "chunk-render");
+        t.setPriority(Thread.MAX_PRIORITY);
+        return t;
+    });
     /** 渲染完成 chunk 的批量重绘缓冲：80ms 窗口合并，一次局部重绘处理多个 chunk。 */
     private final java.util.Set<Long> renderedChunkBuffer = new java.util.HashSet<>();
     private final android.os.Handler flushHandler = new android.os.Handler(
@@ -197,6 +202,7 @@ public class NbtViewerActivity extends BaseActivity {
         binding.nbtDbRecycler.setAdapter(dbAdapter);
 
         WorldMapRenderer.init(getApplicationContext());
+        CpuScheduler.init();
         binding.worldMapPlaceholder.setText(R.string.world_map_loading);
 
         blueprintDb = new BlueprintDb(this);
@@ -243,6 +249,8 @@ public class NbtViewerActivity extends BaseActivity {
                     continue;
                 }
                 renderPool.execute(() -> {
+                    // 渲染线程绑大核（游戏式调度，CPU 全部性能用在地图渲染上）
+                    CpuScheduler.pinCurrentThreadToBigCores();
                     try {
                         int cx = (int) (key >> 32);
                         int cz = (int) (long) key;
@@ -866,27 +874,49 @@ public class NbtViewerActivity extends BaseActivity {
                 entities = new ArrayList<>();
                 structures = new ArrayList<>();
                 final WorldMapRenderer.WorldMap fMap0 = worldMap;
+                // 实体与结构解析并行（原来串行 4+5 秒 → 并行 ~5 秒，
+                // 大核空闲时 IO 等待互相重叠）
                 executor.execute(() -> {
-                    List<WorldMapRenderer.EntityPos> ents =
-                            WorldMapRenderer.parseEntitiesStreaming(dbDir, 0);
-                    List<WorldMapRenderer.StructureMarker> strs =
-                            WorldMapRenderer.parseStructureMarkersStreaming(dbDir, 0);
-                    if (strs == null) {
-                        strs = new ArrayList<>();
-                    }
-                    if (fMap0 != null && fMap0.detectedStructures != null) {
-                        strs.addAll(fMap0.detectedStructures);
-                    }
-                    final List<WorldMapRenderer.EntityPos> fEnts = ents;
-                    final List<WorldMapRenderer.StructureMarker> fStrs = strs;
-                    runOnUiThread(() -> {
-                        if (isFinishing() || isDestroyed() || !isCurrentLoad(gen)) {
+                    final java.util.concurrent.atomic.AtomicInteger done =
+                            new java.util.concurrent.atomic.AtomicInteger(0);
+                    final List<WorldMapRenderer.EntityPos>[] ents =
+                            new List[1];
+                    final List<WorldMapRenderer.StructureMarker>[] strs =
+                            new List[1];
+                    final Runnable deliver = () -> {
+                        if (done.incrementAndGet() != 2) {
                             return;
                         }
-                        binding.worldMapImage.setEntityData(fEnts);
-                        binding.worldMapImage.setStructureMarkers(fStrs);
-                        refreshDataPanelExtras(fStrs, null);
-                    });
+                        final List<WorldMapRenderer.EntityPos> fEnts =
+                                ents[0] != null ? ents[0] : new ArrayList<>();
+                        List<WorldMapRenderer.StructureMarker> fStrs =
+                                strs[0] != null ? strs[0] : new ArrayList<>();
+                        if (fMap0 != null && fMap0.detectedStructures != null) {
+                            fStrs.addAll(fMap0.detectedStructures);
+                        }
+                        runOnUiThread(() -> {
+                            if (isFinishing() || isDestroyed() || !isCurrentLoad(gen)) {
+                                return;
+                            }
+                            binding.worldMapImage.setEntityData(fEnts);
+                            binding.worldMapImage.setStructureMarkers(fStrs);
+                            refreshDataPanelExtras(fStrs, null);
+                        });
+                    };
+                    // 延迟 6 秒：让首屏视口渲染先用满 4 个渲染线程，
+                    // 之后实体/结构解析再并行抢线程（此时视口基本填充完）
+                    flushHandler.postDelayed(() -> {
+                        renderPool.execute(() -> {
+                            CpuScheduler.pinCurrentThreadToBigCores();
+                            ents[0] = WorldMapRenderer.parseEntitiesStreaming(dbDir, 0);
+                            deliver.run();
+                        });
+                        renderPool.execute(() -> {
+                            CpuScheduler.pinCurrentThreadToBigCores();
+                            strs[0] = WorldMapRenderer.parseStructureMarkersStreaming(dbDir, 0);
+                            deliver.run();
+                        });
+                    }, 6000);
                 });
             } else if (dbDir.isDirectory()) {
                 // 优先 BTR 同款原生库（自带全部 MCPE 压缩格式），失败回退纯 Java
