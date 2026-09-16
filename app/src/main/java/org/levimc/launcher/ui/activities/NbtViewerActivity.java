@@ -90,6 +90,9 @@ public class NbtViewerActivity extends BaseActivity {
     /** 渲染代际：切维度 +1；任务执行时比对，代际不符直接放弃（旧维度残留任务）。 */
     private final java.util.concurrent.atomic.AtomicInteger renderGen =
             new java.util.concurrent.atomic.AtomicInteger();
+    /** 当前批次渲染队列：拖动时清空（旧区域任务作废），执行时检查。 */
+    private final java.util.Set<Long> renderQueue = java.util.Collections.synchronizedSet(
+            new java.util.HashSet<>());
     /** 渲染线程复用的 LevelDBReader（每 chunk 新建 reader 要重开全部 sst
      *  文件——大世界几百个 sst，是拖动跟不上渲染的主因；reader 实例无状态
      *  线程安全，按 dbDir 校验失效换新）。 */
@@ -363,6 +366,12 @@ public class NbtViewerActivity extends BaseActivity {
                     new java.util.concurrent.atomic.AtomicInteger(keys.size());
             final java.util.Set<Long> inFlight = java.util.Collections.synchronizedSet(
                     new java.util.HashSet<>());
+            // 清空旧批次：拖动时上一批（已滑走区域）的排队任务作废——
+            // 跨批次积压让当前视口 chunk 排旧队列后面（"拖动跟不上"的根因）
+            if (renderPool instanceof java.util.concurrent.ThreadPoolExecutor) {
+                ((java.util.concurrent.ThreadPoolExecutor) renderPool).getQueue().clear();
+            }
+            renderQueue.clear();
             final int myGen = renderGen.get();
             for (Long key : keys) {
                 // 已完成或正在渲染的跳过（onDraw 每帧重报缺失，防重复提交）
@@ -370,9 +379,10 @@ public class NbtViewerActivity extends BaseActivity {
                     remaining.decrementAndGet();
                     continue;
                 }
+                renderQueue.add(key);
                 renderPool.execute(() -> {
-                    // 代际不符（切维度后的旧任务）：直接放弃，不浪费 IO
-                    if (renderGen.get() != myGen) {
+                    // 批次作废（拖动后新报告清空了队列）或代际不符：直接放弃
+                    if (!renderQueue.contains(key) || renderGen.get() != myGen) {
                         inFlight.remove(key);
                         remaining.decrementAndGet();
                         return;
@@ -496,6 +506,17 @@ public class NbtViewerActivity extends BaseActivity {
                 binding.worldMapImage.setMemoryOptimized(checked));
         binding.worldMapImage.setMemoryOptimized(binding.layerMemory.isChecked());
 
+        // 预渲染全部区块（后台独立线程逐 chunk 渲染，与视口按需互不冲突：
+        // 双方都检查 chunkColors 已渲染跳过；拖动时视口报告照常优先）
+        binding.prerenderAll.setOnCheckedChangeListener((b, checked) -> {
+            if (checked && currentMap != null && currentWorldDir != null) {
+                startPrerender();
+            } else if (!checked && prerenderThread != null) {
+                prerenderThread.interrupt();
+                prerenderThread = null;
+            }
+        });
+
         // 下界渲染层（y 轴范围）：全部/上部/中部/下部——下界 sub 0-7 每层
         // 都有方块，全量解码是下界渲染慢的主因；选窄范围大幅提速
         setupNetherYSegment();
@@ -609,6 +630,91 @@ public class NbtViewerActivity extends BaseActivity {
                 })
                 .setNegativeButton(getString(R.string.nbt_edit_cancel), null)
                 .show();
+    }
+
+    /** 预渲染后台线程（设置开关打开后逐 chunk 渲染全图）。 */
+    private volatile Thread prerenderThread;
+
+    /** 启动预渲染：从地图中心螺旋向外逐 chunk 渲染（跳过已有数据）。 */
+    private void startPrerender() {
+        final WorldMapRenderer.WorldMap fMap = currentMap;
+        if (fMap == null || currentWorldDir == null) {
+            return;
+        }
+        final File dbDir = new File(currentWorldDir, "db");
+        final int dim = "nether".equals(mapDimension) ? 1 : "end".equals(mapDimension) ? 2 : 0;
+        final int myGen = renderGen.get();
+        if (prerenderThread != null) {
+            prerenderThread.interrupt();
+        }
+        prerenderThread = new Thread(() -> {
+            int minCx = Math.floorDiv(fMap.minBlockX, 16);
+            int minCz = Math.floorDiv(fMap.minBlockZ, 16);
+            int maxCx = Math.floorDiv(fMap.minBlockX + fMap.width - 1, 16);
+            int maxCz = Math.floorDiv(fMap.minBlockZ + fMap.height - 1, 16);
+            int cCx = (minCx + maxCx) / 2;
+            int cCz = (minCz + maxCz) / 2;
+            int done = 0;
+            int radius = Math.max(maxCx - minCx, maxCz - minCz) + 1;
+            for (int r = 0; r <= radius; r++) {
+                if (renderGen.get() != myGen || Thread.currentThread().isInterrupted()) {
+                    return;
+                }
+                for (int dx = -r; dx <= r; dx++) {
+                    for (int dz = -r; dz <= r; dz++) {
+                        if (Math.max(Math.abs(dx), Math.abs(dz)) != r) {
+                            continue; // 只处理当前环
+                        }
+                        int cx = cCx + dx;
+                        int cz = cCz + dz;
+                        if (cx < minCx || cx > maxCx || cz < minCz || cz > maxCz) {
+                            continue;
+                        }
+                        if (renderGen.get() != myGen
+                                || Thread.currentThread().isInterrupted()) {
+                            return;
+                        }
+                        long key = ((long) cx << 32) | (cz & 0xFFFFFFFFL);
+                        if (fMap.chunkColors.containsKey(key)) {
+                            continue; // 视口按需已渲染/已完成
+                        }
+                        try {
+                            int[][] res = WorldMapRenderer.renderChunkOnDemand(
+                                    getRenderReader(dbDir), cx, cz, dim);
+                            if (renderGen.get() != myGen) {
+                                return;
+                            }
+                            fMap.chunkColors.put(key,
+                                    res != null ? res[0]
+                                            : EMPTY_CHUNK_COLORS);
+                            if (res != null && res[1] != null
+                                    && fMap.chunkBiomeColors != null) {
+                                fMap.chunkBiomeColors.put(key, res[1]);
+                            }
+                            // 节流重绘：每 20 chunk 通知一次视图
+                            if (++done % 20 == 0) {
+                                runOnUiThread(() -> {
+                                    if (renderGen.get() == myGen) {
+                                        binding.worldMapImage.onChunksRendered(
+                                                java.util.Collections.emptySet());
+                                    }
+                                });
+                            }
+                        } catch (Throwable ignored) {
+                        }
+                    }
+                }
+            }
+            Log.i(TAG, "预渲染完成: " + done + " chunk (dim=" + dim + ")");
+            runOnUiThread(() -> {
+                if (renderGen.get() == myGen) {
+                    binding.worldMapImage.onChunksRendered(
+                            java.util.Collections.emptySet());
+                }
+            });
+        }, "prerender");
+        prerenderThread.setPriority(Thread.MIN_PRIORITY);
+        prerenderThread.start();
     }
 
     /** 下界渲染层分段选择：全部/上部(y64-127)/中部(y32-95)/下部(y0-63)。 */
@@ -943,6 +1049,11 @@ public class NbtViewerActivity extends BaseActivity {
         // 渲染代际 + 线程池换新：旧维度排队任务立即作废，
         // 新维度 chunk 不再等旧队列（下界/末地切换慢的根因）
         renderGen.incrementAndGet();
+        renderQueue.clear();
+        if (prerenderThread != null) {
+            prerenderThread.interrupt();
+            prerenderThread = null;
+        }
         ExecutorService oldPool = renderPool;
         renderPool = newRenderPool();
         oldPool.shutdownNow();
@@ -958,43 +1069,66 @@ public class NbtViewerActivity extends BaseActivity {
                 int dimId = "nether".equals(dim) ? 1 : "end".equals(dim) ? 2 : 0;
                 long dbSize = dbSizeBytes(dbDir);
                 if (dbSize > 20 * 1024 * 1024) {
-                    // 大世界（155MB 级）：流式渲染，全量 readAllEntries 会 OOM
-                    Log.i(TAG, "大世界流式渲染 dbSize=" + dbSize);
+                    // 大世界：与首次打开同款的快速按需路径——磁盘缓存/bounds
+                    // 扫描秒进地图，视口按需渲染。此前此处是全量流式渲染
+                    // 30-60 秒（"渲染完全部区块才显示"的根因）
+                    Log.i(TAG, "大世界按需渲染(切维度) dbSize=" + dbSize);
                     worldMap = WorldMapRenderer.loadChunkCache(dbDir, dimId);
                     if (worldMap == null) {
-                        worldMap = WorldMapRenderer.buildSatelliteMapStreaming(dbDir, dimId);
-                        if (worldMap != null) {
-                            WorldMapRenderer.saveChunkCache(worldMap, dbDir, dimId);
+                        worldMap = WorldMapRenderer.buildBoundsOnly(dbDir, dimId);
+                    }
+                    if (worldMap != null) {
+                        worldMap.chunkSourceDir = dbDir;
+                        worldMap.chunkSourceDim = dimId;
+                    }
+                    entities = new java.util.ArrayList<>();
+                    structures = new java.util.ArrayList<>();
+                    // 实体/结构解析延迟 6 秒并行（与首屏视口渲染错峰，
+                    // 否则同步全量读 183MB db 拖慢切维度 20-30 秒）
+                    final WorldMapRenderer.WorldMap fMapL = worldMap;
+                    final java.util.concurrent.atomic.AtomicInteger done =
+                            new java.util.concurrent.atomic.AtomicInteger(0);
+                    final List<WorldMapRenderer.EntityPos>[] ents =
+                            new List[1];
+                    final List<WorldMapRenderer.StructureMarker>[] strs =
+                            new List[1];
+                    final Runnable deliver = () -> {
+                        if (done.incrementAndGet() != 2) {
+                            return;
                         }
-                    }
-                    entities = WorldMapRenderer.parseEntitiesStreaming(dbDir, dimId);
-                    structures = WorldMapRenderer.parseStructureMarkersStreaming(dbDir, dimId);
-                    if (structures == null) {
-                        structures = new java.util.ArrayList<>();
-                    }
-                    // 流式渲染第三遍顺带检测的海底神殿/末地城标记
-                    if (worldMap != null && worldMap.detectedStructures != null) {
-                        structures.addAll(worldMap.detectedStructures);
-                    }
-                    // 降采样地图：实体/结构标记坐标 ÷blockScale（与归一化 chunk 对齐）
-                    if (worldMap != null && worldMap.blockScale > 1) {
-                        int sc = worldMap.blockScale;
-                        java.util.List<WorldMapRenderer.EntityPos> ne =
-                                new java.util.ArrayList<>();
-                        for (WorldMapRenderer.EntityPos ep : entities) {
-                            ne.add(new WorldMapRenderer.EntityPos(
-                                    Math.floorDiv((int) ep.x, sc), ep.y,
-                                    Math.floorDiv((int) ep.z, sc), ep.name));
+                        final List<WorldMapRenderer.EntityPos> fEnts =
+                                ents[0] != null ? ents[0] : new ArrayList<>();
+                        List<WorldMapRenderer.StructureMarker> fStrs =
+                                strs[0] != null ? strs[0] : new ArrayList<>();
+                        if (fMapL != null && fMapL.detectedStructures != null) {
+                            fStrs.addAll(fMapL.detectedStructures);
                         }
-                        entities = ne;
-                        java.util.List<WorldMapRenderer.StructureMarker> ns =
-                                new java.util.ArrayList<>();
-                        for (WorldMapRenderer.StructureMarker sm : structures) {
-                            ns.add(new WorldMapRenderer.StructureMarker(
-                                    Math.floorDiv(sm.x, sc), Math.floorDiv(sm.z, sc), sm.type));
-                        }
-                        structures = ns;
-                    }
+                        runOnUiThread(() -> {
+                            if (isFinishing() || isDestroyed() || !isCurrentLoad(gen)) {
+                                return;
+                            }
+                            binding.worldMapImage.setEntityData(fEnts);
+                            synchronized (currentStructures) {
+                                currentStructures.clear();
+                                currentStructures.addAll(fStrs);
+                                mergeOnDemandStructures();
+                            }
+                            binding.worldMapImage.setStructureMarkers(currentStructures);
+                            refreshDataPanelExtras(fStrs, null);
+                        });
+                    };
+                    flushHandler.postDelayed(() -> {
+                        renderPool.execute(() -> {
+                            CpuScheduler.pinCurrentThreadToBigCores();
+                            ents[0] = WorldMapRenderer.parseEntitiesStreaming(dbDir, dimId);
+                            deliver.run();
+                        });
+                        renderPool.execute(() -> {
+                            CpuScheduler.pinCurrentThreadToBigCores();
+                            strs[0] = WorldMapRenderer.parseStructureMarkersStreaming(dbDir, dimId);
+                            deliver.run();
+                        });
+                    }, 6000);
                 } else {
                     List<LevelDBEntry> entries = null;
                     try {
@@ -1478,6 +1612,10 @@ public class NbtViewerActivity extends BaseActivity {
             WorldMapRenderer.debugExport(worldMap); // 调试导出 map_debug.png
                         binding.worldMapImage.setWorldMap(worldMap);
             binding.worldMapPlaceholder.setVisibility(View.GONE);
+            // 预渲染开关保持勾选时，新维度加载完自动继续后台预渲染
+            if (binding.prerenderAll.isChecked()) {
+                startPrerender();
+            }
         } else {
             binding.worldMapPlaceholder.setText(R.string.world_map_unavailable);
         }

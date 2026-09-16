@@ -1395,7 +1395,8 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="layer_entity">Entities</string>
     <string name="layer_structure">Structures</string>
     <string name="layer_slime">Slime Chunks</string>
-    <string name="layer_memory">Memory optimization (unload off-screen)</string>
+    <string name="layer_memory">Memory optimization (off-screen unload)</string>
+    <string name="prerender_all">Pre-render all chunks (background)</string>
     <string name="map_hud_placeholder">X: 0  Z: 0</string>
     <string name="point_search_hint">Search points…</string>
     <string name="no_points">No points. Long-press the map to add.</string>
