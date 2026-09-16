@@ -35,6 +35,8 @@ public class LevelDBReader {
     }
 
     private EntryFilter filter;
+    private boolean keysOnlyMode;
+    private List<byte[]> keysOnly;
 
     public LevelDBReader(File dbPath) {
         this.dbPath = dbPath;
@@ -63,11 +65,33 @@ public class LevelDBReader {
         if (filter != null && !filter.accept(key)) {
             return;
         }
+        if (keysOnlyMode) {
+            keysOnly.add(key);
+            return;
+        }
         if (overwrite) {
             allData.put(new ByteArrayWrapper(key), value);
         } else {
             allData.putIfAbsent(new ByteArrayWrapper(key), value);
         }
+    }
+
+    /**
+     * 只读 key（value 全部丢弃且不分配内存）——地图渲染第一遍只统计
+     * subchunk key 的 sub 索引，155MB 世界几十万 subchunk 的 value
+     * 全读会 OOM。
+     */
+    public List<byte[]> readKeys(EntryFilter keyFilter) throws IOException {
+        this.filter = keyFilter;
+        this.keysOnlyMode = true;
+        this.keysOnly = new ArrayList<>();
+        try {
+            readAllEntriesInternal();
+        } finally {
+            this.filter = null;
+            this.keysOnlyMode = false;
+        }
+        return keysOnly;
     }
 
     private List<LevelDBEntry> readAllEntriesInternal() throws IOException {
@@ -92,7 +116,7 @@ public class LevelDBReader {
         }
 
         File[] logFiles = dbPath.listFiles((dir, name) -> name.endsWith(".log"));
-        if (logFiles != null) {
+        if (logFiles != null && !keysOnlyMode) {
             Arrays.sort(logFiles, Comparator.comparing(File::getName));
             for (File logFile : logFiles) {
                 try {
@@ -802,8 +826,15 @@ public class LevelDBReader {
                 buffer.get(fullKey, shared, nonShared);
                 prevKey = fullKey;
 
-                byte[] value = new byte[valueLen];
-                buffer.get(value);
+                byte[] value;
+                if (keysOnlyMode) {
+                    // 只读 key：value 不分配不拷贝（大世界几十万 subchunk 防 OOM）
+                    buffer.position(buffer.position() + valueLen);
+                    value = null;
+                } else {
+                    value = new byte[valueLen];
+                    buffer.get(value);
+                }
 
                 byte[] userKey = fullKey;
                 boolean isValue = true;

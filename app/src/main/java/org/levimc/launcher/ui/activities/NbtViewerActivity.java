@@ -423,6 +423,20 @@ public class NbtViewerActivity extends BaseActivity {
     }
 
     /** 切换维度后重新渲染地图（下界/末地无数据时提示）+ 解析实体/结构图层数据。 */
+    /** db 目录总大小（字节）——大世界（>20MB）走流式渲染路径。 */
+    private static long dbSizeBytes(File dbDir) {
+        long total = 0;
+        File[] files = dbDir.listFiles();
+        if (files != null) {
+            for (File f : files) {
+                if (f.isFile()) {
+                    total += f.length();
+                }
+            }
+        }
+        return total;
+    }
+
     private void loadMapForDimension(String dim) {
         loadMapForDimension(dim, false);
     }
@@ -439,40 +453,56 @@ public class NbtViewerActivity extends BaseActivity {
             List<WorldMapRenderer.EntityPos> entities = null;
             List<WorldMapRenderer.StructureMarker> structures = null;
             if (dbDir.isDirectory()) {
-                List<LevelDBEntry> entries = null;
-                try {
-                    entries = NativeLevelDb.readAllEntries(dbDir);
-                } catch (Throwable ignored) {
-                }
-                if (entries == null) {
-                    try {
-                        LevelDBReader reader = new LevelDBReader(dbDir);
-                        entries = reader.readAllEntries();
-                        reader.close();
-                    } catch (Exception ignored) {
+                int dimId = "nether".equals(dim) ? 1 : "end".equals(dim) ? 2 : 0;
+                long dbSize = dbSizeBytes(dbDir);
+                if (dbSize > 20 * 1024 * 1024) {
+                    // 大世界（155MB 级）：流式渲染，全量 readAllEntries 会 OOM
+                    Log.i(TAG, "大世界流式渲染 dbSize=" + dbSize);
+                    worldMap = WorldMapRenderer.buildSatelliteMapStreaming(dbDir, dimId);
+                    entities = WorldMapRenderer.parseEntitiesStreaming(dbDir, dimId);
+                    structures = WorldMapRenderer.parseStructureMarkersStreaming(dbDir, dimId);
+                    if (structures == null) {
+                        structures = new java.util.ArrayList<>();
                     }
-                }
-                if (entries != null) {
-                    int dimId = "nether".equals(dim) ? 1 : "end".equals(dim) ? 2 : 0;
-                    worldMap = WorldMapRenderer.buildSatelliteMap(entries, dimId);
-                    // 原生库可能漏读 13/14B key（下界/末地），失败时回退纯 Java 重读
-                    if (worldMap == null) {
+                    // 流式渲染第三遍顺带检测的海底神殿/末地城标记
+                    if (worldMap != null && worldMap.detectedStructures != null) {
+                        structures.addAll(worldMap.detectedStructures);
+                    }
+                } else {
+                    List<LevelDBEntry> entries = null;
+                    try {
+                        entries = NativeLevelDb.readAllEntries(dbDir);
+                    } catch (Throwable ignored) {
+                    }
+                    if (entries == null) {
                         try {
                             LevelDBReader reader = new LevelDBReader(dbDir);
-                            List<LevelDBEntry> javaEntries = reader.readAllEntries();
+                            entries = reader.readAllEntries();
                             reader.close();
-                            if (javaEntries.size() > entries.size()) {
-                                entries = javaEntries;
-                                worldMap = WorldMapRenderer.buildSatelliteMap(entries, dimId);
-                                Log.i(TAG, "维度切换原生库漏读回退纯 Java: " + entries.size()
-                                        + " 条目, 地图=" + (worldMap != null
-                                        ? worldMap.width + "x" + worldMap.height : "仍失败"));
-                            }
                         } catch (Exception ignored) {
                         }
                     }
-                    entities = WorldMapRenderer.parseEntities(entries, dimId);
-                    structures = WorldMapRenderer.parseStructureMarkers(entries, dimId);
+                    if (entries != null) {
+                        worldMap = WorldMapRenderer.buildSatelliteMap(entries, dimId);
+                        // 原生库可能漏读 13/14B key（下界/末地），失败时回退纯 Java 重读
+                        if (worldMap == null) {
+                            try {
+                                LevelDBReader reader = new LevelDBReader(dbDir);
+                                List<LevelDBEntry> javaEntries = reader.readAllEntries();
+                                reader.close();
+                                if (javaEntries.size() > entries.size()) {
+                                    entries = javaEntries;
+                                    worldMap = WorldMapRenderer.buildSatelliteMap(entries, dimId);
+                                    Log.i(TAG, "维度切换原生库漏读回退纯 Java: " + entries.size()
+                                            + " 条目, 地图=" + (worldMap != null
+                                            ? worldMap.width + "x" + worldMap.height : "仍失败"));
+                                }
+                            } catch (Exception ignored) {
+                            }
+                        }
+                        entities = WorldMapRenderer.parseEntities(entries, dimId);
+                        structures = WorldMapRenderer.parseStructureMarkers(entries, dimId);
+                    }
                 }
             }
             final WorldMapRenderer.WorldMap fMap = worldMap;

@@ -36,6 +36,13 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 
 public class PersonalizationManager {
+    /**
+     * 被 accent 接管过的按钮/文字（弱引用）：首次接管记录"当前应用的 accent"，
+     * 再次换色时按钮 tint 已是旧 accent（不再等于 primary），需要按记录继续更新。
+     */
+    private static final java.util.Map<View, Integer> managedButtonAccent = new java.util.WeakHashMap<>();
+    private static final java.util.Map<TextView, Integer> managedTextAccent = new java.util.WeakHashMap<>();
+
     private static final String PREFS_NAME = "personalization_prefs";
     private static final String KEY_ACCENT_COLOR = "accent_color";
     private static final String KEY_BG_IMAGE_PATH = "bg_image_path";
@@ -601,14 +608,32 @@ public class PersonalizationManager {
                 if (btn.getBackgroundTintList() != null) {
                     int currentTint = btn.getBackgroundTintList().getDefaultColor();
                     if (currentTint == defaultPrimary || currentTint == defaultSecondary || currentTint == defaultTertiary) {
+                        // 首次接管：记录后应用 accent
+                        managedButtonAccent.put(btn, accentColor);
                         btn.setBackgroundTintList(ColorStateList.valueOf(accentColor));
                         btn.setTextColor(Color.WHITE);
+                    } else {
+                        Integer last = managedButtonAccent.get(btn);
+                        if (last != null && currentTint == last && currentTint != accentColor) {
+                            // 已接管过：换色时继续更新
+                            managedButtonAccent.put(btn, accentColor);
+                            btn.setBackgroundTintList(ColorStateList.valueOf(accentColor));
+                            btn.setTextColor(Color.WHITE);
+                        }
                     }
                 }
             } catch (Exception ignored) {}
 
-            if (btn.getCurrentTextColor() == defaultPrimary || btn.getCurrentTextColor() == defaultAccentText) {
+            int btnTextColor = btn.getCurrentTextColor();
+            if (btnTextColor == defaultPrimary || btnTextColor == defaultAccentText) {
+                managedTextAccent.put(btn, accentColor);
                 btn.setTextColor(accentColor);
+            } else {
+                Integer last = managedTextAccent.get(btn);
+                if (last != null && btnTextColor == last && btnTextColor != accentColor) {
+                    managedTextAccent.put(btn, accentColor);
+                    btn.setTextColor(accentColor);
+                }
             }
 
             Drawable bg = btn.getBackground();
@@ -618,8 +643,16 @@ public class PersonalizationManager {
                     if (gd.getColor() != null) {
                         int gdColor = gd.getColor().getDefaultColor();
                         if (gdColor == defaultPrimary || gdColor == defaultSecondary || gdColor == defaultTertiary) {
+                            managedButtonAccent.put(btn, accentColor);
                             gd.setColor(accentColor);
                             btn.setTextColor(Color.WHITE);
+                        } else {
+                            Integer last = managedButtonAccent.get(btn);
+                            if (last != null && gdColor == last && gdColor != accentColor) {
+                                managedButtonAccent.put(btn, accentColor);
+                                gd.setColor(accentColor);
+                                btn.setTextColor(Color.WHITE);
+                            }
                         }
                     }
                 } catch (Exception ignored) {}
@@ -631,7 +664,14 @@ public class PersonalizationManager {
             int textColor = tv.getCurrentTextColor();
 
             if (textColor == defaultPrimary || textColor == defaultAccentText) {
+                managedTextAccent.put(tv, accentColor);
                 tv.setTextColor(accentColor);
+            } else {
+                Integer last = managedTextAccent.get(tv);
+                if (last != null && textColor == last && textColor != accentColor) {
+                    managedTextAccent.put(tv, accentColor);
+                    tv.setTextColor(accentColor);
+                }
             }
 
             try {

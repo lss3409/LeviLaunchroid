@@ -928,6 +928,8 @@ public class WorldMapRenderer {
         /** 玩家位置（block 坐标，-1 = 无玩家数据） */
         public int playerBlockX = -1;
         public int playerBlockZ = -1;
+        /** 流式渲染时 palette 检测到的结构标记（海底神殿/末地城；小世界路径为 null） */
+        public List<StructureMarker> detectedStructures;
         /** 出生点位置（block 坐标，-1 = 无） */
         public int spawnBlockX = -1;
         public int spawnBlockZ = -1;
@@ -1169,6 +1171,24 @@ public class WorldMapRenderer {
         Log.i(TAG, "第二遍 subchunk: 命中=" + subKeys + " 跳过=" + skipped
                 + " 解码=" + decoded + " surfaceSubs=" + surfaceSubs.size());
 
+        return assembleMap(heightMaps, biomeMaps, subChunks, dimension);
+    }
+
+    /** 组装全图：收集完 heightMaps/biomeMaps/subChunks 后的共享渲染路径。 */
+    private static WorldMap assembleMap(Map<Long, int[]> heightMaps,
+                                        Map<Long, byte[]> biomeMaps,
+                                        Map<Long, Map<Integer, SubChunk>> subChunks,
+                                        int dimension) {
+        int minX = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE;
+        int minZ = Integer.MAX_VALUE;
+        int maxZ = Integer.MIN_VALUE;
+        for (Long key : heightMaps.keySet()) {
+            minX = Math.min(minX, unpackX(key));
+            maxX = Math.max(maxX, unpackX(key));
+            minZ = Math.min(minZ, unpackZ(key));
+            maxZ = Math.max(maxZ, unpackZ(key));
+        }
         // 2) 组装全图：每 chunk 16×16 表面色
         int spanX = maxX - minX + 1;
         int spanZ = maxZ - minZ + 1;
@@ -1237,6 +1257,259 @@ public class WorldMapRenderer {
                 + ", biome 数据=" + biomeMaps.size() + " chunk / " + biomeNonZero + " 非透明像素"
                 + ", 解码 subchunk=" + subCount + " (含表面层=" + subChunks.size() + " chunk)");
         return new WorldMap(minBlockX, minBlockZ, width, height, colors, biomeColors);
+    }
+
+    /**
+     * 大世界流式渲染：155MB 级 db 全量 readAllEntries 会 OOM。
+     * 用 LevelDBReader 的过滤/只读 key 模式分三遍流式收集：
+     * 1) readKeys：统计每 chunk 实际最高 sub 索引（value 不分配内存）
+     * 2) readEntries：高度图/版本 value（0x2b/0x2c）
+     * 3) readEntries：只解码窗口内 subchunk（maxSub±2）
+     */
+    public static WorldMap buildSatelliteMapStreaming(File dbDir, int dimension) {
+        Map<Long, int[]> heightMaps = new HashMap<>();
+        Map<Long, byte[]> biomeMaps = new HashMap<>();
+        Map<Long, Integer> surfaceSubs = new HashMap<>();
+        Map<Long, Map<Integer, SubChunk>> subChunks = new HashMap<>();
+        List<StructureMarker> detected = new ArrayList<>();
+        try {
+            LevelDBReader reader = new LevelDBReader(dbDir);
+            // 1) 第一遍：只读 subchunk key 统计最高 sub（窗口围绕实际 maxSub，
+            //    高度图是生成器预测值不可靠）
+            Map<Long, Integer> maxSubByChunk = new HashMap<>();
+            List<byte[]> subKeys = reader.readKeys(k -> {
+                int[] ck = parseChunkKey(k);
+                return ck != null && ck[3] >= 0 && ck[2] == dimension && isSubchunkKey(k);
+            });
+            for (byte[] k : subKeys) {
+                int[] ck = parseChunkKey(k);
+                if (ck == null) {
+                    continue;
+                }
+                long key = pack(ck[0], ck[1]);
+                maxSubByChunk.merge(key, ck[3], Math::max);
+            }
+            Log.i(TAG, "流式第一遍: subchunk key 数=" + subKeys.size()
+                    + ", 有 sub 数据的 chunk 数=" + maxSubByChunk.size());
+            subKeys = null; // 释放
+            // 2) 第二遍：高度图 + biome（0x2b/0x2c value）
+            List<LevelDBEntry> heightEntries = reader.readEntries(k -> {
+                int[] ck = parseChunkKey(k);
+                if (ck == null || ck[2] != dimension) {
+                    return false;
+                }
+                int type = k[k.length - (k.length == 9 || k.length == 10 ? 1 : 2)] & 0xFF;
+                return type == KEY_TYPE_DATA_3D || type == 0x2C || type == KEY_TYPE_DATA_2D;
+            });
+            for (LevelDBEntry entry : heightEntries) {
+                byte[] rawKey = entry.getKey().getRawKey();
+                int[] chunkKey = parseChunkKey(rawKey);
+                if (chunkKey == null) {
+                    continue;
+                }
+                long key = pack(chunkKey[0], chunkKey[1]);
+                try {
+                    if (isData2dKey(rawKey)) {
+                        int[] hmap = extractData2d(entry.getValue());
+                        if (hmap != null && !heightMaps.containsKey(key)) {
+                            heightMaps.put(key, hmap);
+                            int maxH = 0;
+                            for (int h : hmap) {
+                                if (h > maxH) {
+                                    maxH = h;
+                                }
+                            }
+                            surfaceSubs.put(key, Math.floorDiv(maxH - 1, 16));
+                            int type = (rawKey.length == 13 ? rawKey[12] : rawKey[8]) & 0xFF;
+                            if (type == KEY_TYPE_DATA_2D) {
+                                byte[] biomes = extractBiomes2d(entry.getValue());
+                                if (biomes != null) {
+                                    biomeMaps.put(key, biomes);
+                                }
+                            } else {
+                                byte[] biomes = extractBiomes3d(entry.getValue(), hmap);
+                                if (biomes != null) {
+                                    biomeMaps.put(key, biomes);
+                                }
+                            }
+                        }
+                    } else if (rawKey.length == 13 && chunkKey[3] < 0) {
+                        // 13B 0x2c ChunkVersion NBT HeightMap（1.18+ 下界/末地）
+                        int[] hmap = extractChunkHeightMap256(parseChunkNbt(entry.getValue()));
+                        if (hmap != null && !heightMaps.containsKey(key)) {
+                            heightMaps.put(key, hmap);
+                            int maxH = 0;
+                            for (int h : hmap) {
+                                if (h > maxH) {
+                                    maxH = h;
+                                }
+                            }
+                            surfaceSubs.put(key, Math.floorDiv(maxH - 1, 16));
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Failed to decode chunk at " + chunkKey[0] + "," + chunkKey[1], e);
+                }
+            }
+            Log.i(TAG, "流式第二遍: 高度图 chunk 数=" + heightMaps.size());
+            heightEntries = null;
+            // 3) 第三遍：只解码窗口内 subchunk（maxSub±2），顺便扫 palette 结构特征
+            int decoded = 0;
+            int skipped = 0;
+            Map<Long, Integer> monumentChunks = new HashMap<>();
+            Map<Long, Integer> endCityChunks = new HashMap<>();
+            List<LevelDBEntry> windowSubs = reader.readEntries(k -> {
+                int[] ck = parseChunkKey(k);
+                if (ck == null || ck[3] < 0 || ck[2] != dimension || !isSubchunkKey(k)) {
+                    return false;
+                }
+                if (dimension != DIM_NETHER) {
+                    Integer maxSub = maxSubByChunk.get(pack(ck[0], ck[1]));
+                    if (maxSub == null || ck[3] < maxSub - 2 || ck[3] > maxSub + 2) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+            for (LevelDBEntry entry : windowSubs) {
+                int[] ck = parseChunkKey(entry.getKey().getRawKey());
+                if (ck == null) {
+                    continue;
+                }
+                skipped++;
+                try {
+                    SubChunk subChunk = decodeSubChunk(entry.getValue());
+                    if (subChunk != null) {
+                        long key = pack(ck[0], ck[1]);
+                        subChunks.computeIfAbsent(key, k -> new HashMap<>())
+                                .put(ck[3], subChunk);
+                        decoded++;
+                        // palette 结构特征（1.26 无 HSA 记录）：
+                        // 海底神殿 sea_lantern+prismarine / 末地城 purpur+end_stone_bricks
+                        boolean lantern = false;
+                        boolean prismarine = false;
+                        boolean purpur = false;
+                        boolean endBricks = false;
+                        for (String pn : subChunk.palette) {
+                            if (pn == null) {
+                                continue;
+                            }
+                            if (pn.contains("sea_lantern")) {
+                                lantern = true;
+                            } else if (pn.contains("prismarine")) {
+                                prismarine = true;
+                            } else if (pn.contains("purpur")) {
+                                purpur = true;
+                            } else if (pn.contains("end_stone_bricks")) {
+                                endBricks = true;
+                            }
+                        }
+                        if (lantern && prismarine) {
+                            monumentChunks.put(key, 1);
+                        }
+                        if (dimension == DIM_END && purpur && endBricks) {
+                            endCityChunks.put(key, 1);
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Failed to decode subchunk at " + ck[0] + "," + ck[1], e);
+                }
+            }
+            Log.i(TAG, "流式第三遍: 窗口内 subchunk=" + skipped + " 解码=" + decoded);
+            reader.close();
+            clusterStructureChunks(monumentChunks, "ocean_monument", detected);
+            clusterStructureChunks(endCityChunks, "end_city", detected);
+            if (!detected.isEmpty()) {
+                Log.i(TAG, "流式结构检测: " + detected.size() + " 个");
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "流式渲染失败", e);
+            return null;
+        }
+        if (heightMaps.isEmpty()) {
+            Log.i(TAG, "卫星模式失败: 无高度图 chunk (维度=" + dimension + ")");
+            return null;
+        }
+        WorldMap map = assembleMap(heightMaps, biomeMaps, subChunks, dimension);
+        map.detectedStructures = detected;
+        return map;
+    }
+
+    /** 大世界流式实体解析：只读实体/玩家相关 key。 */
+    public static List<EntityPos> parseEntitiesStreaming(File dbDir, int dimension) {
+        try {
+            LevelDBReader reader = new LevelDBReader(dbDir);
+            List<LevelDBEntry> entries = reader.readEntries(k -> {
+                // 19B actorprefix 实体 key / 16B digp / 玩家字符串 key
+                if (k != null && k.length == 19 && k[0] == 'a') {
+                    return true;
+                }
+                if (k != null && k.length == 16 && k[0] == 'd' && k[1] == 'i') {
+                    return true;
+                }
+                if (k != null && k.length >= 8) {
+                    boolean printable = true;
+                    for (byte b : k) {
+                        if (b < 32 || b > 126) {
+                            printable = false;
+                            break;
+                        }
+                    }
+                    if (printable) {
+                        String s = new String(k, java.nio.charset.StandardCharsets.US_ASCII);
+                        return s.startsWith("player") || s.startsWith("~local_player");
+                    }
+                }
+                return false;
+            });
+            reader.close();
+            return parseEntities(entries, dimension);
+        } catch (Exception e) {
+            Log.w(TAG, "流式实体解析失败", e);
+            return new ArrayList<>();
+        }
+    }
+
+    /** 大世界流式结构解析：方块实体/HSA/村庄等非 subchunk 结构 key。 */
+    public static List<StructureMarker> parseStructureMarkersStreaming(File dbDir, int dimension) {
+        try {
+            LevelDBReader reader = new LevelDBReader(dbDir);
+            List<LevelDBEntry> entries = reader.readEntries(k -> {
+                if (k == null) {
+                    return false;
+                }
+                int len = k.length;
+                // 9/10B：0x31 方块实体 / 0x39 HSA（老存档）；13/14B：0x30 ChunkData / 0x39
+                if (len == 9 || len == 10 || len == 13 || len == 14) {
+                    int type = k[len - (len == 9 || len == 10 ? 1 : 2)] & 0xFF;
+                    if (type == KEY_TYPE_BLOCK_ENTITY || type == KEY_TYPE_HSA
+                            || type == KEY_TYPE_CHUNK_DATA) {
+                        int[] ck = parseChunkKey(k);
+                        return ck != null && ck[2] == dimension;
+                    }
+                }
+                // VILLAGE_ 字符串 key
+                if (len > 20) {
+                    boolean printable = true;
+                    for (byte b : k) {
+                        if (b < 32 || b > 126) {
+                            printable = false;
+                            break;
+                        }
+                    }
+                    if (printable) {
+                        String s = new String(k, java.nio.charset.StandardCharsets.US_ASCII);
+                        return s.startsWith("VILLAGE_");
+                    }
+                }
+                return false;
+            });
+            reader.close();
+            return parseStructureMarkers(entries, dimension);
+        } catch (Exception e) {
+            Log.w(TAG, "流式结构解析失败", e);
+            return new ArrayList<>();
+        }
     }
 
     // ---------------------------------------------------------------- 实体 / 结构标记
