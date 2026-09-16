@@ -1370,7 +1370,6 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="layer_entity">Entities</string>
     <string name="layer_structure">Structures</string>
     <string name="layer_slime">Slime Chunks</string>
-    <string name="y_offset_label">Surface Y offset: %1$d</string>
     <string name="map_hud_placeholder">X: 0  Z: 0</string>
     <string name="point_search_hint">Search points…</string>
     <string name="no_points">No points. Long-press the map to add.</string>

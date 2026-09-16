@@ -83,9 +83,6 @@ public class WorldMapRenderer {
 
     private static Context appContext;
 
-    /** 表面 y 轴偏移（用户可调，-16~+16 方块；0=默认。调整后需重新加载地图）。 */
-    public static int surfaceYOffset = 0;
-
     /** bedrockmap 颜色表（assets/biome_color.json / block_color.json，运行时加载）。
      *  biome 色调表：id → {rgbR,G,B, grassR,G,B, leavesR,G,B, waterR,G,B}——
      *  草地/树叶贴图是灰度模板，渲染时乘群系色调（MC 着色器机制）。 */
@@ -1169,6 +1166,34 @@ public class WorldMapRenderer {
         Log.i(TAG, "第二遍 subchunk: 命中=" + subKeys + " 跳过=" + skipped
                 + " 解码=" + decoded + " surfaceSubs=" + surfaceSubs.size());
 
+        // 末地维度（9/10B 候选路径）：按 end_stone 判定过滤，
+        // 排除主世界 chunk（含 grass/dirt/stone/ore 等主世界特征方块）
+        if (dimension == DIM_END) {
+            java.util.Iterator<Long> it = heightMaps.keySet().iterator();
+            while (it.hasNext()) {
+                Long key = it.next();
+                if (!chunkIsEndChunk(subChunks.get(key))) {
+                    it.remove();
+                    biomeMaps.remove(key);
+                    subChunks.remove(key);
+                }
+            }
+            minX = Integer.MAX_VALUE;
+            maxX = Integer.MIN_VALUE;
+            minZ = Integer.MAX_VALUE;
+            maxZ = Integer.MIN_VALUE;
+            for (Long key : heightMaps.keySet()) {
+                minX = Math.min(minX, unpackX(key));
+                maxX = Math.max(maxX, unpackX(key));
+                minZ = Math.min(minZ, unpackZ(key));
+                maxZ = Math.max(maxZ, unpackZ(key));
+            }
+            if (heightMaps.isEmpty()) {
+                Log.i(TAG, "卫星模式失败: 无末地 chunk (维度=2)");
+                return null;
+            }
+        }
+
         // 2) 组装全图：每 chunk 16×16 表面色
         int spanX = maxX - minX + 1;
         int spanZ = maxZ - minZ + 1;
@@ -1617,23 +1642,21 @@ public class WorldMapRenderer {
         int biomeId = biomes != null ? biomes[(lz << 4) | lx] & 0xFF : -1;
         int biomeColor = biomeId >= 0 ? biomeGrassColor(biomeId) : 0;
         if (subs != null && !subs.isEmpty()) {
-            // 起始 y：高度图值 -1（最高方块）；高度图全 0（未生成但有人工建筑）时
-            // 从最高 subchunk 顶部开始向下找，避免漏掉建筑。
-            // surfaceYOffset：用户可调 y 轴偏移（解决个别世界高度图语义差异）
-            int yStart = height - 1 + surfaceYOffset;
-            if (yStart < 0) {
-                int maxSub = Integer.MIN_VALUE;
-                for (Integer s : subs.keySet()) {
-                    if (s > maxSub) maxSub = s;
-                }
-                if (maxSub > Integer.MIN_VALUE) {
-                    yStart = maxSub * 16 + 15;
+            // 起始 y：从最高 subchunk 顶部（建筑限高 320 封顶）向下找第一个非空气。
+            // 俯视图不依赖高度图——高度图是生成器预测值（实测会偏到 127~201），
+            // 直接按实际方块数据从顶向下找，天然"以地表为主"
+            int maxSubTop = Integer.MIN_VALUE;
+            for (Integer s : subs.keySet()) {
+                if (s > maxSubTop) {
+                    maxSubTop = s;
                 }
             }
-            // 河/浅水场景：高度图是河床高度（实测 -39,44 处），从河床往下找会先命中
-            // 海草/河床植物。表面接近海平面时启用"水面优先"：向下 12 层内遇到水
-            // 方块直接返回水色（BTR 卫星图惯例）。
-            boolean waterPriority = dimension == DIM_OVERWORLD && yStart > 0 && yStart < 70;
+            int yStart = maxSubTop > Integer.MIN_VALUE
+                    ? Math.min(maxSubTop * 16 + 15, 320)
+                    : height - 1;
+            // 河/浅水场景：从河床往下找会先命中海草/河床植物。
+            // 水类群系启用"水面优先"：向下 12 层内遇到水方块直接返回水色
+            boolean waterPriority = dimension == DIM_OVERWORLD && isWaterBiome(biomeId);
             int firstY = -1;
             int firstColor = 0;
             for (int y = yStart; y >= -64; y--) {
@@ -1712,6 +1735,12 @@ public class WorldMapRenderer {
         return name.endsWith("air"); // minecraft:air / cave_air / void_air
     }
 
+    /** 水类群系（海洋/河流）：水面优先渲染。 */
+    private static boolean isWaterBiome(int biomeId) {
+        return biomeId == 0 || biomeId == 7 || biomeId == 24
+                || (biomeId >= 40 && biomeId <= 47);
+    }
+
     /** 草地类方块：灰度模板 × 群系 grass 色调（MC 着色器机制）。 */
     private static boolean isGrassTinted(String name) {
         return name.equals("minecraft:grass_block")
@@ -1739,19 +1768,30 @@ public class WorldMapRenderer {
         return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
 
-    /** chunk 的 subchunk palette 是否含 end_stone（末地独有方块，用于判定 9/10B 共享 key 归属）。 */
-    private static boolean chunkHasEndStone(Map<Integer, SubChunk> subs) {
+    /** 末地 chunk 判定（9/10B 共享 key 归属）：palette 含 end_stone 且无主世界特征方块。 */
+    private static boolean chunkIsEndChunk(Map<Integer, SubChunk> subs) {
         if (subs == null) {
             return false;
         }
+        boolean hasEndStone = false;
         for (SubChunk sc : subs.values()) {
             for (String pn : sc.palette) {
-                if (pn != null && pn.contains("end_stone")) {
-                    return true;
+                if (pn == null) {
+                    continue;
+                }
+                if (pn.contains("end_stone")) {
+                    hasEndStone = true;
+                }
+                // 主世界特征方块：草地/土/水/石/深板岩/矿物 → 该 chunk 属于主世界
+                if (pn.equals("minecraft:grass_block") || pn.equals("minecraft:dirt")
+                        || pn.equals("minecraft:water") || pn.equals("minecraft:flowing_water")
+                        || pn.equals("minecraft:stone") || pn.equals("minecraft:deepslate")
+                        || pn.contains("_ore")) {
+                    return false;
                 }
             }
         }
-        return false;
+        return hasEndStone;
     }
 
     /** BTR 老版方块颜色表（minecraft: 名 → ARGB；优先 bedrockmap 色表）。 */

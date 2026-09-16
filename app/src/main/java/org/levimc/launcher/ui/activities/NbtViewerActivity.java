@@ -244,28 +244,6 @@ public class NbtViewerActivity extends BaseActivity {
         binding.layerSlime.setOnCheckedChangeListener((b, checked) ->
                 binding.worldMapImage.setShowSlimeChunks(checked));
         binding.worldMapImage.setShowSlimeChunks(binding.layerSlime.isChecked());
-        // y 轴偏移滑块：调整表面渲染高度（个别世界高度图语义差异时手动校准）
-        binding.yOffsetLabel.setText(getString(R.string.y_offset_label, WorldMapRenderer.surfaceYOffset));
-        binding.yOffsetBar.setProgress(WorldMapRenderer.surfaceYOffset + 16);
-        binding.yOffsetBar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(android.widget.SeekBar seekBar, int progress, boolean fromUser) {
-                if (fromUser) {
-                    binding.yOffsetLabel.setText(getString(R.string.y_offset_label, progress - 16));
-                }
-            }
-
-            @Override
-            public void onStartTrackingTouch(android.widget.SeekBar seekBar) {
-            }
-
-            @Override
-            public void onStopTrackingTouch(android.widget.SeekBar seekBar) {
-                // 松手生效：更新偏移并原地重渲染当前维度（保持视角不缩放）
-                WorldMapRenderer.surfaceYOffset = seekBar.getProgress() - 16;
-                loadMapForDimension(mapDimension, true);
-            }
-        });
 
         // 左栏标点搜索 → 列表过滤
         binding.pointSearchInput.addTextChangedListener(new android.text.TextWatcher() {
@@ -510,7 +488,12 @@ public class NbtViewerActivity extends BaseActivity {
                     binding.worldMapPlaceholder.setVisibility(View.GONE);
                     refreshMapBlueprintData();
                 } else {
+                    // 该维度无数据：清空旧地图（避免上一维度地图残留误导）
+                    binding.worldMapImage.setWorldMap(null);
+                    binding.worldMapImage.setEntityData(null);
+                    binding.worldMapImage.setStructureMarkers(null);
                     binding.worldMapPlaceholder.setText(R.string.world_map_unavailable);
+                    binding.worldMapPlaceholder.setVisibility(View.VISIBLE);
                 }
             });
         });

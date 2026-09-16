@@ -364,21 +364,6 @@
                         android:text="@string/layer_slime"
                         android:textColor="@color/on_surface"
                         android:textSize="12sp" />
-                    <TextView
-                        android:id="@+id/y_offset_label"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:fontFamily="@font/misans"
-                        android:text="@string/y_offset_label"
-                        android:textColor="@color/on_surface"
-                        android:textSize="12sp" />
-                    <SeekBar
-                        android:id="@+id/y_offset_bar"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:max="32"
-                        android:progress="16" />
                 </LinearLayout>
 
                 <!-- Tab3 标点管理器 -->
