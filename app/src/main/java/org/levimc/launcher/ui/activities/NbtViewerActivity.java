@@ -105,6 +105,7 @@ public class NbtViewerActivity extends BaseActivity {
     private int accentColor = 0;
 
     private NbtTag levelDatRoot;
+    private WorldMapRenderer.WorldMap currentMap;
     private File currentWorldDir;
     private final List<LevelDBEntry> dbEntries = new ArrayList<>();
     private DbEntryAdapter dbAdapter;
@@ -182,9 +183,42 @@ public class NbtViewerActivity extends BaseActivity {
         setupMapTools(worldDir, worldName);
         setupPrdOverlays();
 
+        // BTR 式视口按需渲染：滑动到未渲染区域时后台逐 chunk 渲染
+        binding.worldMapImage.setOnChunksNeededListener(chunkKeys -> {
+            if (chunkKeys.isEmpty() || currentWorldDir == null || currentMap == null) {
+                return;
+            }
+            final File dbDir = new File(currentWorldDir, "db");
+            final int dim = "nether".equals(mapDimension) ? 1 : "end".equals(mapDimension) ? 2 : 0;
+            final WorldMapRenderer.WorldMap fMap = currentMap;
+            executor.execute(() -> {
+                java.util.Set<Long> done = new java.util.HashSet<>();
+                for (Long key : chunkKeys) {
+                    if (fMap.chunkColors.containsKey(key)) {
+                        done.add(key);
+                        continue;
+                    }
+                    int cx = (int) (key >> 32);
+                    int cz = (int) (long) key;
+                    int[] colors = WorldMapRenderer.renderChunkOnDemand(dbDir, cx, cz, dim);
+                    fMap.chunkColors.put(key, colors != null ? colors : EMPTY_CHUNK_COLORS);
+                    done.add(key); // 未生成 chunk 也标记完成（EMPTY 占位）防重复请求
+                }
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) {
+                        return;
+                    }
+                    binding.worldMapImage.onChunksRendered(done);
+                });
+            });
+        });
+
         selectTab(TAB_LEVEL);
         loadData(worldDir, worldName);
     }
+
+    /** 空 chunk 占位（未生成区域，全透明；避免反复按需读取无数据 chunk）。 */
+    private static final int[] EMPTY_CHUNK_COLORS = new int[256];
 
     /** PRD 悬浮层交互：顶栏展开、左栏抽屉 Tab、图层开关、数据面板、坐标 HUD。 */
     private void setupPrdOverlays() {
@@ -758,15 +792,17 @@ public class NbtViewerActivity extends BaseActivity {
             List<WorldMapRenderer.StructureMarker> structures = null;
             boolean largeWorld = false;
             if (dbDir.isDirectory() && dbSizeBytes(dbDir) > 20 * 1024 * 1024) {
-                // 大世界（155MB 级）：流式渲染，全量 readAllEntries 会 OOM
+                // 大世界（155MB 级）：BTR 式视口按需渲染——先快速进入
+                // （磁盘缓存 / 只扫范围），滑动到新区域才渲染新 chunk
                 largeWorld = true;
-                Log.i(TAG, "大世界流式渲染 dbSize=" + dbSizeBytes(dbDir));
+                Log.i(TAG, "大世界按需渲染 dbSize=" + dbSizeBytes(dbDir));
                 worldMap = WorldMapRenderer.loadChunkCache(dbDir, 0);
                 if (worldMap == null) {
-                    worldMap = WorldMapRenderer.buildSatelliteMapStreaming(dbDir, 0);
-                    if (worldMap != null) {
-                        WorldMapRenderer.saveChunkCache(worldMap, dbDir, 0);
-                    }
+                    worldMap = WorldMapRenderer.buildBoundsOnly(dbDir, 0);
+                }
+                if (worldMap != null) {
+                    worldMap.chunkSourceDir = dbDir;
+                    worldMap.chunkSourceDim = 0;
                 }
                 entities = WorldMapRenderer.parseEntitiesStreaming(dbDir, 0);
                 structures = WorldMapRenderer.parseStructureMarkersStreaming(dbDir, 0);
@@ -939,6 +975,7 @@ public class NbtViewerActivity extends BaseActivity {
     private void onDataLoaded(WorldItem worldItem, NbtTag root, List<LevelDBEntry> entries,
                               boolean levelDatMissing, boolean dbMissing,
                               WorldMapRenderer.WorldMap worldMap) {
+        currentMap = worldMap;
         binding.nbtLoading.setVisibility(View.GONE);
 
         // 世界地图：占满全屏（PRD 布局），缩放/平移时按比例重采样方块颜色
@@ -1620,6 +1657,12 @@ public class NbtViewerActivity extends BaseActivity {
 
     @Override
     protected void onDestroy() {
+        // 大世界按需渲染：把本次会话渲染过的 chunk 增量写入磁盘缓存
+        if (currentMap != null && currentMap.chunkSourceDir != null
+                && !currentMap.chunkColors.isEmpty()) {
+            WorldMapRenderer.saveChunkCache(currentMap, currentMap.chunkSourceDir,
+                    currentMap.chunkSourceDim);
+        }
         super.onDestroy();
         if (executor != null) {
             executor.shutdown();

@@ -934,6 +934,252 @@ public class LevelDBReader {
         }
     }
 
+    /**
+     * 按 chunk 坐标读取该 chunk 的全部条目（高度图/版本/subchunk 等）。
+     * BTR 式视口按需渲染的核心：通过 sst index block 定位 data block，
+     * 只解压 1-2 个块（毫秒级），不解压整表。
+     */
+    public List<LevelDBEntry> readChunk(int cx, int cz) throws IOException {
+        byte[] prefix = new byte[8];
+        prefix[0] = (byte) cx;
+        prefix[1] = (byte) (cx >> 8);
+        prefix[2] = (byte) (cx >> 16);
+        prefix[3] = (byte) (cx >> 24);
+        prefix[4] = (byte) cz;
+        prefix[5] = (byte) (cz >> 8);
+        prefix[6] = (byte) (cz >> 16);
+        prefix[7] = (byte) (cz >> 24);
+        List<LevelDBEntry> out = new ArrayList<>();
+        java.util.Set<ByteArrayWrapper> seen = new java.util.HashSet<>();
+        File[] sstFiles = dbPath.listFiles((dir, name) ->
+                name.endsWith(".ldb") || name.endsWith(".sst"));
+        if (sstFiles != null) {
+            Arrays.sort(sstFiles, Comparator.comparing(File::getName).reversed());
+            for (File sstFile : sstFiles) {
+                try {
+                    readChunkFromSst(sstFile, prefix, out, seen);
+                } catch (Exception e) {
+                    Log.w(TAG, "readChunk failed on " + sstFile.getName(), e);
+                }
+            }
+        }
+        File[] logFiles = dbPath.listFiles((dir, name) -> name.endsWith(".log"));
+        if (logFiles != null) {
+            Arrays.sort(logFiles, Comparator.comparing(File::getName));
+            for (File logFile : logFiles) {
+                try {
+                    // 日志文件小：全读过滤
+                    readLogFileFiltered(logFile, prefix, out, seen);
+                } catch (Exception e) {
+                    Log.w(TAG, "readChunk log failed on " + logFile.getName(), e);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** sst 内定位目标 chunk 前缀的 data block 并解析。 */
+    private void readChunkFromSst(File file, byte[] prefix,
+                                  List<LevelDBEntry> out,
+                                  java.util.Set<ByteArrayWrapper> seen) throws IOException {
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             FileChannel channel = raf.getChannel()) {
+            long fileSize = channel.size();
+            if (fileSize < FOOTER_SIZE) {
+                return;
+            }
+            ByteBuffer footer = ByteBuffer.allocate(FOOTER_SIZE).order(ByteOrder.LITTLE_ENDIAN);
+            channel.position(fileSize - FOOTER_SIZE);
+            channel.read(footer);
+            footer.flip();
+            readVarInt64(footer);
+            readVarInt64(footer);
+            long indexOffset = readVarInt64(footer);
+            long indexSize = readVarInt64(footer);
+            footer.position(40);
+            if (footer.getLong() != TABLE_MAGIC_NUMBER) {
+                return;
+            }
+            ByteBuffer indexBlock = readBlock(channel, indexOffset, (int) indexSize);
+            if (indexBlock == null) {
+                return;
+            }
+            // index 条目：key = 该 data block 的最后一个 key
+            List<byte[]> blockKeys = new ArrayList<>();
+            List<BlockHandle> handles = new ArrayList<>();
+            parseIndexBlockWithKeys(indexBlock, blockKeys, handles);
+            // 二分：第一个 lastKey >= prefix 的块；再补前一块（目标 key 跨块边界）
+            int lo = 0;
+            int hi = handles.size();
+            while (lo < hi) {
+                int mid = (lo + hi) >>> 1;
+                if (compareKeys(blockKeys.get(mid), prefix) < 0) {
+                    lo = mid + 1;
+                } else {
+                    hi = mid;
+                }
+            }
+            for (int i = Math.max(0, lo - 1); i <= Math.min(lo, handles.size() - 1); i++) {
+                ByteBuffer block = readBlock(channel, handles.get(i).offset, (int) handles.get(i).size);
+                if (block == null) {
+                    continue;
+                }
+                parseDataBlockFiltered(block, prefix, out, seen);
+            }
+        }
+    }
+
+    /** 解析 index block，收集每个 data block 的最后 key 与 handle。 */
+    private void parseIndexBlockWithKeys(ByteBuffer buffer, List<byte[]> keys,
+                                         List<BlockHandle> handles) {
+        try {
+            if (buffer.limit() < 4) {
+                return;
+            }
+            buffer.position(buffer.limit() - 4);
+            int numRestarts = buffer.getInt();
+            if (numRestarts < 0 || numRestarts > 10000) {
+                return;
+            }
+            int dataEnd = buffer.limit() - 4 - (numRestarts * 4);
+            if (dataEnd <= 0) {
+                return;
+            }
+            buffer.position(0);
+            byte[] prevKey = new byte[0];
+            while (buffer.position() < dataEnd && buffer.hasRemaining()) {
+                int shared = readVarInt32(buffer);
+                int nonShared = readVarInt32(buffer);
+                int valueLen = readVarInt32(buffer);
+                if (shared < 0 || nonShared < 0 || valueLen < 0 || nonShared > 10000 || valueLen > 100) {
+                    break;
+                }
+                if (buffer.position() + nonShared + valueLen > buffer.limit()) {
+                    break;
+                }
+                byte[] fullKey = new byte[shared + nonShared];
+                if (shared > 0 && shared <= prevKey.length) {
+                    System.arraycopy(prevKey, 0, fullKey, 0, shared);
+                }
+                buffer.get(fullKey, shared, nonShared);
+                prevKey = fullKey;
+                // index value = BlockHandle varint64×2
+                long offset = readVarInt64(buffer);
+                long size = readVarInt64(buffer);
+                // fullKey 去掉 8 字节 seq 才是 user key（作为"最后 key"比较用完整 key 也行）
+                byte[] userKey = fullKey.length > 8
+                        ? Arrays.copyOf(fullKey, fullKey.length - 8) : fullKey;
+                keys.add(userKey);
+                handles.add(new BlockHandle(offset, size));
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Error parsing index block with keys", e);
+        }
+    }
+
+    /** 解析 data block，只保留目标 chunk 前缀的条目。 */
+    private void parseDataBlockFiltered(ByteBuffer buffer, byte[] prefix,
+                                        List<LevelDBEntry> out,
+                                        java.util.Set<ByteArrayWrapper> seen) {
+        try {
+            if (buffer.limit() < 4) {
+                return;
+            }
+            buffer.position(buffer.limit() - 4);
+            int numRestarts = buffer.getInt();
+            if (numRestarts < 0 || numRestarts > 100000) {
+                return;
+            }
+            int dataEnd = buffer.limit() - 4 - (numRestarts * 4);
+            if (dataEnd <= 0) {
+                return;
+            }
+            buffer.position(0);
+            byte[] prevKey = new byte[0];
+            while (buffer.position() < dataEnd && buffer.hasRemaining()) {
+                int shared = readVarInt32(buffer);
+                int nonShared = readVarInt32(buffer);
+                int valueLen = readVarInt32(buffer);
+                if (shared < 0 || nonShared < 0 || valueLen < 0) {
+                    break;
+                }
+                if (shared > 10000 || nonShared > 10000 || valueLen > 50 * 1024 * 1024) {
+                    break;
+                }
+                if (buffer.position() + nonShared + valueLen > buffer.limit()) {
+                    break;
+                }
+                byte[] fullKey = new byte[shared + nonShared];
+                if (shared > 0 && shared <= prevKey.length) {
+                    System.arraycopy(prevKey, 0, fullKey, 0, shared);
+                }
+                buffer.get(fullKey, shared, nonShared);
+                prevKey = fullKey;
+                byte[] value = new byte[valueLen];
+                buffer.get(value);
+                if (fullKey.length <= 8) {
+                    continue;
+                }
+                int type = fullKey[fullKey.length - 8] & 0xFF;
+                byte[] userKey = Arrays.copyOf(fullKey, fullKey.length - 8);
+                if (userKey.length < 8 || !prefixMatches(userKey, prefix)) {
+                    continue;
+                }
+                if (type == 1) {
+                    ByteArrayWrapper w = new ByteArrayWrapper(userKey);
+                    if (seen.add(w)) {
+                        out.add(new LevelDBEntry(userKey, value));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Error parsing filtered data block", e);
+        }
+    }
+
+    private static boolean prefixMatches(byte[] key, byte[] prefix) {
+        for (int i = 0; i < 8; i++) {
+            if (key[i] != prefix[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static int compareKeys(byte[] a, byte[] b) {
+        int n = Math.min(a.length, b.length);
+        for (int i = 0; i < n; i++) {
+            int d = (a[i] & 0xFF) - (b[i] & 0xFF);
+            if (d != 0) {
+                return d;
+            }
+        }
+        return a.length - b.length;
+    }
+
+    /** 日志文件按前缀过滤读取（日志小，全读）。 */
+    private void readLogFileFiltered(File logFile, byte[] prefix,
+                                     List<LevelDBEntry> out,
+                                     java.util.Set<ByteArrayWrapper> seen) throws IOException {
+        if (logFile.length() == 0) {
+            return;
+        }
+        // 日志可能含目标 chunk 的最新写入：全读但只保留前缀匹配
+        EntryFilter old = filter;
+        filter = k -> k != null && k.length >= 8 && prefixMatches(k, prefix);
+        try {
+            readLogFile(logFile);
+            for (Map.Entry<ByteArrayWrapper, byte[]> e : allData.entrySet()) {
+                if (e.getValue() != null && seen.add(e.getKey())) {
+                    out.add(new LevelDBEntry(e.getKey().data, e.getValue()));
+                }
+            }
+            allData.clear();
+        } finally {
+            filter = old;
+        }
+    }
+
     private static class ByteArrayWrapper {
         final byte[] data;
         final int hashCode;

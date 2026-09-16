@@ -44,7 +44,7 @@ import java.util.Map;
 public class WorldMapView extends View {
 
     /** 每 block 的最大屏幕像素（BTR 1.0x 缩放级 = 16px/block） */
-    private static final float MAX_PIXELS_PER_BLOCK = 16f;
+    private static final float MAX_PIXELS_PER_BLOCK = 24f;
     /** 每 block 的最小屏幕像素（避免整数运算下采样失真） */
     private static final float MIN_PIXELS_PER_BLOCK = 0.05f;
 
@@ -105,6 +105,25 @@ public class WorldMapView extends View {
 
     public void setOnViewChangedListener(OnViewChangedListener l) {
         this.viewChangedListener = l;
+    }
+
+    /** 视口按需渲染回调（BTR 式）：视口内缺失的 chunk 由外部渲染后填回 chunkColors。 */
+    public interface OnChunksNeededListener {
+        void onChunksNeeded(java.util.Set<Long> chunkKeys);
+    }
+
+    private OnChunksNeededListener chunksNeededListener;
+    /** 已请求未渲染的 chunk（去重，防重复提交）。 */
+    private final java.util.Set<Long> pendingChunks = new java.util.HashSet<>();
+
+    public void setOnChunksNeededListener(OnChunksNeededListener l) {
+        this.chunksNeededListener = l;
+    }
+
+    /** 外部按需渲染完成后调用：清除 pending 标记并重绘。 */
+    public void onChunksRendered(java.util.Set<Long> chunkKeys) {
+        pendingChunks.removeAll(chunkKeys);
+        invalidateFullRender();
     }
 
     /** 通知视图变化（供 HUD 更新），在缩放/平移/跳转后调用。 */
@@ -303,8 +322,8 @@ public class WorldMapView extends View {
             offsetY = 0f;
             return;
         }
-        // 初始放大：至少 16px/方块（BTR 最大缩放级，用户要求 12~16）
-        pixelsPerBlock = clampPixelsPerBlock(Math.max(fit, 16f));
+
+        pixelsPerBlock = clampPixelsPerBlock(Math.max(fit, 20f));
         // 目标点：玩家 > 出生点；若该处未生成（透明），螺旋找最近的有数据位置
         int targetX = map.playerBlockX >= 0 ? map.playerBlockX
                 : map.spawnBlockX >= 0 ? map.spawnBlockX : map.minBlockX + map.width / 2;
@@ -441,6 +460,8 @@ public class WorldMapView extends View {
             }
             float invPpb = 1f / pixelsPerBlock;
             // 大世界 chunk 缓存路径（BTR 同款）：逐像素查 chunk 16×16 色表
+            final java.util.Set<Long> missingChunks = map.chunkColors != null
+                    && chunksNeededListener != null ? new java.util.HashSet<>() : null;
             if (map.chunkColors != null) {
                 for (int sy = 0; sy < viewH; sy++) {
                     int by = (int) ((sy - offsetY) * invPpb);
@@ -462,9 +483,16 @@ public class WorldMapView extends View {
                         int wbx = map.minBlockX + bx;
                         int cx = Math.floorDiv(wbx, 16);
                         int lx = wbx - cx * 16;
-                        int[] cc = map.chunkColors.get(packChunk(cx, cz));
+                        long ck = packChunk(cx, cz);
+                        int[] cc = map.chunkColors.get(ck);
                         if (cc == null) {
                             pixelsBuf[sx] = 0;
+                            // 视口按需渲染：收集缺失 chunk（限一次，避免每帧重复报告）
+                            if (chunksNeededListener != null && missingChunks != null
+                                    && missingChunks.size() < 2048
+                                    && !pendingChunks.contains(ck)) {
+                                missingChunks.add(ck);
+                            }
                             continue;
                         }
                         int c = cc[zRow | lx];
@@ -507,6 +535,16 @@ public class WorldMapView extends View {
             }
             cachedPpb = pixelsPerBlock;
             cachedOffsetX = offsetX;
+            // 视口按需渲染：报告缺失 chunk（外部后台渲染后 onChunksRendered 重绘）
+            if (missingChunks != null && !missingChunks.isEmpty()) {
+                pendingChunks.addAll(missingChunks);
+                java.util.Set<Long> report = new java.util.HashSet<>(missingChunks);
+                missingChunks.clear();
+                OnChunksNeededListener l = chunksNeededListener;
+                if (l != null) {
+                    l.onChunksNeeded(report);
+                }
+            }
             cachedOffsetY = offsetY;
             canvas.drawBitmap(cachedBmp, 0, 0, null);
         } else {

@@ -941,6 +941,9 @@ public class WorldMapRenderer {
         public Map<Long, int[]> chunkColors;
         /** 大世界 chunk biome 色缓存（biome 图层用；同 chunkColors 布局）。 */
         public Map<Long, int[]> chunkBiomeColors;
+        /** 视口按需渲染源（BTR 式）：db 目录与维度；非空时缺失 chunk 由外部按需渲染。 */
+        public File chunkSourceDir;
+        public int chunkSourceDim;
         /** 出生点位置（block 坐标，-1 = 无） */
         public int spawnBlockX = -1;
         public int spawnBlockZ = -1;
@@ -1675,6 +1678,150 @@ public class WorldMapRenderer {
             return map;
         } catch (Exception e) {
             Log.w(TAG, "chunk 缓存加载失败", e);
+            return null;
+        }
+    }
+
+    /** 世界范围小文件：首次 readKeys 后缓存，之后打开免扫描。 */
+    private static File boundsFile(File dbDir, int dimension) {
+        return new File(dbDir.getParentFile(), "map_bounds_" + dimension + ".bin");
+    }
+
+    /**
+     * BTR 式快速进入：只拿世界范围（chunk 边界）建空地图。
+     * 有 bounds 缓存文件直接读（毫秒）；无则 readKeys 扫一遍 subchunk
+     * key（155MB 世界约 5 秒）并保存。渲染交给视口按需。
+     */
+    public static WorldMap buildBoundsOnly(File dbDir, int dimension) {
+        File bf = boundsFile(dbDir, dimension);
+        try {
+            int minCx;
+            int maxCx;
+            int minCz;
+            int maxCz;
+            if (bf.isFile()) {
+                try (java.io.DataInputStream dis = new java.io.DataInputStream(
+                        new java.io.FileInputStream(bf))) {
+                    minCx = dis.readInt();
+                    maxCx = dis.readInt();
+                    minCz = dis.readInt();
+                    maxCz = dis.readInt();
+                }
+                Log.i(TAG, "bounds 缓存加载: (" + minCx + "," + minCz + ")-(" + maxCx + "," + maxCz + ")");
+            } else {
+                LevelDBReader reader = new LevelDBReader(dbDir);
+                List<byte[]> subKeys = reader.readKeys(k -> {
+                    int[] ck = parseChunkKey(k);
+                    return ck != null && ck[2] == dimension && isSubchunkKey(k);
+                });
+                reader.close();
+                minCx = Integer.MAX_VALUE;
+                maxCx = Integer.MIN_VALUE;
+                minCz = Integer.MAX_VALUE;
+                maxCz = Integer.MIN_VALUE;
+                for (byte[] k : subKeys) {
+                    int[] ck = parseChunkKey(k);
+                    if (ck == null) {
+                        continue;
+                    }
+                    minCx = Math.min(minCx, ck[0]);
+                    maxCx = Math.max(maxCx, ck[0]);
+                    minCz = Math.min(minCz, ck[1]);
+                    maxCz = Math.max(maxCz, ck[1]);
+                }
+                if (minCx == Integer.MAX_VALUE) {
+                    return null;
+                }
+                try (java.io.DataOutputStream dos = new java.io.DataOutputStream(
+                        new java.io.FileOutputStream(bf))) {
+                    dos.writeInt(minCx);
+                    dos.writeInt(maxCx);
+                    dos.writeInt(minCz);
+                    dos.writeInt(maxCz);
+                }
+                Log.i(TAG, "bounds 已扫描保存: (" + minCx + "," + minCz + ")-(" + maxCx + "," + maxCz + ")");
+            }
+            WorldMap map = new WorldMap(minCx * 16, minCz * 16,
+                    (maxCx - minCx + 1) * 16, (maxCz - minCz + 1) * 16, null, null);
+            map.chunkColors = new HashMap<>();
+            map.chunkBiomeColors = new HashMap<>();
+            map.blockScale = 1;
+            return map;
+        } catch (Exception e) {
+            Log.w(TAG, "buildBoundsOnly 失败", e);
+            return null;
+        }
+    }
+
+    /**
+     * 视口按需渲染（BTR 式）：用 index block 定位只读一个 chunk 的数据，
+     * 渲染 16×16 表面色返回。玩家滑动到新区域时逐 chunk 增量渲染，
+     * 打开地图不再等待全量渲染。
+     */
+    public static int[] renderChunkOnDemand(File dbDir, int cx, int cz, int dimension) {
+        try {
+            LevelDBReader reader = new LevelDBReader(dbDir);
+            List<LevelDBEntry> entries = reader.readChunk(cx, cz);
+            reader.close();
+            int[] hmap = null;
+            byte[] biomes = null;
+            Map<Integer, SubChunk> subs = new HashMap<>();
+            for (LevelDBEntry e : entries) {
+                byte[] rawKey = e.getKey().getRawKey();
+                int[] ck = parseChunkKey(rawKey);
+                if (ck == null || ck[2] != dimension) {
+                    continue;
+                }
+                if (isSubchunkKey(rawKey)) {
+                    SubChunk sc = decodeSubChunk(e.getValue());
+                    if (sc != null) {
+                        subs.put(ck[3], sc);
+                    }
+                } else if (isData2dKey(rawKey)) {
+                    int[] hm = extractData2d(e.getValue());
+                    if (hm != null && hmap == null) {
+                        hmap = hm;
+                        int type = (rawKey.length == 13 ? rawKey[12] : rawKey[8]) & 0xFF;
+                        if (type == KEY_TYPE_DATA_2D) {
+                            byte[] bm = extractBiomes2d(e.getValue());
+                            if (bm != null) {
+                                biomes = bm;
+                            }
+                        } else {
+                            byte[] bm = extractBiomes3d(e.getValue(), hm);
+                            if (bm != null) {
+                                biomes = bm;
+                            }
+                        }
+                    }
+                } else if (rawKey.length == 13 && ck[3] < 0) {
+                    int[] hm = extractChunkHeightMap256(parseChunkNbt(e.getValue()));
+                    if (hm != null && hmap == null) {
+                        hmap = hm;
+                    }
+                }
+            }
+            if (hmap == null) {
+                return null; // 无高度数据（未生成 chunk）
+            }
+            // 窗口裁剪：只保留 maxSub±2（下界全留）
+            if (dimension != DIM_NETHER && !subs.isEmpty()) {
+                int maxSub = Integer.MIN_VALUE;
+                for (int s : subs.keySet()) {
+                    maxSub = Math.max(maxSub, s);
+                }
+                final int fMaxSub = maxSub;
+                subs.keySet().removeIf(s -> s < fMaxSub - 2 || s > fMaxSub + 2);
+            }
+            int[] colors = new int[256];
+            for (int i = 0; i < 256; i++) {
+                int lx = i & 15;
+                int lz = i >> 4;
+                colors[i] = surfaceColor(hmap[i], lx, lz, subs, biomes, dimension);
+            }
+            return colors;
+        } catch (Exception e) {
+            Log.w(TAG, "按需渲染 chunk(" + cx + "," + cz + ") 失败", e);
             return null;
         }
     }
