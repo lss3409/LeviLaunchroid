@@ -34,6 +34,8 @@ public final class CpuScheduler {
             File base = new File("/sys/devices/system/cpu");
             File[] files = base.listFiles();
             if (files == null) {
+                Log.w(TAG, "sysfs 不可读，用全部核心");
+                bindAllCores();
                 return;
             }
             List<long[]> freqs = new ArrayList<>(); // [cpuId, maxFreqKHz]
@@ -52,6 +54,8 @@ public final class CpuScheduler {
                 }
             }
             if (freqs.isEmpty()) {
+                Log.w(TAG, "未读到任何核频率，用全部核心");
+                bindAllCores();
                 return;
             }
             freqs.sort((a, b) -> Long.compare(b[1], a[1]));
@@ -86,6 +90,17 @@ public final class CpuScheduler {
         } catch (Throwable t) {
             Log.w(TAG, "CPU 拓扑扫描失败，保持默认调度", t);
         }
+    }
+
+    /** 全部核心兜底：mask = 全核（读不到拓扑时保证并行度不受限制）。 */
+    private static void bindAllCores() {
+        int cores = Runtime.getRuntime().availableProcessors();
+        if (cores <= 0) {
+            return;
+        }
+        bigCoreMask = (1L << Math.min(cores, 64)) - 1;
+        bigCoreCount = cores;
+        Log.i(TAG, "全核兜底: " + cores + " 核");
     }
 
     /** 把当前线程绑定到大核（失败静默，不影响功能）。 */
