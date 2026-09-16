@@ -6,6 +6,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
+import org.levimc.launcher.R;
 import org.levimc.launcher.core.content.WorldItem;
 import org.levimc.launcher.core.content.WorldManager;
 import org.levimc.launcher.core.versions.GameVersion;
@@ -48,6 +49,10 @@ public final class HardcoreBackupManager {
         void onBackedUp(WorldItem world, String backupPath);
         void onSkipped(WorldItem world, String reason);
         void onFinished(int backedUp, int skipped);
+
+        /** 备份进度（0~100），后台线程回调。 */
+        default void onProgress(WorldItem world, int percent) {
+        }
     }
 
     public static class BackupRecord {
@@ -194,7 +199,7 @@ public final class HardcoreBackupManager {
         return null;
     }
 
-    /** 检查所有极限世界，按间隔备份。 */
+    /** 检查所有极限世界，按间隔备份；备份过程通过通知栏显示进度与结果。 */
     public void checkAndBackup(List<WorldItem> worlds, Callback callback) {
         new Thread(() -> {
             if (!isEnabled()) {
@@ -213,12 +218,20 @@ public final class HardcoreBackupManager {
                     continue;
                 }
                 try {
-                    String path = backupWorld(world);
+                    // 备份开始：通知栏显示进度条
+                    showBackupNotification(world, 0, null);
+                    String path = backupWorld(world, percent -> {
+                        post(callback, () -> callback.onProgress(world, percent));
+                        showBackupNotification(world, percent, null);
+                    });
                     backedUp++;
+                    // 备份完成：通知栏显示结果与位置
+                    showBackupNotification(world, 100, path);
                     post(callback, () -> callback.onBackedUp(world, path));
                 } catch (Exception e) {
                     Log.e(TAG, "Failed to backup hardcore world " + world.getWorldName(), e);
                     skipped++;
+                    showBackupNotification(world, -1, e.getMessage());
                     post(callback, () -> callback.onSkipped(world, "备份失败：" + e.getMessage()));
                 }
             }
@@ -228,8 +241,13 @@ public final class HardcoreBackupManager {
         }, "hardcore-backup").start();
     }
 
-    /** 立即备份一个极限世界（手动触发）。 */
+    /** 立即备份一个极限世界（手动触发），带进度回调（后台线程）。 */
     public String backupWorld(WorldItem world) throws IOException {
+        return backupWorld(world, null);
+    }
+
+    /** 立即备份一个极限世界（手动触发），zip 过程中按百分比回调进度。 */
+    public String backupWorld(WorldItem world, IntConsumer progress) throws IOException {
         File worldFile = world.getFile();
         if (worldFile == null || !worldFile.exists()) {
             throw new IOException("世界目录不存在");
@@ -242,9 +260,12 @@ public final class HardcoreBackupManager {
         String backupName = world.getWorldName() + "_" + seedStr + "_" + timestamp + ".mcworld";
         File backupFile = new File(worldBackupDir, backupName);
 
+        long totalBytes = countBytes(worldFile);
+        final long[] written = {0};
+        final int[] lastPercent = {-1};
         try (OutputStream fos = new FileOutputStream(backupFile);
              ZipOutputStream zos = new ZipOutputStream(fos)) {
-            zipDirectory(worldFile, "", zos);
+            zipDirectory(worldFile, "", zos, totalBytes, written, progress, lastPercent);
         }
 
         // 记录上次备份状态
@@ -254,6 +275,81 @@ public final class HardcoreBackupManager {
                 .apply();
 
         return backupFile.getAbsolutePath();
+    }
+
+    /** 进度回调（0~100 整数）。 */
+    public interface IntConsumer {
+        void accept(int percent);
+    }
+
+    // ---- 备份通知（通知栏弹窗：进度 + 结果路径） ----
+
+    private static final String NOTIF_CHANNEL_ID = "hardcore_backup";
+
+    private void ensureNotifChannel() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            android.app.NotificationChannel channel = new android.app.NotificationChannel(
+                    NOTIF_CHANNEL_ID,
+                    context.getString(R.string.hardcore_backup_notif_channel),
+                    android.app.NotificationManager.IMPORTANCE_LOW);
+            channel.setDescription(context.getString(R.string.hardcore_backup_notif_channel));
+            android.app.NotificationManager nm =
+                    context.getSystemService(android.app.NotificationManager.class);
+            if (nm != null) {
+                nm.createNotificationChannel(channel);
+            }
+        }
+    }
+
+    /**
+     * 通知栏显示备份状态。
+     * @param percent 0~100 进行中（进度条）；100 完成；-1 失败
+     * @param detail  完成时 = 备份文件路径；失败时 = 错误信息
+     */
+    private void showBackupNotification(WorldItem world, int percent, String detail) {
+        try {
+            android.app.NotificationManager nm =
+                    context.getSystemService(android.app.NotificationManager.class);
+            if (nm == null) {
+                return;
+            }
+            if (android.os.Build.VERSION.SDK_INT >= 33 && nm.areNotificationsEnabled() == false) {
+                return;
+            }
+            ensureNotifChannel();
+            android.app.Notification.Builder builder;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                builder = new android.app.Notification.Builder(context, NOTIF_CHANNEL_ID);
+            } else {
+                builder = new android.app.Notification.Builder(context);
+            }
+            builder.setSmallIcon(org.levimc.launcher.R.drawable.ic_leaf_logo_mono)
+                    .setContentTitle(context.getString(R.string.hardcore_backup_notif_title,
+                            world.getWorldName()));
+
+            if (percent >= 0 && percent < 100) {
+                builder.setProgress(100, percent, false)
+                        .setContentText(percent + "%")
+                        .setOngoing(true);
+            } else if (percent == 100) {
+                builder.setProgress(0, 0, false)
+                        .setOngoing(false)
+                        .setAutoCancel(true)
+                        .setContentText(context.getString(R.string.hardcore_backup_notif_done,
+                                detail != null ? detail : ""));
+            } else {
+                builder.setProgress(0, 0, false)
+                        .setOngoing(false)
+                        .setAutoCancel(true)
+                        .setContentText(context.getString(R.string.hardcore_backup_notif_failed,
+                                detail != null ? detail : ""));
+            }
+            String worldId = world.getWorldId();
+            int notifId = worldId != null && !worldId.isEmpty() ? worldId.hashCode() : world.getWorldName().hashCode();
+            nm.notify(notifId, builder.build());
+        } catch (Throwable t) {
+            Log.w(TAG, "备份通知失败", t);
+        }
     }
 
     /** 若世界自上次备份后无变化（未游玩），返回 null 表示跳过，避免无意义重复备份。 */
@@ -274,13 +370,15 @@ public final class HardcoreBackupManager {
         return prefs(context).getLong("last_backup_at_" + world.getWorldId(), 0L);
     }
 
-    private void zipDirectory(File dir, String basePath, ZipOutputStream zos) throws IOException {
+    private void zipDirectory(File dir, String basePath, ZipOutputStream zos,
+                              long totalBytes, long[] written, IntConsumer progress, int[] lastPercent)
+            throws IOException {
         File[] files = dir.listFiles();
         if (files == null) return;
         for (File file : files) {
             String entryPath = basePath.isEmpty() ? file.getName() : basePath + "/" + file.getName();
             if (file.isDirectory()) {
-                zipDirectory(file, entryPath, zos);
+                zipDirectory(file, entryPath, zos, totalBytes, written, progress, lastPercent);
             } else {
                 ZipEntry entry = new ZipEntry(entryPath);
                 zos.putNextEntry(entry);
@@ -289,11 +387,34 @@ public final class HardcoreBackupManager {
                     int len;
                     while ((len = fis.read(buffer)) > 0) {
                         zos.write(buffer, 0, len);
+                        written[0] += len;
+                        if (progress != null && totalBytes > 0) {
+                            int percent = (int) Math.min(99, written[0] * 100 / totalBytes);
+                            if (percent != lastPercent[0]) {
+                                lastPercent[0] = percent;
+                                progress.accept(percent);
+                            }
+                        }
                     }
                 }
                 zos.closeEntry();
             }
         }
+    }
+
+    /** 递归统计目录总字节数（用于备份进度百分比）。 */
+    private long countBytes(File dir) {
+        long total = 0;
+        File[] files = dir.listFiles();
+        if (files == null) return 0;
+        for (File file : files) {
+            if (file.isDirectory()) {
+                total += countBytes(file);
+            } else {
+                total += file.length();
+            }
+        }
+        return total;
     }
 
     private static String sanitize(String name) {

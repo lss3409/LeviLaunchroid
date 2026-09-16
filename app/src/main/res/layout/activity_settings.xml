@@ -236,14 +236,6 @@
                                     android:textSize="15sp"
                                     android:textStyle="bold" />
 
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginTop="2dp"
-                                    android:fontFamily="@font/misans"
-                                    android:text="@string/memory_monitor_overlay_desc"
-                                    android:textColor="@color/text_secondary"
-                                    android:textSize="12sp" />
                             </LinearLayout>
 
                             <com.google.android.material.switchmaterial.SwitchMaterial
@@ -283,23 +275,7 @@
                                     android:textSize="15sp"
                                     android:textStyle="bold" />
 
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginTop="2dp"
-                                    android:fontFamily="@font/misans"
-                                    android:text="@string/foreground_service_desc"
-                                    android:textColor="@color/text_secondary"
-                                    android:textSize="12sp" />
 
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginTop="4dp"
-                                    android:fontFamily="@font/misans"
-                                    android:text="@string/foreground_service_warning"
-                                    android:textColor="@color/warning"
-                                    android:textSize="11sp" />
                             </LinearLayout>
 
                             <com.google.android.material.switchmaterial.SwitchMaterial

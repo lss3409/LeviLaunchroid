@@ -109,7 +109,7 @@ public class WorldItem extends ContentItem {
                     NbtTag deathTag = compound.get("DeathTime");
                     NbtTag healthTag = compound.get("Health");
                     NbtTag deadTag = compound.get("Dead");
-                    NbtTag gameModeTag = compound.get("PlayerGameMode");
+
                     if (deathTag == null && healthTag == null && deadTag == null) continue;
                     if (deathTag != null && deathTag.getInt() > 0) {
                         // 死亡画面倒计时（TAG_Short ticks，硬核死亡后退出时仍 >0）
@@ -125,13 +125,8 @@ public class WorldItem extends ContentItem {
                             playerDead = true;
                         }
                     }
-                    if (isHardcore && gameModeTag != null) {
-                        // 硬核死亡后玩家模式变为观察者（实测死亡存档 PlayerGameMode=5）
-                        int gm = gameModeTag.getInt();
-                        if (gm == 5 || gm == 6) {
-                            playerDead = true;
-                        }
-                    }
+                    // PlayerGameMode 不可靠（实测未死存档也会是 5/6），不参与死亡判定。
+                    // 死亡只认：DeathTime>0、Dead!=0、Health<=0（以及 level.dat 的 PlayerHasDied）。
                     break;
                 } catch (Exception ignored) {
                 }

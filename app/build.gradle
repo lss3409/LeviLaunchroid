@@ -160,6 +160,7 @@ dependencies {
     implementation libs.conscrypt.android
     implementation libs.androidx.games.activity
     implementation libs.okhttp
+    implementation("com.google.zxing:core:3.5.3")
     implementation libs.androidx.dynamicanimation
     implementation libs.androidx.browser
     implementation libs.bedrock.connection

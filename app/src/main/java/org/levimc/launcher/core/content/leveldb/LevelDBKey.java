@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 
 public class LevelDBKey {
     public enum KeyType {
+        DATA_3D(0x2b, "Data3D"),
         CHUNK_VERSION(0x2c, "ChunkVersion"),
         CHUNK(0x2d, "Chunk"),
         DATA_2D(0x2d, "Data2D"),
@@ -73,10 +74,17 @@ public class LevelDBKey {
             } else if (rawKey.length == 13) {
                 keyType = KeyType.fromId(rawKey[12] & 0xFF);
                 isChunkKey = keyType.id >= 0;
+                if (!isChunkKey) {
+                    // 13 字节非 chunk key（如 "~local_player" 恰好 13 字节）按字符串处理
+                    stringKey = safeAscii(rawKey);
+                }
             } else {
                 keyType = KeyType.fromId(rawKey[12] & 0xFF);
                 subChunkIndex = rawKey[13] & 0xFF;
                 isChunkKey = keyType.id >= 0;
+                if (!isChunkKey) {
+                    stringKey = safeAscii(rawKey);
+                }
             }
         } else {
             isChunkKey = false;
@@ -115,6 +123,19 @@ public class LevelDBKey {
             sb.append(String.format("%02X", b));
         }
         return sb.toString();
+    }
+
+    /** 全 ASCII 可打印时返回字符串，否则返回 hex（13/14 字节非 chunk key 如 "~local_player"）。 */
+    private static String safeAscii(byte[] bytes) {
+        boolean printable = true;
+        for (byte b : bytes) {
+            int c = b & 0xFF;
+            if (c < 0x20 || c > 0x7E) {
+                printable = false;
+                break;
+            }
+        }
+        return printable ? new String(bytes, StandardCharsets.US_ASCII) : bytesToHex(bytes);
     }
 
     public boolean isChunkKey() {

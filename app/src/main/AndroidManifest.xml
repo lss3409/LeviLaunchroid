@@ -46,6 +46,7 @@
     </queries>
 
     <application
+        android:largeHeap="true"
         android:name="org.levimc.launcher.core.minecraft.LauncherApplication"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"

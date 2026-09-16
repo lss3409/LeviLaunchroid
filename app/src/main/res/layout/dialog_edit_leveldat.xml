@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 编辑世界设置（level.dat）弹窗内容：启动器卡片风格 -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:fillViewport="true"
+    android:overScrollMode="never"
+    android:scrollbars="none">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="4dp"
+        android:paddingBottom="4dp">
+
+        <!-- 世界名 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/misans"
+            android:text="@string/nbt_edit_name"
+            android:textColor="@color/on_surface"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/edit_world_name"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_search_field_light"
+            android:fontFamily="@font/misans"
+            android:importantForAutofill="no"
+            android:paddingHorizontal="14dp"
+            android:singleLine="true"
+            android:textColor="@color/on_surface"
+            android:textColorHint="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <!-- 游戏模式（点击弹出选择列表） -->
+        <LinearLayout
+            android:id="@+id/row_gamemode"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="14dp"
+            android:background="?attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="4dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/misans"
+                    android:text="@string/nbt_edit_gamemode"
+                    android:textColor="@color/on_surface"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_gamemode_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="@font/misans"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/misans"
+                android:text="›"
+                android:textColor="@color/text_secondary"
+                android:textSize="22sp" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:alpha="0.3"
+            android:background="@color/divider" />
+
+        <!-- 难度（点击弹出选择列表） -->
+        <LinearLayout
+            android:id="@+id/row_difficulty"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:background="?attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="4dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/misans"
+                    android:text="@string/nbt_edit_difficulty"
+                    android:textColor="@color/on_surface"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_difficulty_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="@font/misans"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/misans"
+                android:text="›"
+                android:textColor="@color/text_secondary"
+                android:textSize="22sp" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:alpha="0.3"
+            android:background="@color/divider" />
+
+        <!-- 种子 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:fontFamily="@font/misans"
+            android:text="@string/nbt_edit_seed"
+            android:textColor="@color/on_surface"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/edit_seed"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_search_field_light"
+            android:fontFamily="@font/misans"
+            android:importantForAutofill="no"
+            android:inputType="number|numberSigned"
+            android:paddingHorizontal="14dp"
+            android:singleLine="true"
+            android:textColor="@color/on_surface"
+            android:textColorHint="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <!-- 硬核开关 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="14dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="4dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/misans"
+                    android:text="@string/nbt_edit_hardcore"
+                    android:textColor="@color/on_surface"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="@font/misans"
+                    android:text="@string/nbt_edit_hardcore_hint"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switch_hardcore"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:thumbTint="@color/primary"
+                android:trackTint="#555555" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
