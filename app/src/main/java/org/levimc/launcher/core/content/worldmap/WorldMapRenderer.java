@@ -113,13 +113,15 @@ public class WorldMapRenderer {
                     // bedrock-level color.cpp 语义：biome_grass_map 只存有 grass 键的条目，
                     // 找不到时 blend_with_biome 用 default_grass_color。不能回退 rgb——
                     // river rgb=[0,0,255] 纯蓝、cherry_groves 粉、deep_dark 深黑，
-                    // 回退 rgb 会把河岸草方块染成深蓝（实测 -1942,1069）
+                    // 回退 rgb 会把河岸草方块染成深蓝（实测 -1942,1069）。
+                    // 缺失 key 存 -1 标记：biomeGrassColor 按 grass→water→海洋类
+                    // 默认水色/陆地类默认草色的顺序取主色（biome 图层不再直接用 rgb）
                     int[] grass = entry.has("grass") ? readRgb3(entry.optJSONArray("grass"))
-                            : DEFAULT_GRASS_TINT;
+                            : new int[]{-1, -1, -1};
                     int[] leaves = entry.has("leaves") ? readRgb3(entry.optJSONArray("leaves"))
-                            : DEFAULT_LEAVES_TINT;
+                            : new int[]{-1, -1, -1};
                     int[] water = entry.has("water") ? readRgb3(entry.optJSONArray("water"))
-                            : DEFAULT_WATER_TINT;
+                            : new int[]{-1, -1, -1};
                     biomeTintTable.put(id, new int[]{
                             rgb[0], rgb[1], rgb[2],
                             grass[0], grass[1], grass[2],
@@ -2641,17 +2643,18 @@ public class WorldMapRenderer {
         }
         int[] tint = biomeTintTable.get(biomeId);
         // bedrockmap color.cpp classify_tint 优先级：water → leave → grass，
-        // 并补上 bedrockmap 缺失的灰度模板：fern/vine（草类）、leaf_litter（leaf）
+        // 并补上 bedrockmap 缺失的灰度模板：fern/vine（草类）、leaf_litter（leaf）。
+        // tint 缺失 key（-1 标记）时回退默认色
         if (name.contains("water")) {
-            return tint != null ? multiplyTint(color, tint, 9)
+            return tint != null && tint[9] >= 0 ? multiplyTint(color, tint, 9)
                     : multiplyTint(color, DEFAULT_WATER_TINT, 0);
         }
         if (name.contains("leave") || name.contains("leaf")) {
-            return tint != null ? multiplyTint(color, tint, 6)
+            return tint != null && tint[6] >= 0 ? multiplyTint(color, tint, 6)
                     : multiplyTint(color, DEFAULT_LEAVES_TINT, 0);
         }
         if (name.contains("grass") || name.contains("fern") || name.contains("vine")) {
-            return tint != null ? multiplyTint(color, tint, 3)
+            return tint != null && tint[3] >= 0 ? multiplyTint(color, tint, 3)
                     : multiplyTint(color, DEFAULT_GRASS_TINT, 0);
         }
         return color;
@@ -2949,28 +2952,52 @@ public class WorldMapRenderer {
     }
 
     /** biome id → 地图色（优先 bedrockmap 色表 rgb，回退 BTR 内置表）。 */
+    /** 海洋/河流类 biome（无 grass/water tint 条目，biome 图层用默认水色）。 */
+    private static boolean isWaterBiome(int biomeId) {
+        switch (biomeId) {
+            case 0: case 7: case 10: case 11: case 24:
+            case 40: case 41: case 42: case 43: case 44: case 45: case 46: case 47:
+                return true;
+            default: return false;
+        }
+    }
+
     private static int biomeGrassColor(int biomeId) {
         int[] tint = biomeTintTable.get(biomeId);
         if (tint != null) {
-            return 0xFF000000 | (tint[0] << 16) | (tint[1] << 8) | tint[2];
+            // biome 图层主色：grass → water → （海洋类默认水色/陆地类默认草色）。
+            // 不能用 rgb——river rgb=[0,0,255] 纯蓝、ocean rgb=[0,0,112] 深蓝近黑，
+            // 实测 TK 大世界 (285,-26) 海洋显示成黑色大方块、河岸显示纯蓝的根因
+            if (tint[3] >= 0) {
+                return 0xFF000000 | (tint[3] << 16) | (tint[4] << 8) | tint[5];
+            }
+            if (tint[6] >= 0) {
+                return 0xFF000000 | (tint[6] << 16) | (tint[7] << 8) | tint[8];
+            }
+            if (isWaterBiome(biomeId)) {
+                return 0xFF000000 | (DEFAULT_WATER_TINT[0] << 16)
+                        | (DEFAULT_WATER_TINT[1] << 8) | DEFAULT_WATER_TINT[2];
+            }
+            return 0xFF000000 | (DEFAULT_GRASS_TINT[0] << 16)
+                    | (DEFAULT_GRASS_TINT[1] << 8) | DEFAULT_GRASS_TINT[2];
         }
         switch (biomeId) {
-            case 0: return 0xFF020070;   // ocean
+            case 0: return 0xFF2E4A9E;   // ocean（原 0xFF020070 深蓝近黑，biome 图层显示成黑块）
             case 1: return 0xFF8CB060;   // plains
             case 2: return 0xFFFB941B;   // desert
             case 3: return 0xFF5D635D;   // extreme hills
             case 4: return 0xFF1E8A3C;   // forest（提亮：老 BTR 原色 0x026320 过暗近黑）
             case 5: return 0xFF09665B;   // taiga
             case 6: return 0xFF04C88B;   // swampland
-            case 7: return 0xFF0101FF;   // river
+            case 7: return 0xFF3F76E4;   // river（原纯蓝 0xFF0101FF）
             case 9: return 0xFFD8DFA8;   // the_end（末地石浅黄）
-            case 10: return 0xFF8E8DA1;  // frozen ocean
-            case 11: return 0xFFA0A8F0;  // frozen river（冰河蓝灰）
+            case 10: return 0xFF5A7EA8;  // frozen ocean（原 0xFF8E8DA1 灰紫）
+            case 11: return 0xFF8FA8D8;  // frozen river（冰河蓝灰）
             case 12: return 0xFFE0ECF4;  // ice plains（淡蓝白，非纯白）
             case 16: return 0xFFFADF55;  // beach
             case 21: return 0xFF527A07;  // jungle
             case 23: return 0xFF6E9A4E;  // jungle edge
-            case 24: return 0xFF02002F;  // deep ocean
+            case 24: return 0xFF1E3A8F;  // deep ocean（原 0xFF02002F 近黑）
             case 25: return 0xFFA2A484;  // stone beach
             case 26: return 0xFFB8C4C0;  // cold beach（冷岸灰白）
             case 27: return 0xFF307546;  // birch forest
