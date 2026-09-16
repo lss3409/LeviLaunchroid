@@ -1620,6 +1620,8 @@ public class WorldMapRenderer {
             boolean purpur = false;
             boolean endBricks = false;
             boolean chiseledSandstone = false;
+            boolean orangeTerracotta = false;
+            boolean cutSandstone = false;
             boolean darkOak = false;
             boolean darkOakLog = false;
             boolean stone = false;
@@ -1638,6 +1640,10 @@ public class WorldMapRenderer {
                         endBricks = true;
                     } else if (pn.contains("chiseled_sandstone")) {
                         chiseledSandstone = true;
+                    } else if (pn.contains("orange_terracotta")) {
+                        orangeTerracotta = true;
+                    } else if (pn.contains("cut_sandstone")) {
+                        cutSandstone = true;
                     } else if (pn.contains("dark_oak_planks")) {
                         darkOak = true;
                     } else if (pn.contains("dark_oak_log")) {
@@ -1653,7 +1659,8 @@ public class WorldMapRenderer {
             if (dimension == DIM_END && purpur && endBricks) {
                 endCityChunks.put(key, 1);
             }
-            if (dimension == DIM_OVERWORLD && chiseledSandstone) {
+            if (dimension == DIM_OVERWORLD && (chiseledSandstone
+                    || (cutSandstone && orangeTerracotta))) {
                 monumentChunks.put(key, 2); // 复用 map：value 2 = 沙漠神殿
             }
             if (dimension == DIM_OVERWORLD && darkOak && darkOakLog && stone) {
@@ -2396,6 +2403,8 @@ public class WorldMapRenderer {
             return; // 已判定过
         }
         boolean chiseledSandstone = false;
+        boolean cutSandstone = false;
+        boolean orangeTerracotta = false;
         boolean darkOak = false;
         boolean darkOakLog = false;
         boolean stone = false;
@@ -2406,6 +2415,10 @@ public class WorldMapRenderer {
                 }
                 if (pn.contains("chiseled_sandstone")) {
                     chiseledSandstone = true;
+                } else if (pn.contains("cut_sandstone")) {
+                    cutSandstone = true;
+                } else if (pn.contains("orange_terracotta")) {
+                    orangeTerracotta = true;
                 } else if (pn.contains("dark_oak_planks")) {
                     darkOak = true;
                 } else if (pn.contains("dark_oak_log")) {
@@ -2415,7 +2428,8 @@ public class WorldMapRenderer {
                 }
             }
         }
-        String type = chiseledSandstone ? "desert_temple"
+        String type = (chiseledSandstone || (cutSandstone && orangeTerracotta))
+                ? "desert_temple"
                 : darkOak && darkOakLog && stone ? "outpost" : null;
         if (type == null) {
             return;
