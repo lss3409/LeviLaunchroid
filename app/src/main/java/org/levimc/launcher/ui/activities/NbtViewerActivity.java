@@ -150,6 +150,8 @@ public class NbtViewerActivity extends BaseActivity {
     private final List<BlueprintDb.Link> mapLinks = new ArrayList<>();
     private String mapDimension = "overworld";
     private boolean toolMenuOpen = false;
+    /** 左栏当前展开的 Tab（再次点击收回抽屉）。 */
+    private View currentLbTab = null;
     /** 连线模式：null=关，否则为起点标点 id */
     private Long linkModeFrom = null;
     private boolean linkModeActive = false;
@@ -319,8 +321,20 @@ public class NbtViewerActivity extends BaseActivity {
         DynamicAnim.applyPressScale(binding.btnDataPanel);
         DynamicAnim.applyPressScale(binding.dataPanelClose);
 
-        // 左栏：图标条点击切换 Tab（展开抽屉）
+        // 左栏：图标条点击切换 Tab（展开抽屉）；再点当前 Tab 收回抽屉
         View.OnClickListener lbClick = v -> {
+            boolean same = currentLbTab == v
+                    && binding.leftbarBody.getVisibility() == View.VISIBLE;
+            if (same) {
+                // 收回：隐藏抽屉主体并复位图标高亮
+                binding.leftbarBody.setVisibility(View.GONE);
+                currentLbTab = null;
+                binding.lbInfo.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+                binding.lbLayers.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+                binding.lbPoints.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+                return;
+            }
+            currentLbTab = v;
             binding.leftbarBody.setVisibility(View.VISIBLE);
             binding.tabInfo.setVisibility(v == binding.lbInfo ? View.VISIBLE : View.GONE);
             binding.tabLayers.setVisibility(v == binding.lbLayers ? View.VISIBLE : View.GONE);
@@ -456,6 +470,7 @@ public class NbtViewerActivity extends BaseActivity {
         // 标点列表
         binding.toolPointList.setOnClickListener(v -> {
             closeToolMenu();
+            currentLbTab = binding.lbPoints;
             binding.leftbarBody.setVisibility(View.VISIBLE);
             binding.tabInfo.setVisibility(View.GONE);
             binding.tabLayers.setVisibility(View.GONE);

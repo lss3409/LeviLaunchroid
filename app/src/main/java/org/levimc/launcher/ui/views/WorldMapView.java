@@ -177,11 +177,22 @@ public class WorldMapView extends View {
             int cz = (int) (long) k;
             return cx < minCx || cx > maxCx || cz < minCz || cz > maxCz;
         });
+        // 被卸载的 chunk 必须同时移出 pendingChunks——否则 onDraw 收集缺失时
+        // 被 pending 拦截，滑回去永远不再请求渲染（内存优化开启后滑动出现
+        // 成片空白的根因）
+        if (!pendingChunks.isEmpty()) {
+            pendingChunks.removeIf(k -> {
+                int cx = (int) (k >> 32);
+                int cz = (int) (long) k;
+                return cx < minCx || cx > maxCx || cz < minCz || cz > maxCz;
+            });
+        }
         chunkDataCache.clear();
         if (lodMini != null) {
             lodMini.recycle();
             lodMini = null;
         }
+        invalidate();
     }
 
     /** 通知视图变化（供 HUD 更新），在缩放/平移/跳转后调用。 */

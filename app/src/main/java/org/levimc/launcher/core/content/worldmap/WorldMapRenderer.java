@@ -409,7 +409,13 @@ public class WorldMapRenderer {
             // 0x2B~0x30 均为 chunk 数据（Data3D/Data2D/subchunk/ChunkVersion/ChunkData），
             // 0x31+ 是实体/方块实体等非 chunk key
             if (type >= KEY_TYPE_DATA_3D && type <= KEY_TYPE_CHUNK_DATA) {
+                // 14B key 的 sub 索引同样是 signed（下界/末地 y<0 的 subchunk
+                // 是 0xFC~0xFF = -4~-1）——之前未做符号转换，sub 解析成 252，
+                // surfaceColor 永远找不到该层 → 下界/末地整片回退 biome 纯色块
                 int sub = len == 14 ? rawKey[13] : -1;
+                if (sub > 127) {
+                    sub -= 256;
+                }
                 return new int[]{readIntLE(rawKey, 0), readIntLE(rawKey, 4),
                         mapDimFromKey(readIntLE(rawKey, 8)), sub};
             }
