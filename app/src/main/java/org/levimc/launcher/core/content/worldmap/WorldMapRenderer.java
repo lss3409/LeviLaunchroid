@@ -66,17 +66,27 @@ public class WorldMapRenderer {
      *  硬编码剔除 bedrock+netherrack）。 */
     public static volatile java.util.Set<String> netherExcludeBlocks = null;
 
-    /** 下界窗口裁剪：sub 与 [yMin,yMax] 无交集则剔除（全量时不动）。 */
+    /** 下界窗口裁剪：sub 与 [yMin,yMax] 无交集则剔除。
+     *  未设 y 范围（全量档）时也跳过基岩天花板层（sub 6+，y96+ 只有基岩/
+     *  空气——实测下界 hmap max=64 是地表高度，主世界同款经验：高空层
+     *  解码纯浪费，surfaceColor 从基岩顶向下找会跳过剔除的基岩）。 */
     private static void applyNetherWindow(Map<Integer, SubChunk> subs) {
-        if (netherYMin < 0 || subs == null || subs.isEmpty()) {
+        if (subs == null || subs.isEmpty()) {
             return;
         }
-        subs.keySet().removeIf(s -> s * 16 + 15 < netherYMin || s * 16 > netherYMax);
+        if (netherYMin >= 0) {
+            subs.keySet().removeIf(s -> s * 16 + 15 < netherYMin || s * 16 > netherYMax);
+        } else {
+            subs.keySet().removeIf(s -> s >= 6);
+        }
     }
 
     /** 下界 sub 是否在设定 y 范围内（供流式/全量 filter 用）。 */
     private static boolean netherSubInRange(int sub) {
-        return netherYMin < 0 || (sub * 16 + 15 >= netherYMin && sub * 16 <= netherYMax);
+        if (netherYMin >= 0) {
+            return sub * 16 + 15 >= netherYMin && sub * 16 <= netherYMax;
+        }
+        return sub < 6;
     }
     /** 末地维度 id（内部逻辑编号） */
     private static final int DIM_END = 2;

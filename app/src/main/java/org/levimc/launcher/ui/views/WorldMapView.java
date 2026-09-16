@@ -519,6 +519,8 @@ public class WorldMapView extends View {
     private static final int ROW_BATCH = 32;
     /** 缩放/跳转动画期间用缓存位图做变换预览（捏合焦点锚点），结束再全量重采样 */
     private boolean scalePreviewActive;
+    /** 缩放进行中：暂停按需渲染缺失报告（缩放停止后恢复）。 */
+    private boolean scaling;
     private float scaleFocusX;
     private float scaleFocusY;
 
@@ -639,7 +641,7 @@ public class WorldMapView extends View {
         int lastCx = Math.min(maxCx, Math.floorDiv((int) Math.ceil(rightWorld), 16));
         int lastCz = Math.min(maxCz, Math.floorDiv((int) Math.ceil(bottomWorld), 16));
         int visibleChunks = (lastCx - firstCx + 1) * (lastCz - firstCz + 1);
-        final java.util.Set<Long> missing = chunksNeededListener != null
+        final java.util.Set<Long> missing = chunksNeededListener != null && !scaling
                 ? new java.util.HashSet<>() : null;
         if (visibleChunks > 4096) {
             // LOD：全图缩略一次 drawBitmap（缩小到整图可视时视口含全图 chunk，
@@ -1559,6 +1561,10 @@ public class WorldMapView extends View {
             scaleFocusX = detector.getFocusX();
             scaleFocusY = detector.getFocusY();
             scalePreviewActive = cachedBmp != null;
+            // 缩放中暂停按需渲染报告：视口每帧剧变，收集的 missing 是瞬态
+            // 集合，批量提交后缩放停止前又过期——渲染队列被过期的 chunk
+            // 塞满，等停止后当前视口反而排最后（"缩放乱搞渲染就乱"根因）
+            scaling = true;
             clampTranslation();
             invalidate();
             notifyViewChanged();
@@ -1567,8 +1573,10 @@ public class WorldMapView extends View {
 
         @Override
         public void onScaleEnd(@NonNull ScaleGestureDetector detector) {
-            // 捏合结束：全量重采样一帧
+            // 捏合结束：全量重采样一帧 + 恢复按需渲染报告
+            // （onDraw 下一帧收集当前视口真实缺失，只渲染需要的 chunk）
             scalePreviewActive = false;
+            scaling = false;
             invalidate();
             notifyViewChanged();
         }

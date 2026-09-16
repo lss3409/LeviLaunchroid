@@ -1384,7 +1384,8 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="nether_y_top">Top</string>
     <string name="nether_y_mid">Mid</string>
     <string name="nether_y_bottom">Bottom</string>
-    <string name="nether_exclude_title">Exclude blocks (blacklist)</string>
+    <string name="nether_exclude_title">Blacklist</string>
+    <string name="nether_exclude_dialog_title">Blacklist · Exclude blocks</string>
     <string name="nether_exclude_default">Default: bedrock + netherrack</string>
     <string name="layer_grid">Chunk grid</string>
     <string name="layer_biome">Biomes</string>

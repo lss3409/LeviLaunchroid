@@ -537,23 +537,8 @@ public class NbtViewerActivity extends BaseActivity {
     };
 
     private void refreshNetherExcludeLabel() {
-        java.util.Set<String> ex = WorldMapRenderer.netherExcludeBlocks;
-        if (ex == null) {
-            binding.netherExcludeBtn.setText(getString(R.string.nether_exclude_title)
-                    + " · " + getString(R.string.nether_exclude_default));
-            return;
-        }
-        StringBuilder names = new StringBuilder();
-        for (String[] b : NETHER_BLOCKS) {
-            if (ex.contains(b[1])) {
-                if (names.length() > 0) {
-                    names.append("、");
-                }
-                names.append(b[0]);
-            }
-        }
-        binding.netherExcludeBtn.setText(getString(R.string.nether_exclude_title)
-                + (names.length() > 0 ? " · " + names : " · 无"));
+        // 精简：只显示"黑名单"字样，详情进弹窗
+        binding.netherExcludeBtn.setText(getString(R.string.nether_exclude_title));
     }
 
     private void showNetherExcludeDialog() {
@@ -569,13 +554,25 @@ public class NbtViewerActivity extends BaseActivity {
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-            row.setPadding(0, (int) (4 * d), 0, (int) (4 * d));
-            // 色块图标（block_color.json 颜色；贴图爬取后续版本接入）
-            ImageView swatch = new ImageView(this);
-            swatch.setImageResource(R.drawable.bg_circle);
-            swatch.setColorFilter(WorldMapRenderer.blockColor(b[1]));
-            int sp = (int) (20 * d);
-            row.addView(swatch, new LinearLayout.LayoutParams(sp, sp));
+            row.setPadding(0, (int) (5 * d), 0, (int) (5 * d));
+            // MC 原版方块贴图（assets/nether_textures/，minecraft.wiki 爬取；
+            // 加载失败回退色表色块）
+            ImageView icon = new ImageView(this);
+            String texName = b[1].substring("minecraft:".length());
+            try (java.io.InputStream in = getAssets()
+                    .open("nether_textures/" + texName + ".png")) {
+                android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeStream(in);
+                if (bmp != null) {
+                    icon.setImageBitmap(bmp);
+                } else {
+                    throw new java.io.IOException("decode fail");
+                }
+            } catch (Exception e) {
+                icon.setImageResource(R.drawable.bg_circle);
+                icon.setColorFilter(WorldMapRenderer.blockColor(b[1]));
+            }
+            int sp = (int) (26 * d);
+            row.addView(icon, new LinearLayout.LayoutParams(sp, sp));
             android.widget.CheckBox cb = new android.widget.CheckBox(this);
             cb.setText(b[0]);
             cb.setTextSize(13);
@@ -595,7 +592,7 @@ public class NbtViewerActivity extends BaseActivity {
             panel.addView(row);
         }
         new CustomAlertDialog(this)
-                .setTitleText(getString(R.string.nether_exclude_title))
+                .setTitleText(getString(R.string.nether_exclude_dialog_title))
                 .setCustomView(panel)
                 .setPositiveButton(getString(R.string.nbt_edit_save), v2 -> {
                     // null = 从未设置（默认剔除基岩+下界岩）；
@@ -901,6 +898,14 @@ public class NbtViewerActivity extends BaseActivity {
     /** keepView=true 时重载后保留当前视角（y 轴偏移等原地刷新场景）。 */
     private void loadMapForDimension(String dim, boolean keepView) {
         binding.nbtLoading.setVisibility(View.VISIBLE);
+        // 切维度前保存当前维度渲染缓存——否则刚渲染的 chunk 只存在内存，
+        // 切回来缓存是旧的，又要重新渲染（下界切换慢的帮凶）
+        WorldMapRenderer.WorldMap oldMap = currentMap;
+        if (oldMap != null && oldMap.chunkColors != null && !oldMap.chunkColors.isEmpty()
+                && currentWorldDir != null) {
+            WorldMapRenderer.saveChunkCache(oldMap, new File(currentWorldDir, "db"),
+                    "nether".equals(mapDimension) ? 1 : "end".equals(mapDimension) ? 2 : 0);
+        }
         // 维度隔绝：切换时立刻清掉旧维度地图与图层——否则新图渲染完成前
         // 旧图一直显示（"切下界先看到主世界，过一会才跳过去"的根因）
         currentMap = null;
