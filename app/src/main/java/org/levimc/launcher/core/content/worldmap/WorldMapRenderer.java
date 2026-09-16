@@ -1342,7 +1342,8 @@ public class WorldMapRenderer {
                 if (ck == null || ck[2] != dimension) {
                     return false;
                 }
-                int type = k[k.length - (k.length == 9 || k.length == 10 ? 1 : 2)] & 0xFF;
+                // 类型字节：9/10B 在 k[8]（10B 的 k[9] 是 sub 字节！），13/14B 在 k[12]
+                int type = k[k.length == 13 || k.length == 14 ? 12 : 8] & 0xFF;
                 if (fStep > 1 && (Math.floorMod(ck[0], fStep) != 0
                         || Math.floorMod(ck[1], fStep) != 0)) {
                     return false; // 降采样：只处理代表 chunk
@@ -1526,7 +1527,7 @@ public class WorldMapRenderer {
                 int len = k.length;
                 // 9/10B：0x31 方块实体 / 0x39 HSA（老存档）；13/14B：0x30 ChunkData / 0x39
                 if (len == 9 || len == 10 || len == 13 || len == 14) {
-                    int type = k[len - (len == 9 || len == 10 ? 1 : 2)] & 0xFF;
+                    int type = k[len == 13 || len == 14 ? 12 : 8] & 0xFF;
                     if (type == KEY_TYPE_BLOCK_ENTITY || type == KEY_TYPE_HSA
                             || type == KEY_TYPE_CHUNK_DATA) {
                         int[] ck = parseChunkKey(k);
