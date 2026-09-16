@@ -432,8 +432,12 @@ public class NbtViewerActivity extends BaseActivity {
         binding.layerGrid.setOnCheckedChangeListener((b, checked) ->
                 binding.worldMapImage.setShowGrid(checked));
         binding.worldMapImage.setShowGrid(binding.layerGrid.isChecked());
-        binding.layerBiome.setOnCheckedChangeListener((b, checked) ->
-                binding.worldMapImage.setShowBiomeLayer(checked));
+        binding.layerBiome.setOnCheckedChangeListener((b, checked) -> {
+            binding.worldMapImage.setShowBiomeLayer(checked);
+            if (checked && currentMap != null) {
+                WorldMapRenderer.debugExport(currentMap); // 调试导出 biome 图层
+            }
+        });
         binding.worldMapImage.setShowBiomeLayer(binding.layerBiome.isChecked());
         binding.layerEntity.setOnCheckedChangeListener((b, checked) ->
                 binding.worldMapImage.setShowEntities(checked));
@@ -2178,12 +2182,17 @@ public class NbtViewerActivity extends BaseActivity {
         }
         final WorldMapRenderer.WorldMap fMap = currentMap;
         final File worldDir = currentWorldDir;
+        final java.util.List<WorldMapRenderer.EntityPos> fEntities =
+                binding.worldMapImage.getEntities();
+        final String fVersion = readLevelVersion();
+        final long fSeed = getWorldSeed();
         binding.nbtLoading.setVisibility(View.VISIBLE);
         executor.execute(() -> {
             try {
-                // 大世界数据不足时先全量流式渲染（一次 30-60 秒，导出质量优先）
+                // 大世界无条件全量流式渲染（一次 30-60 秒，导出精度优先——
+                // 视口按需渲染只覆盖屏幕附近 chunk，直接导出会缺大片地形）
                 WorldMapRenderer.WorldMap exportMap = fMap;
-                if (exportMap.chunkColors != null && exportMap.chunkColors.size() < 1000) {
+                if (exportMap.chunkColors != null) {
                     WorldMapRenderer.WorldMap full = WorldMapRenderer.buildSatelliteMapStreaming(
                             new File(worldDir, "db"), 0);
                     if (full != null) {
@@ -2225,7 +2234,8 @@ public class NbtViewerActivity extends BaseActivity {
                 }
                 File out = WorldMapRenderer.exportWorldHtml(exportMap, dir,
                         worldDir.getName() + "_map.html",
-                        worldDir.getName(), px, pz, sx, sz, pts, lks, sts);
+                        worldDir.getName(), fSeed, fVersion, px, pz, sx, sz,
+                        pts, lks, sts, fEntities);
                 final File fOut = out;
                 runOnUiThread(() -> {
                     binding.nbtLoading.setVisibility(View.GONE);
@@ -2240,6 +2250,31 @@ public class NbtViewerActivity extends BaseActivity {
                 });
             }
         });
+    }
+
+    private String readLevelVersion() {
+        if (levelDatRoot == null) {
+            return "?";
+        }
+        NbtTag v = levelDatRoot.getTag("LastOpenedWithVersion");
+        if (v == null) {
+            v = levelDatRoot.getTag("MinimumCompatibleClientVersion");
+        }
+        if (v == null) {
+            return "?";
+        }
+        java.util.List<NbtTag> l = v.getList();
+        if (l.isEmpty()) {
+            return "?";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (NbtTag t : l) {
+            if (sb.length() > 0) {
+                sb.append('.');
+            }
+            sb.append(t.getInt());
+        }
+        return sb.toString();
     }
 
     private void showBlueprintDialog() {

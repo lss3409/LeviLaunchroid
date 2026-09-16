@@ -3215,7 +3215,17 @@ public class WorldMapRenderer {
     /** 雪地类 biome（无 grass tint：地表被雪覆盖，biome 图层用雪白）。 */
     private static boolean isSnowBiome(int biomeId) {
         switch (biomeId) {
-            case 11: case 12: case 26: case 46: case 47: case 183:
+            case 10:  // legacy_frozen_ocean
+            case 11:  // frozen_river
+            case 12:  // ice_plains
+            case 13:  // ice_mountains
+            case 26:  // cold_beach
+            case 30:  // cold_taiga
+            case 46:  // frozen_ocean
+            case 47:  // deep_frozen_ocean
+            case 140: // ice_plains_spikes
+            case 183: // snow_capped_peaks
+            case 184: // snowy_slopes
                 return true;
             default: return false;
         }
@@ -3233,9 +3243,14 @@ public class WorldMapRenderer {
     private static int biomeGrassColor(int biomeId) {
         int[] tint = biomeTintTable.get(biomeId);
         if (tint != null) {
-            // biome 图层主色：grass → water → （海洋类默认水色/陆地类默认草色）。
+            // biome 图层主色：雪地 → grass → water → （海洋类默认水色/陆地类默认草色）。
             // 不能用 rgb——river rgb=[0,0,255] 纯蓝、ocean rgb=[0,0,112] 深蓝近黑，
-            // 实测 TK 大世界 (285,-26) 海洋显示成黑色大方块、河岸显示纯蓝的根因
+            // 实测 TK 大世界 (285,-26) 海洋显示成黑色大方块、河岸显示纯蓝的根因。
+            // 雪地必须最先判断：ice_plains 等色表里也有 grass tint[128,180,151]，
+            // grass 分支先命中会把雪原染成绿色（tju 雪地刷绿的根因）
+            if (isSnowBiome(biomeId)) {
+                return 0xFFE8EEF6;
+            }
             if (tint[3] >= 0) {
                 return 0xFF000000 | (tint[3] << 16) | (tint[4] << 8) | tint[5];
             }
@@ -3245,11 +3260,6 @@ public class WorldMapRenderer {
             if (isWaterBiome(biomeId)) {
                 return 0xFF000000 | (DEFAULT_WATER_TINT[0] << 16)
                         | (DEFAULT_WATER_TINT[1] << 8) | DEFAULT_WATER_TINT[2];
-            }
-            if (isSnowBiome(biomeId)) {
-                // 雪地类 biome 无 grass 色（雪覆盖地表）：用雪白——此前回退
-                // 默认草绿，"雪地群系刷绿色"的根因
-                return 0xFFE8EEF6;
             }
             return 0xFF000000 | (DEFAULT_GRASS_TINT[0] << 16)
                     | (DEFAULT_GRASS_TINT[1] << 8) | DEFAULT_GRASS_TINT[2];
@@ -3264,18 +3274,19 @@ public class WorldMapRenderer {
             case 6: return 0xFF04C88B;   // swampland
             case 7: return 0xFF3F76E4;   // river（原纯蓝 0xFF0101FF）
             case 9: return 0xFFD8DFA8;   // the_end（末地石浅黄）
-            case 10: return 0xFF5A7EA8;  // frozen ocean（原 0xFF8E8DA1 灰紫）
-            case 11: return 0xFF8FA8D8;  // frozen river（冰河蓝灰）
-            case 12: return 0xFFE0ECF4;  // ice plains（淡蓝白，非纯白）
+            case 10: return 0xFFE8EEF6;  // frozen ocean（冰面雪白）
+            case 11: return 0xFFE8EEF6;  // frozen river（冰面雪白）
+            case 12: return 0xFFE8EEF6;  // ice plains（雪白）
+            case 13: return 0xFFE8EEF6;  // ice mountains
             case 16: return 0xFFFADF55;  // beach
             case 21: return 0xFF527A07;  // jungle
             case 23: return 0xFF6E9A4E;  // jungle edge
             case 24: return 0xFF1E3A8F;  // deep ocean（原 0xFF02002F 近黑）
             case 25: return 0xFFA2A484;  // stone beach
-            case 26: return 0xFFB8C4C0;  // cold beach（冷岸灰白）
+            case 26: return 0xFFE8EEF6;  // cold beach（积雪滩）
             case 27: return 0xFF307546;  // birch forest
             case 29: return 0xFF425218;  // roofed forest
-            case 30: return 0xFF8FBF5A;  // birch forest hills（白桦丘陵浅绿）
+            case 30: return 0xFFE8EEF6;  // cold taiga（雪地针叶林）
             case 32: return 0xFF4E7A4E;  // forest hills
             case 34: return 0xFF6E8A6E;  // taiga hills
             case 35: return 0xFFC0B45E;  // savanna
@@ -3419,14 +3430,16 @@ public class WorldMapRenderer {
      * points: {name,x,z,color} / links: {x1,z1,x2,z2,color}
      */
     public static File exportWorldHtml(WorldMap map, File outDir, String fileName,
-                                       String title,
+                                       String title, long seed, String versionStr,
                                        int playerX, int playerZ, int spawnX, int spawnZ,
                                        java.util.List<String[]> points,
                                        java.util.List<String[]> links,
-                                       java.util.List<StructureMarker> structures)
+                                       java.util.List<StructureMarker> structures,
+                                       java.util.List<EntityPos> entities)
             throws Exception {
-        // 1) 卫星图 PNG（小世界全图方块级；大世界 chunk 概览每 chunk 1 像素）
+        // 1) 卫星图 PNG（小世界全图方块级；大世界 chunk 每 chunk 4×4 采样 = 4 倍精度）
         Bitmap pngBmp;
+        int pngW;
         if (map.colors != null) {
             int w = map.width;
             int h = map.height;
@@ -3435,6 +3448,7 @@ public class WorldMapRenderer {
             }
             pngBmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
             pngBmp.setPixels(map.colors, 0, w, 0, 0, w, h);
+            pngW = w;
         } else if (map.chunkColors != null && !map.chunkColors.isEmpty()) {
             int minCx = Integer.MAX_VALUE;
             int maxCx = Integer.MIN_VALUE;
@@ -3450,17 +3464,43 @@ public class WorldMapRenderer {
             }
             int cw = maxCx - minCx + 1;
             int ch = maxCz - minCz + 1;
-            if (cw <= 0 || ch <= 0 || cw * ch > 16 * 1024 * 1024) {
+            long total = (long) cw * ch * 16;
+            if (cw <= 0 || ch <= 0 || total > 32L * 1024 * 1024) {
                 throw new IllegalStateException("chunk 范围过大: " + cw + "x" + ch);
             }
-            pngBmp = Bitmap.createBitmap(cw, ch, Bitmap.Config.ARGB_8888);
+            final int SCALE = 4;
+            pngW = cw * SCALE;
+            int pngH = ch * SCALE;
+            pngBmp = Bitmap.createBitmap(pngW, pngH, Bitmap.Config.ARGB_8888);
             for (Map.Entry<Long, int[]> e : map.chunkColors.entrySet()) {
                 int cx = (int) (e.getKey() >> 32);
                 int cz = (int) (long) e.getKey();
-                for (int v : e.getValue()) {
-                    if ((v & 0xFF000000) != 0) {
-                        pngBmp.setPixel(cx - minCx, cz - minCz, v);
-                        break;
+                int px = (cx - minCx) * SCALE;
+                int pz = (cz - minCz) * SCALE;
+                int[] tile = e.getValue();
+                // 16×16 tile 按 4×4 网格采样，每格 4×4 方块取非透明均值
+                for (int gy = 0; gy < SCALE; gy++) {
+                    for (int gx = 0; gx < SCALE; gx++) {
+                        int r = 0;
+                        int g = 0;
+                        int b = 0;
+                        int n = 0;
+                        for (int y = gy * 4; y < gy * 4 + 4; y++) {
+                            int base = y * 16 + gx * 4;
+                            for (int x = 0; x < 4; x++) {
+                                int v = tile[base + x];
+                                if ((v & 0xFF000000) != 0) {
+                                    r += (v >> 16) & 0xFF;
+                                    g += (v >> 8) & 0xFF;
+                                    b += v & 0xFF;
+                                    n++;
+                                }
+                            }
+                        }
+                        if (n > 0) {
+                            pngBmp.setPixel(px + gx, pz + gy,
+                                    0xFF000000 | (r / n << 16) | (g / n << 8) | (b / n));
+                        }
                     }
                 }
             }
@@ -3479,37 +3519,93 @@ public class WorldMapRenderer {
         int minZ = map.minBlockZ;
         int maxX = minX + map.width;
         int maxZ = minZ + map.height;
-        StringBuilder html = new StringBuilder(4096);
+        StringBuilder html = new StringBuilder(16384);
         html.append("<!DOCTYPE html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">")
                 .append("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">")
                 .append("<title>").append(escapeHtml(title)).append("</title>")
                 .append("<link rel=\"stylesheet\" href=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.css\"/>")
                 .append("<script src=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.js\"></script>")
-                .append("<style>body{margin:0;background:#12141a}#map{position:absolute;top:0;bottom:0;width:100%}")
+                .append("<style>")
+                .append("body{margin:0;background:#12141a;font-family:system-ui,sans-serif}")
+                .append("#map{position:absolute;top:0;bottom:0;width:100%}")
+                .append("#panel{position:absolute;top:10px;right:10px;z-index:1000;background:rgba(20,24,32,.93);")
+                .append("color:#e8eaf0;border:1px solid #3a6b8a;border-radius:12px;padding:12px 14px;")
+                .append("max-width:300px;font-size:13px;box-shadow:0 2px 12px rgba(0,0,0,.5)}")
+                .append("#panel h3{margin:0 0 8px;font-size:15px;color:#8ce0ff}")
+                .append("#panel td{padding:2px 6px 2px 0;color:#a8b4c4;white-space:nowrap}")
+                .append("#panel td.v{color:#fff;font-family:monospace}")
+                .append("#layers{margin-top:8px;border-top:1px solid #3a6b8a;padding-top:6px}")
+                .append("#layers label{display:block;padding:2px 0;cursor:pointer;color:#c8d0dc}")
+                .append("#layers input{margin-right:6px;accent-color:#5b9cf6}")
+                .append("#panel button{margin-top:6px;width:100%;padding:5px;background:#2a3342;color:#8ce0ff;")
+                .append("border:1px solid #3a6b8a;border-radius:6px;cursor:pointer}")
+                .append("#collapse{position:absolute;top:10px;right:10px;z-index:1001;background:rgba(20,24,32,.93);")
+                .append("color:#8ce0ff;border:1px solid #3a6b8a;border-radius:8px;padding:4px 10px;cursor:pointer}")
+                .append("#hint{margin-top:6px;color:#7a8aa0;font-size:11px}")
                 .append(".dist-label{background:rgba(20,24,32,.85);color:#8ce0ff;font:12px monospace;")
-                .append("padding:2px 8px;border-radius:10px;border:1px solid #3a6b8a}</style></head><body>")
-                .append("<div id=\"map\"></div><script>")
-                .append("var map=L.map('map',{crs:L.CRS.Simple,minZoom:-4,maxZoom:3});")
+                .append("padding:2px 8px;border-radius:10px;border:1px solid #3a6b8a}")
+                .append(".pt-popup b{color:#ffd54f}")
+                .append(".pt-popup .del{display:inline-block;margin-top:6px;color:#ff8a80;")
+                .append("cursor:pointer;text-decoration:underline}")
+                .append("</style></head><body>")
+                .append("<div id=\"map\"></div>")
+                .append("<button id=\"collapse\" onclick=\"togglePanel()\">收起</button>")
+                .append("<div id=\"panel\"><h3>").append(escapeHtml(title)).append("</h3><table>")
+                .append("<tr><td>种子</td><td class=\"v\">").append(seed).append("</td></tr>")
+                .append("<tr><td>游戏版本</td><td class=\"v\">").append(escapeHtml(versionStr))
+                .append("</td></tr>");
+        if (playerX != Integer.MIN_VALUE) {
+            html.append("<tr><td>玩家</td><td class=\"v\">").append(playerX).append(", ")
+                    .append(playerZ).append("</td></tr>");
+        }
+        if (spawnX != Integer.MIN_VALUE) {
+            html.append("<tr><td>出生点</td><td class=\"v\">").append(spawnX).append(", ")
+                    .append(spawnZ).append("</td></tr>");
+        }
+        html.append("<tr><td>地图范围</td><td class=\"v\">").append(map.width).append(" × ")
+                .append(map.height).append(" 方块</td></tr>")
+                .append("</table><div id=\"layers\">")
+                .append("<label><input type=\"checkbox\" id=\"ck-p\" checked onchange=\"tg('p')\">标点</label>")
+                .append("<label><input type=\"checkbox\" id=\"ck-l\" checked onchange=\"tg('l')\">连线</label>")
+                .append("<label><input type=\"checkbox\" id=\"ck-s\" checked onchange=\"tg('s')\">结构</label>")
+                .append("<label><input type=\"checkbox\" id=\"ck-e\" onchange=\"tg('e')\">实体</label>")
+                .append("<label><input type=\"checkbox\" id=\"ck-sl\" onchange=\"tg('sl')\">史莱姆区块</label>")
+                .append("</div>")
+                .append("<button onclick=\"exportJson()\">导出标点 JSON</button>")
+                .append("<button onclick=\"clearSaved()\">清空新增标点</button>")
+                .append("<div id=\"hint\">长按地图 = 添加标点；点击标点气泡内可删除</div></div>")
+                .append("<script>")
+                .append("var map=L.map('map',{crs:L.CRS.Simple,minZoom:-5,maxZoom:3});")
                 .append("var BOUNDS=[[").append(minZ).append(',').append(maxX).append("],[")
                 .append(maxZ).append(',').append(minX).append("]];")
                 .append("L.imageOverlay('data:image/png;base64,").append(b64)
-                .append("',BOUNDS).addTo(map);");
-        // 标点
+                .append("',BOUNDS).addTo(map);")
+                .append("var MR=Math.pow(2,-map.getBoundsZoom(BOUNDS))*8;")
+                .append("var groups={p:L.layerGroup(),l:L.layerGroup(),s:L.layerGroup(),")
+                .append("e:L.layerGroup(),sl:L.layerGroup()};")
+                .append("function tg(k){if(document.getElementById('ck-'+k).checked){groups[k].addTo(map);}")
+                .append("else{map.removeLayer(groups[k]);}}")
+                .append("function togglePanel(){var p=document.getElementById('panel');")
+                .append("var b=document.getElementById('collapse');")
+                .append("if(p.style.display==='none'){p.style.display='block';b.textContent='收起';}")
+                .append("else{p.style.display='none';b.textContent='信息';}}");
+        // 标点（数据库内标点固定；新增标点走 localStorage + Shift 点击）
         if (points != null && !points.isEmpty()) {
             html.append("var pts=");
             html.append(jsonArray(points));
-            html.append(";pts.forEach(function(p){L.circleMarker([p.z,p.x],{radius:8,color:p.c,fillOpacity:.9})")
-                    .append(".addTo(map).bindPopup('<b>'+p.n+'</b><br>X:'+p.x+' Z:'+p.z);});");
+            html.append(";pts.forEach(function(p){groups.p.addLayer(L.circle([p.z,p.x],")
+                    .append("{radius:MR,color:p.c,weight:2,fillOpacity:.85})")
+                    .append(".bindPopup('<b>'+p.n+'</b><br>X:'+p.x+' Z:'+p.z));});");
         }
         // 连线（虚线 + 距离标注）
         if (links != null && !links.isEmpty()) {
             html.append("var lks=");
             html.append(jsonArray(links));
-            html.append(";lks.forEach(function(l){L.polyline([[l.z1,l.x1],[l.z2,l.x2]],")
-                    .append("{color:l.c,dashArray:'6,8',weight:2}).addTo(map);")
+            html.append(";lks.forEach(function(l){groups.l.addLayer(L.polyline([[l.z1,l.x1],[l.z2,l.x2]],")
+                    .append("{color:l.c,dashArray:'6,8',weight:2}));")
                     .append("var d=Math.round(Math.hypot(l.x2-l.x1,l.z2-l.z1));")
-                    .append("L.marker([(l.z1+l.z2)/2,(l.x1+l.x2)/2],{icon:L.divIcon({className:'dist-label',")
-                    .append("html:'<span>'+d+'m</span>',iconSize:[60,20]})}).addTo(map);});");
+                    .append("groups.l.addLayer(L.marker([(l.z1+l.z2)/2,(l.x1+l.x2)/2],{icon:L.divIcon({className:'dist-label',")
+                    .append("html:'<span>'+d+'m</span>',iconSize:[60,20]})}));});");
         }
         // 结构标记
         if (structures != null && !structures.isEmpty()) {
@@ -3525,23 +3621,139 @@ public class WorldMapRenderer {
             }
             sb.append(']');
             html.append(sb);
-            html.append(";sts.forEach(function(s){L.circleMarker([s.z,s.x],{radius:10,color:'#f5a623',")
-                    .append("fillOpacity:.85}).addTo(map).bindPopup('<b>'+s.t+'</b><br>X:'+s.x+' Z:'+s.z);});");
+            html.append(";sts.forEach(function(s){groups.s.addLayer(L.circle([s.z,s.x],")
+                    .append("{radius:MR*1.3,color:'#f5a623',weight:2,fillOpacity:.85})")
+                    .append(".bindPopup('<b>'+s.t+'</b><br>X:'+s.x+' Z:'+s.z));});");
         }
+        // 实体（数量大，默认关闭，上限 6000）
+        if (entities != null && !entities.isEmpty()) {
+            int n = Math.min(entities.size(), 6000);
+            StringBuilder eb = new StringBuilder("[");
+            for (int i = 0; i < n; i++) {
+                EntityPos ep = entities.get(i);
+                if (i > 0) {
+                    eb.append(',');
+                }
+                eb.append("{n:'").append(escapeHtml(ep.name)).append("',x:")
+                        .append(Math.round(ep.x)).append(",z:")
+                        .append(Math.round(ep.z)).append('}');
+            }
+            eb.append(']');
+            html.append("var ents=").append(eb);
+            html.append(";ents.forEach(function(e){groups.e.addLayer(L.circle([e.z,e.x],")
+                    .append("{radius:MR*0.6,color:'#ff7043',weight:1,fillOpacity:.7})")
+                    .append(".bindPopup('<b>'+e.n+'</b><br>X:'+e.x+' Z:'+e.z));});");
+        }
+        // 史莱姆区块（只列有地形数据的 chunk：大世界查 chunkColors key，
+        // 小世界按 chunk 网格扫 colors 非透明像素——此前小世界 chunkColors==null
+        // 导致史莱姆开关无论开关都没数据）
+        StringBuilder sl = new StringBuilder("[");
+        boolean first = true;
+        if (map.chunkColors != null) {
+            for (Long key : map.chunkColors.keySet()) {
+                int cx = (int) (key >> 32);
+                int cz = (int) (long) key;
+                if (isSlimeChunk(cx, cz)) {
+                    if (!first) {
+                        sl.append(',');
+                    }
+                    first = false;
+                    sl.append('[').append(cz).append(',').append(cx).append(']');
+                }
+            }
+        } else if (map.colors != null) {
+            int cw = map.width / 16;
+            int ch = map.height / 16;
+            for (int cz = 0; cz < ch; cz++) {
+                for (int cx = 0; cx < cw; cx++) {
+                    if (!isSlimeChunk(map.minBlockX / 16 + cx, map.minBlockZ / 16 + cz)) {
+                        continue;
+                    }
+                    boolean has = false;
+                    int yEnd = Math.min((cz + 1) * 16, map.height);
+                    int xEnd = Math.min((cx + 1) * 16, map.width);
+                    for (int y = cz * 16; y < yEnd && !has; y++) {
+                        int base = y * map.width + cx * 16;
+                        for (int x = 0; x < xEnd - cx * 16; x++) {
+                            if ((map.colors[base + x] & 0xFF000000) != 0) {
+                                has = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (has) {
+                        if (!first) {
+                            sl.append(',');
+                        }
+                        first = false;
+                        sl.append('[').append(map.minBlockZ / 16 + cz).append(',')
+                                .append(map.minBlockX / 16 + cx).append(']');
+                    }
+                }
+            }
+        }
+        sl.append(']');
+        html.append("var sls=").append(sl);
+        html.append(";sls.forEach(function(s){groups.sl.addLayer(L.rectangle(")
+                .append("[[s[0]*16,s[1]*16],[s[0]*16+16,s[1]*16+16]],")
+                .append("{color:'#4ade80',weight:1,fillOpacity:.18}));});");
         // 玩家/出生点
         if (playerX != Integer.MIN_VALUE) {
-            html.append("L.circleMarker([").append(playerZ).append(',').append(playerX)
-                    .append("],{radius:7,color:'#4ade80',fillOpacity:.95}).addTo(map)")
+            html.append("L.circle([").append(playerZ).append(',').append(playerX)
+                    .append("],{radius:MR*0.9,color:'#4ade80',weight:2,fillOpacity:.95}).addTo(map)")
                     .append(".bindPopup('<b>玩家</b><br>X:").append(playerX).append(" Z:")
                     .append(playerZ).append("');");
         }
         if (spawnX != Integer.MIN_VALUE) {
-            html.append("L.circleMarker([").append(spawnZ).append(',').append(spawnX)
-                    .append("],{radius:7,color:'#5b9cf6',fillOpacity:.95}).addTo(map)")
+            html.append("L.circle([").append(spawnZ).append(',').append(spawnX)
+                    .append("],{radius:MR*0.9,color:'#5b9cf6',weight:2,fillOpacity:.95}).addTo(map)")
                     .append(".bindPopup('<b>出生点</b><br>X:").append(spawnX).append(" Z:")
                     .append(spawnZ).append("');");
         }
-        html.append("map.fitBounds(BOUNDS);</script></body></html>");
+        // 标点编辑（localStorage 持久化：长按地图添加、气泡内删除、导出 JSON。
+        // 移动端长按 = contextmenu 事件，桌面端右键同样触发——不能用 Shift+点击，
+        // 安卓浏览器没有 Shift）
+        html.append("var SAVED_KEY='levip_").append(escapeHtml(title)).append("';")
+                .append("var savedPts=[];try{savedPts=JSON.parse(localStorage.getItem(SAVED_KEY))||[];}catch(e){}")
+                .append("var ptRecs=[];")
+                .append("function redrawPts(){ptRecs.forEach(function(r){groups.p.removeLayer(r.c);});ptRecs=[];")
+                .append("savedPts.forEach(function(p){var c=L.circle([p.z,p.x],")
+                .append("{radius:MR,color:p.c||'#ffd54f',weight:2,fillOpacity:.85});")
+                .append("c.bindPopup('<div class=\"pt-popup\"><b>'+p.n+'</b><br>X:'+p.x+' Z:'+p.z")
+                .append("+'<span class=\"del\" onclick=\"delPt('+(ptRecs.length)+')\">删除</span></div>');")
+                .append("groups.p.addLayer(c);ptRecs.push(c);});}")
+                .append("function delPt(i){var c=ptRecs[i];if(!c)return;")
+                .append("savedPts.splice(i,1);localStorage.setItem(SAVED_KEY,JSON.stringify(savedPts));redrawPts();}")
+                .append("var pendingPt=null;")
+                .append("function cancelPt(){var b=document.getElementById('pt-dlg');if(b){b.remove();}pendingPt=null;}")
+                .append("function savePt(){var i=document.getElementById('pt-name');")
+                .append("var n=i?i.value.trim():'';if(!n||!pendingPt){return;}")
+                .append("savedPts.push({n:n,x:Math.round(pendingPt.lng),z:Math.round(pendingPt.lat),c:'#ffd54f'});")
+                .append("localStorage.setItem(SAVED_KEY,JSON.stringify(savedPts));cancelPt();redrawPts();}")
+                .append("map.on('contextmenu',function(e){if(e.originalEvent){e.originalEvent.preventDefault();}")
+                .append("pendingPt=e.latlng;")
+                .append("var d=document.createElement('div');d.id='pt-dlg';")
+                .append("d.style.cssText='position:fixed;left:50%;top:35%;transform:translate(-50%,-50%);")
+                .append("z-index:2000;background:#20262e;color:#e8eaf0;padding:14px;border:1px solid #3a6b8a;")
+                .append("border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.6)';")
+                .append("d.innerHTML='<div style=\"margin-bottom:8px;color:#8ce0ff\">添加标点</div>")
+                .append("<input id=\"pt-name\" placeholder=\"标点名称\" style=\"width:220px;padding:6px;")
+                .append("background:#12141a;color:#fff;border:1px solid #3a6b8a;border-radius:6px\">")
+                .append("<div style=\"margin-top:10px;text-align:right\">")
+                .append("<button onclick=\"cancelPt()\" style=\"margin-right:8px;background:#2a3342;color:#a8b4c4;")
+                .append("border:1px solid #3a6b8a;border-radius:6px;padding:5px 12px\">取消</button>")
+                .append("<button onclick=\"savePt()\" style=\"background:#5b9cf6;color:#fff;border:none;")
+                .append("border-radius:6px;padding:5px 12px\">保存</button></div>';")
+                .append("document.body.appendChild(d);")
+                .append("var inp=document.getElementById('pt-name');if(inp){inp.focus();}});")
+                .append("function exportJson(){var a=document.createElement('a');")
+                .append("a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(savedPts,null,2));")
+                .append("a.download='points.json';a.click();}")
+                .append("function clearSaved(){if(!confirm('清空所有新增标点？'))return;")
+                .append("savedPts=[];localStorage.removeItem(SAVED_KEY);redrawPts();}")
+                .append("redrawPts();")
+                .append("groups.p.addTo(map);groups.l.addTo(map);groups.s.addTo(map);")
+                .append("map.fitBounds(BOUNDS);</script></body></html>");
         File out = new File(outDir, fileName);
         try (java.io.FileOutputStream fos = new java.io.FileOutputStream(out)) {
             fos.write(html.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -3619,6 +3831,46 @@ public class WorldMapRenderer {
             }
             bmp.recycle();
             Log.i(TAG, "调试导出: " + out.getAbsolutePath());
+            // biome 图层调试导出（chunk 路径）
+            if (map.biomeColors != null) {
+                int bw = map.width;
+                int bh = map.height;
+                Bitmap bio = Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888);
+                bio.setPixels(map.biomeColors, 0, bw, 0, 0, bw, bh);
+                File bout = new File(dir, "map_debug_biome.png");
+                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(bout)) {
+                    bio.compress(Bitmap.CompressFormat.PNG, 100, fos);
+                }
+                bio.recycle();
+                Log.i(TAG, "调试导出 biome: " + bout.getAbsolutePath());
+            } else if (map.chunkBiomeColors != null && !map.chunkBiomeColors.isEmpty()) {
+                int cw = Math.max(1, w / 16);
+                int ch = Math.max(1, h / 16);
+                Bitmap bio = Bitmap.createBitmap(cw, ch, Bitmap.Config.ARGB_8888);
+                for (Map.Entry<Long, int[]> e : map.chunkBiomeColors.entrySet()) {
+                    int cx = unpackX(e.getKey());
+                    int cz = unpackZ(e.getKey());
+                    int px = cx - map.minBlockX / 16;
+                    int pz = cz - map.minBlockZ / 16;
+                    if (px < 0 || px >= cw || pz < 0 || pz >= ch) {
+                        continue;
+                    }
+                    int c = 0;
+                    for (int v : e.getValue()) {
+                        if ((v & 0xFF000000) != 0) {
+                            c = v;
+                            break;
+                        }
+                    }
+                    bio.setPixel(px, pz, c);
+                }
+                File bout = new File(dir, "map_debug_biome.png");
+                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(bout)) {
+                    bio.compress(Bitmap.CompressFormat.PNG, 100, fos);
+                }
+                bio.recycle();
+                Log.i(TAG, "调试导出 biome: " + bout.getAbsolutePath());
+            }
         } catch (Throwable t) {
             Log.w(TAG, "调试导出失败", t);
         }
