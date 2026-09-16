@@ -367,11 +367,17 @@ public class NbtViewerActivity extends BaseActivity {
             final java.util.Set<Long> inFlight = java.util.Collections.synchronizedSet(
                     new java.util.HashSet<>());
             // 清空旧批次：拖动时上一批（已滑走区域）的排队任务作废——
-            // 跨批次积压让当前视口 chunk 排旧队列后面（"拖动跟不上"的根因）
+            // 跨批次积压让当前视口 chunk 排旧队列后面（"拖动跟不上"的根因）。
+            // 同时清 WorldMapView 的 pendingChunks——否则被作废的 chunk 永远
+            // 留在 pending 里，onDraw 收集被拦截永不重报（空白区域根因）
+            java.util.Set<Long> oldBatch = new java.util.HashSet<>(renderQueue);
             if (renderPool instanceof java.util.concurrent.ThreadPoolExecutor) {
                 ((java.util.concurrent.ThreadPoolExecutor) renderPool).getQueue().clear();
             }
             renderQueue.clear();
+            if (!oldBatch.isEmpty()) {
+                binding.worldMapImage.cancelPendingChunks(oldBatch);
+            }
             final int myGen = renderGen.get();
             for (Long key : keys) {
                 // 已完成或正在渲染的跳过（onDraw 每帧重报缺失，防重复提交）
@@ -636,6 +642,13 @@ public class NbtViewerActivity extends BaseActivity {
     private volatile Thread prerenderThread;
 
     /** 启动预渲染：从地图中心螺旋向外逐 chunk 渲染（跳过已有数据）。 */
+    /**
+     * 预渲染（开关打开）：复用成熟的全量流式渲染
+     * buildSatelliteMapStreaming（旧版"渲染完所有方块再进地图"同款），
+     * 后台低优先级线程跑完 → 缓存落盘 → 合并进当前视图。
+     * 与视口按需并行：流式渲染期间视口渲染照常（各自 reader 互不干扰），
+     * 完成后 putAll 合并（同 key 数据一致无害）。
+     */
     private void startPrerender() {
         final WorldMapRenderer.WorldMap fMap = currentMap;
         if (fMap == null || currentWorldDir == null) {
@@ -648,82 +661,32 @@ public class NbtViewerActivity extends BaseActivity {
             prerenderThread.interrupt();
         }
         prerenderThread = new Thread(() -> {
-            int minCx = Math.floorDiv(fMap.minBlockX, 16);
-            int minCz = Math.floorDiv(fMap.minBlockZ, 16);
-            int maxCx = Math.floorDiv(fMap.minBlockX + fMap.width - 1, 16);
-            int maxCz = Math.floorDiv(fMap.minBlockZ + fMap.height - 1, 16);
-            int cCx = (minCx + maxCx) / 2;
-            int cCz = (minCz + maxCz) / 2;
-            int done = 0;
-            int radius = Math.max(maxCx - minCx, maxCz - minCz) + 1;
-            for (int r = 0; r <= radius; r++) {
-                if (renderGen.get() != myGen || Thread.currentThread().isInterrupted()) {
+            try {
+                WorldMapRenderer.WorldMap full =
+                        WorldMapRenderer.buildSatelliteMapStreaming(dbDir, dim);
+                if (full == null || renderGen.get() != myGen
+                        || Thread.currentThread().isInterrupted()) {
                     return;
                 }
-                // 环内按角度排序：渲染顺序沿圆周连续走——行列顺序渲染
-                // 会导致环上随机跳点，视觉上出现"末地圆环式断层"
-                java.util.List<int[]> ring = new java.util.ArrayList<>();
-                for (int dx = -r; dx <= r; dx++) {
-                    for (int dz = -r; dz <= r; dz++) {
-                        if (Math.max(Math.abs(dx), Math.abs(dz)) != r) {
-                            continue;
-                        }
-                        int cx = cCx + dx;
-                        int cz = cCz + dz;
-                        if (cx < minCx || cx > maxCx || cz < minCz || cz > maxCz) {
-                            continue;
-                        }
-                        ring.add(new int[]{cx, cz});
-                    }
+                WorldMapRenderer.saveChunkCache(full, dbDir, dim);
+                if (renderGen.get() != myGen) {
+                    return;
                 }
-                ring.sort(java.util.Comparator.comparingDouble(
-                        p -> Math.atan2(p[1] - cCz, p[0] - cCx)));
-                for (int[] pc : ring) {
-                    {
-                        int cx = pc[0];
-                        int cz = pc[1];
-                        if (renderGen.get() != myGen
-                                || Thread.currentThread().isInterrupted()) {
-                            return;
-                        }
-                        long key = ((long) cx << 32) | (cz & 0xFFFFFFFFL);
-                        if (fMap.chunkColors.containsKey(key)) {
-                            continue; // 视口按需已渲染/已完成
-                        }
-                        try {
-                            int[][] res = WorldMapRenderer.renderChunkOnDemand(
-                                    getRenderReader(dbDir), cx, cz, dim);
-                            if (renderGen.get() != myGen) {
-                                return;
-                            }
-                            fMap.chunkColors.put(key,
-                                    res != null ? res[0]
-                                            : EMPTY_CHUNK_COLORS);
-                            if (res != null && res[1] != null
-                                    && fMap.chunkBiomeColors != null) {
-                                fMap.chunkBiomeColors.put(key, res[1]);
-                            }
-                            // 节流重绘：每 20 chunk 通知一次视图
-                            if (++done % 20 == 0) {
-                                runOnUiThread(() -> {
-                                    if (renderGen.get() == myGen) {
-                                        binding.worldMapImage.onChunksRendered(
-                                                java.util.Collections.emptySet());
-                                    }
-                                });
-                            }
-                        } catch (Throwable ignored) {
-                        }
-                    }
+                // 合并进当前视图（视口已渲染的同 key 数据一致，覆盖无害）
+                fMap.chunkColors.putAll(full.chunkColors);
+                if (full.chunkBiomeColors != null && fMap.chunkBiomeColors != null) {
+                    fMap.chunkBiomeColors.putAll(full.chunkBiomeColors);
                 }
+                Log.i(TAG, "预渲染完成: " + full.chunkColors.size() + " chunk (dim=" + dim + ")");
+                runOnUiThread(() -> {
+                    if (renderGen.get() == myGen) {
+                        binding.worldMapImage.onChunksRendered(
+                                java.util.Collections.emptySet());
+                    }
+                });
+            } catch (Throwable t) {
+                Log.w(TAG, "预渲染失败", t);
             }
-            Log.i(TAG, "预渲染完成: " + done + " chunk (dim=" + dim + ")");
-            runOnUiThread(() -> {
-                if (renderGen.get() == myGen) {
-                    binding.worldMapImage.onChunksRendered(
-                            java.util.Collections.emptySet());
-                }
-            });
         }, "prerender");
         prerenderThread.setPriority(Thread.MIN_PRIORITY);
         prerenderThread.start();

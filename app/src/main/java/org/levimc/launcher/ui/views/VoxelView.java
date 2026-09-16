@@ -76,28 +76,32 @@ public class VoxelView extends View {
     private static final java.util.Map<String, android.graphics.Bitmap> texCache =
             new java.util.HashMap<>();
 
-    /** 方块名 → 纹理位图（无纹理回退 null 走纯色）。 */
+    /** 方块名 → 纹理位图（无纹理回退 null 走纯色）。
+     *  TEX_MAP 特例优先（Bedrock 命名与 minecraft 名不一致的），
+     *  之后按自动规则 minecraft 名去前缀直接查原版纹理文件——
+     *  674 张 vanilla blocks 纹理全量打包（结构 NBT 渲染铺垫）。 */
     private android.graphics.Bitmap textureFor(String blockName) {
         if (blockName == null) {
             return null;
         }
         String file = TEX_MAP.get(blockName);
+        if (file == null && blockName.startsWith("minecraft:")) {
+            file = blockName.substring("minecraft:".length());
+        }
         if (file == null) {
             return null;
         }
         synchronized (texCache) {
-            android.graphics.Bitmap bmp = texCache.get(file);
-            if (bmp != null) {
-                return bmp;
+            if (texCache.containsKey(file)) {
+                return texCache.get(file); // 含 null negative cache
             }
             try (java.io.InputStream in = getContext().getAssets()
                     .open("voxel_textures/" + file + ".png")) {
-                bmp = android.graphics.BitmapFactory.decodeStream(in);
-                if (bmp != null) {
-                    texCache.put(file, bmp);
-                }
+                android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeStream(in);
+                texCache.put(file, bmp);
                 return bmp;
             } catch (Exception e) {
+                texCache.put(file, null); // negative cache：不存在的文件不再试
                 return null;
             }
         }
@@ -136,8 +140,9 @@ public class VoxelView extends View {
                     public boolean onScroll(@Nullable MotionEvent e1, @NonNull MotionEvent e2,
                                             float distanceX, float distanceY) {
                         // 单指滑动只旋转（缩放交给双指捏合——混绑会让单指旋转
-                        // 时误触缩放）
-                        angle -= distanceX * 0.008f;
+                        // 时误触缩放）；系数 0.02 = 每像素 1.15°，一屏 ≈3 圈，
+                        // 支持连续 720° 旋转
+                        angle -= distanceX * 0.02f;
                         invalidate();
                         return true;
                     }

@@ -120,6 +120,12 @@ public class WorldMapView extends View {
         this.chunksNeededListener = l;
     }
 
+    /** 取消 pending 标记（渲染批次作废时调用——否则被作废的 chunk
+     *  永远留在 pending 里，onDraw 收集被拦截永不重报）。 */
+    public void cancelPendingChunks(java.util.Set<Long> keys) {
+        pendingChunks.removeAll(keys);
+    }
+
     /** 外部按需渲染完成后调用：清除 pending 标记并重绘。 */
     public void onChunksRendered(java.util.Set<Long> chunkKeys) {
         pendingChunks.removeAll(chunkKeys);

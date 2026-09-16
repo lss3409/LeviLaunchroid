@@ -2127,13 +2127,17 @@ public class WorldMapRenderer {
             int maxCz = Math.floorDiv(centerZ + half - 1, 16);
             LevelDBReader reader = new LevelDBReader(dbDir);
             try {
-                // 区域覆盖的 chunk 全解码（不窗口裁剪——3D 需要完整高度）
+                // 区域覆盖的 chunk 全解码（不窗口裁剪——3D 需要完整高度）。
+                // biome 也要读：草方块/树叶按群系色调 tint，否则色表灰度
+                // 显示成灰色像石头（樱花林渲染出石头的根因之一）
                 Map<Long, int[]> hmapByChunk = new HashMap<>();
+                Map<Long, byte[]> biomeByChunk = new HashMap<>();
                 Map<Long, Map<Integer, SubChunk>> subsByChunk = new HashMap<>();
                 for (int cz = minCz; cz <= maxCz; cz++) {
                     for (int cx = minCx; cx <= maxCx; cx++) {
                         List<LevelDBEntry> entries = reader.readChunk(cx, cz);
                         int[] hmap = null;
+                        byte[] biomes = null;
                         Map<Integer, SubChunk> subs = new HashMap<>();
                         for (LevelDBEntry e : entries) {
                             byte[] rawKey = e.getKey().getRawKey();
@@ -2150,12 +2154,28 @@ public class WorldMapRenderer {
                                 int[] hm = extractData2d(e.getValue());
                                 if (hm != null && hmap == null) {
                                     hmap = hm;
+                                    int type = (rawKey.length == 13
+                                            ? rawKey[12] : rawKey[8]) & 0xFF;
+                                    if (type == KEY_TYPE_DATA_2D) {
+                                        byte[] bm = extractBiomes2d(e.getValue());
+                                        if (bm != null) {
+                                            biomes = bm;
+                                        }
+                                    } else {
+                                        byte[] bm = extractBiomes3d(e.getValue(), hm);
+                                        if (bm != null) {
+                                            biomes = bm;
+                                        }
+                                    }
                                 }
                             }
                         }
                         if (hmap != null) {
                             long key = pack(cx, cz);
                             hmapByChunk.put(key, hmap);
+                            if (biomes != null) {
+                                biomeByChunk.put(key, biomes);
+                            }
                             subsByChunk.put(key, subs);
                         }
                     }
@@ -2179,8 +2199,20 @@ public class WorldMapRenderer {
                         String[] names = new String[depth];
                         java.util.Arrays.fill(colors, 0);
                         int n = 0;
-                        int h = hmap != null ? hmap[(lz << 4) | lx] : 128;
-                        int yStart = Math.min(h + 4, 319);
+                        // yStart 与 surfaceColor 同款：从实际最高 subchunk 顶
+                        // 向下（y320 封顶）——不能用 hmap（生成器预测值 127~201，
+                        // 实际方块只到地表/树冠，从预测值向下找会错过树冠/
+                        // 渲染出石头——樱花区域渲染石头的根因之二）
+                        int maxSubTop = Integer.MIN_VALUE;
+                        for (Integer s : subs.keySet()) {
+                            if (s > maxSubTop) {
+                                maxSubTop = s;
+                            }
+                        }
+                        int yStart = maxSubTop > Integer.MIN_VALUE
+                                ? Math.min(maxSubTop * 16 + 15, 320) : 319;
+                        byte[] biomes = biomeByChunk.get(key);
+                        int biomeId = biomes != null ? biomes[(lz << 4) | lx] & 0xFF : -1;
                         for (int y = yStart; y >= -64 && n < depth; y--) {
                             SubChunk sub = subs.get(Math.floorDiv(y, 16));
                             if (sub == null) {
@@ -2192,7 +2224,7 @@ public class WorldMapRenderer {
                             if (name == null || isAirName(name)) {
                                 continue;
                             }
-                            colors[n] = tintColor(name, colorForBlock(name), -1);
+                            colors[n] = tintColor(name, colorForBlock(name), biomeId);
                             ys[n] = y;
                             names[n] = name;
                             n++;
