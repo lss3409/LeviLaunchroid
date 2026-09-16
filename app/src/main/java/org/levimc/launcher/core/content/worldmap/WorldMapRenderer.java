@@ -649,6 +649,18 @@ public class WorldMapRenderer {
         return out;
     }
 
+    /** 无符号字节序比较（LevelDB key 排序语义）。 */
+    private static int compareBytes(byte[] a, byte[] b) {
+        int n = Math.min(a != null ? a.length : 0, b != null ? b.length : 0);
+        for (int i = 0; i < n; i++) {
+            int d = (a[i] & 0xFF) - (b[i] & 0xFF);
+            if (d != 0) {
+                return d;
+            }
+        }
+        return (a != null ? a.length : 0) - (b != null ? b.length : 0);
+    }
+
     private static int readIntLE(byte[] data, int pos) {
         return (data[pos] & 0xFF)
                 | ((data[pos + 1] & 0xFF) << 8)
@@ -1364,7 +1376,6 @@ public class WorldMapRenderer {
      * 3) readEntries：只解码窗口内 subchunk（maxSub±2）
      */
     public static WorldMap buildSatelliteMapStreaming(File dbDir, int dimension) {
-        List<StructureMarker> detected = new ArrayList<>();
         Map<Long, Integer> monumentChunks = new HashMap<>();
         Map<Long, Integer> endCityChunks = new HashMap<>();
         java.util.Set<Long> renderedChunks = new java.util.HashSet<>();
@@ -1442,6 +1453,12 @@ public class WorldMapRenderer {
             Log.i(TAG, "流式 filter 诊断: 总key=" + filterDiag[0] + " 高度图=" + filterDiag[1]
                     + " subchunk通过=" + filterDiag[2] + " 窗口拒=" + filterDiag[3]
                     + " 负sub拒=" + filterDiag[4]);
+            // readEntries 内部是 HashMap 无序遍历——逐 chunk 收集逻辑依赖
+            // 同 chunk key 相邻（"换 chunk 渲染上一个"），乱序时 subchunk 先到、
+            // 高度图后到，换 chunk 重置 curSubs 把 subchunk 丢掉 → 渲染时
+            // subs 空 → 整片回退 biome 纯色（下界/末地"无阴影无方块"的根因）
+            heightEntries.sort((a, b) -> compareBytes(
+                    a.getKey().getRawKey(), b.getKey().getRawKey()));
             // 逐 chunk 收集 → 渲染 → 释放（sst 内同 chunk key 相邻有序）
             int curCx = Integer.MIN_VALUE;
             int curCz = Integer.MIN_VALUE;
@@ -3050,32 +3067,51 @@ public class WorldMapRenderer {
     /** 解码 v9 subchunk storage：返回 {bits, word 数据, palette 名字}；失败返回 null。 */
     private static SubChunk decodeSubChunk(byte[] value) {
         if (value == null || value.length < 5 || (value[0] & 0xFF) != 9) {
+            Log.i(TAG, "decodeSubChunk 失败@version: " + (value == null ? "null"
+                    : value.length + " head=" + (value.length > 0 ? value[0] & 0xFF : -1)));
             return null;
         }
         int p = 3; // 版本 + storage 数 + sub 索引
         int count = value[1] & 0xFF;
         if (count < 1 || count > 2) {
+            Log.i(TAG, "decodeSubChunk 失败@count=" + count);
             return null;
         }
         // bedrock-level sub_chunk 多层结构：storage 0 = 主方块层，storage 1 = 水层。
         // 只解码第一个 storage 会导致海面水方块缺失（海洋显示河床的根因）。
         SubChunk primary = null;
+
         for (int s = 0; s < count && p + 2 <= value.length; s++) {
             int header = value[p++] & 0xFF;
             int bits = header >> 1;
             if (bits < 1 || bits > 16) {
+                if (s == 1) {
+                    // 1.18+ 无水的 subchunk 水层 storage header=0（bits 非法）：
+                    // 该层无数据，跳过（下界/末地/高空层常见——之前直接
+                    // return null 导致整个 subchunk 解码失败，"解码 subchunk=0"）
+                    break;
+                }
+                StringBuilder hb = new StringBuilder();
+                for (int k = 0; k < Math.min(24, value.length); k++) {
+                    hb.append(String.format("%02X ", value[k]));
+                }
+                Log.i(TAG, "decodeSubChunk 失败=" + bits + " header=" + header
+                        + " len=" + value.length + " hex=" + hb);
                 return null;
             }
             int blocksPerWord = 32 / bits;
             int wordCount = (4096 + blocksPerWord - 1) / blocksPerWord;
             int dataBytes = wordCount * 4;
             if (p + dataBytes + 4 > value.length) {
+                Log.i(TAG, "decodeSubChunk 失败@dataBytes=" + dataBytes
+                        + " p=" + p + " len=" + value.length);
                 return null;
             }
             byte[] data = Arrays.copyOfRange(value, p, p + dataBytes);
             int paletteStart = p + dataBytes;
             int paletteSize = readIntLE(value, paletteStart);
             if (paletteSize < 0 || paletteSize > 4096) {
+                Log.i(TAG, "decodeSubChunk 失败@paletteSize=" + paletteSize);
                 return null;
             }
             String[] palette = new String[Math.max(paletteSize, 1)];
@@ -3088,11 +3124,13 @@ public class WorldMapRenderer {
                 int nameLen = (value[pe] & 0xFF) | ((value[pe + 1] & 0xFF) << 8);
                 pe += 2 + nameLen;
                 if (pe > value.length) {
+                    Log.i(TAG, "decodeSubChunk 失败@nameLen=" + nameLen + " i=" + i);
                     return null;
                 }
                 palette[i] = extractPaletteName(value, pe, type);
                 pe = skipNbtPayload(value, pe, type);
                 if (pe < 0) {
+                    Log.i(TAG, "decodeSubChunk 失败@skipNbt type=" + type + " i=" + i);
                     return null;
                 }
             }
