@@ -957,6 +957,12 @@ public class WorldMapRenderer {
         int hW = lx > 0 ? hmap[i - 1] : h;
         int hN = lz > 0 ? hmap[i - 16] : h;
         float shading = btrHeightShading(h, hW, hN);
+        if (lx == 0 || lz == 0) {
+            // chunk 西/北边界邻居高度在相邻 chunk（不可知，取自身高度
+            // 失真）——相邻 chunk 同列阴影不一致，chunk 边缘出现一条
+            // "不一样的颜色"（建筑区块边缘色差的根因）。边界列阴影减半
+            shading = 1f + (shading - 1f) * 0.5f;
+        }
         int r = Math.min(255, (int) (((color >> 16) & 0xFF) * shading));
         int g = Math.min(255, (int) (((color >> 8) & 0xFF) * shading));
         int b = Math.min(255, (int) ((color & 0xFF) * shading));
@@ -1832,7 +1838,8 @@ public class WorldMapRenderer {
     // 内容管理显示体积变大的根因）+ 每 chunk 调色板索引压缩（无损 ~3x）
     // v9：玻璃下无固体时回退 biome 色（v7 缓存的纯玻璃色 #AFD5DB 大片
     // "海晶蓝"必须失效）
-    private static final int MAP_CACHE_VERSION = 9;
+    // v10：chunk 边界阴影减半（v9 缓存边界阴影未减半，边缘色差须失效）
+    private static final int MAP_CACHE_VERSION = 10;
 
     /** 缓存根目录（应用私有，卸载即清——缓存可再生）。null 时回退旧路径。 */
     private static java.io.File sCacheBase;
