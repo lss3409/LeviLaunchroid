@@ -1316,6 +1316,7 @@ public class WorldMapView extends View {
             case "swamp_hut": return "女巫小屋";
             case "ocean_monument": return "海底神殿";
             case "outpost": return "掠夺者前哨站";
+            case "desert_temple": return "沙漠神殿";
             case "end_city": return "末地城";
             default: return type;
         }
@@ -1395,6 +1396,19 @@ public class WorldMapView extends View {
                     canvas.drawRect(sx - r * 0.5f, sy - r * 0.9f, sx + r * 0.5f, sy + r * 0.6f, p);
                     canvas.drawRect(sx - r * 0.5f, sy - r * 0.9f, sx + r * 0.5f, sy + r * 0.6f, stroke);
                     canvas.drawRect(sx - r * 0.25f, sy - r * 0.55f, sx + r * 0.25f, sy - r * 0.3f, stroke);
+                    break;
+                }
+                case "desert_temple": {
+                    // 沙漠神殿：砂岩金字塔（顶角 + 门洞）
+                    p.setColor(0xFFD8C08A);
+                    Path tp = new Path();
+                    tp.moveTo(sx, sy - r);
+                    tp.lineTo(sx - r * 0.8f, sy + r * 0.6f);
+                    tp.lineTo(sx + r * 0.8f, sy + r * 0.6f);
+                    tp.close();
+                    canvas.drawPath(tp, p);
+                    canvas.drawPath(tp, stroke);
+                    canvas.drawRect(sx - r * 0.25f, sy - r * 0.1f, sx + r * 0.25f, sy + r * 0.4f, stroke);
                     break;
                 }
                 case "outpost": {

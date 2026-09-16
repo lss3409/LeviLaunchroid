@@ -91,6 +91,29 @@ public class NbtViewerActivity extends BaseActivity {
     /** 渲染任务序号：< 大核数的任务绑大核，其余自由调度（小核也参与）。 */
     private final java.util.concurrent.atomic.AtomicInteger renderTaskSeq =
             new java.util.concurrent.atomic.AtomicInteger();
+    /** 合并视口按需渲染检测到的结构标记（去重后追加进结构图层）。 */
+    private void mergeOnDemandStructures() {
+        java.util.List<WorldMapRenderer.StructureMarker> ods =
+                WorldMapRenderer.takeOnDemandStructures();
+        for (WorldMapRenderer.StructureMarker m : ods) {
+            boolean dup = false;
+            for (WorldMapRenderer.StructureMarker cur : currentStructures) {
+                if (cur.type.equals(m.type)
+                        && Math.abs(cur.x - m.x) < 48 && Math.abs(cur.z - m.z) < 48) {
+                    dup = true;
+                    break;
+                }
+            }
+            if (!dup) {
+                currentStructures.add(m);
+            }
+        }
+    }
+
+    /** 当前结构标记列表（按需渲染检测到的结构标记动态合并进来）。
+     * 需在 flushRenderedChunks 字段之前声明（初始化块前向引用限制）。 */
+    private final List<WorldMapRenderer.StructureMarker> currentStructures = new ArrayList<>();
+
     /** 渲染完成 chunk 的批量重绘缓冲：80ms 窗口合并，一次局部重绘处理多个 chunk。 */
     private final java.util.Set<Long> renderedChunkBuffer = new java.util.HashSet<>();
     private final android.os.Handler flushHandler = new android.os.Handler(
@@ -109,6 +132,14 @@ public class NbtViewerActivity extends BaseActivity {
         if (isFinishing() || isDestroyed()) {
             return;
         }
+        // 渲染新 chunk 可能检测到新结构（沙漠神殿/前哨站），及时并入结构图层
+        synchronized (currentStructures) {
+            int before = currentStructures.size();
+            mergeOnDemandStructures();
+            if (currentStructures.size() > before) {
+                binding.worldMapImage.setStructureMarkers(currentStructures);
+            }
+        }
         binding.worldMapImage.onChunksRendered(batch);
     };
 
@@ -122,7 +153,6 @@ public class NbtViewerActivity extends BaseActivity {
 
     private void startBackgroundTask() {
         if (executor != null) {
-            executor.shutdownNow();
         }
         loadGeneration++;
         executor = Executors.newSingleThreadExecutor();
@@ -933,7 +963,14 @@ public class NbtViewerActivity extends BaseActivity {
                                 return;
                             }
                             binding.worldMapImage.setEntityData(fEnts);
-                            binding.worldMapImage.setStructureMarkers(fStrs);
+                            synchronized (currentStructures) {
+                                currentStructures.clear();
+                                currentStructures.addAll(fStrs);
+                                // 合并视口按需渲染检测到的结构标记（沙漠神殿/前哨站
+                                // 等无 key 结构靠 palette 特征检测）
+                                mergeOnDemandStructures();
+                            }
+                            binding.worldMapImage.setStructureMarkers(currentStructures);
                             refreshDataPanelExtras(fStrs, null);
                         });
                     };

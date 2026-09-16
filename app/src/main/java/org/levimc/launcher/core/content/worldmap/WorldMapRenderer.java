@@ -1556,8 +1556,21 @@ public class WorldMapRenderer {
                     + " 解码 subchunk=" + decoded);
             heightEntries = null;
             reader.close();
+            // monumentChunks 值区分结构类型：1 海底神殿 / 2 沙漠神殿 / 3 前哨站
+            Map<Long, Integer> temples = new HashMap<>();
+            Map<Long, Integer> outposts = new HashMap<>();
+            for (Map.Entry<Long, Integer> e : monumentChunks.entrySet()) {
+                if (e.getValue() == 2) {
+                    temples.put(e.getKey(), 1);
+                } else if (e.getValue() == 3) {
+                    outposts.put(e.getKey(), 1);
+                }
+            }
+            monumentChunks.entrySet().removeIf(e -> e.getValue() != 1);
             clusterStructureChunks(monumentChunks, "ocean_monument", detected);
             clusterStructureChunks(endCityChunks, "end_city", detected);
+            clusterStructureChunks(temples, "desert_temple", detected);
+            clusterStructureChunks(outposts, "outpost", detected);
             if (!detected.isEmpty()) {
                 Log.i(TAG, "流式结构检测: " + detected.size() + " 个");
             }
@@ -1598,12 +1611,17 @@ public class WorldMapRenderer {
             return; // 旧文件里的过期数据（新版本已渲染）
         }
         // palette 结构特征（1.26 无 HSA 记录）——chunk 级一次判定：
-        // 海底神殿 sea_lantern+prismarine / 末地城 purpur+end_stone_bricks
+        // 海底神殿 sea_lantern+prismarine / 末地城 purpur+end_stone_bricks /
+        // 沙漠神殿 chiseled_sandstone / 掠夺者前哨站 dark_oak+stone
         if (monumentChunks != null) {
             boolean lantern = false;
             boolean prismarine = false;
             boolean purpur = false;
             boolean endBricks = false;
+            boolean chiseledSandstone = false;
+            boolean darkOak = false;
+            boolean darkOakLog = false;
+            boolean stone = false;
             for (SubChunk sc : subs.values()) {
                 for (String pn : sc.palette) {
                     if (pn == null) {
@@ -1617,6 +1635,14 @@ public class WorldMapRenderer {
                         purpur = true;
                     } else if (pn.contains("end_stone_bricks")) {
                         endBricks = true;
+                    } else if (pn.contains("chiseled_sandstone")) {
+                        chiseledSandstone = true;
+                    } else if (pn.contains("dark_oak_planks")) {
+                        darkOak = true;
+                    } else if (pn.contains("dark_oak_log")) {
+                        darkOakLog = true;
+                    } else if (pn.contains("cobblestone")) {
+                        stone = true;
                     }
                 }
             }
@@ -1625,6 +1651,12 @@ public class WorldMapRenderer {
             }
             if (dimension == DIM_END && purpur && endBricks) {
                 endCityChunks.put(key, 1);
+            }
+            if (dimension == DIM_OVERWORLD && chiseledSandstone) {
+                monumentChunks.put(key, 2); // 复用 map：value 2 = 沙漠神殿
+            }
+            if (dimension == DIM_OVERWORLD && darkOak && darkOakLog && stone) {
+                monumentChunks.put(key, 3); // value 3 = 掠夺者前哨站
             }
         }
         int[] colors = new int[256];
@@ -1899,6 +1931,9 @@ public class WorldMapRenderer {
             if (hmap == null) {
                 return null; // 无高度数据（未生成 chunk）
             }
+            // 结构特征检测（视口按需渲染路径同样要做——主世界大世界
+            // 不走流式渲染，沙漠神殿/前哨站没有专门 key 只能靠 palette）
+            detectOnDemandStructure(cx, cz, subs, dimension);
             // 窗口裁剪（下界全留）：以高度图推算的地表层为中心，向下 2 层
             // （河床/海底）到实际最高 sub（树冠/建筑）。之前用「实际最高 sub ±2」
             // ——树/建筑让 maxSub 偏离地表，地表层被裁掉，海洋/平原 chunk
@@ -2340,6 +2375,69 @@ public class WorldMapRenderer {
             p = pe;
         }
         return names.toArray(new String[0]);
+    }
+
+    /** 视口按需渲染路径检测到的结构标记（供图层合并；相邻 chunk 聚合成一个）。 */
+    private static final java.util.List<StructureMarker> onDemandStructures =
+            new java.util.concurrent.CopyOnWriteArrayList<>();
+    private static final java.util.Set<Long> onDemandStructureChunks =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** 按需渲染 chunk 的结构特征检测：沙漠神殿 chiseled_sandstone /
+     *  前哨站 dark_oak+cobblestone；相邻特征 chunk 合并为一个标记。 */
+    private static void detectOnDemandStructure(int cx, int cz,
+                                                Map<Integer, SubChunk> subs, int dimension) {
+        if (dimension != DIM_OVERWORLD || subs.isEmpty()) {
+            return;
+        }
+        long key = pack(cx, cz);
+        if (!onDemandStructureChunks.add(key)) {
+            return; // 已判定过
+        }
+        boolean chiseledSandstone = false;
+        boolean darkOak = false;
+        boolean darkOakLog = false;
+        boolean stone = false;
+        for (SubChunk sc : subs.values()) {
+            for (String pn : sc.palette) {
+                if (pn == null) {
+                    continue;
+                }
+                if (pn.contains("chiseled_sandstone")) {
+                    chiseledSandstone = true;
+                } else if (pn.contains("dark_oak_planks")) {
+                    darkOak = true;
+                } else if (pn.contains("dark_oak_log")) {
+                    darkOakLog = true;
+                } else if (pn.contains("cobblestone")) {
+                    stone = true;
+                }
+            }
+        }
+        String type = chiseledSandstone ? "desert_temple"
+                : darkOak && darkOakLog && stone ? "outpost" : null;
+        if (type == null) {
+            return;
+        }
+        synchronized (onDemandStructures) {
+            // 与相邻已有标记合并（同类型、chunk 距离 ≤2）
+            for (StructureMarker m : onDemandStructures) {
+                if (m.type.equals(type)
+                        && Math.abs(Math.floorDiv(m.x, 16) - cx) <= 2
+                        && Math.abs(Math.floorDiv(m.z, 16) - cz) <= 2) {
+                    return; // 已在附近标记过
+                }
+            }
+            onDemandStructures.add(new StructureMarker(cx * 16 + 8, cz * 16 + 8, type));
+            Log.i(TAG, "按需结构检测: " + type + " @ chunk(" + cx + "," + cz + ")");
+        }
+    }
+
+    /** 取按需渲染检测到的结构标记（调用方合并进结构图层）。 */
+    public static List<StructureMarker> takeOnDemandStructures() {
+        synchronized (onDemandStructures) {
+            return new ArrayList<>(onDemandStructures);
+        }
     }
 
     /** 相邻 chunk 聚块：每个连通分量输出一个结构标记（块中心）。 */
