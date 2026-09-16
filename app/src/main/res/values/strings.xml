@@ -595,6 +595,10 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="nbt_summary_hardcore">Hardcore: %1$s</string>
     <string name="nbt_summary_dead">Player dead: %1$s</string>
     <string name="nbt_summary_health">Health: %1$.1f</string>
+    <string name="nbt_summary_pos">Player: %1$d, %2$d, %3$d</string>
+    <string name="nbt_summary_uuid">UUID: %1$d</string>
+    <string name="nbt_summary_size">Size: %1$s</string>
+    <string name="nbt_summary_version">Version: %1$s</string>
     <string name="nbt_yes">Yes</string>
     <string name="nbt_no">No</string>
     <string name="nbt_ticks_time">%1$dd %2$dh %3$dm</string>
@@ -1384,4 +1388,7 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="map_hud_placeholder">X: 0  Z: 0</string>
     <string name="point_search_hint">Search points…</string>
     <string name="no_points">No points. Long-press the map to add.</string>
+    <string name="point_need_two">Need at least 2 points to link/measure</string>
+    <string name="point_color">Color</string>
+    <string name="point_save_failed">Failed to save point</string>
 </resources>

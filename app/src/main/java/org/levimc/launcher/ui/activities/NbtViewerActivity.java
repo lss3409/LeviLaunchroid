@@ -513,9 +513,11 @@ public class NbtViewerActivity extends BaseActivity {
         binding.mapFab.setOnClickListener(v -> {
             toolMenuOpen = !toolMenuOpen;
             binding.mapToolMenu.setVisibility(toolMenuOpen ? View.VISIBLE : View.GONE);
-            if (toolMenuOpen) {
-                DynamicAnim.applyPressScale(binding.mapFab);
-            }
+            // 加号 → × 旋转动画（打开转 45°，收起转回）
+            binding.mapFab.animate().rotation(toolMenuOpen ? 45f : 0f)
+                    .setDuration(180)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                    .start();
         });
         DynamicAnim.applyPressScale(binding.mapFab);
 
@@ -527,8 +529,13 @@ public class NbtViewerActivity extends BaseActivity {
         // 连线模式
         binding.toolLinkMode.setOnClickListener(v -> {
             closeToolMenu();
-            if (mapPoints.size() < 2) {
+            if (mapPoints.isEmpty()) {
                 Toast.makeText(this, R.string.no_points, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (mapPoints.size() < 2) {
+                // 有标点但不足 2 个：与"暂无标点"区分提示，避免误读成数据丢失
+                Toast.makeText(this, R.string.point_need_two, Toast.LENGTH_SHORT).show();
                 return;
             }
             linkModeActive = true;
@@ -540,8 +547,12 @@ public class NbtViewerActivity extends BaseActivity {
         // 测距
         binding.toolRuler.setOnClickListener(v -> {
             closeToolMenu();
-            if (mapPoints.size() < 2) {
+            if (mapPoints.isEmpty()) {
                 Toast.makeText(this, R.string.no_points, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (mapPoints.size() < 2) {
+                Toast.makeText(this, R.string.point_need_two, Toast.LENGTH_SHORT).show();
                 return;
             }
             rulerModeActive = true;
@@ -550,7 +561,7 @@ public class NbtViewerActivity extends BaseActivity {
             linkModeFrom = null;
             Toast.makeText(this, R.string.ruler_pick_first, Toast.LENGTH_SHORT).show();
         });
-        // 标点列表
+        // 标点列表（强制刷新渲染，避免抽屉停留旧列表）
         binding.toolPointList.setOnClickListener(v -> {
             closeToolMenu();
             currentLbTab = binding.lbPoints;
@@ -559,6 +570,7 @@ public class NbtViewerActivity extends BaseActivity {
             binding.tabLayers.setVisibility(View.GONE);
             binding.tabPoints.setVisibility(View.VISIBLE);
             binding.tabSettings.setVisibility(View.GONE);
+            renderLeftPointList(null);
         });
         // 导出世界为 HTML（PRD 7.4：Leaflet 交互式地图，单文件）
         binding.toolBlueprint.setOnClickListener(v -> {
@@ -610,6 +622,8 @@ public class NbtViewerActivity extends BaseActivity {
     private void closeToolMenu() {
         toolMenuOpen = false;
         binding.mapToolMenu.setVisibility(View.GONE);
+        // 收起时 × 转回加号（若动画中途打断，直接复位）
+        binding.mapFab.animate().rotation(0f).setDuration(180).start();
     }
 
     /** 维度切换：高亮当前维度、刷新地图数据与标点渲染。 */
@@ -1144,15 +1158,21 @@ public class NbtViewerActivity extends BaseActivity {
                         if (posTag != null && posTag.getType() == NbtTag.TAG_LIST
                                 && posTag.getList().size() >= 3) {
                             float px = posTag.getList().get(0).getFloat();
+                            float py = posTag.getList().get(1).getFloat();
                             float pz = posTag.getList().get(2).getFloat();
                             // 合理世界范围（±3000 万方块）内才认定是玩家位置
                             if (Math.abs(px) < 3e7f && Math.abs(pz) < 3e7f) {
                                 worldMap.playerBlockX = (int) Math.floor(px);
+                                worldMap.playerBlockY = (int) Math.floor(py);
                                 worldMap.playerBlockZ = (int) Math.floor(pz);
                                 // 降采样地图：玩家标记坐标 ÷blockScale
                                 if (worldMap.blockScale > 1) {
                                     worldMap.playerBlockX = Math.floorDiv(worldMap.playerBlockX, worldMap.blockScale);
                                     worldMap.playerBlockZ = Math.floorDiv(worldMap.playerBlockZ, worldMap.blockScale);
+                                }
+                                NbtTag uid = playerRoot.getTag("UniqueID");
+                                if (uid != null) {
+                                    worldMap.playerUniqueId = uid.getLong();
                                 }
                                 Log.i(TAG, "玩家位置: " + worldMap.playerBlockX + "," + worldMap.playerBlockZ);
                                 break;
@@ -1227,6 +1247,37 @@ public class NbtViewerActivity extends BaseActivity {
             playerInfo.append(worldItem.getPlayerHealth() >= 0f
                     ? String.format(Locale.getDefault(), "%.1f", worldItem.getPlayerHealth()) : "?");
             binding.infoPlayer.setText(playerInfo.toString());
+            // 玩家坐标（db ~local_player Pos，xyz）
+            if (worldMap != null && worldMap.playerBlockX >= 0) {
+                binding.infoPos.setText(getString(R.string.nbt_summary_pos,
+                        worldMap.playerBlockX,
+                        worldMap.playerBlockY >= 0 ? worldMap.playerBlockY : 0,
+                        worldMap.playerBlockZ));
+            } else {
+                binding.infoPos.setText(getString(R.string.nbt_summary_pos, 0, 0, 0));
+            }
+            // UUID = local_player UniqueID（Bedrock 存档无 Xbox XUID 字段；
+            // 部分存档高位 0xFF 填充，负数时取低 32 位无符号有效值）
+            long uidVal = worldMap != null ? worldMap.playerUniqueId : -1;
+            if (uidVal < 0 && uidVal != -1) {
+                uidVal = uidVal & 0xFFFFFFFFL;
+            }
+            binding.infoUuid.setText(getString(R.string.nbt_summary_uuid, uidVal));
+            // 游戏版本（level.dat LastOpenedWithVersion——直接用 root 参数：
+            // levelDatRoot 字段在本方法后面才赋值，读字段会拿到上一次的值/null）
+            binding.infoVersion.setText(getString(R.string.nbt_summary_version,
+                    readVersionFromRoot(root)));
+            // 存档大小：后台递归计算（大世界 db 文件多，UI 线程会卡）
+            binding.infoSize.setText(getString(R.string.nbt_summary_size, "…"));
+            final File sizeDir = currentWorldDir;
+            executor.execute(() -> {
+                String sizeStr = formatBytes(dirSizeRecursive(sizeDir));
+                runOnUiThread(() -> {
+                    if (currentWorldDir == sizeDir && !isFinishing()) {
+                        binding.infoSize.setText(getString(R.string.nbt_summary_size, sizeStr));
+                    }
+                });
+            });
         }
 
         // 数据面板内世界信息摘要卡
@@ -1917,6 +1968,12 @@ public class NbtViewerActivity extends BaseActivity {
                 getString(R.string.cat_farm), getString(R.string.cat_village),
                 getString(R.string.cat_structure), getString(R.string.cat_custom)};
         final String[] selCategory = {point != null ? point.category : BlueprintDb.CAT_CUSTOM};
+        // 标点颜色：预设 8 色循环选择（黄/红/蓝/绿/紫/橙/青/白）
+        final String[] pointColors = {"#ffd54f", "#ef5350", "#42a5f5", "#66bb6a",
+                "#ab47bc", "#ffa726", "#26c6da", "#eceff1"};
+        final String[] selColor = {point != null && point.color != null
+                ? point.color : categoryColor(selCategory[0])};
+        final ImageView[] colorSwatchRef = new ImageView[1]; // 分类切换 lambda 里回写色块
 
         EditText detailEdit = new EditText(this);
         detailEdit.setSingleLine(false);
@@ -1957,10 +2014,39 @@ public class NbtViewerActivity extends BaseActivity {
                 .setItems(catNames, (dialog, which) -> {
                     selCategory[0] = catValues[which];
                     catLabel.setText(getString(R.string.point_category) + ": " + catNames[which]);
+                    selColor[0] = categoryColor(selCategory[0]);
+                    if (colorSwatchRef[0] != null) {
+                        colorSwatchRef[0].setColorFilter(parseColorSafe(selColor[0]));
+                    }
                 })
                 .setNegativeButton(getString(R.string.nbt_edit_cancel), null)
                 .show());
         panel.addView(catLabel);
+        // 颜色行：色块 + 点击换色
+        LinearLayout colorRow = new LinearLayout(this);
+        colorRow.setOrientation(LinearLayout.HORIZONTAL);
+        colorRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        colorRow.setPadding(0, (int) (8 * getResources().getDisplayMetrics().density), 0, 0);
+        TextView colorLabel = new TextView(this);
+        colorLabel.setText(getString(R.string.point_color) + ": ");
+        colorLabel.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+        colorLabel.setTextSize(12);
+        colorRow.addView(colorLabel);
+        ImageView colorSwatch = new ImageView(this);
+        colorSwatch.setImageResource(R.drawable.bg_circle);
+        colorSwatch.setColorFilter(parseColorSafe(selColor[0]));
+        colorSwatchRef[0] = colorSwatch;
+        int swatchPx = (int) (22 * getResources().getDisplayMetrics().density);
+        colorRow.addView(colorSwatch, new LinearLayout.LayoutParams(swatchPx, swatchPx));
+        colorRow.setClickable(true);
+        colorRow.setFocusable(true);
+        final int[] colorIdx = {0};
+        colorRow.setOnClickListener(v -> {
+            colorIdx[0] = (colorIdx[0] + 1) % pointColors.length;
+            selColor[0] = pointColors[colorIdx[0]];
+            colorSwatch.setColorFilter(parseColorSafe(selColor[0]));
+        });
+        panel.addView(colorRow);
 
         CustomAlertDialog dialog = new CustomAlertDialog(this)
                 .setTitleText(getString(point != null ? R.string.point_edit_title : R.string.point_add_title))
@@ -1975,6 +2061,7 @@ public class NbtViewerActivity extends BaseActivity {
                         point.name = name;
                         point.category = selCategory[0];
                         point.detail = detail;
+                        point.color = selColor[0];
                         blueprintDb.updatePoint(point);
                     } else {
                         BlueprintDb.Point np = new BlueprintDb.Point();
@@ -1986,8 +2073,14 @@ public class NbtViewerActivity extends BaseActivity {
                         np.dimension = mapDimension;
                         np.category = selCategory[0];
                         np.detail = detail;
-                        np.color = categoryColor(selCategory[0]);
+                        np.color = selColor[0];
                         np.id = blueprintDb.addPoint(np);
+                        // 插入失败（id<=0）时提示，不静默丢失
+                        if (np.id <= 0) {
+                            Toast.makeText(this, R.string.point_save_failed,
+                                    Toast.LENGTH_SHORT).show();
+                            return;
+                        }
                         mapPoints.add(np);
                     }
                     Toast.makeText(this, R.string.point_saved, Toast.LENGTH_SHORT).show();
@@ -2094,6 +2187,15 @@ public class NbtViewerActivity extends BaseActivity {
             case BlueprintDb.CAT_VILLAGE: return getString(R.string.cat_village);
             case BlueprintDb.CAT_STRUCTURE: return getString(R.string.cat_structure);
             default: return getString(R.string.cat_custom);
+        }
+    }
+
+    /** 安全解析颜色字符串（非法值回退黄色）。 */
+    private static int parseColorSafe(String hex) {
+        try {
+            return android.graphics.Color.parseColor(hex);
+        } catch (Exception e) {
+            return 0xFFFFD54F;
         }
     }
 
@@ -2272,13 +2374,52 @@ public class NbtViewerActivity extends BaseActivity {
         });
     }
 
+    /** 目录递归大小（字节）。 */
+    private static long dirSizeRecursive(File dir) {
+        if (dir == null || !dir.exists()) {
+            return 0;
+        }
+        long total = 0;
+        File[] files = dir.listFiles();
+        if (files == null) {
+            return 0;
+        }
+        for (File f : files) {
+            if (f.isDirectory()) {
+                total += dirSizeRecursive(f);
+            } else {
+                total += f.length();
+            }
+        }
+        return total;
+    }
+
+    /** 字节数 → 可读字符串（B/KB/MB/GB）。 */
+    private static String formatBytes(long bytes) {
+        if (bytes < 1024) {
+            return bytes + " B";
+        }
+        if (bytes < 1024 * 1024) {
+            return String.format(Locale.getDefault(), "%.1f KB", bytes / 1024.0);
+        }
+        if (bytes < 1024L * 1024 * 1024) {
+            return String.format(Locale.getDefault(), "%.1f MB", bytes / (1024.0 * 1024));
+        }
+        return String.format(Locale.getDefault(), "%.2f GB", bytes / (1024.0 * 1024 * 1024));
+    }
+
     private String readLevelVersion() {
-        if (levelDatRoot == null) {
+        return readVersionFromRoot(levelDatRoot);
+    }
+
+    /** 从 level.dat root 读游戏版本（LastOpenedWithVersion / MinimumCompatibleClientVersion）。 */
+    private static String readVersionFromRoot(NbtTag root) {
+        if (root == null) {
             return "?";
         }
-        NbtTag v = levelDatRoot.getTag("LastOpenedWithVersion");
+        NbtTag v = root.getTag("LastOpenedWithVersion");
         if (v == null) {
-            v = levelDatRoot.getTag("MinimumCompatibleClientVersion");
+            v = root.getTag("MinimumCompatibleClientVersion");
         }
         if (v == null) {
             return "?";

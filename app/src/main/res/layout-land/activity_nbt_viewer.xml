@@ -305,6 +305,42 @@
                         android:fontFamily="@font/misans"
                         android:textColor="@color/on_surface"
                         android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/info_pos"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:fontFamily="@font/misans"
+                        android:textColor="@color/on_surface"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/info_uuid"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:fontFamily="@font/misans"
+                        android:textColor="@color/on_surface"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/info_size"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:fontFamily="@font/misans"
+                        android:textColor="@color/on_surface"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/info_version"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:fontFamily="@font/misans"
+                        android:textColor="@color/on_surface"
+                        android:textSize="11sp" />
                 </LinearLayout>
 
                 <!-- Tab2 图层控制 -->

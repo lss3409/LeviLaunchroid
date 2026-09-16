@@ -966,7 +966,10 @@ public class WorldMapRenderer {
         public final int[] biomeColors;
         /** 玩家位置（block 坐标，-1 = 无玩家数据） */
         public int playerBlockX = -1;
+        public int playerBlockY = -1;
         public int playerBlockZ = -1;
+        /** 本地玩家 UniqueID（db ~local_player，-1 = 无） */
+        public long playerUniqueId = -1;
         /** 流式渲染时 palette 检测到的结构标记（海底神殿/末地城；小世界路径为 null） */
         public List<StructureMarker> detectedStructures;
         /** 降采样比例（大世界 4×4 代表 chunk = 4；普通世界 1）。标记坐标需除以该值。 */
