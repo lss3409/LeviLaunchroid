@@ -539,6 +539,15 @@
     <string name="world_map_loading">地图渲染中…</string>
     <string name="nbt_view_world_data">查看 NBT</string>
     <string name="nbt_level_dat">level.dat</string>
+    <string name="dp_perm_local">本地玩家</string>
+    <string name="dp_perm_owner">所有者</string>
+    <string name="dp_perm_member">成员</string>
+    <string name="dp_perm_add_toast">输入玩家 Gamertag 授予权限（level.dat 写入功能开发中）</string>
+    <string name="dp_members_title">成员权限</string>
+    <string name="dp_perm_add">添加权限</string>
+    <string name="dp_structs_title">结构</string>
+    <string name="dp_struct_empty">暂无检测到的结构</string>
+    <string name="dp_member_empty">暂无成员数据</string>
     <string name="nbt_db_entries">数据库条目</string>
     <string name="nbt_no_data">无数据</string>
     <string name="nbt_items_hidden">…共 %1$d 项</string>

@@ -571,7 +571,16 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="world_data_title">World Data</string>
     <string name="world_map_title">World Map</string>
     <string name="world_map_unavailable">Map unavailable</string>
+    <string name="dp_members_title">Members</string>
+    <string name="dp_perm_add">Add permission</string>
+    <string name="dp_structs_title">Structures</string>
+    <string name="dp_struct_empty">No structures detected</string>
+    <string name="dp_member_empty">No member data</string>
     <string name="world_map_loading">Rendering map…</string>
+    <string name="dp_perm_local">Local player</string>
+    <string name="dp_perm_owner">Owner</string>
+    <string name="dp_perm_member">Member</string>
+    <string name="dp_perm_add_toast">Enter a Gamertag to grant permission (level.dat write WIP)</string>
     <string name="nbt_view_world_data">View NBT</string>
     <string name="nbt_level_dat">level.dat</string>
     <string name="nbt_db_entries">DB Entries</string>

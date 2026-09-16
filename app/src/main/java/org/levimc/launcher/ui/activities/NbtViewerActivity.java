@@ -10,6 +10,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -540,6 +541,156 @@ public class NbtViewerActivity extends BaseActivity {
         renderLeftPointList(null);
     }
 
+    /**
+     * 数据面板权限卡 + 结构卡（HTML 原型 renderDataPanelExtras 落地）：
+     * 成员列表 = 本地玩家（~local_player DisplayName）+ 其它 player_* XUID，
+     * 头像 = 名字 hash 8×8 像素块；结构列表 = 结构检测标记（类型 + 坐标）。
+     */
+    private void refreshDataPanelExtras(List<WorldMapRenderer.StructureMarker> structures,
+                                        List<LevelDBEntry> entries) {
+        if (binding.dpPermsList == null) {
+            return; // 旧布局无卡片
+        }
+        // 添加权限（HTML 原型 perm-add 占位：正式版写入 level.dat 多人权限）
+        binding.dpPermAdd.setOnClickListener(v ->
+                Toast.makeText(this, R.string.dp_perm_add_toast, Toast.LENGTH_SHORT).show());
+        binding.dpPermsList.removeAllViews();
+        binding.dpStructsList.removeAllViews();
+        float d = getResources().getDisplayMetrics().density;
+
+        // 成员：本地玩家 + player_* XUID（Bedrock 权限成员无本地完整存储，
+        // level.dat 仅全局 permissionsLevel；按可用数据显示）
+        java.util.List<String[]> members = new java.util.ArrayList<>();
+        if (entries != null) {
+            for (LevelDBEntry e : entries) {
+                byte[] rawKey = e.getKey().getRawKey();
+                if (rawKey == null || rawKey.length < 8) {
+                    continue;
+                }
+                String keyStr;
+                boolean printable = true;
+                for (byte b : rawKey) {
+                    if (b < 32 || b > 126) {
+                        printable = false;
+                        break;
+                    }
+                }
+                if (!printable) {
+                    continue;
+                }
+                keyStr = new String(rawKey, java.nio.charset.StandardCharsets.US_ASCII);
+                if (keyStr.equals("~local_player")) {
+                    String name = "本地玩家";
+                    try {
+                        NbtTag root = new BedrockNbtReader().readFromBytes(e.getValue());
+                        if (root != null && root.getType() == NbtTag.TAG_COMPOUND) {
+                            NbtTag dn = root.getTag("DisplayName");
+                            if (dn != null) {
+                                name = dn.getString();
+                            }
+                        }
+                    } catch (Exception ignored) {
+                    }
+                    members.add(new String[]{name, "local", "owner"});
+                } else if (keyStr.startsWith("player_") && keyStr.length() > 7) {
+                    String xuid = keyStr.substring(7, Math.min(15, keyStr.length()));
+                    members.add(new String[]{"XUID " + xuid + "…", keyStr.substring(7), "member"});
+                }
+            }
+        }
+        if (members.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText(R.string.dp_member_empty);
+            empty.setTextColor(getColor(R.color.text_secondary));
+            empty.setTextSize(12f);
+            binding.dpPermsList.addView(empty);
+        } else {
+            for (String[] m : members) {
+                LinearLayout row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                row.setPadding(0, (int) (4 * d), 0, 0);
+                ImageView av = new ImageView(this);
+                av.setImageBitmap(pixelAvatar(m[0], 34));
+                int sz = (int) (34 * d);
+                row.addView(av, new LinearLayout.LayoutParams(sz, sz));
+                LinearLayout info = new LinearLayout(this);
+                info.setOrientation(LinearLayout.VERTICAL);
+                TextView n1 = new TextView(this);
+                n1.setText(m[0]);
+                n1.setTextColor(getColor(R.color.on_surface));
+                n1.setTextSize(12f);
+                n1.setTypeface(null, android.graphics.Typeface.BOLD);
+                info.addView(n1);
+                TextView n2 = new TextView(this);
+                n2.setText(m[1].equals("local") ? getString(R.string.dp_perm_local)
+                        : "XUID " + m[1]);
+                n2.setTextColor(getColor(R.color.text_secondary));
+                n2.setTextSize(10f);
+                info.addView(n2);
+                LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(
+                        0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+                ilp.leftMargin = (int) (6 * d);
+                row.addView(info, ilp);
+                TextView badge = new TextView(this);
+                badge.setText(m[2].equals("owner") ? getString(R.string.dp_perm_owner)
+                        : getString(R.string.dp_perm_member));
+                badge.setTextColor(getColor(R.color.primary));
+                badge.setTextSize(10f);
+                badge.setTypeface(null, android.graphics.Typeface.BOLD);
+                row.addView(badge);
+                binding.dpPermsList.addView(row);
+            }
+        }
+
+        // 结构卡
+        if (structures == null || structures.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText(R.string.dp_struct_empty);
+            empty.setTextColor(getColor(R.color.text_secondary));
+            empty.setTextSize(12f);
+            binding.dpStructsList.addView(empty);
+        } else {
+            int shown = 0;
+            for (WorldMapRenderer.StructureMarker m : structures) {
+                if (shown++ >= 8) {
+                    break;
+                }
+                TextView row = new TextView(this);
+                row.setText(m.type + "：(" + m.x + ", " + m.z + ")");
+                row.setTextColor(getColor(R.color.on_surface));
+                row.setTextSize(11f);
+                row.setPadding(0, (int) (3 * d), 0, 0);
+                binding.dpStructsList.addView(row);
+            }
+        }
+    }
+
+    /** 名字 hash 生成 8×8 像素头像（HTML 原型 makeAvatar 同款思路）。 */
+    private android.graphics.Bitmap pixelAvatar(String name, int px) {
+        int seed = 0;
+        for (char c : name.toCharArray()) {
+            seed = seed * 31 + c;
+        }
+        int[] palette = {0xFFE57373, 0xFF64B5F6, 0xFF81C784, 0xFFFFB74D,
+                0xFFBA68C8, 0xFF4DB6AC, 0xFFA1887F, 0xFF90A4AE};
+        int base = palette[(seed >>> 4) & 7];
+        int dark = android.graphics.Color.argb(255,
+                (int) (((base >> 16) & 0xFF) * 0.7f),
+                (int) (((base >> 8) & 0xFF) * 0.7f),
+                (int) ((base & 0xFF) * 0.7f));
+        android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(8, 8,
+                android.graphics.Bitmap.Config.ARGB_8888);
+        for (int y = 0; y < 8; y++) {
+            for (int x = 0; x < 8; x++) {
+                seed = seed * 1103515245 + 12345;
+                boolean on = ((seed >>> 24) & 1) != 0;
+                bmp.setPixel(x, y, on ? base : dark);
+            }
+        }
+        return android.graphics.Bitmap.createScaledBitmap(bmp, px, px, false);
+    }
+
     private void refreshMapBlueprintData() {
         binding.worldMapImage.setBlueprintData(mapPoints, mapLinks);
         binding.worldMapImage.setDimension(mapDimension);
@@ -577,7 +728,50 @@ public class NbtViewerActivity extends BaseActivity {
             File dbDir = new File(worldDir, "db");
             Log.i(TAG, "db 目录: " + dbDir.getAbsolutePath()
                     + ", 存在=" + dbDir.isDirectory());
-            if (dbDir.isDirectory()) {
+            WorldMapRenderer.WorldMap worldMap = null;
+            List<WorldMapRenderer.EntityPos> entities = null;
+            List<WorldMapRenderer.StructureMarker> structures = null;
+            boolean largeWorld = false;
+            if (dbDir.isDirectory() && dbSizeBytes(dbDir) > 20 * 1024 * 1024) {
+                // 大世界（155MB 级）：流式渲染，全量 readAllEntries 会 OOM
+                largeWorld = true;
+                Log.i(TAG, "大世界流式渲染 dbSize=" + dbSizeBytes(dbDir));
+                worldMap = WorldMapRenderer.buildSatelliteMapStreaming(dbDir, 0);
+                entities = WorldMapRenderer.parseEntitiesStreaming(dbDir, 0);
+                structures = WorldMapRenderer.parseStructureMarkersStreaming(dbDir, 0);
+                if (structures == null) {
+                    structures = new java.util.ArrayList<>();
+                }
+                if (worldMap != null && worldMap.detectedStructures != null) {
+                    structures.addAll(worldMap.detectedStructures);
+                }
+                // 玩家位置：只读玩家 key
+                try {
+                    LevelDBReader reader = new LevelDBReader(dbDir);
+                    entries = reader.readEntries(k -> {
+                        if (k == null || k.length < 8) {
+                            return false;
+                        }
+                        if (k.length == 13 && k[0] == '~') {
+                            return true;
+                        }
+                        boolean printable = true;
+                        for (byte b : k) {
+                            if (b < 32 || b > 126) {
+                                printable = false;
+                                break;
+                            }
+                        }
+                        if (printable) {
+                            String s = new String(k, java.nio.charset.StandardCharsets.US_ASCII);
+                            return s.startsWith("player");
+                        }
+                        return false;
+                    });
+                    reader.close();
+                } catch (Exception ignored) {
+                }
+            } else if (dbDir.isDirectory()) {
                 // 优先 BTR 同款原生库（自带全部 MCPE 压缩格式），失败回退纯 Java
                 try {
                     entries = NativeLevelDb.readAllEntries(dbDir);
@@ -595,41 +789,40 @@ public class NbtViewerActivity extends BaseActivity {
             } else {
                 dbMissing = true;
             }
-            Log.i(TAG, "db 读取完成: 条目数=" + entries.size());
+            Log.i(TAG, "db 读取完成: 条目数=" + (entries != null ? entries.size() : -1));
 
-            // 世界地图：BTR 卫星模式（方块颜色 + 坡度阴影），后台解码，缩放时按比例重采样
-            WorldMapRenderer.WorldMap worldMap = null;
-            try {
-                worldMap = WorldMapRenderer.buildSatelliteMap(entries);
-                Log.i(TAG, "卫星地图完成: " + (worldMap != null
-                        ? worldMap.width + "x" + worldMap.height
-                        : "失败(null)"));
-            } catch (Exception e) {
-                Log.i(TAG, "卫星地图渲染异常", e);
-            }
-
-            // 原生库可能漏读 13/14B key（下界/末地），失败时回退纯 Java 重读
-            if (worldMap == null && dbDir.isDirectory()) {
+            if (!largeWorld) {
+                // 世界地图：BTR 卫星模式（方块颜色 + 坡度阴影），后台解码，缩放时按比例重采样
                 try {
-                    LevelDBReader reader = new LevelDBReader(dbDir);
-                    List<LevelDBEntry> javaEntries = reader.readAllEntries();
-                    reader.close();
-                    if (javaEntries.size() > entries.size()) {
-                        entries = javaEntries;
-                        worldMap = WorldMapRenderer.buildSatelliteMap(entries);
-                        Log.i(TAG, "原生库漏读回退纯 Java: " + entries.size() + " 条目, 地图="
-                                + (worldMap != null ? worldMap.width + "x" + worldMap.height : "仍失败"));
-                    }
-                } catch (Exception ignored) {
+                    worldMap = WorldMapRenderer.buildSatelliteMap(entries);
+                    Log.i(TAG, "卫星地图完成: " + (worldMap != null
+                            ? worldMap.width + "x" + worldMap.height
+                            : "失败(null)"));
+                } catch (Exception e) {
+                    Log.i(TAG, "卫星地图渲染异常", e);
                 }
-            }
 
-            // 实体 / 结构图层数据（actorprefix 实体 + 方块实体结构检测）
-            List<WorldMapRenderer.EntityPos> entities = null;
-            List<WorldMapRenderer.StructureMarker> structures = null;
-            if (worldMap != null) {
-                entities = WorldMapRenderer.parseEntities(entries, 0);
-                structures = WorldMapRenderer.parseStructureMarkers(entries, 0);
+                // 原生库可能漏读 13/14B key（下界/末地），失败时回退纯 Java 重读
+                if (worldMap == null && dbDir.isDirectory()) {
+                    try {
+                        LevelDBReader reader = new LevelDBReader(dbDir);
+                        List<LevelDBEntry> javaEntries = reader.readAllEntries();
+                        reader.close();
+                        if (javaEntries.size() > entries.size()) {
+                            entries = javaEntries;
+                            worldMap = WorldMapRenderer.buildSatelliteMap(entries);
+                            Log.i(TAG, "原生库漏读回退纯 Java: " + entries.size() + " 条目, 地图="
+                                    + (worldMap != null ? worldMap.width + "x" + worldMap.height : "仍失败"));
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+
+                // 实体 / 结构图层数据（actorprefix 实体 + 方块实体结构检测）
+                if (worldMap != null) {
+                    entities = WorldMapRenderer.parseEntities(entries, 0);
+                    structures = WorldMapRenderer.parseStructureMarkers(entries, 0);
+                }
             }
 
             // 玩家位置（db 玩家数据的 Pos）与出生点（level.dat SpawnX/Z）
@@ -702,6 +895,7 @@ public class NbtViewerActivity extends BaseActivity {
                 onDataLoaded(fWorld, fRoot, fEntries, fLevelMissing, fDbMissing, fWorldMap);
                 binding.worldMapImage.setEntityData(fEntities);
                 binding.worldMapImage.setStructureMarkers(fStructures);
+                refreshDataPanelExtras(fStructures, fEntries);
             });
         });
     }
@@ -1709,6 +1903,14 @@ public class NbtViewerActivity extends BaseActivity {
 
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
+        // 伪二维码（HTML 原型 drawFakeQr：蓝图码 hash 视觉化，非真实扫码）
+        ImageView qrView = new ImageView(this);
+        int qrPx = (int) (96 * getResources().getDisplayMetrics().density);
+        qrView.setImageBitmap(fakeQrBitmap(codeView.getText().toString(), qrPx));
+        LinearLayout.LayoutParams qrLp = new LinearLayout.LayoutParams(qrPx, qrPx);
+        qrLp.gravity = android.view.Gravity.CENTER_HORIZONTAL;
+        qrView.setLayoutParams(qrLp);
+        panel.addView(qrView);
         panel.addView(codeView);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -1732,6 +1934,24 @@ public class NbtViewerActivity extends BaseActivity {
                 })
                 .setNegativeButton(getString(R.string.nbt_edit_cancel), null);
         dialog.show();
+    }
+
+    /** 蓝图码 hash → 24×24 伪二维码位图（HTML 原型 drawFakeQr 同款）。 */
+    private android.graphics.Bitmap fakeQrBitmap(String seedStr, int px) {
+        int seed = 0;
+        for (char c : seedStr.toCharArray()) {
+            seed = seed * 31 + c;
+        }
+        android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(24, 24,
+                android.graphics.Bitmap.Config.ARGB_8888);
+        for (int y = 0; y < 24; y++) {
+            for (int x = 0; x < 24; x++) {
+                seed = seed * 1103515245 + 12345;
+                boolean on = ((seed >>> 24) & 1) != 0;
+                bmp.setPixel(x, y, on ? 0xFF111111 : 0xFFFFFFFF);
+            }
+        }
+        return android.graphics.Bitmap.createScaledBitmap(bmp, px, px, false);
     }
 
     /** JSON → GZIP → Base64 → LeviBP:v1: 前缀（PRD 07.3 管线）。 */
