@@ -2410,6 +2410,8 @@ public class WorldMapRenderer {
         }
         boolean chiseledSandstone = false;
         boolean cutSandstone = false;
+        boolean blueTerracotta = false;
+        boolean tnt = false;
         boolean orangeTerracotta = false;
         boolean darkOak = false;
         boolean darkOakLog = false;
