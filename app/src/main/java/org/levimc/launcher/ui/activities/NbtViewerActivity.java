@@ -91,6 +91,49 @@ public class NbtViewerActivity extends BaseActivity {
     /** 渲染任务序号：< 大核数的任务绑大核，其余自由调度（小核也参与）。 */
     private final java.util.concurrent.atomic.AtomicInteger renderTaskSeq =
             new java.util.concurrent.atomic.AtomicInteger();
+    /** 结构标点详情弹窗：坐标 / NBT 数据 / 附近实体。 */
+    private void showStructureDetail(WorldMapRenderer.StructureMarker m) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("X: ").append(m.x).append("  Z: ").append(m.z);
+        // 附近实体（半径 128 方块内，最多列 10 个）
+        java.util.List<String> near = new java.util.ArrayList<>();
+        for (WorldMapRenderer.EntityPos e : binding.worldMapImage.getEntities()) {
+            double d = Math.hypot(e.x - m.x, e.z - m.z);
+            if (d < 128 && near.size() < 10) {
+                near.add(e.name + "(" + Math.round(d) + "m)");
+            }
+        }
+        if (!near.isEmpty()) {
+            sb.append("\n\n附近实体:\n· ").append(String.join("\n· ", near));
+        }
+        if (m.nbtDetail != null && !m.nbtDetail.isEmpty()) {
+            sb.append("\n\nNBT 数据:\n").append(m.nbtDetail);
+        } else {
+            sb.append("\n\nNBT 数据: 无（palette 方块特征检测）");
+        }
+        new CustomAlertDialog(this)
+                .setTitleText(structureLabelZh(m.type))
+                .setMessage(sb.toString())
+                .setNegativeButton(getString(R.string.nbt_edit_cancel), null)
+                .show();
+    }
+
+    private String structureLabelZh(String type) {
+        switch (type != null ? type : "") {
+            case "village": return "村庄";
+            case "spawner": return "刷怪笼";
+            case "trial_spawner": return "试炼刷怪笼";
+            case "end_portal": return "末地传送门";
+            case "fortress": return "下界要塞";
+            case "swamp_hut": return "女巫小屋";
+            case "ocean_monument": return "海底神殿";
+            case "end_city": return "末地城";
+            case "desert_temple": return "沙漠神殿";
+            case "outpost": return "掠夺者前哨站";
+            default: return type != null ? type : "结构";
+        }
+    }
+
     /** 合并视口按需渲染检测到的结构标记（去重后追加进结构图层）。 */
     private void mergeOnDemandStructures() {
         java.util.List<WorldMapRenderer.StructureMarker> ods =
@@ -519,6 +562,9 @@ public class NbtViewerActivity extends BaseActivity {
         binding.worldMapImage.setOnViewChangedListener((cx, cz) ->
                 binding.mapHud.setText("X: " + cx + "  Z: " + cz
                         + "  ·  " + dimName(mapDimension)));
+
+        // 结构标记点击 → 详情弹窗（NBT 数据/附近实体/坐标）
+        binding.worldMapImage.setOnStructureClickListener(this::showStructureDetail);
 
         // 地图交互：长按添加标点、点击标点弹详情、单击空地显示坐标
         binding.worldMapImage.setOnMapInteractListener(new WorldMapView.OnMapInteractListener() {

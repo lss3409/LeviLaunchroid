@@ -2094,12 +2094,19 @@ public class WorldMapRenderer {
     public static class StructureMarker {
         public final int x;
         public final int z;
-        public final String type; // village / spawner / end_portal
+        public final String type; // village / spawner / end_portal / desert_temple / outpost
+        /** 结构 NBT 数据（村庄/方块实体等有 key 数据的结构；palette 特征检测的为 null）。 */
+        public final String nbtDetail;
 
         public StructureMarker(int x, int z, String type) {
+            this(x, z, type, null);
+        }
+
+        public StructureMarker(int x, int z, String type, String nbtDetail) {
             this.x = x;
             this.z = z;
             this.type = type;
+            this.nbtDetail = nbtDetail;
         }
     }
 
@@ -2320,6 +2327,55 @@ public class WorldMapRenderer {
         return new String(rawKey, java.nio.charset.StandardCharsets.US_ASCII);
     }
 
+    /** NBT 标签 → 简短文本（结构详情弹窗用，最多 3 层/60 项）。 */
+    private static String tagToText(NbtTag t) {
+        if (t == null) {
+            return "null";
+        }
+        switch (t.getType()) {
+            case NbtTag.TAG_STRING: return "\"" + t.getString() + "\"";
+            case NbtTag.TAG_INT: return String.valueOf(t.getInt());
+            case NbtTag.TAG_LONG: return String.valueOf(t.getLong());
+            case NbtTag.TAG_FLOAT: return String.valueOf(t.getFloat());
+            case NbtTag.TAG_DOUBLE: return String.valueOf(t.getDouble());
+            case NbtTag.TAG_BYTE: return String.valueOf(t.getByte());
+            case NbtTag.TAG_SHORT: return String.valueOf(t.getShort());
+            case NbtTag.TAG_LIST: {
+                java.util.List<NbtTag> l = t.getList();
+                StringBuilder sb = new StringBuilder("[");
+                int n = Math.min(8, l != null ? l.size() : 0);
+                for (int i = 0; i < n; i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(tagToText(l.get(i)));
+                }
+                if (l != null && l.size() > n) sb.append(", ...");
+                return sb.append(']').toString();
+            }
+            case NbtTag.TAG_COMPOUND: return compoundToText(t);
+            default: return "?";
+        }
+    }
+
+    /** compound → "key=val, ..." 文本（结构详情弹窗）。 */
+    private static String compoundToText(NbtTag c) {
+        if (c == null || c.getType() != NbtTag.TAG_COMPOUND || c.getCompound() == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        int n = 0;
+        for (java.util.Map.Entry<String, NbtTag> e : c.getCompound().entrySet()) {
+            if (n++ >= 12) {
+                sb.append("\n...");
+                break;
+            }
+            if (sb.length() > 0) {
+                sb.append('\n');
+            }
+            sb.append(e.getKey()).append(" = ").append(tagToText(e.getValue()));
+        }
+        return sb.toString();
+    }
+
     /** VILLAGE_*_INFO NBT：X0/X1/Z0/Z1 边界 → 村庄中心标记。 */
     private static void parseVillageInfo(byte[] value, List<StructureMarker> out) {
         NbtTag root = parseCompoundWithFallback(value);
@@ -2335,7 +2391,17 @@ public class WorldMapRenderer {
         }
         int cx = (x0t.getInt() + x1t.getInt()) / 2;
         int cz = (z0t.getInt() + z1t.getInt()) / 2;
-        out.add(new StructureMarker(cx, cz, "village"));
+        // NBT 详情：边界 + 关键字段（供结构标点点击弹窗展示）
+        StringBuilder detail = new StringBuilder();
+        detail.append("边界 X0=").append(x0t.getInt()).append(" X1=").append(x1t.getInt())
+                .append(" Z0=").append(z0t.getInt()).append(" Z1=").append(z1t.getInt());
+        for (String k : new String[]{"DWELLERS", "Tick", "Population", "Faction"}) {
+            NbtTag t = root.getTag(k);
+            if (t != null) {
+                detail.append('\n').append(k).append('=').append(tagToText(t));
+            }
+        }
+        out.add(new StructureMarker(cx, cz, "village", detail.toString()));
     }
 
     /** 轻量读取 subchunk 全部 storage 的 palette 名字（不解码方块数据区）。 */
@@ -2576,7 +2642,9 @@ public class WorldMapRenderer {
             if (xTag == null || zTag == null) {
                 continue;
             }
-            out.add(new StructureMarker(xTag.getInt(), zTag.getInt(), type));
+            // 方块实体 NBT 详情（刷怪笼的 SpawnData/末地门的坐标等）
+            out.add(new StructureMarker(xTag.getInt(), zTag.getInt(), type,
+                    compoundToText(be)));
         }
         return n;
     }

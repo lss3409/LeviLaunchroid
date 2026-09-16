@@ -254,6 +254,11 @@ public class WorldMapView extends View {
         invalidate();
     }
 
+    /** 实体列表（结构详情弹窗附近实体查询）。 */
+    public List<WorldMapRenderer.EntityPos> getEntities() {
+        return entities;
+    }
+
     /** 设置标点/连线数据并重绘。 */
     public void setBlueprintData(List<BlueprintDb.Point> points, List<BlueprintDb.Link> links) {
         this.points = points != null ? points : new ArrayList<>();
@@ -1487,6 +1492,33 @@ public class WorldMapView extends View {
         return true;
     }
 
+    /** 结构标记点击回调（详情弹窗：NBT/附近实体/坐标）。 */
+    public interface OnStructureClickListener {
+        void onStructureClick(WorldMapRenderer.StructureMarker marker);
+    }
+
+    private OnStructureClickListener structureClickListener;
+
+    public void setOnStructureClickListener(OnStructureClickListener l) {
+        this.structureClickListener = l;
+    }
+
+    /** 结构标记命中检测（半径 max(24px, ppb×1.4)）。 */
+    private WorldMapRenderer.StructureMarker hitTestStructure(float sx, float sy) {
+        for (WorldMapRenderer.StructureMarker m : structures) {
+            if (!chunkRendered(Math.floorDiv(m.x, 16), Math.floorDiv(m.z, 16))) {
+                continue;
+            }
+            float px = worldToScreenX(m.x + 0.5f);
+            float py = worldToScreenY(m.z + 0.5f);
+            float r = Math.max(24f, pixelsPerBlock * 1.4f);
+            if (Math.abs(sx - px) <= r && Math.abs(sy - py) <= r) {
+                return m;
+            }
+        }
+        return null;
+    }
+
     /** 命中检测：点击位置 24px 内的标点。 */
     private BlueprintDb.Point hitTestPoint(float sx, float sy) {
         for (BlueprintDb.Point p : points) {
@@ -1564,6 +1596,14 @@ public class WorldMapView extends View {
             if (hit != null && listener != null) {
                 listener.onPointClick(hit);
                 return true;
+            }
+            // 单击结构标记 → 结构详情回调（NBT/附近实体/坐标）
+            if (showStructures && structureClickListener != null) {
+                WorldMapRenderer.StructureMarker sm = hitTestStructure(e.getX(), e.getY());
+                if (sm != null) {
+                    structureClickListener.onStructureClick(sm);
+                    return true;
+                }
             }
             // 单击空地 → 显示该处坐标（十字标记 + 标签，HTML 原型行为）
             int[] b = screenToBlock(e.getX(), e.getY());
