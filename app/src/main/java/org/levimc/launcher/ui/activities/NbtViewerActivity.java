@@ -506,10 +506,10 @@ public class NbtViewerActivity extends BaseActivity {
             binding.tabLayers.setVisibility(View.GONE);
             binding.tabPoints.setVisibility(View.VISIBLE);
         });
-        // 蓝图码
+        // 导出世界为 HTML（PRD 7.4：Leaflet 交互式地图，单文件）
         binding.toolBlueprint.setOnClickListener(v -> {
             closeToolMenu();
-            showBlueprintDialog();
+            exportWorldHtmlAsync();
         });
 
         // 维度切换
@@ -2119,6 +2119,78 @@ public class NbtViewerActivity extends BaseActivity {
     // ---------------------------------------------------------------- 蓝图码
 
     /** 蓝图码弹窗：生成/复制/分享/导入（冲突处理三选项）。 */
+    /** 后台导出交互式 HTML 地图（Leaflet 单文件，含卫星图/标点/连线/结构/玩家出生点）。 */
+    private void exportWorldHtmlAsync() {
+        if (currentMap == null || currentWorldDir == null) {
+            Toast.makeText(this, "地图尚未加载", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final WorldMapRenderer.WorldMap fMap = currentMap;
+        final File worldDir = currentWorldDir;
+        binding.nbtLoading.setVisibility(View.VISIBLE);
+        executor.execute(() -> {
+            try {
+                // 大世界数据不足时先全量流式渲染（一次 30-60 秒，导出质量优先）
+                WorldMapRenderer.WorldMap exportMap = fMap;
+                if (exportMap.chunkColors != null && exportMap.chunkColors.size() < 1000) {
+                    WorldMapRenderer.WorldMap full = WorldMapRenderer.buildSatelliteMapStreaming(
+                            new File(worldDir, "db"), 0);
+                    if (full != null) {
+                        exportMap = full;
+                    }
+                }
+                java.util.List<String[]> pts = new java.util.ArrayList<>();
+                synchronized (mapPoints) {
+                    for (BlueprintDb.Point p : mapPoints) {
+                        if (!p.dimension.equals(mapDimension)) {
+                            continue;
+                        }
+                        pts.add(new String[]{p.name, String.valueOf(p.x),
+                                String.valueOf(p.z), categoryColor(p.category)});
+                    }
+                }
+                java.util.List<String[]> lks = new java.util.ArrayList<>();
+                synchronized (mapLinks) {
+                    for (BlueprintDb.Link l : mapLinks) {
+                        BlueprintDb.Point a = findPoint(l.fromId);
+                        BlueprintDb.Point b = findPoint(l.toId);
+                        if (a != null && b != null) {
+                            lks.add(new String[]{String.valueOf(a.x), String.valueOf(a.z),
+                                    String.valueOf(b.x), String.valueOf(b.z), "#64b5f6"});
+                        }
+                    }
+                }
+                int px = fMap.playerBlockX;
+                int pz = fMap.playerBlockZ;
+                int sx = fMap.spawnBlockX;
+                int sz = fMap.spawnBlockZ;
+                java.util.List<WorldMapRenderer.StructureMarker> sts;
+                synchronized (currentStructures) {
+                    sts = new java.util.ArrayList<>(currentStructures);
+                }
+                File dir = new File("/sdcard/Download/LeviLauncher");
+                if (!dir.exists()) {
+                    dir.mkdirs();
+                }
+                File out = WorldMapRenderer.exportWorldHtml(exportMap, dir,
+                        worldDir.getName() + "_map.html",
+                        worldDir.getName(), px, pz, sx, sz, pts, lks, sts);
+                final File fOut = out;
+                runOnUiThread(() -> {
+                    binding.nbtLoading.setVisibility(View.GONE);
+                    Toast.makeText(this, "已导出: " + fOut.getAbsolutePath(),
+                            Toast.LENGTH_LONG).show();
+                });
+            } catch (Throwable e) {
+                Log.w(TAG, "导出 HTML 失败", e);
+                runOnUiThread(() -> {
+                    binding.nbtLoading.setVisibility(View.GONE);
+                    Toast.makeText(this, "导出失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
+        });
+    }
+
     private void showBlueprintDialog() {
         EditText codeView = new EditText(this);
         codeView.setSingleLine(false);

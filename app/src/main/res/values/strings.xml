@@ -1333,7 +1333,7 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="tool_link_mode">Link mode</string>
     <string name="tool_ruler">Measure</string>
     <string name="tool_point_list">Points</string>
-    <string name="tool_blueprint">Blueprint code</string>
+    <string name="tool_blueprint">Export HTML</string>
     <string name="point_add_title">Add point</string>
     <string name="point_edit_title">Edit point</string>
     <string name="point_name">Name</string>

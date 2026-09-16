@@ -12,6 +12,7 @@ import org.levimc.launcher.core.content.nbt.BedrockNbtReader;
 import org.levimc.launcher.core.content.nbt.NbtTag;
 
 import java.io.File;
+import java.io.ByteArrayOutputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -3296,6 +3297,163 @@ public class WorldMapRenderer {
     }
 
     /** 调试导出：渲染整图到 PNG 存应用外部目录（截屏服务异常时的替代验证手段）。 */
+    /**
+     * 导出交互式 HTML 地图（PRD 7.3/7.4：Leaflet CRS.Simple 平面坐标系 +
+     * 卫星图 base64 内嵌 + 标点 circleMarker + 联动虚线 + 距离标注，
+     * 单文件双击可开）。lat=Z、lng=X。
+     * points: {name,x,z,color} / links: {x1,z1,x2,z2,color}
+     */
+    public static File exportWorldHtml(WorldMap map, File outDir, String fileName,
+                                       String title,
+                                       int playerX, int playerZ, int spawnX, int spawnZ,
+                                       java.util.List<String[]> points,
+                                       java.util.List<String[]> links,
+                                       java.util.List<StructureMarker> structures)
+            throws Exception {
+        // 1) 卫星图 PNG（小世界全图方块级；大世界 chunk 概览每 chunk 1 像素）
+        Bitmap pngBmp;
+        if (map.colors != null) {
+            int w = map.width;
+            int h = map.height;
+            if (w <= 0 || h <= 0 || (long) w * h > 60L * 1024 * 1024) {
+                throw new IllegalStateException("地图过大: " + w + "x" + h);
+            }
+            pngBmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+            pngBmp.setPixels(map.colors, 0, w, 0, 0, w, h);
+        } else if (map.chunkColors != null && !map.chunkColors.isEmpty()) {
+            int minCx = Integer.MAX_VALUE;
+            int maxCx = Integer.MIN_VALUE;
+            int minCz = Integer.MAX_VALUE;
+            int maxCz = Integer.MIN_VALUE;
+            for (Long key : map.chunkColors.keySet()) {
+                int cx = (int) (key >> 32);
+                int cz = (int) (long) key;
+                minCx = Math.min(minCx, cx);
+                maxCx = Math.max(maxCx, cx);
+                minCz = Math.min(minCz, cz);
+                maxCz = Math.max(maxCz, cz);
+            }
+            int cw = maxCx - minCx + 1;
+            int ch = maxCz - minCz + 1;
+            if (cw <= 0 || ch <= 0 || cw * ch > 16 * 1024 * 1024) {
+                throw new IllegalStateException("chunk 范围过大: " + cw + "x" + ch);
+            }
+            pngBmp = Bitmap.createBitmap(cw, ch, Bitmap.Config.ARGB_8888);
+            for (Map.Entry<Long, int[]> e : map.chunkColors.entrySet()) {
+                int cx = (int) (e.getKey() >> 32);
+                int cz = (int) (long) e.getKey();
+                for (int v : e.getValue()) {
+                    if ((v & 0xFF000000) != 0) {
+                        pngBmp.setPixel(cx - minCx, cz - minCz, v);
+                        break;
+                    }
+                }
+            }
+        } else {
+            throw new IllegalStateException("无地图数据");
+        }
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        pngBmp.compress(Bitmap.CompressFormat.PNG, 90, bos);
+        pngBmp.recycle();
+        String b64 = android.util.Base64.encodeToString(bos.toByteArray(),
+                android.util.Base64.NO_WRAP);
+        bos.close();
+
+        // 2) 世界范围（[Z,X] 顺序：lat=Z、lng=X）
+        int minX = map.minBlockX;
+        int minZ = map.minBlockZ;
+        int maxX = minX + map.width;
+        int maxZ = minZ + map.height;
+        StringBuilder html = new StringBuilder(4096);
+        html.append("<!DOCTYPE html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">")
+                .append("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">")
+                .append("<title>").append(escapeHtml(title)).append("</title>")
+                .append("<link rel=\"stylesheet\" href=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.css\"/>")
+                .append("<script src=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.js\"></script>")
+                .append("<style>body{margin:0;background:#12141a}#map{position:absolute;top:0;bottom:0;width:100%}")
+                .append(".dist-label{background:rgba(20,24,32,.85);color:#8ce0ff;font:12px monospace;")
+                .append("padding:2px 8px;border-radius:10px;border:1px solid #3a6b8a}</style></head><body>")
+                .append("<div id=\"map\"></div><script>")
+                .append("var map=L.map('map',{crs:L.CRS.Simple,minZoom:-4,maxZoom:3});")
+                .append("var BOUNDS=[[").append(minZ).append(',').append(maxX).append("],[")
+                .append(maxZ).append(',').append(minX).append("]];")
+                .append("L.imageOverlay('data:image/png;base64,").append(b64)
+                .append("',BOUNDS).addTo(map);");
+        // 标点
+        if (points != null && !points.isEmpty()) {
+            html.append("var pts=");
+            html.append(jsonArray(points));
+            html.append(";pts.forEach(function(p){L.circleMarker([p.z,p.x],{radius:8,color:p.c,fillOpacity:.9})")
+                    .append(".addTo(map).bindPopup('<b>'+p.n+'</b><br>X:'+p.x+' Z:'+p.z);});");
+        }
+        // 连线（虚线 + 距离标注）
+        if (links != null && !links.isEmpty()) {
+            html.append("var lks=");
+            html.append(jsonArray(links));
+            html.append(";lks.forEach(function(l){L.polyline([[l.z1,l.x1],[l.z2,l.x2]],")
+                    .append("{color:l.c,dashArray:'6,8',weight:2}).addTo(map);")
+                    .append("var d=Math.round(Math.hypot(l.x2-l.x1,l.z2-l.z1));")
+                    .append("L.marker([(l.z1+l.z2)/2,(l.x1+l.x2)/2],{icon:L.divIcon({className:'dist-label',")
+                    .append("html:'<span>'+d+'m</span>',iconSize:[60,20]})}).addTo(map);});");
+        }
+        // 结构标记
+        if (structures != null && !structures.isEmpty()) {
+            html.append("var sts=");
+            StringBuilder sb = new StringBuilder("[");
+            for (int i = 0; i < structures.size(); i++) {
+                StructureMarker m = structures.get(i);
+                if (i > 0) {
+                    sb.append(',');
+                }
+                sb.append("{t:'").append(escapeHtml(m.type)).append("',x:")
+                        .append(m.x).append(",z:").append(m.z).append('}');
+            }
+            sb.append(']');
+            html.append(sb);
+            html.append(";sts.forEach(function(s){L.circleMarker([s.z,s.x],{radius:10,color:'#f5a623',")
+                    .append("fillOpacity:.85}).addTo(map).bindPopup('<b>'+s.t+'</b><br>X:'+s.x+' Z:'+s.z);});");
+        }
+        // 玩家/出生点
+        if (playerX != Integer.MIN_VALUE) {
+            html.append("L.circleMarker([").append(playerZ).append(',').append(playerX)
+                    .append("],{radius:7,color:'#4ade80',fillOpacity:.95}).addTo(map)")
+                    .append(".bindPopup('<b>玩家</b><br>X:").append(playerX).append(" Z:")
+                    .append(playerZ).append("');");
+        }
+        if (spawnX != Integer.MIN_VALUE) {
+            html.append("L.circleMarker([").append(spawnZ).append(',').append(spawnX)
+                    .append("],{radius:7,color:'#5b9cf6',fillOpacity:.95}).addTo(map)")
+                    .append(".bindPopup('<b>出生点</b><br>X:").append(spawnX).append(" Z:")
+                    .append(spawnZ).append("');");
+        }
+        html.append("map.fitBounds(BOUNDS);</script></body></html>");
+        File out = new File(outDir, fileName);
+        try (java.io.FileOutputStream fos = new java.io.FileOutputStream(out)) {
+            fos.write(html.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+        return out;
+    }
+
+    private static String escapeHtml(String s) {
+        return s == null ? "" : s.replace("&", "&amp;").replace("<", "&lt;")
+                .replace(">", "&gt;").replace("\"", "&quot;");
+    }
+
+    private static String jsonArray(java.util.List<String[]> rows) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < rows.size(); i++) {
+            String[] r = rows.get(i);
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append("{n:'").append(escapeHtml(r[0])).append("',x:")
+                    .append(Integer.parseInt(r[1])).append(",z:")
+                    .append(Integer.parseInt(r[2])).append(",c:'")
+                    .append(r.length > 3 ? r[3] : "#ffd54f").append("'}");
+        }
+        return sb.append(']').toString();
+    }
+
     public static void debugExport(WorldMap map) {
         try {
             if (map == null || map.width <= 0 || map.height <= 0) {
