@@ -820,13 +820,15 @@ public class NbtViewerActivity extends BaseActivity {
                     if (fMap0 != null && fMap0.detectedStructures != null) {
                         strs.addAll(fMap0.detectedStructures);
                     }
+                    final List<WorldMapRenderer.EntityPos> fEnts = ents;
+                    final List<WorldMapRenderer.StructureMarker> fStrs = strs;
                     runOnUiThread(() -> {
                         if (isFinishing() || isDestroyed() || !isCurrentLoad(gen)) {
                             return;
                         }
-                        binding.worldMapImage.setEntityData(ents);
-                        binding.worldMapImage.setStructureMarkers(strs);
-                        refreshDataPanelExtras(strs, entries);
+                        binding.worldMapImage.setEntityData(fEnts);
+                        binding.worldMapImage.setStructureMarkers(fStrs);
+                        refreshDataPanelExtras(fStrs, null);
                     });
                 });
             } else if (dbDir.isDirectory()) {
