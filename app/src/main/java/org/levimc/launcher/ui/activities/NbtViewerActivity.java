@@ -337,9 +337,14 @@ public class NbtViewerActivity extends BaseActivity {
                     try {
                         int cx = (int) (key >> 32);
                         int cz = (int) (long) key;
-                        int[] colors = WorldMapRenderer.renderChunkOnDemand(dbDir, cx, cz, dim);
+                        int[][] res = WorldMapRenderer.renderChunkOnDemand(dbDir, cx, cz, dim);
                         // 未生成 chunk 也放 EMPTY 占位，防重复请求
+                        int[] colors = res != null ? res[0] : null;
                         fMap.chunkColors.put(key, colors != null ? colors : EMPTY_CHUNK_COLORS);
+                        // biome 图层色（有 biome 数据时生成，供图层切换使用）
+                        if (res != null && res[1] != null && fMap.chunkBiomeColors != null) {
+                            fMap.chunkBiomeColors.put(key, res[1]);
+                        }
                     } catch (Throwable ignored) {
                     } finally {
                         inFlight.remove(key);

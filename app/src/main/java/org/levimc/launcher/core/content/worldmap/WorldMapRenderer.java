@@ -1899,7 +1899,7 @@ public class WorldMapRenderer {
      * 渲染 16×16 表面色返回。玩家滑动到新区域时逐 chunk 增量渲染，
      * 打开地图不再等待全量渲染。
      */
-    public static int[] renderChunkOnDemand(File dbDir, int cx, int cz, int dimension) {
+    public static int[][] renderChunkOnDemand(File dbDir, int cx, int cz, int dimension) {
         try {
             LevelDBReader reader = new LevelDBReader(dbDir);
             List<LevelDBEntry> entries = reader.readChunk(cx, cz);
@@ -1969,13 +1969,19 @@ public class WorldMapRenderer {
                 subs.keySet().removeIf(s -> s < fMin || s > fMax);
             }
             int[] colors = new int[256];
+            int[] biomeCols = biomes != null ? new int[256] : null;
             for (int i = 0; i < 256; i++) {
                 int lx = i & 15;
                 int lz = i >> 4;
                 int c = surfaceColor(hmap[i], lx, lz, subs, biomes, dimension);
                 colors[i] = applyShading(c, hmap, i);
+                if (biomeCols != null) {
+                    biomeCols[i] = biomeGrassColor(biomes[i] & 0xFF);
+                }
             }
-            return colors;
+            // [0]=卫星色 [1]=biome 图层色（大世界按需渲染此前不生成
+            // biome 数据——biome 图层打开后无内容显示的根因）
+            return new int[][]{colors, biomeCols};
         } catch (Exception e) {
             Log.w(TAG, "按需渲染 chunk(" + cx + "," + cz + ") 失败", e);
             return null;
@@ -3206,6 +3212,15 @@ public class WorldMapRenderer {
 
     /** biome id → 地图色（优先 bedrockmap 色表 rgb，回退 BTR 内置表）。 */
     /** 海洋/河流类 biome（无 grass/water tint 条目，biome 图层用默认水色）。 */
+    /** 雪地类 biome（无 grass tint：地表被雪覆盖，biome 图层用雪白）。 */
+    private static boolean isSnowBiome(int biomeId) {
+        switch (biomeId) {
+            case 11: case 12: case 26: case 46: case 47: case 183:
+                return true;
+            default: return false;
+        }
+    }
+
     private static boolean isWaterBiome(int biomeId) {
         switch (biomeId) {
             case 0: case 7: case 10: case 11: case 24:
@@ -3230,6 +3245,11 @@ public class WorldMapRenderer {
             if (isWaterBiome(biomeId)) {
                 return 0xFF000000 | (DEFAULT_WATER_TINT[0] << 16)
                         | (DEFAULT_WATER_TINT[1] << 8) | DEFAULT_WATER_TINT[2];
+            }
+            if (isSnowBiome(biomeId)) {
+                // 雪地类 biome 无 grass 色（雪覆盖地表）：用雪白——此前回退
+                // 默认草绿，"雪地群系刷绿色"的根因
+                return 0xFFE8EEF6;
             }
             return 0xFF000000 | (DEFAULT_GRASS_TINT[0] << 16)
                     | (DEFAULT_GRASS_TINT[1] << 8) | DEFAULT_GRASS_TINT[2];
