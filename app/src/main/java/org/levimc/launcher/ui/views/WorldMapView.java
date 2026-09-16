@@ -951,6 +951,7 @@ public class WorldMapView extends View {
             case "swamp_hut": return "女巫小屋";
             case "ocean_monument": return "海底神殿";
             case "outpost": return "掠夺者前哨站";
+            case "end_city": return "末地城";
             default: return type;
         }
     }
@@ -1033,10 +1034,18 @@ public class WorldMapView extends View {
                 }
                 case "outpost": {
                     // 掠夺者前哨站：深灰塔
-                    p.setColor(0xFF4E4A45);
+                    p.setColor(0xFF4E4E45);
                     canvas.drawRect(sx - r * 0.45f, sy - r * 0.9f, sx + r * 0.45f, sy + r * 0.6f, p);
                     canvas.drawRect(sx - r * 0.45f, sy - r * 0.9f, sx + r * 0.45f, sy + r * 0.6f, stroke);
                     canvas.drawRect(sx - r * 0.3f, sy - r * 0.55f, sx + r * 0.3f, sy - r * 0.25f, stroke);
+                    break;
+                }
+                case "end_city": {
+                    // 末地城：紫色尖塔
+                    p.setColor(0xFFB58CD6);
+                    canvas.drawRect(sx - r * 0.45f, sy - r * 0.9f, sx + r * 0.45f, sy + r * 0.6f, p);
+                    canvas.drawRect(sx - r * 0.45f, sy - r * 0.9f, sx + r * 0.45f, sy + r * 0.6f, stroke);
+                    canvas.drawRect(sx - r * 0.2f, sy - r * 0.55f, sx + r * 0.2f, sy - r * 0.2f, stroke);
                     break;
                 }
             }

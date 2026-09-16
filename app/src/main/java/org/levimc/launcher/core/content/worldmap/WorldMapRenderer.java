@@ -1365,7 +1365,19 @@ public class WorldMapRenderer {
         int beKeys = 0;
         for (LevelDBEntry entry : entries) {
             byte[] rawKey = entry.getKey().getRawKey();
-            // 0x39 HardCodedSpawnAreas：结构生成区域（官方记录）
+            // 字符串 key：VILLAGE_<维度>_<uuid>_INFO（1.18+ 村庄标记；实测 1.26 HSA 已废弃）
+            if (rawKey != null && rawKey.length > 20) {
+                String skey = safeStringKey(rawKey);
+                if (skey != null && skey.startsWith("VILLAGE_") && skey.endsWith("_INFO")) {
+                    int villageDim = skey.contains("Nether") ? DIM_NETHER
+                            : skey.contains("End") ? DIM_END : DIM_OVERWORLD;
+                    if (villageDim == dimension) {
+                        parseVillageInfo(entry.getValue(), out);
+                    }
+                    continue;
+                }
+            }
+            // 0x39 HardCodedSpawnAreas：结构生成区域（官方记录，老版本存档）
             int[] hsaKey = parseTaggedKey(rawKey, KEY_TYPE_HSA);
             if (hsaKey != null && hsaKey[2] == dimension) {
                 parseHsa(entry.getValue(), out);
@@ -1409,6 +1421,51 @@ public class WorldMapRenderer {
                 }
             }
         }
+        // 1.26 无 HSA 记录的结构：palette 特征检测（轻量——只读 palette 名字，
+        // 不拷贝方块数据区，避免内存爆炸）。
+        // 海底神殿：sea_lantern + prismarine 聚块（实测 74Q 世界 3×3 chunk 聚块）。
+        // 末地城：purpur_block + end_stone_bricks（仅末地维度，排除主世界玩家建筑误报）。
+        Map<Long, Integer> monumentChunks = new HashMap<>();
+        Map<Long, Integer> endCityChunks = new HashMap<>();
+        for (LevelDBEntry entry : entries) {
+            byte[] rawKey = entry.getKey().getRawKey();
+            int[] ck = parseChunkKey(rawKey);
+            if (ck == null || ck[3] < 0 || ck[2] != dimension || !isSubchunkKey(rawKey)) {
+                continue;
+            }
+            String[] pal = scanPaletteNames(entry.getValue());
+            if (pal == null) {
+                continue;
+            }
+            boolean lantern = false;
+            boolean prismarine = false;
+            boolean purpur = false;
+            boolean endBricks = false;
+            for (String pn : pal) {
+                if (pn == null) {
+                    continue;
+                }
+                if (pn.contains("sea_lantern")) {
+                    lantern = true;
+                } else if (pn.contains("prismarine")) {
+                    prismarine = true;
+                } else if (pn.contains("purpur")) {
+                    purpur = true;
+                } else if (pn.contains("end_stone_bricks")) {
+                    endBricks = true;
+                }
+            }
+            long key = pack(ck[0], ck[1]);
+            if (lantern && prismarine) {
+                monumentChunks.put(key, 1);
+            }
+            if (dimension == DIM_END && purpur && endBricks) {
+                endCityChunks.put(key, 1);
+            }
+        }
+        clusterStructureChunks(monumentChunks, "ocean_monument", out);
+        clusterStructureChunks(endCityChunks, "end_city", out);
+
         Map<String, Integer> typeDist = new HashMap<>();
         for (StructureMarker m : out) {
             typeDist.merge(m.type, 1, Integer::sum);
@@ -1416,6 +1473,130 @@ public class WorldMapRenderer {
         Log.i(TAG, "结构标记解析完成: 维度=" + dimension + ", 结构数=" + out.size()
                 + ", 方块实体数=" + beKeys + ", 类型分布=" + typeDist);
         return out;
+    }
+
+    /** 字符串 key 判断（全可打印 ASCII 且长度合理）。 */
+    private static String safeStringKey(byte[] rawKey) {
+        for (byte b : rawKey) {
+            if (b < 32 || b > 126) {
+                return null;
+            }
+        }
+        return new String(rawKey, java.nio.charset.StandardCharsets.US_ASCII);
+    }
+
+    /** VILLAGE_*_INFO NBT：X0/X1/Z0/Z1 边界 → 村庄中心标记。 */
+    private static void parseVillageInfo(byte[] value, List<StructureMarker> out) {
+        NbtTag root = parseCompoundWithFallback(value);
+        if (root == null || root.getType() != NbtTag.TAG_COMPOUND) {
+            return;
+        }
+        NbtTag x0t = root.getTag("X0");
+        NbtTag x1t = root.getTag("X1");
+        NbtTag z0t = root.getTag("Z0");
+        NbtTag z1t = root.getTag("Z1");
+        if (x0t == null || x1t == null || z0t == null || z1t == null) {
+            return;
+        }
+        int cx = (x0t.getInt() + x1t.getInt()) / 2;
+        int cz = (z0t.getInt() + z1t.getInt()) / 2;
+        out.add(new StructureMarker(cx, cz, "village"));
+    }
+
+    /** 轻量读取 subchunk 全部 storage 的 palette 名字（不解码方块数据区）。 */
+    private static String[] scanPaletteNames(byte[] value) {
+        if (value == null || value.length < 5 || (value[0] & 0xFF) != 9) {
+            return null;
+        }
+        int p = 3;
+        int count = value[1] & 0xFF;
+        if (count < 1 || count > 2) {
+            return null;
+        }
+        List<String> names = new ArrayList<>();
+        for (int s = 0; s < count && p + 2 <= value.length; s++) {
+            int header = value[p++] & 0xFF;
+            int bits = header >> 1;
+            if (bits < 1 || bits > 16) {
+                return null;
+            }
+            int blocksPerWord = 32 / bits;
+            int wordCount = (4096 + blocksPerWord - 1) / blocksPerWord;
+            int dataBytes = wordCount * 4;
+            if (p + dataBytes + 4 > value.length) {
+                return null;
+            }
+            int ps = p + dataBytes; // 跳过数据区（不拷贝）
+            int paletteSize = readIntLE(value, ps);
+            if (paletteSize < 0 || paletteSize > 4096) {
+                return null;
+            }
+            int pe = ps + 4;
+            for (int i = 0; i < paletteSize && pe + 3 <= value.length; i++) {
+                int type = value[pe++] & 0xFF;
+                if (type == 0) {
+                    continue;
+                }
+                int nameLen = (value[pe] & 0xFF) | ((value[pe + 1] & 0xFF) << 8);
+                pe += 2 + nameLen;
+                if (pe > value.length) {
+                    return null;
+                }
+                String name = extractPaletteName(value, pe, type);
+                pe = skipNbtPayload(value, pe, type);
+                if (pe < 0) {
+                    return null;
+                }
+                if (name != null) {
+                    names.add(name);
+                }
+            }
+            p = pe;
+        }
+        return names.toArray(new String[0]);
+    }
+
+    /** 相邻 chunk 聚块：每个连通分量输出一个结构标记（块中心）。 */
+    private static void clusterStructureChunks(Map<Long, Integer> chunks, String type,
+                                               List<StructureMarker> out) {
+        Set<Long> visited = new HashSet<>();
+        for (Long start : chunks.keySet()) {
+            if (visited.contains(start)) {
+                continue;
+            }
+            // BFS 收集连通分量
+            List<Long> comp = new ArrayList<>();
+            ArrayDeque<Long> queue = new ArrayDeque<>();
+            queue.add(start);
+            visited.add(start);
+            while (!queue.isEmpty()) {
+                long cur = queue.poll();
+                comp.add(cur);
+                int cx = unpackX(cur);
+                int cz = unpackZ(cur);
+                for (int dx = -1; dx <= 1; dx++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        if (dx == 0 && dz == 0) {
+                            continue;
+                        }
+                        long nb = pack(cx + dx, cz + dz);
+                        if (chunks.containsKey(nb) && !visited.contains(nb)) {
+                            visited.add(nb);
+                            queue.add(nb);
+                        }
+                    }
+                }
+            }
+            // 分量中心（block 坐标）
+            long sumX = 0;
+            long sumZ = 0;
+            for (Long c : comp) {
+                sumX += unpackX(c) * 16L + 8;
+                sumZ += unpackZ(c) * 16L + 8;
+            }
+            out.add(new StructureMarker((int) (sumX / comp.size()),
+                    (int) (sumZ / comp.size()), type));
+        }
     }
 
     /** 指定 tag 的 chunk key（9/10B 主世界或 13/14B 含维度）。 */
