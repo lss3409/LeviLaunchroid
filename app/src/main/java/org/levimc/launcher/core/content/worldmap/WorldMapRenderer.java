@@ -120,6 +120,8 @@ public class WorldMapRenderer {
      *  草地/树叶贴图是灰度模板，渲染时乘群系色调（MC 着色器机制）。 */
     private static final Map<Integer, int[]> biomeTintTable = new HashMap<>();
     private static final Map<String, Integer> blockColorTable = new HashMap<>();
+    /** 半透明方块 alpha（仅 glass/ice 类，bedrockmap 色表语义）。 */
+    private static final Map<String, Integer> blockAlphaTable = new HashMap<>();
 
     private WorldMapRenderer() {
     }
@@ -179,11 +181,19 @@ public class WorldMapRenderer {
                     if (rgb.length() >= 3) {
                         int color = 0xFF000000 | (rgb.getInt(0) << 16) | (rgb.getInt(1) << 8) | rgb.getInt(2);
                         blockColorTable.put(name, color);
+                        // 半透明方块记录 alpha（bedrockmap 色表语义：玻璃 64 / 冰 190 /
+                        // 染色玻璃 ~117）。surfaceColor 遇到这些方块继续向下找固体再混合
+                        // ——大块不透明浅蓝玻璃顶"颜色异常"的修复
+                        int alpha = rgb.length() >= 4 ? rgb.optInt(3, 255) : 255;
+                        if (alpha < 255 && (name.contains("glass") || name.endsWith("ice"))) {
+                            blockAlphaTable.put(name, alpha);
+                        }
                     }
                 } catch (Exception ignored) {
                 }
             }
-            Log.i(TAG, "方块色表加载: " + blockColorTable.size() + " 项");
+            Log.i(TAG, "方块色表加载: " + blockColorTable.size() + " 项, 半透明: "
+                    + blockAlphaTable.size());
         } catch (Exception e) {
             Log.w(TAG, "方块色表加载失败，回退内置色表", e);
         }
@@ -1781,14 +1791,52 @@ public class WorldMapRenderer {
     // ---------------------------------------------------------------- chunk 缓存磁盘持久化
 
     private static final int MAP_CACHE_MAGIC = 0x4D435632; // "MCv2"
+    /** 全透明 256 像素（biome 缺 chunk 时写入用）。 */
+    private static final int[] EMPTY_CHUNK_COLORS = new int[256];
     // v3：v301 readChunk 多块读取 + v304 地表窗口修复前渲染的缓存数据是错的
     // （subchunk 缺失/地表层被裁），必须失效重渲染——村庄/建筑错乱的直接来源
     // v4：缓存加入 biome 图层色（v3 只存地形色，缓存命中后 biome 图层永远没数据）
     // v5：玻璃穿透回滚（玻璃恢复不透明色表渲染）+ 下界裁剪 sub7（v4 的
     // 玻璃穿透与 s>=6 裁剪渲染结果已错，必须失效）
-    private static final int MAP_CACHE_VERSION = 6;
+    // v7：缓存挪到应用私有目录（旧缓存写世界目录，编辑几次膨胀 100+MB——
+    // 内容管理显示体积变大的根因）+ 每 chunk 调色板索引压缩（无损 ~3x）
+    private static final int MAP_CACHE_VERSION = 7;
 
-    /** 缓存文件：db 目录旁 map_cache_<dim>.bin（随世界走，卸载备份都在）。
+    /** 缓存根目录（应用私有，卸载即清——缓存可再生）。null 时回退旧路径。 */
+    private static java.io.File sCacheBase;
+
+    /** 初始化缓存目录（应用私有 files/map_cache/）。 */
+    public static void initCacheDir(android.content.Context ctx) {
+        try {
+            java.io.File base = new java.io.File(ctx.getExternalFilesDir(null), "map_cache");
+            if (!base.isDirectory() && !base.mkdirs()) {
+                base = new java.io.File(ctx.getFilesDir(), "map_cache");
+                base.mkdirs();
+            }
+            sCacheBase = base;
+        } catch (Exception e) {
+            Log.w(TAG, "缓存目录初始化失败", e);
+        }
+    }
+
+    /** 清理世界目录里遗留的旧缓存文件（v7 前写在世界目录，膨胀世界体积）。 */
+    public static void cleanupLegacyWorldCache(File dbDir) {
+        File worldDir = dbDir.getParentFile();
+        File[] files = worldDir != null ? worldDir.listFiles() : null;
+        if (files == null) {
+            return;
+        }
+        for (File f : files) {
+            String n = f.getName();
+            if ((n.startsWith("map_cache_") || n.startsWith("map_bounds_"))
+                    && n.endsWith(".bin")) {
+                // v6 旧格式版本已不匹配必失效，直接删（缓存可再生）
+                f.delete();
+            }
+        }
+    }
+
+    /** 缓存文件：应用私有目录 <世界名>_map_cache_<dim>.bin（不再写世界目录）。
      *  下界缓存文件名带渲染参数后缀（y 范围 + 剔除名单 hash）——不同设置
      *  各自缓存互不覆盖，切换设置不用每次重渲染。 */
     private static File chunkCacheFile(File dbDir, int dimension) {
@@ -1803,6 +1851,11 @@ public class WorldMapRenderer {
                 sb.append("_x").append(Integer.toHexString(names.hashCode()));
             }
             suffix = sb.toString();
+        }
+        if (sCacheBase != null) {
+            String world = dbDir.getParentFile() != null
+                    ? dbDir.getParentFile().getName() : "world";
+            return new File(sCacheBase, world + "_map_cache_" + dimension + suffix + ".bin");
         }
         return new File(dbDir.getParentFile(), "map_cache_" + dimension + suffix + ".bin");
     }
@@ -1854,13 +1907,10 @@ public class WorldMapRenderer {
             for (Map.Entry<Long, int[]> e : map.chunkColors.entrySet()) {
                 dos.writeInt(unpackX(e.getKey()));
                 dos.writeInt(unpackZ(e.getKey()));
-                int[] cc = e.getValue();
-                for (int i = 0; i < 256; i++) {
-                    dos.writeInt(cc[i]);
-                }
-                int[] bc = hasBiome ? map.chunkBiomeColors.get(e.getKey()) : null;
-                for (int i = 0; i < 256; i++) {
-                    dos.writeInt(bc != null ? bc[i] : 0);
+                writePaletteChunk(dos, e.getValue());
+                if (hasBiome) {
+                    int[] bc = map.chunkBiomeColors.get(e.getKey());
+                    writePaletteChunk(dos, bc != null ? bc : EMPTY_CHUNK_COLORS);
                 }
             }
             Log.i(TAG, "chunk 缓存已保存: " + out.getName() + " "
@@ -1870,6 +1920,52 @@ public class WorldMapRenderer {
             Log.w(TAG, "chunk 缓存保存失败", e);
             return false;
         }
+    }
+
+    /** 调色板编码写一个 chunk 的 256 像素（v7）：1B 色数 + n×4B 色值 +
+     *  256×1B 索引。无损，地形 chunk 通常 5-30 色 → 256+~100B，
+     * 比 256×4B 原始 ARGB 小 3-4 倍。 */
+    private static void writePaletteChunk(java.io.DataOutputStream dos, int[] cc)
+            throws java.io.IOException {
+        java.util.HashMap<Integer, Integer> idx = new java.util.HashMap<>(64);
+        int[] palette = new int[256];
+        byte[] indices = new byte[256];
+        int n = 0;
+        for (int i = 0; i < 256; i++) {
+            Integer id = idx.get(cc[i]);
+            if (id == null) {
+                id = n;
+                palette[n] = cc[i];
+                idx.put(cc[i], id);
+                n++;
+            }
+            indices[i] = id.byteValue();
+        }
+        // 色数最大 256（16×16 全不同色）——writeByte 会溢出，用 short
+        dos.writeShort(n);
+        for (int i = 0; i < n; i++) {
+            dos.writeInt(palette[i]);
+        }
+        dos.write(indices);
+    }
+
+    /** 调色板解码（writePaletteChunk 的逆操作）。 */
+    private static int[] readPaletteChunk(java.io.DataInputStream dis)
+            throws java.io.IOException {
+        int n = dis.readUnsignedShort();
+        if (n < 1 || n > 256) {
+            throw new java.io.IOException("bad palette size " + n);
+        }
+        int[] palette = new int[n];
+        for (int i = 0; i < n; i++) {
+            palette[i] = dis.readInt();
+        }
+        int[] cc = new int[256];
+        for (int i = 0; i < 256; i++) {
+            int id = dis.readUnsignedByte();
+            cc[i] = id < n ? palette[id] : palette[0];
+        }
+        return cc;
     }
 
     /** 加载磁盘 chunk 缓存；db 指纹不匹配（世界改过）返回 null 走全量渲染。 */
@@ -1910,16 +2006,10 @@ public class WorldMapRenderer {
             for (int i = 0; i < count; i++) {
                 int cx = dis.readInt();
                 int cz = dis.readInt();
-                int[] cc = new int[256];
-                for (int j = 0; j < 256; j++) {
-                    cc[j] = dis.readInt();
-                }
+                int[] cc = readPaletteChunk(dis);
                 chunkColors.put(pack(cx, cz), cc);
                 if (chunkBiomeColors != null) {
-                    int[] bc = new int[256];
-                    for (int j = 0; j < 256; j++) {
-                        bc[j] = dis.readInt();
-                    }
+                    int[] bc = readPaletteChunk(dis);
                     chunkBiomeColors.put(pack(cx, cz), bc);
                 }
             }
@@ -1938,6 +2028,11 @@ public class WorldMapRenderer {
 
     /** 世界范围小文件：首次 readKeys 后缓存，之后打开免扫描。 */
     private static File boundsFile(File dbDir, int dimension) {
+        if (sCacheBase != null) {
+            String world = dbDir.getParentFile() != null
+                    ? dbDir.getParentFile().getName() : "world";
+            return new File(sCacheBase, world + "_map_bounds_" + dimension + ".bin");
+        }
         return new File(dbDir.getParentFile(), "map_bounds_" + dimension + ".bin");
     }
 
@@ -3094,6 +3189,9 @@ public class WorldMapRenderer {
             // 解决"海洋显示干河床"（水面数据在 storage 1，只读 storage 0 会漏掉）
             int waterY = -1;
             int waterColor = 0;
+            int glassY = -1;
+            int glassColor = 0;
+            int glassAlpha = 255;
             for (int y = yStart; y >= -64; y--) {
                 int subIndex = Math.floorDiv(y, 16);
                 SubChunk sub = subs.get(subIndex);
@@ -3134,6 +3232,11 @@ public class WorldMapRenderer {
                 }
                 int color = tintColor(name, colorForBlock(name), biomeId);
                 if (isWaterName(name)) {
+                    if (glassY >= 0) {
+                        // 冰面下是水（冻洋）：冰色按 alpha 混在水色上
+                        return blendColors(glassColor, color,
+                                Math.min(glassAlpha / 255f, 0.9f));
+                    }
                     if (waterY < 0) {
                         waterY = y;
                         waterColor = color;
@@ -3145,10 +3248,30 @@ public class WorldMapRenderer {
                     float opacity = Math.min(0.15f * (waterY - y), 0.85f);
                     return blendColors(waterColor, color, opacity);
                 }
+                // 半透明方块（玻璃/冰，bedrockmap 色表 alpha<255）：不直接
+                // 返回——继续向下找固体，再按 alpha 混合。此前玻璃强制
+                // 不透明 0xFFC8D8E8，建筑玻璃顶渲染成大块浅蓝（"建筑附近
+                // 颜色异常"根因之一）；混合版 = 玻璃色薄纱透出屋内结构
+                Integer semiAlpha = blockAlphaTable.get(name);
+                if (semiAlpha != null) {
+                    if (glassY < 0) {
+                        glassY = y;
+                        glassColor = color;
+                        glassAlpha = semiAlpha;
+                    }
+                    continue;
+                }
+                if (glassY >= 0) {
+                    return blendColors(glassColor, color,
+                            Math.min(glassAlpha / 255f, 0.9f));
+                }
                 return color;
             }
             if (waterY >= 0) {
                 return waterColor; // 整列只有水（河床无数据）
+            }
+            if (glassY >= 0) {
+                return glassColor; // 玻璃下无固体（异常数据）：直接玻璃色
             }
         }
         // 无 subchunk 数据或找不到方块：
@@ -3348,6 +3471,10 @@ public class WorldMapRenderer {
         if (name.equals("minecraft:prismarine")) return 0xFF6E9A9A;
         if (name.equals("minecraft:sponge")) return 0xFFC8C83B;
         if (name.equals("minecraft:piston") || name.equals("minecraft:sticky_piston")) return 0xFF8C8C8C;
+        // 活塞臂碰撞体（隐形占位方块，色表无条目）——此前落 fallback 灰
+        // 0xFF7F7F7F，刷石机等活塞结构旁"大片灰色"根因（实测 hrd 734+190 处）
+        if (name.equals("minecraft:piston_arm_collision")
+                || name.equals("minecraft:sticky_piston_arm_collision")) return 0xFFA89070;
         if (name.equals("minecraft:observer")) return 0xFF6E6E6E;
         if (name.equals("minecraft:repeater")) return 0xFF8C8C8C;
         if (name.equals("minecraft:torch")) return 0xFFE8C83B;

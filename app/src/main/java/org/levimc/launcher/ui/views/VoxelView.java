@@ -226,13 +226,22 @@ public class VoxelView extends View {
                 continue;
             }
             int baseY = col.ys[0];
-            for (int i = n - 1; i >= 0; i--) {
+            // 从低到高画（高层盖低层）。此前从高到低——最低块最后画把
+            // 整列顶面全盖掉，只剩纸片菱形。侧面高度收到下一块顶面为止：
+            // 柱内间距 1 层（1.2px）只露细边，地表/悬空块画全高——标准
+            // 等距体素观感（方块有棱有面）
+            for (int i = 0; i < n; i++) {
                 int y = col.ys[i];
                 float px = cx + (dx * cosA - dz * sinA) * unit;
                 float py = cy + (dx * sinA + dz * cosA) * unit * 0.5f
                         - (y - baseY) * unitH * 0.12f;
+                float sideH = 10f;
+                if (i > 0) {
+                    float gap = (y - col.ys[i - 1]) * unitH * 0.12f;
+                    sideH = Math.min(10f, Math.max(0f, gap));
+                }
                 drawBlock(canvas, px, py, col.colors[i], (y - baseY) * 0.6f,
-                        cosA, sinA, 8f, 10f, col.names[i]);
+                        cosA, sinA, 8f, sideH, col.names[i]);
             }
         }
         return bmp;

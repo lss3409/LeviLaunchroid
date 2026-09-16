@@ -1046,6 +1046,12 @@ public class NbtViewerActivity extends BaseActivity {
         final boolean fKeepView = keepView;
         executor.execute(() -> {
             File dbDir = new File(currentWorldDir, "db");
+            // 缓存统一走应用私有目录（v7 起不再写世界目录——旧版写世界
+            // 目录每次编辑膨胀 100+MB），打开时清掉世界目录遗留旧缓存
+            WorldMapRenderer.initCacheDir(getApplicationContext());
+            if (dbDir.getParentFile() != null) {
+                WorldMapRenderer.cleanupLegacyWorldCache(dbDir);
+            }
             WorldMapRenderer.WorldMap worldMap = null;
             List<WorldMapRenderer.EntityPos> entities = null;
             List<WorldMapRenderer.StructureMarker> structures = null;
@@ -1370,6 +1376,9 @@ public class NbtViewerActivity extends BaseActivity {
             }
 
             File dbDir = new File(worldDir, "db");
+            // 缓存统一走应用私有目录（v7），清掉世界目录遗留旧缓存
+            WorldMapRenderer.initCacheDir(getApplicationContext());
+            WorldMapRenderer.cleanupLegacyWorldCache(dbDir);
             Log.i(TAG, "db 目录: " + dbDir.getAbsolutePath()
                     + ", 存在=" + dbDir.isDirectory());
             WorldMapRenderer.WorldMap worldMap = null;
