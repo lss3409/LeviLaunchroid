@@ -441,6 +441,8 @@ public class WorldMapView extends View {
     private float cachedOffsetX;
     private float cachedOffsetY;
     private int[] pixelsBuf;
+    /** setPixels 行批量大小：逐行调用会累积 GPU 同步（每行 ~1ms，2400 行 = 2.4 秒）。 */
+    private static final int ROW_BATCH = 32;
     /** 缩放/跳转动画期间用缓存位图做变换预览（捏合焦点锚点），结束再全量重采样 */
     private boolean scalePreviewActive;
     private float scaleFocusX;
@@ -482,8 +484,8 @@ public class WorldMapView extends View {
             // 缓存位图必须 ARGB_8888：RGB_565 无 alpha 通道，未生成区域的透明色
             // (COLOR_BACKGROUND=0) 写入后被存成纯黑，地图上出现成片黑块
             // （tju 大范围稀疏世界未生成 chunk 多，问题尤为明显）。
-            if (pixelsBuf == null || pixelsBuf.length != viewW) {
-                pixelsBuf = new int[viewW];
+            if (pixelsBuf == null || pixelsBuf.length != viewW * ROW_BATCH) {
+                pixelsBuf = new int[viewW * ROW_BATCH];
             }
             if (cachedBmp == null || cachedW != viewW || cachedH != viewH) {
                 if (cachedBmp != null) {
@@ -533,77 +535,93 @@ public class WorldMapView extends View {
             // 大世界 chunk 缓存路径（BTR 同款）：逐像素查 chunk 16×16 色表。
             // chunk 查找只在 chunk 边界变化时做（一行 3840 像素只有 ~12 次
             // HashMap 查找），否则 920 万次 get/帧把主线程钉死在 300-500ms。
-            for (int sy = sy0; sy < sy1; sy++) {
-                int by = (int) ((sy - offsetY) * invPpb);
-                if (by < 0 || by >= map.height) {
-                    java.util.Arrays.fill(pixelsBuf, 0);
-                    cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, 1);
-                    continue;
-                }
-                int wbz = map.minBlockZ + by;
-                int cz = Math.floorDiv(wbz, 16);
-                int lz = wbz - cz * 16;
-                int zRow = lz << 4;
-                long curCk = Long.MIN_VALUE;
-                int[] cc = null;
-                int[] bc = null;
-                for (int sx = 0; sx < viewW; sx++) {
-                    int bx = (int) ((sx - offsetX) * invPpb);
-                    if (bx < 0 || bx >= map.width) {
-                        pixelsBuf[sx] = 0;
+            // setPixels 按 32 行批量写：逐行调用 2400 次会累积 GPU 同步
+            // （每次 ~1ms，首帧 2.4 秒），批量后 75 次。
+            int sy = sy0;
+            while (sy < sy1) {
+                int batchEnd = Math.min(sy1, sy + ROW_BATCH);
+                int rows = batchEnd - sy;
+                for (int r = 0; r < rows; r++) {
+                    int curSy = sy + r;
+                    int rowOff = r * viewW;
+                    int by = (int) ((curSy - offsetY) * invPpb);
+                    if (by < 0 || by >= map.height) {
+                        java.util.Arrays.fill(pixelsBuf, rowOff, rowOff + viewW, 0);
                         continue;
                     }
-                    int wbx = map.minBlockX + bx;
-                    int cx = Math.floorDiv(wbx, 16);
-                    int lx = wbx - cx * 16;
-                    long ck = packChunk(cx, cz);
-                    if (ck != curCk) {
-                        curCk = ck;
-                        cc = map.chunkColors.get(ck);
-                        bc = biomeSrc != null && map.chunkBiomeColors != null
-                                ? map.chunkBiomeColors.get(ck) : null;
-                    }
-                    if (cc == null) {
-                        pixelsBuf[sx] = 0;
-                        // 视口按需渲染：收集缺失 chunk（限一次，避免每帧重复报告）
-                        if (missingChunks != null && missingChunks.size() < 2048
-                                && !pendingChunks.contains(ck)) {
-                            missingChunks.add(ck);
+                    int wbz = map.minBlockZ + by;
+                    int cz = Math.floorDiv(wbz, 16);
+                    int lz = wbz - cz * 16;
+                    int zRow = lz << 4;
+                    long curCk = Long.MIN_VALUE;
+                    int[] cc = null;
+                    int[] bc = null;
+                    for (int sx = 0; sx < viewW; sx++) {
+                        int bx = (int) ((sx - offsetX) * invPpb);
+                        if (bx < 0 || bx >= map.width) {
+                            pixelsBuf[rowOff + sx] = 0;
+                            continue;
                         }
-                        continue;
+                        int wbx = map.minBlockX + bx;
+                        int cx = Math.floorDiv(wbx, 16);
+                        int lx = wbx - cx * 16;
+                        long ck = packChunk(cx, cz);
+                        if (ck != curCk) {
+                            curCk = ck;
+                            cc = map.chunkColors.get(ck);
+                            bc = biomeSrc != null && map.chunkBiomeColors != null
+                                    ? map.chunkBiomeColors.get(ck) : null;
+                        }
+                        if (cc == null) {
+                            pixelsBuf[rowOff + sx] = 0;
+                            // 视口按需渲染：收集缺失 chunk（限一次，避免每帧重复报告）
+                            if (missingChunks != null && missingChunks.size() < 2048
+                                    && !pendingChunks.contains(ck)) {
+                                missingChunks.add(ck);
+                            }
+                            continue;
+                        }
+                        int c = cc[zRow | lx];
+                        if (bc != null && bc[zRow | lx] != 0) {
+                            c = bc[zRow | lx];
+                        }
+                        pixelsBuf[rowOff + sx] = c;
                     }
-                    int c = cc[zRow | lx];
-                    if (bc != null && bc[zRow | lx] != 0) {
-                        c = bc[zRow | lx];
-                    }
-                    pixelsBuf[sx] = c;
                 }
-                cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, 1);
+                cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, rows);
+                sy = batchEnd;
             }
         } else {
-            for (int sy = sy0; sy < sy1; sy++) {
-                int by = (int) ((sy - offsetY) * invPpb);
-                if (by < 0 || by >= map.height) {
-                    // 地图外行：必须显式写透明，否则缓存位图残留旧帧（盗梦空间套图）
-                    java.util.Arrays.fill(pixelsBuf, 0);
-                    cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, 1);
-                    continue;
-                }
-                int bRow = by * map.width;
-                for (int sx = 0; sx < viewW; sx++) {
-                    int bx = (int) ((sx - offsetX) * invPpb);
-                    if (bx < 0 || bx >= map.width) {
-                        pixelsBuf[sx] = 0;
+            int sy = sy0;
+            while (sy < sy1) {
+                int batchEnd = Math.min(sy1, sy + ROW_BATCH);
+                int rows = batchEnd - sy;
+                for (int r = 0; r < rows; r++) {
+                    int curSy = sy + r;
+                    int rowOff = r * viewW;
+                    int by = (int) ((curSy - offsetY) * invPpb);
+                    if (by < 0 || by >= map.height) {
+                        // 地图外行：必须显式写透明，否则缓存位图残留旧帧（盗梦空间套图）
+                        java.util.Arrays.fill(pixelsBuf, rowOff, rowOff + viewW, 0);
                         continue;
                     }
-                    int idx = bRow + bx;
-                    if (biomeSrc != null && biomeSrc[idx] != 0) {
-                        pixelsBuf[sx] = biomeSrc[idx];
-                    } else {
-                        pixelsBuf[sx] = map.colors[idx];
+                    int bRow = by * map.width;
+                    for (int sx = 0; sx < viewW; sx++) {
+                        int bx = (int) ((sx - offsetX) * invPpb);
+                        if (bx < 0 || bx >= map.width) {
+                            pixelsBuf[rowOff + sx] = 0;
+                            continue;
+                        }
+                        int idx = bRow + bx;
+                        if (biomeSrc != null && biomeSrc[idx] != 0) {
+                            pixelsBuf[rowOff + sx] = biomeSrc[idx];
+                        } else {
+                            pixelsBuf[rowOff + sx] = map.colors[idx];
+                        }
                     }
                 }
-                cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, 1);
+                cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, rows);
+                sy = batchEnd;
             }
         }
         // 视口按需渲染：报告缺失 chunk（外部后台渲染后 onChunksRendered 重绘）
