@@ -1715,23 +1715,30 @@ public class WorldMapRenderer {
      * 新方块也能乘上色调（MC 着色器机制）；查不到色调时用 bedrock-level 默认色。
      */
     private static int tintColor(String name, int color, int biomeId) {
-        // 固定色方块排除：草径（dirt_path 别名）色表里是"土黄成品色"模板
-        // （148,121,65），不是灰色模板——乘 grass 色调会变深绿（原版 MC 草径
-        // 顶部也不受群系色调影响）。bedrockmap 子串匹配会命中它，这里按原版
-        // 观感排除，保持土黄色。
-        if (name.equals("minecraft:grass_path") || name.equals("minecraft:dirt_path")) {
-            return color;
+        // 只对"灰度模板"乘群系色调（原版 MC 着色器机制：贴图是灰度模板才被
+        // 群系色调染色）。成品色方块（seagrass 50,126,8 / kelp 86,130,42 /
+        // grass_path 148,121,65 等色表里已带真实色）乘 tint 会变暗发黑——
+        // 水中"发黑"色块、草径变深绿的根因。bedrockmap 无此判断（其色表里
+        // 被 tint 的方块恰好都是灰模板），这里按原版观感修正。
+        int r = (color >> 16) & 0xFF;
+        int g = (color >> 8) & 0xFF;
+        int b = color & 0xFF;
+        boolean grayTemplate = Math.abs(r - g) < 14 && Math.abs(g - b) < 14;
+        if (!grayTemplate) {
+            return color; // 成品色直接返回
         }
         int[] tint = biomeTintTable.get(biomeId);
+        // bedrockmap color.cpp classify_tint 优先级：water → leave → grass，
+        // 并补上 bedrockmap 缺失的灰度模板：fern/vine（草类）、leaf_litter（leaf）
         if (name.contains("water")) {
             return tint != null ? multiplyTint(color, tint, 9)
                     : multiplyTint(color, DEFAULT_WATER_TINT, 0);
         }
-        if (name.contains("leave")) {
+        if (name.contains("leave") || name.contains("leaf")) {
             return tint != null ? multiplyTint(color, tint, 6)
                     : multiplyTint(color, DEFAULT_LEAVES_TINT, 0);
         }
-        if (name.contains("grass")) {
+        if (name.contains("grass") || name.contains("fern") || name.contains("vine")) {
             return tint != null ? multiplyTint(color, tint, 3)
                     : multiplyTint(color, DEFAULT_GRASS_TINT, 0);
         }
@@ -1921,6 +1928,12 @@ public class WorldMapRenderer {
         if (name.equals("minecraft:raw_copper_block") || name.equals("minecraft:copper_block")
                 || name.equals("minecraft:cut_copper")) return 0xFFB06E4A;
         if (name.contains("amethyst")) return 0xFF9A6EC8;                      // 紫水晶系列
+        // 1.26 硫磺洞穴新方块（bedrock-level 色表未收录，按 wiki map color/贴图观感补色）
+        if (name.equals("minecraft:sulfur")) return 0xFFD8C442;                 // 硫磺：明黄
+        if (name.equals("minecraft:potent_sulfur")) return 0xFFECc828;          // 强硫磺：亮黄
+        if (name.equals("minecraft:sulfur_spike")) return 0xFFC4AA2E;           // 硫磺尖刺：暗黄
+        if (name.equals("minecraft:cinnabar")) return 0xFF993333;               // 辰砂：朱红（wiki map color）
+        if (name.equals("minecraft:iron_chain")) return 0xFF525256;             // 铁链：铁灰
         if (name.equals("minecraft:web")) return 0xFFE8E8E8;
         if (name.equals("minecraft:mob_spawner")) return 0xFF3A4A5A;
         if (name.equals("minecraft:lever") || name.contains("comparator")) return 0xFF8C8C8C;
@@ -2175,7 +2188,12 @@ public class WorldMapRenderer {
             int h = map.height;
             Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
             bmp.setPixels(map.colors, 0, w, 0, 0, w, h);
-            File dir = new File("/sdcard/Download");
+            // scoped storage 下 /sdcard/Download 直接写会 EACCES，
+            // 优先写 app 外部目录（/sdcard/Android/data/org.levimc.launcher/files/）
+            File dir = new File("/sdcard/Android/data/org.levimc.launcher/files");
+            if (!dir.exists() || !dir.canWrite()) {
+                dir = new File("/sdcard/Download");
+            }
             File out = new File(dir, "map_debug.png");
             try (java.io.FileOutputStream fos = new java.io.FileOutputStream(out)) {
                 bmp.compress(Bitmap.CompressFormat.PNG, 100, fos);
