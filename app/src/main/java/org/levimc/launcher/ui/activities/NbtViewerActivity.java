@@ -469,6 +469,25 @@ public class NbtViewerActivity extends BaseActivity {
                     if (worldMap != null && worldMap.detectedStructures != null) {
                         structures.addAll(worldMap.detectedStructures);
                     }
+                    // 降采样地图：实体/结构标记坐标 ÷blockScale（与归一化 chunk 对齐）
+                    if (worldMap != null && worldMap.blockScale > 1) {
+                        int sc = worldMap.blockScale;
+                        java.util.List<WorldMapRenderer.EntityPos> ne =
+                                new java.util.ArrayList<>();
+                        for (WorldMapRenderer.EntityPos ep : entities) {
+                            ne.add(new WorldMapRenderer.EntityPos(
+                                    Math.floorDiv((int) ep.x, sc), ep.y,
+                                    Math.floorDiv((int) ep.z, sc), ep.name));
+                        }
+                        entities = ne;
+                        java.util.List<WorldMapRenderer.StructureMarker> ns =
+                                new java.util.ArrayList<>();
+                        for (WorldMapRenderer.StructureMarker sm : structures) {
+                            ns.add(new WorldMapRenderer.StructureMarker(
+                                    Math.floorDiv(sm.x, sc), Math.floorDiv(sm.z, sc), sm.type));
+                        }
+                        structures = ns;
+                    }
                 } else {
                     List<LevelDBEntry> entries = null;
                     try {
@@ -856,6 +875,11 @@ public class NbtViewerActivity extends BaseActivity {
                             if (Math.abs(px) < 3e7f && Math.abs(pz) < 3e7f) {
                                 worldMap.playerBlockX = (int) Math.floor(px);
                                 worldMap.playerBlockZ = (int) Math.floor(pz);
+                                // 降采样地图：玩家标记坐标 ÷blockScale
+                                if (worldMap.blockScale > 1) {
+                                    worldMap.playerBlockX = Math.floorDiv(worldMap.playerBlockX, worldMap.blockScale);
+                                    worldMap.playerBlockZ = Math.floorDiv(worldMap.playerBlockZ, worldMap.blockScale);
+                                }
                                 Log.i(TAG, "玩家位置: " + worldMap.playerBlockX + "," + worldMap.playerBlockZ);
                                 break;
                             }

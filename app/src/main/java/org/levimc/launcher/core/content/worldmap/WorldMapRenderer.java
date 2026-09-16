@@ -930,6 +930,8 @@ public class WorldMapRenderer {
         public int playerBlockZ = -1;
         /** 流式渲染时 palette 检测到的结构标记（海底神殿/末地城；小世界路径为 null） */
         public List<StructureMarker> detectedStructures;
+        /** 降采样比例（大世界 4×4 代表 chunk = 4；普通世界 1）。标记坐标需除以该值。 */
+        public int blockScale = 1;
         /** 出生点位置（block 坐标，-1 = 无） */
         public int spawnBlockX = -1;
         public int spawnBlockZ = -1;
@@ -1196,6 +1198,15 @@ public class WorldMapRenderer {
         int height = spanZ * 16;
         int minBlockX = minX * 16;
         int minBlockZ = minZ * 16;
+        long cells = (long) width * height;
+        Log.i(TAG, "assembleMap: chunk 范围=(" + minX + "," + minZ + ")-(" + maxX + "," + maxZ
+                + ") span=" + spanX + "x" + spanZ + " 数组=" + (cells * 4 / 1024 / 1024)
+                + "MB heightMaps=" + heightMaps.size());
+        if (cells > 100_000_000L) {
+            // 防御：>1 亿格（3 个 400MB 数组）必 OOM，拒绝渲染
+            Log.e(TAG, "地图过大拒绝渲染: " + spanX + "x" + spanZ);
+            return null;
+        }
         int[] heights = new int[width * height];
         int[] colors = new int[width * height];
         int[] biomeColors = new int[width * height];
@@ -1272,6 +1283,10 @@ public class WorldMapRenderer {
         Map<Long, Integer> surfaceSubs = new HashMap<>();
         Map<Long, Map<Integer, SubChunk>> subChunks = new HashMap<>();
         List<StructureMarker> detected = new ArrayList<>();
+        Map<Long, Integer> monumentChunks = new HashMap<>();
+        Map<Long, Integer> endCityChunks = new HashMap<>();
+        int decoded = 0;
+        int step = 1;
         try {
             LevelDBReader reader = new LevelDBReader(dbDir);
             // 1) 第一遍：只读 subchunk key 统计最高 sub（窗口围绕实际 maxSub，
@@ -1306,22 +1321,46 @@ public class WorldMapRenderer {
             // 928×1089 chunk、236,808 subchunk——全量渲染必 OOM）
             long spanX = (long) maxCx - minCx + 1;
             long spanZ = (long) maxCz - minCz + 1;
-            int step = spanX * spanZ > 250000L ? 4 : 1;
+            step = spanX * spanZ > 250000L ? 4 : 1;
+            // 超大存档（10GB 级）：动态加大代表采样，保证任意大小都能打开
+            // （精度随规模下降，参考 BTR/blocktopograph 的瓦片按需思路——
+            // 我们保留整图架构，用代表 chunk 控制内存上限）
+            long span = spanX * spanZ;
+            while (step < 64 && span / (step * step) > 250000L) {
+                step *= 4;
+            }
             if (step > 1) {
                 Log.i(TAG, "大世界降采样 4×4: chunk 范围=" + spanX + "x" + spanZ);
             }
-            // 2) 第二遍：高度图 + biome（0x2b/0x2c value）——降采样时只取代表 chunk
+            // 2) 第二遍（合并原第二+第三遍，少一次全量 IO）：
+            //    高度图 + biome（0x2b/0x2c value）+ 窗口内 subchunk 一起读
+            //    ——降采样时只取代表 chunk
+            final Map<Long, Integer> maxSubRef = maxSubByChunk;
+            final int fStep = step;
             List<LevelDBEntry> heightEntries = reader.readEntries(k -> {
                 int[] ck = parseChunkKey(k);
                 if (ck == null || ck[2] != dimension) {
                     return false;
                 }
                 int type = k[k.length - (k.length == 9 || k.length == 10 ? 1 : 2)] & 0xFF;
-                if (type != KEY_TYPE_DATA_3D && type != 0x2C && type != KEY_TYPE_DATA_2D) {
-                    return false;
+                if (fStep > 1 && (Math.floorMod(ck[0], fStep) != 0
+                        || Math.floorMod(ck[1], fStep) != 0)) {
+                    return false; // 降采样：只处理代表 chunk
                 }
-                return step == 1 || (Math.floorMod(ck[0], step) == 0
-                        && Math.floorMod(ck[1], step) == 0);
+                if (type == KEY_TYPE_DATA_3D || type == 0x2C || type == KEY_TYPE_DATA_2D) {
+                    return true; // 高度图
+                }
+                if (type == KEY_TYPE_LEGACY_MIXED && ck[3] >= 0) {
+                    // 窗口内 subchunk（maxSub±2）；下界全量
+                    if (dimension != DIM_NETHER) {
+                        Integer maxSub = maxSubRef.get(pack(ck[0], ck[1]));
+                        if (maxSub == null || ck[3] < maxSub - 2 || ck[3] > maxSub + 2) {
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+                return false;
             });
             for (LevelDBEntry entry : heightEntries) {
                 byte[] rawKey = entry.getKey().getRawKey();
@@ -1329,7 +1368,52 @@ public class WorldMapRenderer {
                 if (chunkKey == null) {
                     continue;
                 }
-                long key = pack(chunkKey[0], chunkKey[1]);
+                // 降采样：代表 chunk 坐标归一化（÷step），压缩地图边界
+                // （否则边界代表 chunk 仍把跨度拉到全范围——实测 1608 代表
+                // chunk 跨度 925×1081 数组 976MB）
+                int nx = step > 1 ? Math.floorDiv(chunkKey[0], step) : chunkKey[0];
+                int nz = step > 1 ? Math.floorDiv(chunkKey[1], step) : chunkKey[1];
+                long key = pack(nx, nz);
+                // 窗口内 subchunk：直接解码（与高度图同遍读取）
+                if (isSubchunkKey(rawKey)) {
+                    try {
+                        SubChunk subChunk = decodeSubChunk(entry.getValue());
+                        if (subChunk != null) {
+                            subChunks.computeIfAbsent(key, k -> new HashMap<>())
+                                    .put(chunkKey[3], subChunk);
+                            decoded++;
+                            // palette 结构特征（1.26 无 HSA 记录）：
+                            // 海底神殿 sea_lantern+prismarine / 末地城 purpur+end_stone_bricks
+                            boolean lantern = false;
+                            boolean prismarine = false;
+                            boolean purpur = false;
+                            boolean endBricks = false;
+                            for (String pn : subChunk.palette) {
+                                if (pn == null) {
+                                    continue;
+                                }
+                                if (pn.contains("sea_lantern")) {
+                                    lantern = true;
+                                } else if (pn.contains("prismarine")) {
+                                    prismarine = true;
+                                } else if (pn.contains("purpur")) {
+                                    purpur = true;
+                                } else if (pn.contains("end_stone_bricks")) {
+                                    endBricks = true;
+                                }
+                            }
+                            if (lantern && prismarine) {
+                                monumentChunks.put(key, 1);
+                            }
+                            if (dimension == DIM_END && purpur && endBricks) {
+                                endCityChunks.put(key, 1);
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.w(TAG, "Failed to decode subchunk at " + chunkKey[0] + "," + chunkKey[1], e);
+                    }
+                    continue;
+                }
                 try {
                     if (isData2dKey(rawKey)) {
                         int[] hmap = extractData2d(entry.getValue());
@@ -1373,75 +1457,9 @@ public class WorldMapRenderer {
                     Log.w(TAG, "Failed to decode chunk at " + chunkKey[0] + "," + chunkKey[1], e);
                 }
             }
-            Log.i(TAG, "流式第二遍: 高度图 chunk 数=" + heightMaps.size());
+            Log.i(TAG, "流式第二遍: 高度图 chunk 数=" + heightMaps.size()
+                    + " 解码 subchunk=" + decoded);
             heightEntries = null;
-            // 3) 第三遍：只解码窗口内 subchunk（maxSub±2），顺便扫 palette 结构特征
-            int decoded = 0;
-            int skipped = 0;
-            Map<Long, Integer> monumentChunks = new HashMap<>();
-            Map<Long, Integer> endCityChunks = new HashMap<>();
-            List<LevelDBEntry> windowSubs = reader.readEntries(k -> {
-                int[] ck = parseChunkKey(k);
-                if (ck == null || ck[3] < 0 || ck[2] != dimension || !isSubchunkKey(k)) {
-                    return false;
-                }
-                if (step > 1 && (Math.floorMod(ck[0], step) != 0
-                        || Math.floorMod(ck[1], step) != 0)) {
-                    return false; // 降采样：只解码代表 chunk
-                }
-                if (dimension != DIM_NETHER) {
-                    Integer maxSub = maxSubByChunk.get(pack(ck[0], ck[1]));
-                    if (maxSub == null || ck[3] < maxSub - 2 || ck[3] > maxSub + 2) {
-                        return false;
-                    }
-                }
-                return true;
-            });
-            for (LevelDBEntry entry : windowSubs) {
-                int[] ck = parseChunkKey(entry.getKey().getRawKey());
-                if (ck == null) {
-                    continue;
-                }
-                skipped++;
-                try {
-                    SubChunk subChunk = decodeSubChunk(entry.getValue());
-                    if (subChunk != null) {
-                        long key = pack(ck[0], ck[1]);
-                        subChunks.computeIfAbsent(key, k -> new HashMap<>())
-                                .put(ck[3], subChunk);
-                        decoded++;
-                        // palette 结构特征（1.26 无 HSA 记录）：
-                        // 海底神殿 sea_lantern+prismarine / 末地城 purpur+end_stone_bricks
-                        boolean lantern = false;
-                        boolean prismarine = false;
-                        boolean purpur = false;
-                        boolean endBricks = false;
-                        for (String pn : subChunk.palette) {
-                            if (pn == null) {
-                                continue;
-                            }
-                            if (pn.contains("sea_lantern")) {
-                                lantern = true;
-                            } else if (pn.contains("prismarine")) {
-                                prismarine = true;
-                            } else if (pn.contains("purpur")) {
-                                purpur = true;
-                            } else if (pn.contains("end_stone_bricks")) {
-                                endBricks = true;
-                            }
-                        }
-                        if (lantern && prismarine) {
-                            monumentChunks.put(key, 1);
-                        }
-                        if (dimension == DIM_END && purpur && endBricks) {
-                            endCityChunks.put(key, 1);
-                        }
-                    }
-                } catch (Exception e) {
-                    Log.w(TAG, "Failed to decode subchunk at " + ck[0] + "," + ck[1], e);
-                }
-            }
-            Log.i(TAG, "流式第三遍: 窗口内 subchunk=" + skipped + " 解码=" + decoded);
             reader.close();
             clusterStructureChunks(monumentChunks, "ocean_monument", detected);
             clusterStructureChunks(endCityChunks, "end_city", detected);
@@ -1458,6 +1476,7 @@ public class WorldMapRenderer {
         }
         WorldMap map = assembleMap(heightMaps, biomeMaps, subChunks, dimension);
         map.detectedStructures = detected;
+        map.blockScale = step;
         return map;
     }
 
@@ -1547,7 +1566,7 @@ public class WorldMapRenderer {
         public final float z;
         public final String name; // 简化标识符（如 zombie / villager）
 
-        EntityPos(float x, float y, float z, String name) {
+        public EntityPos(float x, float y, float z, String name) {
             this.x = x;
             this.y = y;
             this.z = z;
@@ -1561,7 +1580,7 @@ public class WorldMapRenderer {
         public final int z;
         public final String type; // village / spawner / end_portal
 
-        StructureMarker(int x, int z, String type) {
+        public StructureMarker(int x, int z, String type) {
             this.x = x;
             this.z = z;
             this.type = type;
