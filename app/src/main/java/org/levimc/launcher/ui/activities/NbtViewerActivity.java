@@ -244,6 +244,28 @@ public class NbtViewerActivity extends BaseActivity {
         binding.layerSlime.setOnCheckedChangeListener((b, checked) ->
                 binding.worldMapImage.setShowSlimeChunks(checked));
         binding.worldMapImage.setShowSlimeChunks(binding.layerSlime.isChecked());
+        // y 轴偏移滑块：调整表面渲染高度（个别世界高度图语义差异时手动校准）
+        binding.yOffsetLabel.setText(getString(R.string.y_offset_label, WorldMapRenderer.surfaceYOffset));
+        binding.yOffsetBar.setProgress(WorldMapRenderer.surfaceYOffset + 16);
+        binding.yOffsetBar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(android.widget.SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser) {
+                    binding.yOffsetLabel.setText(getString(R.string.y_offset_label, progress - 16));
+                }
+            }
+
+            @Override
+            public void onStartTrackingTouch(android.widget.SeekBar seekBar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(android.widget.SeekBar seekBar) {
+                // 松手生效：更新偏移并重新渲染当前维度地图
+                WorldMapRenderer.surfaceYOffset = seekBar.getProgress() - 16;
+                loadMapForDimension(mapDimension);
+            }
+        });
 
         // 左栏标点搜索 → 列表过滤
         binding.pointSearchInput.addTextChangedListener(new android.text.TextWatcher() {

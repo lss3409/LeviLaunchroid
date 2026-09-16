@@ -83,6 +83,9 @@ public class WorldMapRenderer {
 
     private static Context appContext;
 
+    /** 表面 y 轴偏移（用户可调，-16~+16 方块；0=默认。调整后需重新加载地图）。 */
+    public static int surfaceYOffset = 0;
+
     /** bedrockmap 颜色表（assets/biome_color.json / block_color.json，运行时加载）。
      *  biome 色调表：id → {rgbR,G,B, grassR,G,B, leavesR,G,B, waterR,G,B}——
      *  草地/树叶贴图是灰度模板，渲染时乘群系色调（MC 着色器机制）。 */
@@ -1027,17 +1030,7 @@ public class WorldMapRenderer {
         for (LevelDBEntry entry : entries) {
             byte[] rawKey = entry.getKey().getRawKey();
             int[] chunkKey = parseChunkKey(rawKey);
-            if (chunkKey == null) {
-                continue;
-            }
-            boolean legacyKey = rawKey.length == 9 || rawKey.length == 10;
-            if (dimension == DIM_END) {
-                // 末地：1.26 末地 chunk 用 9/10B 无维度 key（与主世界共享 key 空间），
-                // 13/14B 严格要求 dim=2；9/10B 作为候选（解码后按 end_stone 判定过滤）
-                if (!legacyKey && chunkKey[2] != DIM_END) {
-                    continue;
-                }
-            } else if (chunkKey[2] != dimension) {
+            if (chunkKey == null || chunkKey[2] != dimension) {
                 continue;
             }
             int x = chunkKey[0];
@@ -1108,14 +1101,7 @@ public class WorldMapRenderer {
         for (LevelDBEntry entry : entries) {
             byte[] rawKey = entry.getKey().getRawKey();
             int[] chunkKey = parseChunkKey(rawKey);
-            if (chunkKey == null || !isSubchunkKey(rawKey)) {
-                continue;
-            }
-            boolean legacyKey = rawKey.length == 9 || rawKey.length == 10;
-            if (dimension != DIM_END && chunkKey[2] != dimension) {
-                continue;
-            }
-            if (dimension == DIM_END && !legacyKey && chunkKey[2] != DIM_END) {
+            if (chunkKey == null || chunkKey[2] != dimension || !isSubchunkKey(rawKey)) {
                 continue;
             }
             long key = pack(chunkKey[0], chunkKey[1]);
@@ -1127,15 +1113,7 @@ public class WorldMapRenderer {
         for (LevelDBEntry entry : entries) {
             byte[] rawKey = entry.getKey().getRawKey();
             int[] chunkKey = parseChunkKey(rawKey);
-            if (chunkKey == null || !isSubchunkKey(rawKey)) {
-                continue;
-            }
-            boolean legacyKey = rawKey.length == 9 || rawKey.length == 10;
-            if (dimension == DIM_END) {
-                if (!legacyKey && chunkKey[2] != DIM_END) {
-                    continue;
-                }
-            } else if (chunkKey[2] != dimension) {
+            if (chunkKey == null || chunkKey[2] != dimension || !isSubchunkKey(rawKey)) {
                 continue;
             }
             subKeys++;
@@ -1163,37 +1141,6 @@ public class WorldMapRenderer {
         }
         Log.i(TAG, "第二遍 subchunk: 命中=" + subKeys + " 跳过=" + skipped
                 + " 解码=" + decoded + " surfaceSubs=" + surfaceSubs.size());
-
-        // 末地/主世界维度互斥过滤：1.26 末地 chunk 用 9/10B 无维度 key（共享主世界空间），
-        // 按 subchunk palette 是否含 end_stone 判定归属（end_stone 为末地独有方块）。
-        // 末地渲染保留 end_stone chunk、主世界渲染排除 end_stone chunk。
-        if (dimension == DIM_END || dimension == DIM_OVERWORLD) {
-            java.util.Iterator<Long> it = heightMaps.keySet().iterator();
-            while (it.hasNext()) {
-                Long key = it.next();
-                boolean hasEndStone = chunkHasEndStone(subChunks.get(key));
-                if (dimension == DIM_END ? !hasEndStone : hasEndStone) {
-                    it.remove();
-                    biomeMaps.remove(key);
-                    subChunks.remove(key);
-                }
-            }
-            // 过滤后重算地图范围
-            minX = Integer.MAX_VALUE;
-            maxX = Integer.MIN_VALUE;
-            minZ = Integer.MAX_VALUE;
-            maxZ = Integer.MIN_VALUE;
-            for (Long key : heightMaps.keySet()) {
-                minX = Math.min(minX, unpackX(key));
-                maxX = Math.max(maxX, unpackX(key));
-                minZ = Math.min(minZ, unpackZ(key));
-                maxZ = Math.max(maxZ, unpackZ(key));
-            }
-            if (heightMaps.isEmpty()) {
-                Log.i(TAG, "卫星模式失败: 无" + (dimension == DIM_END ? "末地" : "主世界") + " chunk (维度=" + dimension + ")");
-                return null;
-            }
-        }
 
         // 2) 组装全图：每 chunk 16×16 表面色
         int spanX = maxX - minX + 1;
@@ -1644,8 +1591,9 @@ public class WorldMapRenderer {
         int biomeColor = biomeId >= 0 ? biomeGrassColor(biomeId) : 0;
         if (subs != null && !subs.isEmpty()) {
             // 起始 y：高度图值 -1（最高方块）；高度图全 0（未生成但有人工建筑）时
-            // 从最高 subchunk 顶部开始向下找，避免漏掉建筑
-            int yStart = height - 1;
+            // 从最高 subchunk 顶部开始向下找，避免漏掉建筑。
+            // surfaceYOffset：用户可调 y 轴偏移（解决个别世界高度图语义差异）
+            int yStart = height - 1 + surfaceYOffset;
             if (yStart < 0) {
                 int maxSub = Integer.MIN_VALUE;
                 for (Integer s : subs.keySet()) {
@@ -1688,15 +1636,14 @@ public class WorldMapRenderer {
                     return COLOR_WATER; // 水面优先
                 }
                 int color = colorForBlock(name);
-                // BTR 卫星模式行为：草地/树叶直接用群系色调（亮绿），
-                // 不乘灰度模板（模板乘色调后偏暗，观感像土/枯草）
+                // v270 行为：草地/树叶灰度模板 × 群系色调（MC 着色器机制）
                 if (biomes != null) {
                     int[] tint = biomeTintTable.get(biomeId);
                     if (tint != null) {
                         if (isGrassTinted(name)) {
-                            color = 0xFF000000 | (tint[3] << 16) | (tint[4] << 8) | tint[5];
+                            color = multiplyTint(color, tint, 3);
                         } else if (isLeavesTinted(name)) {
-                            color = 0xFF000000 | (tint[6] << 16) | (tint[7] << 8) | tint[8];
+                            color = multiplyTint(color, tint, 6);
                         }
                     }
                 }
@@ -1724,10 +1671,8 @@ public class WorldMapRenderer {
             return biomeColor;
         }
         if (dimension == DIM_NETHER) {
-            // 下界没有海：低处回退下界岩色而不是水蓝。
-            // 不用 biome 色回退——soulsand valley 等的 biome rgb 是蓝青色，
-            // 大片回退会把地图染成"毒蘑菇蓝"（实测）
-            return height <= 0 ? COLOR_BACKGROUND : 0xFF6B3535;
+            // v270 行为：下界没有海，低处回退下界岩色（biome 色优先）
+            return height <= 0 ? COLOR_BACKGROUND : (biomeColor != 0 ? biomeColor : 0xFF6B3535);
         }
         if (dimension == DIM_END) {
             // 末地：无高度数据 = 虚空（透明）
