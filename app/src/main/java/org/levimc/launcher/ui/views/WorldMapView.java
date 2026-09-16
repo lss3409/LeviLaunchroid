@@ -134,11 +134,21 @@ public class WorldMapView extends View {
 
     /** 设置世界数据：初始比整图放大 2 倍居中显示（BTR 打开时是放大的局部视图）。 */
     public void setWorldMap(@Nullable WorldMapRenderer.WorldMap map) {
+        setWorldMap(map, false);
+    }
+
+    /** 设置世界数据；keepView=true 时保留当前缩放与位置（y 轴偏移重载等场景）。 */
+    public void setWorldMap(@Nullable WorldMapRenderer.WorldMap map, boolean keepView) {
         this.map = map;
-        initialView();
+        if (!keepView || !viewInitialized) {
+            initialView();
+            viewInitialized = true;
+        }
         invalidateFullRender();
         notifyViewChanged();
     }
+
+    private boolean viewInitialized = false;
 
     /** 强制下一帧全量重采样（换图/图层切换等底层颜色变化时必须调用）。 */
     private void invalidateFullRender() {

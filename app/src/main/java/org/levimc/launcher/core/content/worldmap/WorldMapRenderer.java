@@ -1030,7 +1030,18 @@ public class WorldMapRenderer {
         for (LevelDBEntry entry : entries) {
             byte[] rawKey = entry.getKey().getRawKey();
             int[] chunkKey = parseChunkKey(rawKey);
-            if (chunkKey == null || chunkKey[2] != dimension) {
+            if (chunkKey == null) {
+                continue;
+            }
+            boolean legacyKey = rawKey.length == 9 || rawKey.length == 10;
+            if (dimension == DIM_END) {
+                // 末地整合（v264 行为 + 9/10B 兜底）：
+                // v264 末地数据在 13/14B dim=2 key；1.26 某些世界末地 chunk 用 9/10B
+                // 无维度 key（共享主世界空间），9/10B 进候选后按 end_stone 判定过滤
+                if (!legacyKey && chunkKey[2] != DIM_END) {
+                    continue;
+                }
+            } else if (chunkKey[2] != dimension) {
                 continue;
             }
             int x = chunkKey[0];
@@ -1101,7 +1112,15 @@ public class WorldMapRenderer {
         for (LevelDBEntry entry : entries) {
             byte[] rawKey = entry.getKey().getRawKey();
             int[] chunkKey = parseChunkKey(rawKey);
-            if (chunkKey == null || chunkKey[2] != dimension || !isSubchunkKey(rawKey)) {
+            if (chunkKey == null || !isSubchunkKey(rawKey)) {
+                continue;
+            }
+            boolean legacyKey = rawKey.length == 9 || rawKey.length == 10;
+            if (dimension == DIM_END) {
+                if (!legacyKey && chunkKey[2] != DIM_END) {
+                    continue;
+                }
+            } else if (chunkKey[2] != dimension) {
                 continue;
             }
             long key = pack(chunkKey[0], chunkKey[1]);
@@ -1113,7 +1132,15 @@ public class WorldMapRenderer {
         for (LevelDBEntry entry : entries) {
             byte[] rawKey = entry.getKey().getRawKey();
             int[] chunkKey = parseChunkKey(rawKey);
-            if (chunkKey == null || chunkKey[2] != dimension || !isSubchunkKey(rawKey)) {
+            if (chunkKey == null || !isSubchunkKey(rawKey)) {
+                continue;
+            }
+            boolean legacyKey = rawKey.length == 9 || rawKey.length == 10;
+            if (dimension == DIM_END) {
+                if (!legacyKey && chunkKey[2] != DIM_END) {
+                    continue;
+                }
+            } else if (chunkKey[2] != dimension) {
                 continue;
             }
             subKeys++;

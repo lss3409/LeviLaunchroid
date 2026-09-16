@@ -261,9 +261,9 @@ public class NbtViewerActivity extends BaseActivity {
 
             @Override
             public void onStopTrackingTouch(android.widget.SeekBar seekBar) {
-                // 松手生效：更新偏移并重新渲染当前维度地图
+                // 松手生效：更新偏移并原地重渲染当前维度（保持视角不缩放）
                 WorldMapRenderer.surfaceYOffset = seekBar.getProgress() - 16;
-                loadMapForDimension(mapDimension);
+                loadMapForDimension(mapDimension, true);
             }
         });
 
@@ -446,9 +446,15 @@ public class NbtViewerActivity extends BaseActivity {
 
     /** 切换维度后重新渲染地图（下界/末地无数据时提示）+ 解析实体/结构图层数据。 */
     private void loadMapForDimension(String dim) {
+        loadMapForDimension(dim, false);
+    }
+
+    /** keepView=true 时重载后保留当前视角（y 轴偏移等原地刷新场景）。 */
+    private void loadMapForDimension(String dim, boolean keepView) {
         binding.nbtLoading.setVisibility(View.VISIBLE);
         startBackgroundTask();
         final int gen = loadGeneration;
+        final boolean fKeepView = keepView;
         executor.execute(() -> {
             File dbDir = new File(currentWorldDir, "db");
             WorldMapRenderer.WorldMap worldMap = null;
@@ -498,7 +504,7 @@ public class NbtViewerActivity extends BaseActivity {
                 if (isFinishing() || isDestroyed() || !isCurrentLoad(gen)) return;
                 binding.nbtLoading.setVisibility(View.GONE);
                 if (fMap != null) {
-                    binding.worldMapImage.setWorldMap(fMap);
+                    binding.worldMapImage.setWorldMap(fMap, fKeepView);
                     binding.worldMapImage.setEntityData(fEntities);
                     binding.worldMapImage.setStructureMarkers(fStructures);
                     binding.worldMapPlaceholder.setVisibility(View.GONE);
