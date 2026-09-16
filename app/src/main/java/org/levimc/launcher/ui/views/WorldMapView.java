@@ -165,6 +165,7 @@ public class WorldMapView extends View {
             b.recycle();
         }
         chunkTiles.clear();
+        chunkDataCache.clear();
         if (lodMini != null) {
             lodMini.recycle();
             lodMini = null;
@@ -754,13 +755,39 @@ public class WorldMapView extends View {
         }
     }
 
-    /** 该 chunk 是否已有渲染数据；整图路径（colors 数组）恒为 true。 */
+    /** chunk 是否有非透明地形数据（EMPTY 占位/全透明的空区块视为无数据）。 */
+    private final Map<Long, Boolean> chunkDataCache = new HashMap<>();
+
+    /** 该 chunk 是否实际有地图数据；整图路径（colors 数组）恒为 true。 */
     private boolean chunkRendered(int cx, int cz) {
         if (map == null) {
             return false;
         }
         if (map.chunkColors != null) {
-            return map.chunkColors.containsKey(packChunk(cx, cz));
+            long ck = packChunk(cx, cz);
+            Boolean cached = chunkDataCache.get(ck);
+            if (cached != null) {
+                return cached;
+            }
+            int[] cc = map.chunkColors.get(ck);
+            boolean has = false;
+            if (cc != null) {
+                for (int v : cc) {
+                    if ((v & 0xFF000000) != 0) {
+                        has = true;
+                        break;
+                    }
+                }
+            }
+            if (cc != null) {
+                // 只有已渲染（含 EMPTY 占位）的 chunk 才缓存判定；
+                // 缺失 chunk 之后会渲染出来，不能缓存 false
+                if (chunkDataCache.size() > 200000) {
+                    chunkDataCache.clear();
+                }
+                chunkDataCache.put(ck, has);
+            }
+            return has;
         }
         return true;
     }
