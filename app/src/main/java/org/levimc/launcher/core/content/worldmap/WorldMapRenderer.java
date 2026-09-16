@@ -2244,6 +2244,18 @@ public class WorldMapRenderer {
                             if (name == null || isAirName(name)) {
                                 continue;
                             }
+                            boolean isWater = name.equals("minecraft:water")
+                                    || name.equals("minecraft:flowing_water");
+                            if (isWater) {
+                                // 水面：统一水色（色表灰度模板无 biome 会显示灰），
+                                // 收集后停止向下——否则海洋区域把海床 14 层
+                                // 全渲染成乱石堆（3D 视图错位的根因）
+                                colors[n] = 0xFF4B8CEB;
+                                ys[n] = y;
+                                names[n] = name;
+                                n++;
+                                break;
+                            }
                             colors[n] = tintColor(name, colorForBlock(name), biomeId);
                             ys[n] = y;
                             names[n] = name;

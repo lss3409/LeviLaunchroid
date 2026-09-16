@@ -797,11 +797,24 @@ public class WorldMapView extends View {
                     src = bc;
                 }
             }
+            // 代表色 = 出现次数最多的非透明色（此前取第一个非透明 =
+            // chunk 角落方块，角落是沙则整块沙黄——LOD 视图水边大
+            // 片异常色的根因候选之一）
+            java.util.HashMap<Integer, Integer> freq = new java.util.HashMap<>();
+            int best = 0;
+            int bestN = 0;
             for (int v : src) {
-                if ((v & 0xFF000000) != 0) {
-                    mini.setPixel(px, pz, v);
-                    break;
+                if ((v & 0xFF000000) == 0) {
+                    continue;
                 }
+                int n = freq.merge(v, 1, Integer::sum);
+                if (n > bestN) {
+                    bestN = n;
+                    best = v;
+                }
+            }
+            if (best != 0) {
+                mini.setPixel(px, pz, best);
             }
         }
         if (lodMini != null) {
