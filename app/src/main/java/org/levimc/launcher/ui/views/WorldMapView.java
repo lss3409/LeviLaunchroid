@@ -107,6 +107,11 @@ public class WorldMapView extends View {
         this.viewChangedListener = l;
     }
 
+    /** 当前缩放倍率（每方块像素数，HUD 显示用）。 */
+    public float getPixelsPerBlock() {
+        return pixelsPerBlock;
+    }
+
     /** 视口按需渲染回调（BTR 式）：视口内缺失的 chunk 由外部渲染后填回 chunkColors。 */
     public interface OnChunksNeededListener {
         void onChunksNeeded(java.util.Set<Long> chunkKeys);
@@ -684,15 +689,11 @@ public class WorldMapView extends View {
         int visibleChunks = (lastCx - firstCx + 1) * (lastCz - firstCz + 1);
         final java.util.Set<Long> missing = chunksNeededListener != null && !scaling
                 ? new java.util.HashSet<>() : null;
-        // LOD 迟滞：>5000 进入、<3500 退出（阈值 4096 上下波动会导致
-        // LOD 与 tile 交替绘制——"地图里嵌套显示缩小版小图"的根因）；
-        // 缩放过程中不切换模式
+        // LOD 单阈值 + 缩放中不切换：缩放结束后按当前视口重判定——
+        // 迟滞区间(3500-5000)会卡在 LOD 模式导致放大回来不渲染
+        // （"缩放到一定比例停止渲染"的根因）
         if (!scaling) {
-            if (visibleChunks > 5000) {
-                lodMode = true;
-            } else if (visibleChunks < 3500) {
-                lodMode = false;
-            }
+            lodMode = visibleChunks > 4096;
         }
         if (lodMode) {
             // LOD：全图缩略一次 drawBitmap（缩小到整图可视时视口含全图 chunk，

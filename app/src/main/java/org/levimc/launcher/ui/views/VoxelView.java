@@ -31,6 +31,14 @@ public class VoxelView extends View {
     /** 预渲染场景位图（数据加载后画一次；旋转/缩放只变换位图，
      *  每帧 17 万 path 重绘是"卡死界面"的根因）。 */
     private android.graphics.Bitmap sceneBmp;
+    /** 单指旋转灵敏度（每像素弧度；静态——设置页可调）。 */
+    public static volatile float scrollSensitivity = 0.012f;
+    /** 多角度快照（每 15° 一张，懒加载）——任意角度旋转时侧面明暗
+     *  随角度变化（单张快照旋转只能平面转，"不支持 720°"的根因）。 */
+    private final android.graphics.Bitmap[] angleSnaps = new android.graphics.Bitmap[24];
+    private final java.util.Set<Integer> snapRequested = new java.util.HashSet<>();
+    private final java.util.concurrent.ExecutorService snapPool =
+            java.util.concurrent.Executors.newSingleThreadExecutor();
 
     private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -140,9 +148,9 @@ public class VoxelView extends View {
                     public boolean onScroll(@Nullable MotionEvent e1, @NonNull MotionEvent e2,
                                             float distanceX, float distanceY) {
                         // 单指滑动只旋转（缩放交给双指捏合——混绑会让单指旋转
-                        // 时误触缩放）；系数 0.02 = 每像素 1.15°，一屏 ≈3 圈，
-                        // 支持连续 720° 旋转
-                        angle -= distanceX * 0.02f;
+                        // 时误触缩放）；灵敏度可调（设置页），默认 0.012/像素，
+                        // 一屏 ≈ 0.7 圈，连续拖支持 720°
+                        angle -= distanceX * scrollSensitivity;
                         invalidate();
                         return true;
                     }
@@ -176,6 +184,7 @@ public class VoxelView extends View {
                     sceneBmp.recycle();
                 }
                 sceneBmp = bmp;
+                angleSnaps[0] = bmp; // 0° 快照即基础场景
                 invalidate();
             });
         }, "voxel-scene").start();
@@ -184,13 +193,16 @@ public class VoxelView extends View {
 
     /** 预渲染场景位图（原角度快照；旋转/缩放时变换位图）。 */
     private android.graphics.Bitmap renderScene() {
+        return renderSceneAt(1f, 0f);
+    }
+
+    /** 指定角度渲染场景位图（多角度快照用）。 */
+    private android.graphics.Bitmap renderSceneAt(float cosA, float sinA) {
         if (data == null || size <= 0) {
             return null;
         }
         float unit = 8f;
         float unitH = 10f;
-        float cosA = 1f;
-        float sinA = 0f;
         int bw = (int) (size * unit * 2.2f);
         int bh = (int) (size * unit * 1.3f + 30 * unitH * 0.12f + 80);
         android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(
@@ -262,17 +274,73 @@ public class VoxelView extends View {
             canvas.drawText("生成中…", getWidth() / 2f, getHeight() / 2f, p);
             return;
         }
-        // 场景位图旋转 + 缩放（每次交互只 1 次 drawBitmap，不再逐方块重绘）
+        // 多角度快照（每 15°）：旋转取最近角度快照 + 残余角微调——
+        // 侧面明暗随角度变化，支持 720° 连续旋转（单张快照只能平面转）
+        int idx = snapIdx(angle);
+        android.graphics.Bitmap bmp = angleSnaps[idx];
+        if (bmp == null) {
+            requestSnap(idx);
+            bmp = nearestExistingSnap(idx);
+            if (bmp == null) {
+                bmp = sceneBmp;
+            }
+        }
         canvas.save();
         float cx = getWidth() / 2f;
         float cy = getHeight() / 2f;
         canvas.translate(cx, cy);
-        canvas.rotate((float) Math.toDegrees(angle));
+        canvas.rotate((float) Math.toDegrees(angle) - idx * 15f);
         canvas.scale(zoom, zoom);
-        canvas.drawBitmap(sceneBmp, -sceneBmp.getWidth() / 2f,
-                -sceneBmp.getHeight() / 2f, null);
+        canvas.drawBitmap(bmp, -bmp.getWidth() / 2f, -bmp.getHeight() / 2f, null);
         canvas.restore();
         drawAxis(canvas);
+    }
+
+    /** 角度 → 快照索引（每 15° 一格，环绕 24 格）。 */
+    private int snapIdx(float angleRad) {
+        int d = (int) Math.round(Math.toDegrees(angleRad) / 15.0);
+        return Math.floorMod(d, 24);
+    }
+
+    /** 后台渲染指定角度快照（懒加载，单线程队列）。 */
+    private void requestSnap(int idx) {
+        synchronized (snapRequested) {
+            if (!snapRequested.add(idx)) {
+                return;
+            }
+        }
+        final float ang = (float) Math.toRadians(idx * 15);
+        snapPool.execute(() -> {
+            try {
+                android.graphics.Bitmap b = renderSceneAt(
+                        (float) Math.cos(ang), (float) Math.sin(ang));
+                if (b != null) {
+                    post(() -> {
+                        angleSnaps[idx] = b;
+                        invalidate();
+                    });
+                }
+            } finally {
+                synchronized (snapRequested) {
+                    snapRequested.remove(idx);
+                }
+            }
+        });
+    }
+
+    /** 最近已生成的快照（未生成时回退）。 */
+    private android.graphics.Bitmap nearestExistingSnap(int idx) {
+        for (int d = 1; d < 24; d++) {
+            android.graphics.Bitmap a = angleSnaps[Math.floorMod(idx + d, 24)];
+            if (a != null) {
+                return a;
+            }
+            android.graphics.Bitmap b = angleSnaps[Math.floorMod(idx - d, 24)];
+            if (b != null) {
+                return b;
+            }
+        }
+        return angleSnaps[0] != null ? angleSnaps[0] : null;
     }
 
     /** 绘制顺序：投影深度降序。 */

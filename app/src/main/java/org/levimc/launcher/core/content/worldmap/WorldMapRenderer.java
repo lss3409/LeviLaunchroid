@@ -1727,6 +1727,26 @@ public class WorldMapRenderer {
                 monumentChunks.put(key, 3); // value 3 = 掠夺者前哨站
             }
         }
+        // 渲染窗口与按需路径统一（v304 地表层中心）：流式 filter 的
+        // maxSub±2 只是读数据窗口（含树冠/建筑顶），渲染必须再裁到
+        // 地表窗口——否则高树 chunk 从树冠层渲染、地表被裁，颜色回退/
+        // 异常（预渲染合并后"结构附近错误颜色"的根因）
+        if (dimension != DIM_NETHER && !subs.isEmpty()) {
+            int maxH = 0;
+            for (int hh : hmap) {
+                if (hh > maxH) {
+                    maxH = hh;
+                }
+            }
+            int surfaceSub = Math.floorDiv(maxH - 1, 16);
+            int maxSub = Integer.MIN_VALUE;
+            for (int s : subs.keySet()) {
+                maxSub = Math.max(maxSub, s);
+            }
+            final int fMin = surfaceSub - 2;
+            final int fMax = Math.max(surfaceSub + 2, maxSub);
+            subs.keySet().removeIf(s -> s < fMin || s > fMax);
+        }
         int[] colors = new int[256];
         int[] biomeCols = new int[256];
         boolean hasAny = false;
@@ -1766,7 +1786,7 @@ public class WorldMapRenderer {
     // v4：缓存加入 biome 图层色（v3 只存地形色，缓存命中后 biome 图层永远没数据）
     // v5：玻璃穿透回滚（玻璃恢复不透明色表渲染）+ 下界裁剪 sub7（v4 的
     // 玻璃穿透与 s>=6 裁剪渲染结果已错，必须失效）
-    private static final int MAP_CACHE_VERSION = 5;
+    private static final int MAP_CACHE_VERSION = 6;
 
     /** 缓存文件：db 目录旁 map_cache_<dim>.bin（随世界走，卸载备份都在）。
      *  下界缓存文件名带渲染参数后缀（y 范围 + 剔除名单 hash）——不同设置

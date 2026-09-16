@@ -672,10 +672,17 @@ public class NbtViewerActivity extends BaseActivity {
                 if (renderGen.get() != myGen) {
                     return;
                 }
-                // 合并进当前视图（视口已渲染的同 key 数据一致，覆盖无害）
-                fMap.chunkColors.putAll(full.chunkColors);
+                // 合并进当前视图：putIfAbsent——视口按需已渲染的 chunk 是
+                // 地表窗口版（正确），流式版窗口可能不同（树冠层），
+                // 覆盖会让结构附近颜色回退/异常
+                for (java.util.Map.Entry<Long, int[]> e : full.chunkColors.entrySet()) {
+                    fMap.chunkColors.putIfAbsent(e.getKey(), e.getValue());
+                }
                 if (full.chunkBiomeColors != null && fMap.chunkBiomeColors != null) {
-                    fMap.chunkBiomeColors.putAll(full.chunkBiomeColors);
+                    for (java.util.Map.Entry<Long, int[]> e
+                            : full.chunkBiomeColors.entrySet()) {
+                        fMap.chunkBiomeColors.putIfAbsent(e.getKey(), e.getValue());
+                    }
                 }
                 Log.i(TAG, "预渲染完成: " + full.chunkColors.size() + " chunk (dim=" + dim + ")");
                 runOnUiThread(() -> {
@@ -872,12 +879,14 @@ public class NbtViewerActivity extends BaseActivity {
         // 维度切换
         setupDimensionSwitch();
 
-        // 坐标 HUD：缩放/平移时更新中心坐标
+        // 坐标 HUD：缩放/平移时更新中心坐标 + 缩放倍率
         binding.worldMapImage.setOnViewChangedListener((cx, cz) -> {
             viewCenterX.set(cx);
             viewCenterZ.set(cz);
             binding.mapHud.setText("X: " + cx + "  Z: " + cz
-                    + "  ·  " + dimName(mapDimension));
+                    + "  ·  " + dimName(mapDimension)
+                    + "  ·  ×" + String.format(java.util.Locale.getDefault(),
+                    "%.2f", binding.worldMapImage.getPixelsPerBlock()));
         });
 
         // 结构标记点击 → 详情弹窗（NBT 数据/附近实体/坐标）
