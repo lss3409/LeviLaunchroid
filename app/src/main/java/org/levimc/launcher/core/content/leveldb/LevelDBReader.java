@@ -949,7 +949,9 @@ public class LevelDBReader {
         prefix[5] = (byte) (cz >> 8);
         prefix[6] = (byte) (cz >> 16);
         prefix[7] = (byte) (cz >> 24);
-        return readEntriesByPrefix(prefix);
+        // chunk 的全部 key 类型（高度图/版本/subchunk）可能写入于不同时期、
+        // 分布在多个 sst 文件——必须全遍历才能集齐
+        return readEntriesByPrefixInternal(prefix, false);
     }
 
     /**
@@ -957,44 +959,54 @@ public class LevelDBReader {
      * 用于单 key/小前缀读取（如 ~local_player），避免全表扫描——大世界全表要 5 秒。
      */
     public List<LevelDBEntry> readEntriesByPrefix(byte[] prefix) throws IOException {
+        // 单 key 语义：最新版本一定在最新的文件里（sst 新→旧 + log 已读），
+        // 找到即停，312 个 sst 只碰 1-2 个
+        return readEntriesByPrefixInternal(prefix, true);
+    }
+
+    private List<LevelDBEntry> readEntriesByPrefixInternal(byte[] prefix, boolean stopAfterFound)
+            throws IOException {
         List<LevelDBEntry> out = new ArrayList<>();
         java.util.Set<ByteArrayWrapper> seen = new java.util.HashSet<>();
-        File[] sstFiles = dbPath.listFiles((dir, name) ->
-                name.endsWith(".ldb") || name.endsWith(".sst"));
-        if (sstFiles != null) {
-            Arrays.sort(sstFiles, Comparator.comparing(File::getName).reversed());
-            for (File sstFile : sstFiles) {
-                try {
-                    readPrefixFromSst(sstFile, prefix, prefix.length, out, seen);
-                } catch (Exception e) {
-                    Log.w(TAG, "readPrefix failed on " + sstFile.getName(), e);
-                }
-            }
-        }
         File[] logFiles = dbPath.listFiles((dir, name) -> name.endsWith(".log"));
         if (logFiles != null) {
             Arrays.sort(logFiles, Comparator.comparing(File::getName));
             for (File logFile : logFiles) {
                 try {
-                    // 日志文件小：全读过滤
+                    // 日志文件小：全读过滤（最新写入可能在 log 里，必须先读）
                     readLogFileFiltered(logFile, prefix, prefix.length, out, seen);
                 } catch (Exception e) {
                     Log.w(TAG, "readPrefix log failed on " + logFile.getName(), e);
                 }
             }
         }
+        File[] sstFiles = dbPath.listFiles((dir, name) ->
+                name.endsWith(".ldb") || name.endsWith(".sst"));
+        if (sstFiles != null) {
+            Arrays.sort(sstFiles, Comparator.comparing(File::getName).reversed());
+            for (File sstFile : sstFiles) {
+                try {
+                    boolean found = readPrefixFromSst(sstFile, prefix, prefix.length, out, seen);
+                    if (stopAfterFound && found) {
+                        break;
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "readPrefix failed on " + sstFile.getName(), e);
+                }
+            }
+        }
         return out;
     }
 
-    /** sst 内定位目标前缀的 data block 并解析。 */
-    private void readPrefixFromSst(File file, byte[] prefix, int prefixLen,
-                                   List<LevelDBEntry> out,
-                                   java.util.Set<ByteArrayWrapper> seen) throws IOException {
+    /** sst 内定位目标前缀的 data block 并解析；返回是否找到匹配条目。 */
+    private boolean readPrefixFromSst(File file, byte[] prefix, int prefixLen,
+                                      List<LevelDBEntry> out,
+                                      java.util.Set<ByteArrayWrapper> seen) throws IOException {
         try (RandomAccessFile raf = new RandomAccessFile(file, "r");
              FileChannel channel = raf.getChannel()) {
             long fileSize = channel.size();
             if (fileSize < FOOTER_SIZE) {
-                return;
+                return false;
             }
             ByteBuffer footer = ByteBuffer.allocate(FOOTER_SIZE).order(ByteOrder.LITTLE_ENDIAN);
             channel.position(fileSize - FOOTER_SIZE);
@@ -1006,11 +1018,11 @@ public class LevelDBReader {
             long indexSize = readVarInt64(footer);
             footer.position(40);
             if (footer.getLong() != TABLE_MAGIC_NUMBER) {
-                return;
+                return false;
             }
             ByteBuffer indexBlock = readBlock(channel, indexOffset, (int) indexSize);
             if (indexBlock == null) {
-                return;
+                return false;
             }
             // index 条目：key = 该 data block 的最后一个 key
             List<byte[]> blockKeys = new ArrayList<>();
@@ -1027,13 +1039,19 @@ public class LevelDBReader {
                     hi = mid;
                 }
             }
+            boolean found = false;
             for (int i = Math.max(0, lo - 1); i <= Math.min(lo, handles.size() - 1); i++) {
                 ByteBuffer block = readBlock(channel, handles.get(i).offset, (int) handles.get(i).size);
                 if (block == null) {
                     continue;
                 }
+                int before = out.size();
                 parseDataBlockFiltered(block, prefix, prefixLen, out, seen);
+                if (out.size() > before) {
+                    found = true;
+                }
             }
+            return found;
         }
     }
 
