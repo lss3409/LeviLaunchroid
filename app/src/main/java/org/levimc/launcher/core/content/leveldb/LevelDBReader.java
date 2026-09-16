@@ -1047,16 +1047,33 @@ public class LevelDBReader {
                     hi = mid;
                 }
             }
+            // 从 lo-1 持续读到该前缀区域结束：一个 chunk 的全部 key
+            // （高度图 + 二十多层 subchunk × 2-8KB value）跨几十个 4KB
+            // data block——只读 2 块会漏掉大部分 subchunk，surfaceColor
+            // 用残缺 sub 数据算表面 → y 轴高度错乱/贴图错位（实测大世界）
             boolean found = false;
-            for (int i = Math.max(0, lo - 1); i <= Math.min(lo, handles.size() - 1); i++) {
+            boolean started = false;
+            for (int i = Math.max(0, lo - 1); i < handles.size(); i++) {
+                byte[] lastKey = blockKeys.get(i);
+                if (!started) {
+                    if (compareKeysPrefix(lastKey, prefix, prefixLen) < 0) {
+                        continue; // 还没进入该前缀区域（lo-1 块可能整块都在前面）
+                    }
+                    started = true;
+                }
                 ByteBuffer block = readBlock(channel, handles.get(i).offset, (int) handles.get(i).size);
                 if (block == null) {
-                    continue;
+                    break;
                 }
                 int before = out.size();
                 parseDataBlockFiltered(block, prefix, prefixLen, out, seen);
                 if (out.size() > before) {
                     found = true;
+                }
+                if (!prefixMatches(lastKey, prefix, prefixLen)) {
+                    // 该块 lastKey 已越过本前缀（进入下一 chunk）——读完这最后
+                    // 一个边界块后停止
+                    break;
                 }
             }
             return found;
