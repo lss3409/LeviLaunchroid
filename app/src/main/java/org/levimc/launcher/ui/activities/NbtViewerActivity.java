@@ -89,6 +89,24 @@ public class NbtViewerActivity extends BaseActivity {
     /** 渲染代际：切维度 +1；任务执行时比对，代际不符直接放弃（旧维度残留任务）。 */
     private final java.util.concurrent.atomic.AtomicInteger renderGen =
             new java.util.concurrent.atomic.AtomicInteger();
+    /** 渲染线程复用的 LevelDBReader（每 chunk 新建 reader 要重开全部 sst
+     *  文件——大世界几百个 sst，是拖动跟不上渲染的主因；reader 实例无状态
+     *  线程安全，按 dbDir 校验失效换新）。 */
+    private final ThreadLocal<Object[]> renderReaderTl = new ThreadLocal<>();
+
+    private org.levimc.launcher.core.content.leveldb.LevelDBReader getRenderReader(File dbDir) {
+        Object[] cur = renderReaderTl.get();
+        if (cur != null && cur[0].equals(dbDir)) {
+            return (org.levimc.launcher.core.content.leveldb.LevelDBReader) cur[1];
+        }
+        if (cur != null) {
+            ((org.levimc.launcher.core.content.leveldb.LevelDBReader) cur[1]).close();
+        }
+        org.levimc.launcher.core.content.leveldb.LevelDBReader r =
+                new org.levimc.launcher.core.content.leveldb.LevelDBReader(dbDir);
+        renderReaderTl.set(new Object[]{dbDir, r});
+        return r;
+    }
 
     private static ExecutorService newRenderPool() {
         return Executors.newFixedThreadPool(6, r -> {
@@ -366,7 +384,8 @@ public class NbtViewerActivity extends BaseActivity {
                     try {
                         int cx = (int) (key >> 32);
                         int cz = (int) (long) key;
-                        int[][] res = WorldMapRenderer.renderChunkOnDemand(dbDir, cx, cz, dim);
+                        int[][] res = WorldMapRenderer.renderChunkOnDemand(
+                                getRenderReader(dbDir), cx, cz, dim);
                         // 未生成 chunk 也放 EMPTY 占位，防重复请求
                         int[] colors = res != null ? res[0] : null;
                         fMap.chunkColors.put(key, colors != null ? colors : EMPTY_CHUNK_COLORS);
@@ -476,6 +495,10 @@ public class NbtViewerActivity extends BaseActivity {
                 binding.worldMapImage.setMemoryOptimized(checked));
         binding.worldMapImage.setMemoryOptimized(binding.layerMemory.isChecked());
 
+        // 下界渲染层（y 轴范围）：全部/上部/中部/下部——下界 sub 0-7 每层
+        // 都有方块，全量解码是下界渲染慢的主因；选窄范围大幅提速
+        setupNetherYSegment();
+
         // 左栏标点搜索 → 列表过滤
         binding.pointSearchInput.addTextChangedListener(new android.text.TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -484,6 +507,56 @@ public class NbtViewerActivity extends BaseActivity {
             }
             @Override public void afterTextChanged(android.text.Editable s) {}
         });
+    }
+
+    /** 下界渲染层分段选择：全部/上部(y64-127)/中部(y32-95)/下部(y0-63)。 */
+    private void setupNetherYSegment() {
+        final String PREFS = "nether_render_y";
+        int saved = getSharedPreferences("nbt_viewer", MODE_PRIVATE).getInt(PREFS, 0);
+        applyNetherY(saved);
+        View.OnClickListener segClick = v -> {
+            int mode;
+            if (v == binding.netherYAll) mode = 0;
+            else if (v == binding.netherYTop) mode = 1;
+            else if (v == binding.netherYMid) mode = 2;
+            else mode = 3;
+            applyNetherY(mode);
+            getSharedPreferences("nbt_viewer", MODE_PRIVATE).edit().putInt(PREFS, mode).apply();
+            // 当前在下界：清缓存重载（y 范围变了表面色会变）
+            if ("nether".equals(mapDimension) && currentWorldDir != null) {
+                new File(currentWorldDir, "map_cache_1.bin").delete();
+                loadMapForDimension("nether");
+            }
+        };
+        binding.netherYAll.setOnClickListener(segClick);
+        binding.netherYTop.setOnClickListener(segClick);
+        binding.netherYMid.setOnClickListener(segClick);
+        binding.netherYBottom.setOnClickListener(segClick);
+        for (TextView t : new TextView[]{binding.netherYAll, binding.netherYTop,
+                binding.netherYMid, binding.netherYBottom}) {
+            DynamicAnim.applyPressScale(t);
+        }
+    }
+
+    /** 应用下界 y 范围并刷新分段高亮（个性化主题色贯通）。 */
+    private void applyNetherY(int mode) {
+        switch (mode) {
+            case 1: WorldMapRenderer.netherYMin = 64; WorldMapRenderer.netherYMax = 127; break;
+            case 2: WorldMapRenderer.netherYMin = 32; WorldMapRenderer.netherYMax = 95; break;
+            case 3: WorldMapRenderer.netherYMin = 0; WorldMapRenderer.netherYMax = 63; break;
+            default: WorldMapRenderer.netherYMin = -1; WorldMapRenderer.netherYMax = -1; break;
+        }
+        int active = accentColor != 0 ? accentColor
+                : ContextCompat.getColor(this, R.color.primary);
+        int inactive = ContextCompat.getColor(this, R.color.text_secondary);
+        TextView[] segs = {binding.netherYAll, binding.netherYTop,
+                binding.netherYMid, binding.netherYBottom};
+        for (int i = 0; i < segs.length; i++) {
+            boolean sel = i == mode;
+            segs[i].setBackgroundResource(sel ? R.drawable.bg_tab_selected
+                    : R.drawable.bg_tab_unselected);
+            segs[i].setTextColor(sel ? active : inactive);
+        }
     }
 
     /** 复位左栏图标条高亮（ViewBinding 对旧 id 推断为 View，运行时实为 ImageView）。 */

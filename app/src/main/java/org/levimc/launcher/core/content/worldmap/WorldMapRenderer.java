@@ -59,6 +59,22 @@ public class WorldMapRenderer {
     private static final int DIM_OVERWORLD = 0;
     /** 下界维度 id（内部逻辑编号） */
     private static final int DIM_NETHER = 1;
+    /** 下界渲染 y 范围（设置页可调；netherYMin<0 = 全量渲染）。 */
+    public static volatile int netherYMin = -1;
+    public static volatile int netherYMax = -1;
+
+    /** 下界窗口裁剪：sub 与 [yMin,yMax] 无交集则剔除（全量时不动）。 */
+    private static void applyNetherWindow(Map<Integer, SubChunk> subs) {
+        if (netherYMin < 0 || subs == null || subs.isEmpty()) {
+            return;
+        }
+        subs.keySet().removeIf(s -> s * 16 + 15 < netherYMin || s * 16 > netherYMax);
+    }
+
+    /** 下界 sub 是否在设定 y 范围内（供流式/全量 filter 用）。 */
+    private static boolean netherSubInRange(int sub) {
+        return netherYMin < 0 || (sub * 16 + 15 >= netherYMin && sub * 16 <= netherYMax);
+    }
     /** 末地维度 id（内部逻辑编号） */
     private static final int DIM_END = 2;
 
@@ -1270,7 +1286,13 @@ public class WorldMapRenderer {
             subKeys++;
             long key = pack(chunkKey[0], chunkKey[1]);
             int sub = chunkKey[3];
-            if (dimension != DIM_NETHER) {
+            if (dimension == DIM_NETHER) {
+                // 下界默认全量；设置页 y 范围生效时过滤
+                if (!netherSubInRange(sub)) {
+                    skipped++;
+                    continue;
+                }
+            } else {
                 // 窗口围绕「实际最高 subchunk」（实测：高度图是生成器预测值 127~201，
                 // 实际方块只生成到 sub 3~4，围绕预测值会全跳过）
                 Integer maxSub = maxSubByChunk.get(key);
@@ -1460,8 +1482,14 @@ public class WorldMapRenderer {
                         filterDiag[4]++;
                         return false;
                     }
-                    // 窗口内 subchunk（maxSub±2）；下界全量
-                    if (dimension != DIM_NETHER) {
+                    if (dimension == DIM_NETHER) {
+                        // 下界默认全量；设置页 y 范围生效时过滤
+                        if (!netherSubInRange(ck[3])) {
+                            filterDiag[3]++;
+                            return false;
+                        }
+                    } else {
+                        // 窗口内 subchunk（maxSub±2）
                         Integer maxSub = maxSubRef.get(pack(ck[0], ck[1]));
                         if (maxSub == null || ck[3] < maxSub - 2 || ck[3] > maxSub + 2) {
                             filterDiag[3]++;
@@ -1630,6 +1658,7 @@ public class WorldMapRenderer {
             boolean darkOak = false;
             boolean darkOakLog = false;
             boolean stone = false;
+            boolean mossy = false;
             for (SubChunk sc : subs.values()) {
                 for (String pn : sc.palette) {
                     if (pn == null) {
@@ -1657,6 +1686,8 @@ public class WorldMapRenderer {
                         darkOak = true;
                     } else if (pn.contains("dark_oak_log")) {
                         darkOakLog = true;
+                    } else if (pn.contains("mossy_cobblestone")) {
+                        mossy = true; // 必须在 cobblestone 之前：子串会吞掉
                     } else if (pn.contains("cobblestone")) {
                         stone = true;
                     }
@@ -1669,10 +1700,10 @@ public class WorldMapRenderer {
                 endCityChunks.put(key, 1);
             }
             if (dimension == DIM_OVERWORLD && (chiseledSandstone
-                    || (orangeTerracotta && blueTerracotta) || tnt)) {
-                monumentChunks.put(key, 2); // 复用 map：value 2 = 沙漠神殿
+                    || (orangeTerracotta && blueTerracotta && tnt))) {
+                monumentChunks.put(key, 2); // 复用 map：value 2 = 沙漠神殿（特征收紧，与按需路径一致）
             }
-            if (dimension == DIM_OVERWORLD && darkOak && darkOakLog && stone) {
+            if (dimension == DIM_OVERWORLD && darkOak && darkOakLog && stone && mossy) {
                 monumentChunks.put(key, 3); // value 3 = 掠夺者前哨站
             }
         }
@@ -1928,8 +1959,23 @@ public class WorldMapRenderer {
     public static int[][] renderChunkOnDemand(File dbDir, int cx, int cz, int dimension) {
         try {
             LevelDBReader reader = new LevelDBReader(dbDir);
+            try {
+                return renderChunkOnDemand(reader, cx, cz, dimension);
+            } finally {
+                reader.close();
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "renderChunkOnDemand 失败 (" + cx + "," + cz + ")", t);
+            return null;
+        }
+    }
+
+    /** 复用 reader 版本（渲染线程 ThreadLocal 持有——每 chunk 新建 reader
+     *  要重开全部 sst 文件，是拖动跟不上渲染的主因）。 */
+    public static int[][] renderChunkOnDemand(LevelDBReader reader, int cx, int cz,
+                                              int dimension) {
+        try {
             List<LevelDBEntry> entries = reader.readChunk(cx, cz);
-            reader.close();
             int[] hmap = null;
             byte[] biomes = null;
             Map<Integer, SubChunk> subs = new HashMap<>();
@@ -1978,7 +2024,11 @@ public class WorldMapRenderer {
             // （河床/海底）到实际最高 sub（树冠/建筑）。之前用「实际最高 sub ±2」
             // ——树/建筑让 maxSub 偏离地表，地表层被裁掉，海洋/平原 chunk
             // 回退 biome 色显示成大片水蓝（"y 轴高度错乱"根因）
-            if (dimension != DIM_NETHER && !subs.isEmpty()) {
+            if (dimension == DIM_NETHER) {
+                // 下界：默认全量（sub 0-7 每层都有方块，窗口裁剪会漏熔岩海/洞穴）；
+                // 设置页可选 y 范围加速
+                applyNetherWindow(subs);
+            } else if (!subs.isEmpty()) {
                 int maxH = 0;
                 for (int h : hmap) {
                     if (h > maxH) {
@@ -2514,6 +2564,7 @@ public class WorldMapRenderer {
         boolean darkOak = false;
         boolean darkOakLog = false;
         boolean stone = false;
+        boolean mossy = false;
         for (SubChunk sc : subs.values()) {
             for (String pn : sc.palette) {
                 if (pn == null) {
@@ -2533,15 +2584,20 @@ public class WorldMapRenderer {
                     darkOak = true;
                 } else if (pn.contains("dark_oak_log")) {
                     darkOakLog = true;
+                } else if (pn.contains("mossy_cobblestone")) {
+                    mossy = true; // 必须在 cobblestone 之前：子串会吞掉
                 } else if (pn.contains("cobblestone")) {
                     stone = true;
                 }
             }
         }
-        String type = (chiseledSandstone || (orangeTerracotta && blueTerracotta)
-                || tnt)
+        // 结构特征收紧（1.26 无结构 key，只能视觉方案）：
+        // 沙漠神殿 = 錾制砂岩 或 陶瓦环+TNT 陷阱三者同时（单 TNT/陶瓦对
+        // 误判玩家建筑——出生点附近 TNT 误判的根因）
+        // 前哨站 = 深橡木板+原木+圆石+苔石（玩家生电房常见前三者组合）
+        String type = (chiseledSandstone || (orangeTerracotta && blueTerracotta && tnt))
                 ? "desert_temple"
-                : darkOak && darkOakLog && stone ? "outpost" : null;
+                : darkOak && darkOakLog && stone && mossy ? "outpost" : null;
         if (type == null) {
             return;
         }

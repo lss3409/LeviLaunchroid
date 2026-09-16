@@ -1379,6 +1379,11 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="lb_layers">Layers</string>
     <string name="lb_points">Points</string>
     <string name="lb_settings">Settings</string>
+    <string name="nether_y_title">Nether render layers</string>
+    <string name="nether_y_all">All</string>
+    <string name="nether_y_top">Top</string>
+    <string name="nether_y_mid">Mid</string>
+    <string name="nether_y_bottom">Bottom</string>
     <string name="layer_grid">Chunk grid</string>
     <string name="layer_biome">Biomes</string>
     <string name="layer_entity">Entities</string>
