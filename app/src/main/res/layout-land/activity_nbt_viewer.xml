@@ -330,7 +330,7 @@
                         android:id="@+id/layer_biome"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:checked="true"
+                        android:checked="false"
                         android:fontFamily="@font/misans"
                         android:text="@string/layer_biome"
                         android:textColor="@color/on_surface"
