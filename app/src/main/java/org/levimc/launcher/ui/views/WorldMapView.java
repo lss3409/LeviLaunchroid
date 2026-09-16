@@ -219,6 +219,11 @@ public class WorldMapView extends View {
         this.listener = listener;
     }
 
+    /** chunk 坐标 → 缓存 key（与 WorldMapRenderer.pack 一致）。 */
+    private static long packChunk(int cx, int cz) {
+        return ((long) cx << 32) | (cz & 0xFFFFFFFFL);
+    }
+
     /** 屏幕坐标 → 世界 block 坐标。 */
     public int[] screenToBlock(float sx, float sy) {
         int bx = (int) ((sx - offsetX) / pixelsPerBlock) + map.minBlockX;
@@ -422,6 +427,7 @@ public class WorldMapView extends View {
             // （tju 大范围稀疏世界未生成 chunk 多，问题尤为明显）。
             // 生物群系图层 = 整图替换为 biome 色（biome 缺失处回退卫星色，不再叠加染村庄）
             int[] biomeSrc = showBiomeLayer ? map.biomeColors : null;
+            boolean showBiome = showBiomeLayer;
             if (pixelsBuf == null || pixelsBuf.length != viewW) {
                 pixelsBuf = new int[viewW];
             }
@@ -434,29 +440,68 @@ public class WorldMapView extends View {
                 cachedH = viewH;
             }
             float invPpb = 1f / pixelsPerBlock;
-            for (int sy = 0; sy < viewH; sy++) {
-                int by = (int) ((sy - offsetY) * invPpb);
-                if (by < 0 || by >= map.height) {
-                    // 地图外行：必须显式写透明，否则缓存位图残留旧帧（盗梦空间套图）
-                    java.util.Arrays.fill(pixelsBuf, 0);
-                    cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, 1);
-                    continue;
-                }
-                int bRow = by * map.width;
-                for (int sx = 0; sx < viewW; sx++) {
-                    int bx = (int) ((sx - offsetX) * invPpb);
-                    if (bx < 0 || bx >= map.width) {
-                        pixelsBuf[sx] = 0;
+            // 大世界 chunk 缓存路径（BTR 同款）：逐像素查 chunk 16×16 色表
+            if (map.chunkColors != null) {
+                for (int sy = 0; sy < viewH; sy++) {
+                    int by = (int) ((sy - offsetY) * invPpb);
+                    if (by < 0 || by >= map.height) {
+                        java.util.Arrays.fill(pixelsBuf, 0);
+                        cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, 1);
                         continue;
                     }
-                    int idx = bRow + bx;
-                    if (biomeSrc != null && biomeSrc[idx] != 0) {
-                        pixelsBuf[sx] = biomeSrc[idx];
-                    } else {
-                        pixelsBuf[sx] = map.colors[idx];
+                    int cz = Math.floorDiv(by, 16);
+                    int lz = by - cz * 16;
+                    int zRow = lz << 4;
+                    for (int sx = 0; sx < viewW; sx++) {
+                        int bx = (int) ((sx - offsetX) * invPpb);
+                        if (bx < 0 || bx >= map.width) {
+                            pixelsBuf[sx] = 0;
+                            continue;
+                        }
+                        int cx = Math.floorDiv(bx, 16);
+                        int lx = bx - cx * 16;
+                        int[] cc = map.chunkColors.get(packChunk(cx, cz));
+                        if (cc == null) {
+                            pixelsBuf[sx] = 0;
+                            continue;
+                        }
+                        int c = cc[zRow | lx];
+                        if (showBiome) {
+                            int[] bc = map.chunkBiomeColors != null
+                                    ? map.chunkBiomeColors.get(packChunk(cx, cz)) : null;
+                            if (bc != null && bc[zRow | lx] != 0) {
+                                c = bc[zRow | lx];
+                            }
+                        }
+                        pixelsBuf[sx] = c;
                     }
+                    cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, 1);
                 }
-                cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, 1);
+            } else {
+                for (int sy = 0; sy < viewH; sy++) {
+                    int by = (int) ((sy - offsetY) * invPpb);
+                    if (by < 0 || by >= map.height) {
+                        // 地图外行：必须显式写透明，否则缓存位图残留旧帧（盗梦空间套图）
+                        java.util.Arrays.fill(pixelsBuf, 0);
+                        cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, 1);
+                        continue;
+                    }
+                    int bRow = by * map.width;
+                    for (int sx = 0; sx < viewW; sx++) {
+                        int bx = (int) ((sx - offsetX) * invPpb);
+                        if (bx < 0 || bx >= map.width) {
+                            pixelsBuf[sx] = 0;
+                            continue;
+                        }
+                        int idx = bRow + bx;
+                        if (biomeSrc != null && biomeSrc[idx] != 0) {
+                            pixelsBuf[sx] = biomeSrc[idx];
+                        } else {
+                            pixelsBuf[sx] = map.colors[idx];
+                        }
+                    }
+                    cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, 1);
+                }
             }
             cachedPpb = pixelsPerBlock;
             cachedOffsetX = offsetX;

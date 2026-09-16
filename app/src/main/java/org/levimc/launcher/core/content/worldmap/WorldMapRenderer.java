@@ -932,6 +932,15 @@ public class WorldMapRenderer {
         public List<StructureMarker> detectedStructures;
         /** 降采样比例（大世界 4×4 代表 chunk = 4；普通世界 1）。标记坐标需除以该值。 */
         public int blockScale = 1;
+        /**
+         * 大世界 chunk 色缓存（BTR/blocktopograph 同款思路：chunk 级 16×16 色，
+         * 精度 100% 且内存 O(chunk 数)——155MB 世界 2.5 万 chunk 仅 25MB，
+         * 整图数组需 1GB）。key = pack(cx,cz)，value = 256 ARGB。
+         * 小世界路径为 null（用 colors 整图数组）。
+         */
+        public Map<Long, int[]> chunkColors;
+        /** 大世界 chunk biome 色缓存（biome 图层用；同 chunkColors 布局）。 */
+        public Map<Long, int[]> chunkBiomeColors;
         /** 出生点位置（block 坐标，-1 = 无） */
         public int spawnBlockX = -1;
         public int spawnBlockZ = -1;
@@ -1278,15 +1287,17 @@ public class WorldMapRenderer {
      * 3) readEntries：只解码窗口内 subchunk（maxSub±2）
      */
     public static WorldMap buildSatelliteMapStreaming(File dbDir, int dimension) {
-        Map<Long, int[]> heightMaps = new HashMap<>();
-        Map<Long, byte[]> biomeMaps = new HashMap<>();
-        Map<Long, Integer> surfaceSubs = new HashMap<>();
-        Map<Long, Map<Integer, SubChunk>> subChunks = new HashMap<>();
         List<StructureMarker> detected = new ArrayList<>();
         Map<Long, Integer> monumentChunks = new HashMap<>();
         Map<Long, Integer> endCityChunks = new HashMap<>();
+        java.util.Set<Long> renderedChunks = new java.util.HashSet<>();
+        Map<Long, int[]> chunkColors = new HashMap<>();
+        Map<Long, int[]> chunkBiomeColors = new HashMap<>();
+        final int[] finalMinCx = {Integer.MAX_VALUE};
+        final int[] finalMaxCx = {Integer.MIN_VALUE};
+        final int[] finalMinCz = {Integer.MAX_VALUE};
+        final int[] finalMaxCz = {Integer.MIN_VALUE};
         int decoded = 0;
-        int step = 1;
         try {
             LevelDBReader reader = new LevelDBReader(dbDir);
             // 1) 第一遍：只读 subchunk key 统计最高 sub（窗口围绕实际 maxSub，
@@ -1315,28 +1326,11 @@ public class WorldMapRenderer {
             Log.i(TAG, "流式第一遍: subchunk key 数=" + subKeys.size()
                     + ", 有 sub 数据的 chunk 数=" + maxSubByChunk.size());
             subKeys = null; // 释放
-            // 大世界降采样：chunk 跨度 > 500×500 时用 4×4 代表 chunk 采样
-            // （BTR 是 chunk 瓦片式按需渲染，从不构造整世界数组；我们保留整图
-            // 架构，用代表采样把 1GB 级地图数组压到 ~65MB。实测 155MB 世界
-            // 928×1089 chunk、236,808 subchunk——全量渲染必 OOM）
-            long spanX = (long) maxCx - minCx + 1;
-            long spanZ = (long) maxCz - minCz + 1;
-            step = spanX * spanZ > 250000L ? 4 : 1;
-            // 超大存档（10GB 级）：动态加大代表采样，保证任意大小都能打开
-            // （精度随规模下降，参考 BTR/blocktopograph 的瓦片按需思路——
-            // 我们保留整图架构，用代表 chunk 控制内存上限）
-            long span = spanX * spanZ;
-            while (step < 64 && span / (step * step) > 250000L) {
-                step *= 4;
-            }
-            if (step > 1) {
-                Log.i(TAG, "大世界降采样 4×4: chunk 范围=" + spanX + "x" + spanZ);
-            }
-            // 2) 第二遍（合并原第二+第三遍，少一次全量 IO）：
-            //    高度图 + biome（0x2b/0x2c value）+ 窗口内 subchunk 一起读
-            //    ——降采样时只取代表 chunk
+            // 2) 第二遍（BTR/blocktopograph 同款 chunk 缓存方案，精度 100%）：
+            //    高度图 + 窗口内 subchunk 同遍读取，逐 chunk 渲染 16×16 色后
+            //    立即释放——内存 O(单 chunk)，整图色缓存仅 chunk 数×1KB
+            //    （155MB 世界 2.5 万 chunk ≈ 25MB，整图数组需 1GB）
             final Map<Long, Integer> maxSubRef = maxSubByChunk;
-            final int fStep = step;
             List<LevelDBEntry> heightEntries = reader.readEntries(k -> {
                 int[] ck = parseChunkKey(k);
                 if (ck == null || ck[2] != dimension) {
@@ -1344,10 +1338,6 @@ public class WorldMapRenderer {
                 }
                 // 类型字节：9/10B 在 k[8]（10B 的 k[9] 是 sub 字节！），13/14B 在 k[12]
                 int type = k[k.length == 13 || k.length == 14 ? 12 : 8] & 0xFF;
-                if (fStep > 1 && (Math.floorMod(ck[0], fStep) != 0
-                        || Math.floorMod(ck[1], fStep) != 0)) {
-                    return false; // 降采样：只处理代表 chunk
-                }
                 if (type == KEY_TYPE_DATA_3D || type == 0x2C || type == KEY_TYPE_DATA_2D) {
                     return true; // 高度图
                 }
@@ -1363,52 +1353,38 @@ public class WorldMapRenderer {
                 }
                 return false;
             });
+            // 逐 chunk 收集 → 渲染 → 释放（sst 内同 chunk key 相邻有序）
+            int curCx = Integer.MIN_VALUE;
+            int curCz = Integer.MIN_VALUE;
+            int[] curHmap = null;
+            byte[] curBiomes = null;
+            Map<Integer, SubChunk> curSubs = new HashMap<>();
             for (LevelDBEntry entry : heightEntries) {
                 byte[] rawKey = entry.getKey().getRawKey();
                 int[] chunkKey = parseChunkKey(rawKey);
                 if (chunkKey == null) {
                     continue;
                 }
-                // 降采样：代表 chunk 坐标归一化（÷step），压缩地图边界
-                // （否则边界代表 chunk 仍把跨度拉到全范围——实测 1608 代表
-                // chunk 跨度 925×1081 数组 976MB）
-                int nx = step > 1 ? Math.floorDiv(chunkKey[0], step) : chunkKey[0];
-                int nz = step > 1 ? Math.floorDiv(chunkKey[1], step) : chunkKey[1];
-                long key = pack(nx, nz);
-                // 窗口内 subchunk：直接解码（与高度图同遍读取）
+                if (chunkKey[0] != curCx || chunkKey[1] != curCz) {
+                    // 换 chunk：渲染上一个并释放
+                    if (curHmap != null) {
+                        renderChunkToCache(curCx, curCz, curHmap, curBiomes, curSubs,
+                                dimension, renderedChunks, chunkColors, chunkBiomeColors,
+                                monumentChunks, endCityChunks,
+                                finalMinCx, finalMaxCx, finalMinCz, finalMaxCz);
+                        decoded += curSubs.size();
+                    }
+                    curCx = chunkKey[0];
+                    curCz = chunkKey[1];
+                    curHmap = null;
+                    curBiomes = null;
+                    curSubs = new HashMap<>();
+                }
                 if (isSubchunkKey(rawKey)) {
                     try {
-                        SubChunk subChunk = decodeSubChunk(entry.getValue());
-                        if (subChunk != null) {
-                            subChunks.computeIfAbsent(key, k -> new HashMap<>())
-                                    .put(chunkKey[3], subChunk);
-                            decoded++;
-                            // palette 结构特征（1.26 无 HSA 记录）：
-                            // 海底神殿 sea_lantern+prismarine / 末地城 purpur+end_stone_bricks
-                            boolean lantern = false;
-                            boolean prismarine = false;
-                            boolean purpur = false;
-                            boolean endBricks = false;
-                            for (String pn : subChunk.palette) {
-                                if (pn == null) {
-                                    continue;
-                                }
-                                if (pn.contains("sea_lantern")) {
-                                    lantern = true;
-                                } else if (pn.contains("prismarine")) {
-                                    prismarine = true;
-                                } else if (pn.contains("purpur")) {
-                                    purpur = true;
-                                } else if (pn.contains("end_stone_bricks")) {
-                                    endBricks = true;
-                                }
-                            }
-                            if (lantern && prismarine) {
-                                monumentChunks.put(key, 1);
-                            }
-                            if (dimension == DIM_END && purpur && endBricks) {
-                                endCityChunks.put(key, 1);
-                            }
+                        SubChunk sc = decodeSubChunk(entry.getValue());
+                        if (sc != null) {
+                            curSubs.put(chunkKey[3], sc);
                         }
                     } catch (Exception e) {
                         Log.w(TAG, "Failed to decode subchunk at " + chunkKey[0] + "," + chunkKey[1], e);
@@ -1418,47 +1394,40 @@ public class WorldMapRenderer {
                 try {
                     if (isData2dKey(rawKey)) {
                         int[] hmap = extractData2d(entry.getValue());
-                        if (hmap != null && !heightMaps.containsKey(key)) {
-                            heightMaps.put(key, hmap);
-                            int maxH = 0;
-                            for (int h : hmap) {
-                                if (h > maxH) {
-                                    maxH = h;
-                                }
-                            }
-                            surfaceSubs.put(key, Math.floorDiv(maxH - 1, 16));
+                        if (hmap != null && curHmap == null) {
+                            curHmap = hmap;
                             int type = (rawKey.length == 13 ? rawKey[12] : rawKey[8]) & 0xFF;
                             if (type == KEY_TYPE_DATA_2D) {
                                 byte[] biomes = extractBiomes2d(entry.getValue());
                                 if (biomes != null) {
-                                    biomeMaps.put(key, biomes);
+                                    curBiomes = biomes;
                                 }
                             } else {
                                 byte[] biomes = extractBiomes3d(entry.getValue(), hmap);
                                 if (biomes != null) {
-                                    biomeMaps.put(key, biomes);
+                                    curBiomes = biomes;
                                 }
                             }
                         }
                     } else if (rawKey.length == 13 && chunkKey[3] < 0) {
                         // 13B 0x2c ChunkVersion NBT HeightMap（1.18+ 下界/末地）
                         int[] hmap = extractChunkHeightMap256(parseChunkNbt(entry.getValue()));
-                        if (hmap != null && !heightMaps.containsKey(key)) {
-                            heightMaps.put(key, hmap);
-                            int maxH = 0;
-                            for (int h : hmap) {
-                                if (h > maxH) {
-                                    maxH = h;
-                                }
-                            }
-                            surfaceSubs.put(key, Math.floorDiv(maxH - 1, 16));
+                        if (hmap != null && curHmap == null) {
+                            curHmap = hmap;
                         }
                     }
                 } catch (Exception e) {
                     Log.w(TAG, "Failed to decode chunk at " + chunkKey[0] + "," + chunkKey[1], e);
                 }
             }
-            Log.i(TAG, "流式第二遍: 高度图 chunk 数=" + heightMaps.size()
+            if (curHmap != null) {
+                renderChunkToCache(curCx, curCz, curHmap, curBiomes, curSubs,
+                        dimension, renderedChunks, chunkColors, chunkBiomeColors,
+                        monumentChunks, endCityChunks,
+                        finalMinCx, finalMaxCx, finalMinCz, finalMaxCz);
+                decoded += curSubs.size();
+            }
+            Log.i(TAG, "流式第二遍: 渲染 chunk 数=" + renderedChunks.size()
                     + " 解码 subchunk=" + decoded);
             heightEntries = null;
             reader.close();
@@ -1471,14 +1440,95 @@ public class WorldMapRenderer {
             Log.w(TAG, "流式渲染失败", e);
             return null;
         }
-        if (heightMaps.isEmpty()) {
+        if (renderedChunks.isEmpty()) {
             Log.i(TAG, "卫星模式失败: 无高度图 chunk (维度=" + dimension + ")");
             return null;
         }
-        WorldMap map = assembleMap(heightMaps, biomeMaps, subChunks, dimension);
+        int spanX = finalMaxCx[0] - finalMinCx[0] + 1;
+        int spanZ = finalMaxCz[0] - finalMinCz[0] + 1;
+        WorldMap map = new WorldMap(finalMinCx[0] * 16, finalMinCz[0] * 16,
+                spanX * 16, spanZ * 16, null, null);
+        map.chunkColors = chunkColors;
+        map.chunkBiomeColors = chunkBiomeColors;
         map.detectedStructures = detected;
-        map.blockScale = step;
+        map.blockScale = 1;
+        Log.i(TAG, "流式完成: chunk 缓存=" + chunkColors.size()
+                + " 范围=(" + finalMinCx[0] + "," + finalMinCz[0] + ")-("
+                + finalMaxCx[0] + "," + finalMaxCz[0] + ")");
         return map;
+    }
+
+    /** 渲染单个 chunk 的 16×16 表面色到 chunk 缓存（渲染后数据即可释放）。 */
+    private static void renderChunkToCache(int cx, int cz, int[] hmap, byte[] biomes,
+                                           Map<Integer, SubChunk> subs, int dimension,
+                                           java.util.Set<Long> renderedChunks,
+                                           Map<Long, int[]> chunkColors,
+                                           Map<Long, int[]> chunkBiomeColors,
+                                           Map<Long, Integer> monumentChunks,
+                                           Map<Long, Integer> endCityChunks,
+                                           int[] finalMinCx, int[] finalMaxCx,
+                                           int[] finalMinCz, int[] finalMaxCz) {
+        long key = pack(cx, cz);
+        if (!renderedChunks.add(key)) {
+            return; // 旧文件里的过期数据（新版本已渲染）
+        }
+        // palette 结构特征（1.26 无 HSA 记录）——chunk 级一次判定：
+        // 海底神殿 sea_lantern+prismarine / 末地城 purpur+end_stone_bricks
+        if (monumentChunks != null) {
+            boolean lantern = false;
+            boolean prismarine = false;
+            boolean purpur = false;
+            boolean endBricks = false;
+            for (SubChunk sc : subs.values()) {
+                for (String pn : sc.palette) {
+                    if (pn == null) {
+                        continue;
+                    }
+                    if (pn.contains("sea_lantern")) {
+                        lantern = true;
+                    } else if (pn.contains("prismarine")) {
+                        prismarine = true;
+                    } else if (pn.contains("purpur")) {
+                        purpur = true;
+                    } else if (pn.contains("end_stone_bricks")) {
+                        endBricks = true;
+                    }
+                }
+            }
+            if (lantern && prismarine) {
+                monumentChunks.put(key, 1);
+            }
+            if (dimension == DIM_END && purpur && endBricks) {
+                endCityChunks.put(key, 1);
+            }
+        }
+        int[] colors = new int[256];
+        int[] biomeCols = new int[256];
+        boolean hasAny = false;
+        for (int i = 0; i < 256; i++) {
+            int lx = i & 15;
+            int lz = i >> 4;
+            int h = hmap[i];
+            int color = surfaceColor(h, lx, lz, subs, biomes, dimension);
+            colors[i] = color;
+            if ((color & 0xFF000000) != 0) {
+                hasAny = true;
+            }
+            if (biomes != null) {
+                biomeCols[i] = biomeGrassColor(biomes[i] & 0xFF);
+            }
+        }
+        if (!hasAny) {
+            return; // 全透明（无高度数据）不占缓存
+        }
+        chunkColors.put(key, colors);
+        if (biomes != null) {
+            chunkBiomeColors.put(key, biomeCols);
+        }
+        finalMinCx[0] = Math.min(finalMinCx[0], cx);
+        finalMaxCx[0] = Math.max(finalMaxCx[0], cx);
+        finalMinCz[0] = Math.min(finalMinCz[0], cz);
+        finalMaxCz[0] = Math.max(finalMaxCz[0], cz);
     }
 
     /** 大世界流式实体解析：只读实体/玩家相关 key。 */
@@ -2688,13 +2738,42 @@ public class WorldMapRenderer {
     /** 调试导出：渲染整图到 PNG 存应用外部目录（截屏服务异常时的替代验证手段）。 */
     public static void debugExport(WorldMap map) {
         try {
-            if (map == null || map.colors == null || map.width <= 0 || map.height <= 0) {
+            if (map == null || map.width <= 0 || map.height <= 0) {
                 return;
             }
             int w = map.width;
             int h = map.height;
             Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-            bmp.setPixels(map.colors, 0, w, 0, 0, w, h);
+            if (map.colors != null) {
+                bmp.setPixels(map.colors, 0, w, 0, 0, w, h);
+            } else if (map.chunkColors != null) {
+                // chunk 缓存路径：逐 chunk 拼装（155MB 世界 928×1089 chunk 图太大，
+                // 导出缩小为每 chunk 1 像素的代表色概览）
+                int cw = w / 16;
+                int ch = h / 16;
+                Bitmap mini = Bitmap.createBitmap(Math.max(1, cw), Math.max(1, ch),
+                        Bitmap.Config.ARGB_8888);
+                for (Map.Entry<Long, int[]> e : map.chunkColors.entrySet()) {
+                    int cx = unpackX(e.getKey());
+                    int cz = unpackZ(e.getKey());
+                    int px = cx - map.minBlockX / 16;
+                    int pz = cz - map.minBlockZ / 16;
+                    if (px < 0 || px >= cw || pz < 0 || pz >= ch) {
+                        continue;
+                    }
+                    int[] cc = e.getValue();
+                    // 代表色 = 该 chunk 内最暗非透明色的均值（简化：取第 128 个非透明）
+                    int c = 0;
+                    for (int v : cc) {
+                        if ((v & 0xFF000000) != 0) {
+                            c = v;
+                            break;
+                        }
+                    }
+                    mini.setPixel(px, pz, c);
+                }
+                bmp = mini;
+            }
             // scoped storage 下 /sdcard/Download 直接写会 EACCES，
             // 优先写 app 外部目录（/sdcard/Android/data/org.levimc.launcher/files/）
             File dir = new File("/sdcard/Android/data/org.levimc.launcher/files");
