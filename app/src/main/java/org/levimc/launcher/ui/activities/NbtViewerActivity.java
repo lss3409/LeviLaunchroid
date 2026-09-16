@@ -683,6 +683,7 @@ public class NbtViewerActivity extends BaseActivity {
 
         // 世界地图：占满全屏（PRD 布局），缩放/平移时按比例重采样方块颜色
         if (worldMap != null) {
+            WorldMapRenderer.debugExport(worldMap); // 调试导出 map_debug.png
             binding.worldMapImage.setWorldMap(worldMap);
             binding.worldMapPlaceholder.setVisibility(View.GONE);
         } else {
