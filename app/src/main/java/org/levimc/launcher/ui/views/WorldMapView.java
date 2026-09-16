@@ -183,6 +183,7 @@ public class WorldMapView extends View {
         int minCz = Math.floorDiv((int) Math.floor(topWorld), 16);
         int maxCz = Math.floorDiv((int) Math.ceil(bottomWorld), 16);
         java.util.Iterator<java.util.Map.Entry<Long, Bitmap>> it = chunkTiles.entrySet().iterator();
+        java.util.Set<Long> removedKeys = new java.util.HashSet<>();
         while (it.hasNext()) {
             java.util.Map.Entry<Long, Bitmap> e = it.next();
             int cx = (int) (e.getKey() >> 32);
@@ -190,12 +191,17 @@ public class WorldMapView extends View {
             if (cx < minCx || cx > maxCx || cz < minCz || cz > maxCz) {
                 e.getValue().recycle();
                 it.remove();
+                removedKeys.add(e.getKey());
             }
         }
         map.chunkColors.keySet().removeIf(k -> {
             int cx = (int) (k >> 32);
             int cz = (int) (long) k;
-            return cx < minCx || cx > maxCx || cz < minCz || cz > maxCz;
+            boolean out = cx < minCx || cx > maxCx || cz < minCz || cz > maxCz;
+            if (out) {
+                removedKeys.add(k);
+            }
+            return out;
         });
         // 被卸载的 chunk 必须同时移出 pendingChunks——否则 onDraw 收集缺失时
         // 被 pending 拦截，滑回去永远不再请求渲染（内存优化开启后滑动出现
@@ -208,9 +214,23 @@ public class WorldMapView extends View {
             });
         }
         chunkDataCache.clear();
-        if (lodMini != null) {
-            lodMini.recycle();
-            lodMini = null;
+        // LOD 缩略图不置空重建（置空后下一帧全量重建 2.5 万 chunk 采样众数
+        // = 每秒卡一下，"缩小卡"的另一来源）：被卸载 chunk 对应像素直接
+        // 置透明——LOD 只显示内存中还存在的区域，与"离开的区块立刻清理"
+        // 语义一致（缩小后看到浏览过区域、未浏览区域空白，而非整图残留）
+        if (lodMini != null && !removedKeys.isEmpty()) {
+            int lodMinCx = Math.floorDiv(map.minBlockX, 16);
+            int lodMinCz = Math.floorDiv(map.minBlockZ, 16);
+            for (Long k : removedKeys) {
+                int cx = (int) (k >> 32);
+                int cz = (int) (long) k;
+                int px = cx - lodMinCx;
+                int pz = cz - lodMinCz;
+                if (px >= 0 && px < lodMini.getWidth()
+                        && pz >= 0 && pz < lodMini.getHeight()) {
+                    lodMini.setPixel(px, pz, 0);
+                }
+            }
         }
         invalidate();
     }
@@ -566,10 +586,12 @@ public class WorldMapView extends View {
             // 大世界：chunk tile 平铺（BTR 同款）——零重采样、零 39MB 大位图，
             // 每帧只 drawBitmap 视口内 chunk 的小 tile（GPU 加速）
             drawChunkLayer(canvas);
-            // 内存优化：节流 1 秒卸载一次视口外 chunk（滑到哪渲染到哪）
+            // 内存优化：节流 250ms 卸载一次视口外 chunk（滑到哪渲染到哪，
+            // "离开的区块立刻清理"——1 秒节流时快速拖动/缩小瞬间大量
+            // 离屏 chunk 残留，用户以为没删）
             if (memoryOptimized) {
                 long now = android.os.SystemClock.uptimeMillis();
-                if (now - lastEvictTime > 1000) {
+                if (now - lastEvictTime > 250) {
                     lastEvictTime = now;
                     evictOffScreen();
                 }
@@ -1773,6 +1795,11 @@ public class WorldMapView extends View {
             // （onDraw 下一帧收集当前视口真实缺失，只渲染需要的 chunk）
             scalePreviewActive = false;
             scaling = false;
+            // 内存优化：缩放结束立即卸载视口外 chunk（"猛的缩小"后
+            // 离屏数据不残留——缩小视口变大属正常保留，扩大前离屏的必须清）
+            if (memoryOptimized) {
+                evictOffScreen();
+            }
             invalidate();
             notifyViewChanged();
         }
