@@ -82,12 +82,21 @@ public class NbtViewerActivity extends BaseActivity {
     private ExecutorService executor;
     /** 视口按需渲染线程池（多 chunk 并行渲染；LevelDBReader 每次新建实例，线程安全）。
      *  6 线程：前几个并发任务绑大核，其余由系统调度到其余核——大小核全部用上
-     *  （游戏式全核调度，类似终末地 Job System 的做法）。 */
-    private final ExecutorService renderPool = Executors.newFixedThreadPool(6, r -> {
-        Thread t = new Thread(r, "chunk-render");
-        t.setPriority(Thread.MAX_PRIORITY);
-        return t;
-    });
+     *  （游戏式全核调度，类似终末地 Job System 的做法）。
+     *  切维度时整池换新（shutdownNow 旧池清队列）——否则旧维度任务排队，
+     *  新维度 chunk 全部等旧队列跑完（下界/末地切换 60 秒的根因）。 */
+    private volatile ExecutorService renderPool = newRenderPool();
+    /** 渲染代际：切维度 +1；任务执行时比对，代际不符直接放弃（旧维度残留任务）。 */
+    private final java.util.concurrent.atomic.AtomicInteger renderGen =
+            new java.util.concurrent.atomic.AtomicInteger();
+
+    private static ExecutorService newRenderPool() {
+        return Executors.newFixedThreadPool(6, r -> {
+            Thread t = new Thread(r, "chunk-render");
+            t.setPriority(Thread.MAX_PRIORITY);
+            return t;
+        });
+    }
     /** 渲染任务序号：< 大核数的任务绑大核，其余自由调度（小核也参与）。 */
     private final java.util.concurrent.atomic.AtomicInteger renderTaskSeq =
             new java.util.concurrent.atomic.AtomicInteger();
@@ -208,6 +217,11 @@ public class NbtViewerActivity extends BaseActivity {
 
     private int currentTab = TAB_LEVEL;
     private int accentColor = 0;
+    /** 当前视口中心（渲染排序用，Atomic 供渲染线程读）。 */
+    private final java.util.concurrent.atomic.AtomicInteger viewCenterX =
+            new java.util.concurrent.atomic.AtomicInteger(Integer.MIN_VALUE);
+    private final java.util.concurrent.atomic.AtomicInteger viewCenterZ =
+            new java.util.concurrent.atomic.AtomicInteger(Integer.MIN_VALUE);
 
     private NbtTag levelDatRoot;
     private WorldMapRenderer.WorldMap currentMap;
@@ -303,12 +317,18 @@ public class NbtViewerActivity extends BaseActivity {
             final File dbDir = new File(currentWorldDir, "db");
             final int dim = "nether".equals(mapDimension) ? 1 : "end".equals(mapDimension) ? 2 : 0;
             final WorldMapRenderer.WorldMap fMap = currentMap;
-            // 中心优先排序：按 chunk 与目标中心（玩家/出生点）距离升序
+            // 视口中心优先排序：平移/缩放后新视口的 chunk 先渲染——
+            // 固定用玩家/出生点排序时，滑远的视口 chunk 排在积压队尾，
+            // "摄像机视角下不渲染/迟迟不出来"的根因
             java.util.List<Long> keys = new java.util.ArrayList<>(chunkKeys);
-            int centerCx = fMap.playerBlockX >= 0 ? Math.floorDiv(fMap.playerBlockX, 16)
+            int vCx = viewCenterX.get();
+            int vCz = viewCenterZ.get();
+            int centerCx = vCx != Integer.MIN_VALUE ? Math.floorDiv(vCx, 16)
+                    : fMap.playerBlockX >= 0 ? Math.floorDiv(fMap.playerBlockX, 16)
                     : fMap.spawnBlockX >= 0 ? Math.floorDiv(fMap.spawnBlockX, 16)
                     : fMap.minBlockX / 16 + fMap.width / 32;
-            int centerCz = fMap.playerBlockZ >= 0 ? Math.floorDiv(fMap.playerBlockZ, 16)
+            int centerCz = vCz != Integer.MIN_VALUE ? Math.floorDiv(vCz, 16)
+                    : fMap.playerBlockZ >= 0 ? Math.floorDiv(fMap.playerBlockZ, 16)
                     : fMap.spawnBlockZ >= 0 ? Math.floorDiv(fMap.spawnBlockZ, 16)
                     : fMap.minBlockZ / 16 + fMap.height / 32;
             final int cCx = centerCx;
@@ -324,6 +344,7 @@ public class NbtViewerActivity extends BaseActivity {
                     new java.util.concurrent.atomic.AtomicInteger(keys.size());
             final java.util.Set<Long> inFlight = java.util.Collections.synchronizedSet(
                     new java.util.HashSet<>());
+            final int myGen = renderGen.get();
             for (Long key : keys) {
                 // 已完成或正在渲染的跳过（onDraw 每帧重报缺失，防重复提交）
                 if (fMap.chunkColors.containsKey(key) || !inFlight.add(key)) {
@@ -331,6 +352,12 @@ public class NbtViewerActivity extends BaseActivity {
                     continue;
                 }
                 renderPool.execute(() -> {
+                    // 代际不符（切维度后的旧任务）：直接放弃，不浪费 IO
+                    if (renderGen.get() != myGen) {
+                        inFlight.remove(key);
+                        remaining.decrementAndGet();
+                        return;
+                    }
                     // 全核调度：前几个并发任务绑大核，其余自由调度到其它核
                     // （大小核全部参与渲染——发热不严重说明核心没跑满）
                     if (renderTaskSeq.getAndIncrement() < CpuScheduler.bigCoreCount) {
@@ -585,9 +612,12 @@ public class NbtViewerActivity extends BaseActivity {
         setupDimensionSwitch();
 
         // 坐标 HUD：缩放/平移时更新中心坐标
-        binding.worldMapImage.setOnViewChangedListener((cx, cz) ->
-                binding.mapHud.setText("X: " + cx + "  Z: " + cz
-                        + "  ·  " + dimName(mapDimension)));
+        binding.worldMapImage.setOnViewChangedListener((cx, cz) -> {
+            viewCenterX.set(cx);
+            viewCenterZ.set(cz);
+            binding.mapHud.setText("X: " + cx + "  Z: " + cz
+                    + "  ·  " + dimName(mapDimension));
+        });
 
         // 结构标记点击 → 详情弹窗（NBT 数据/附近实体/坐标）
         binding.worldMapImage.setOnStructureClickListener(this::showStructureDetail);
@@ -701,6 +731,12 @@ public class NbtViewerActivity extends BaseActivity {
         binding.worldMapImage.setEntityData(new ArrayList<>());
         binding.worldMapImage.setStructureMarkers(new ArrayList<>());
         binding.worldMapPlaceholder.setVisibility(View.VISIBLE);
+        // 渲染代际 + 线程池换新：旧维度排队任务立即作废，
+        // 新维度 chunk 不再等旧队列（下界/末地切换慢的根因）
+        renderGen.incrementAndGet();
+        ExecutorService oldPool = renderPool;
+        renderPool = newRenderPool();
+        oldPool.shutdownNow();
         startBackgroundTask();
         final int gen = loadGeneration;
         final boolean fKeepView = keepView;

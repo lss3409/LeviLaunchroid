@@ -1712,7 +1712,8 @@ public class WorldMapRenderer {
     private static final int MAP_CACHE_MAGIC = 0x4D435632; // "MCv2"
     // v3：v301 readChunk 多块读取 + v304 地表窗口修复前渲染的缓存数据是错的
     // （subchunk 缺失/地表层被裁），必须失效重渲染——村庄/建筑错乱的直接来源
-    private static final int MAP_CACHE_VERSION = 3;
+    // v4：缓存加入 biome 图层色（v3 只存地形色，缓存命中后 biome 图层永远没数据）
+    private static final int MAP_CACHE_VERSION = 4;
 
     /** 缓存文件：db 目录旁 map_cache_<dim>.bin（随世界走，卸载备份都在）。 */
     private static File chunkCacheFile(File dbDir, int dimension) {
@@ -1761,12 +1762,18 @@ public class WorldMapRenderer {
             dos.writeInt(maxCz);
             dos.writeLong(fp[0]);
             dos.writeLong(fp[1]);
+            boolean hasBiome = map.chunkBiomeColors != null && !map.chunkBiomeColors.isEmpty();
+            dos.writeBoolean(hasBiome);
             for (Map.Entry<Long, int[]> e : map.chunkColors.entrySet()) {
                 dos.writeInt(unpackX(e.getKey()));
                 dos.writeInt(unpackZ(e.getKey()));
                 int[] cc = e.getValue();
                 for (int i = 0; i < 256; i++) {
                     dos.writeInt(cc[i]);
+                }
+                int[] bc = hasBiome ? map.chunkBiomeColors.get(e.getKey()) : null;
+                for (int i = 0; i < 256; i++) {
+                    dos.writeInt(bc != null ? bc[i] : 0);
                 }
             }
             Log.i(TAG, "chunk 缓存已保存: " + out.getName() + " "
@@ -1805,6 +1812,14 @@ public class WorldMapRenderer {
                 return null;
             }
             Map<Long, int[]> chunkColors = new java.util.concurrent.ConcurrentHashMap<>(count * 2);
+            boolean hasBiome = false;
+            try {
+                hasBiome = dis.readBoolean();
+            } catch (Exception e) {
+                hasBiome = false; // 兼容异常情况
+            }
+            Map<Long, int[]> chunkBiomeColors = hasBiome
+                    ? new java.util.concurrent.ConcurrentHashMap<>(count * 2) : null;
             for (int i = 0; i < count; i++) {
                 int cx = dis.readInt();
                 int cz = dis.readInt();
@@ -1813,12 +1828,20 @@ public class WorldMapRenderer {
                     cc[j] = dis.readInt();
                 }
                 chunkColors.put(pack(cx, cz), cc);
+                if (chunkBiomeColors != null) {
+                    int[] bc = new int[256];
+                    for (int j = 0; j < 256; j++) {
+                        bc[j] = dis.readInt();
+                    }
+                    chunkBiomeColors.put(pack(cx, cz), bc);
+                }
             }
             WorldMap map = new WorldMap(minCx * 16, minCz * 16,
                     (maxCx - minCx + 1) * 16, (maxCz - minCz + 1) * 16, null, null);
             map.chunkColors = chunkColors;
+            map.chunkBiomeColors = chunkBiomeColors;
             map.blockScale = 1;
-            Log.i(TAG, "chunk 缓存已加载: " + count + " chunk");
+            Log.i(TAG, "chunk 缓存已加载: " + count + " chunk (biome=" + hasBiome + ")");
             return map;
         } catch (Exception e) {
             Log.w(TAG, "chunk 缓存加载失败", e);
@@ -3234,6 +3257,11 @@ public class WorldMapRenderer {
         }
     }
 
+    /** 末地类 biome（the_end；1.26 末地 chunk 实测全部 biome id 9）。 */
+    private static boolean isEndBiome(int biomeId) {
+        return biomeId == 9;
+    }
+
     private static boolean isWaterBiome(int biomeId) {
         switch (biomeId) {
             case 0: case 7: case 10: case 11: case 24:
@@ -3253,6 +3281,11 @@ public class WorldMapRenderer {
             // grass 分支先命中会把雪原染成绿色（tju 雪地刷绿的根因）
             if (isSnowBiome(biomeId)) {
                 return 0xFFE8EEF6;
+            }
+            if (isEndBiome(biomeId)) {
+                // 末地类 biome：the_end 色表只有 rgb 无 grass/water，
+                // 回退默认草绿 → 末地城附近区块全绿（TK 末地 1417 chunk 全 biome 9）
+                return 0xFFD8DFA8; // 末地石浅黄
             }
             if (tint[3] >= 0) {
                 return 0xFF000000 | (tint[3] << 16) | (tint[4] << 8) | tint[5];
