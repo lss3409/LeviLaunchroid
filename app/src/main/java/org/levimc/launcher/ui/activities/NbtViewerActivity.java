@@ -79,6 +79,8 @@ public class NbtViewerActivity extends BaseActivity {
 
     private ActivityNbtViewerBinding binding;
     private ExecutorService executor;
+    /** 视口按需渲染线程池（多 chunk 并行渲染；LevelDBReader 每次新建实例，线程安全）。 */
+    private final ExecutorService renderPool = Executors.newFixedThreadPool(3);
 
     /**
      * 启动后台任务：取消上一个未完成的加载再新建线程池。
@@ -183,7 +185,9 @@ public class NbtViewerActivity extends BaseActivity {
         setupMapTools(worldDir, worldName);
         setupPrdOverlays();
 
-        // BTR 式视口按需渲染：滑动到未渲染区域时后台逐 chunk 渲染
+        // BTR 式视口按需渲染：滑动到未渲染区域时后台逐 chunk 渲染。
+        // 中心优先（玩家/出生点附近的 chunk 先渲染）+ 多线程并行 +
+        // 每批完成即重绘（渐进显示，不用等整个视口渲染完）。
         binding.worldMapImage.setOnChunksNeededListener(chunkKeys -> {
             if (chunkKeys.isEmpty() || currentWorldDir == null || currentMap == null) {
                 return;
@@ -191,26 +195,55 @@ public class NbtViewerActivity extends BaseActivity {
             final File dbDir = new File(currentWorldDir, "db");
             final int dim = "nether".equals(mapDimension) ? 1 : "end".equals(mapDimension) ? 2 : 0;
             final WorldMapRenderer.WorldMap fMap = currentMap;
-            executor.execute(() -> {
-                java.util.Set<Long> done = new java.util.HashSet<>();
-                for (Long key : chunkKeys) {
-                    if (fMap.chunkColors.containsKey(key)) {
-                        done.add(key);
-                        continue;
-                    }
-                    int cx = (int) (key >> 32);
-                    int cz = (int) (long) key;
-                    int[] colors = WorldMapRenderer.renderChunkOnDemand(dbDir, cx, cz, dim);
-                    fMap.chunkColors.put(key, colors != null ? colors : EMPTY_CHUNK_COLORS);
-                    done.add(key); // 未生成 chunk 也标记完成（EMPTY 占位）防重复请求
-                }
-                runOnUiThread(() -> {
-                    if (isFinishing() || isDestroyed()) {
-                        return;
-                    }
-                    binding.worldMapImage.onChunksRendered(done);
-                });
+            // 中心优先排序：按 chunk 与目标中心（玩家/出生点）距离升序
+            java.util.List<Long> keys = new java.util.ArrayList<>(chunkKeys);
+            int centerCx = fMap.playerBlockX >= 0 ? Math.floorDiv(fMap.playerBlockX, 16)
+                    : fMap.spawnBlockX >= 0 ? Math.floorDiv(fMap.spawnBlockX, 16)
+                    : fMap.minBlockX / 16 + fMap.width / 32;
+            int centerCz = fMap.playerBlockZ >= 0 ? Math.floorDiv(fMap.playerBlockZ, 16)
+                    : fMap.spawnBlockZ >= 0 ? Math.floorDiv(fMap.spawnBlockZ, 16)
+                    : fMap.minBlockZ / 16 + fMap.height / 32;
+            final int cCx = centerCx;
+            final int cCz = centerCz;
+            keys.sort((a, b) -> {
+                long dxa = ((a >> 32) - cCx);
+                long dza = ((int) (long) a - cCz);
+                long dxb = ((b >> 32) - cCx);
+                long dzb = ((int) (long) b - cCz);
+                return Long.compare(dxa * dxa + dza * dza, dxb * dxb + dzb * dzb);
             });
+            final java.util.concurrent.atomic.AtomicInteger remaining =
+                    new java.util.concurrent.atomic.AtomicInteger(keys.size());
+            final java.util.Set<Long> inFlight = java.util.Collections.synchronizedSet(
+                    new java.util.HashSet<>());
+            for (Long key : keys) {
+                // 已完成或正在渲染的跳过（onDraw 每帧重报缺失，防重复提交）
+                if (fMap.chunkColors.containsKey(key) || !inFlight.add(key)) {
+                    remaining.decrementAndGet();
+                    continue;
+                }
+                renderPool.execute(() -> {
+                    try {
+                        int cx = (int) (key >> 32);
+                        int cz = (int) (long) key;
+                        int[] colors = WorldMapRenderer.renderChunkOnDemand(dbDir, cx, cz, dim);
+                        // 未生成 chunk 也放 EMPTY 占位，防重复请求
+                        fMap.chunkColors.put(key, colors != null ? colors : EMPTY_CHUNK_COLORS);
+                    } catch (Throwable ignored) {
+                    } finally {
+                        inFlight.remove(key);
+                        // 每完成 8 个（或全部完成）重绘一次：渐进显示 + 防消息风暴
+                        if (remaining.decrementAndGet() % 8 == 0 || remaining.get() == 0) {
+                            runOnUiThread(() -> {
+                                if (isFinishing() || isDestroyed()) {
+                                    return;
+                                }
+                                binding.worldMapImage.onChunksRendered(new java.util.HashSet<>(keys));
+                            });
+                        }
+                    }
+                });
+            }
         });
 
         selectTab(TAB_LEVEL);

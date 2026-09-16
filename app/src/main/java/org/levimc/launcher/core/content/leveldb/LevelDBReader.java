@@ -1004,30 +1004,37 @@ public class LevelDBReader {
                                       java.util.Set<ByteArrayWrapper> seen) throws IOException {
         try (RandomAccessFile raf = new RandomAccessFile(file, "r");
              FileChannel channel = raf.getChannel()) {
-            long fileSize = channel.size();
-            if (fileSize < FOOTER_SIZE) {
-                return false;
+            CachedIndex ci = getCachedIndex(file);
+            if (ci == null) {
+                long fileSize = channel.size();
+                if (fileSize < FOOTER_SIZE) {
+                    return false;
+                }
+                ByteBuffer footer = ByteBuffer.allocate(FOOTER_SIZE).order(ByteOrder.LITTLE_ENDIAN);
+                channel.position(fileSize - FOOTER_SIZE);
+                channel.read(footer);
+                footer.flip();
+                readVarInt64(footer);
+                readVarInt64(footer);
+                long indexOffset = readVarInt64(footer);
+                long indexSize = readVarInt64(footer);
+                footer.position(40);
+                if (footer.getLong() != TABLE_MAGIC_NUMBER) {
+                    return false;
+                }
+                ByteBuffer indexBlock = readBlock(channel, indexOffset, (int) indexSize);
+                if (indexBlock == null) {
+                    return false;
+                }
+                // index 条目：key = 该 data block 的最后一个 key
+                List<byte[]> blockKeys = new ArrayList<>();
+                List<BlockHandle> handles = new ArrayList<>();
+                parseIndexBlockWithKeys(indexBlock, blockKeys, handles);
+                ci = new CachedIndex(fileSize, file.lastModified(), blockKeys, handles);
+                putCachedIndex(file, ci);
             }
-            ByteBuffer footer = ByteBuffer.allocate(FOOTER_SIZE).order(ByteOrder.LITTLE_ENDIAN);
-            channel.position(fileSize - FOOTER_SIZE);
-            channel.read(footer);
-            footer.flip();
-            readVarInt64(footer);
-            readVarInt64(footer);
-            long indexOffset = readVarInt64(footer);
-            long indexSize = readVarInt64(footer);
-            footer.position(40);
-            if (footer.getLong() != TABLE_MAGIC_NUMBER) {
-                return false;
-            }
-            ByteBuffer indexBlock = readBlock(channel, indexOffset, (int) indexSize);
-            if (indexBlock == null) {
-                return false;
-            }
-            // index 条目：key = 该 data block 的最后一个 key
-            List<byte[]> blockKeys = new ArrayList<>();
-            List<BlockHandle> handles = new ArrayList<>();
-            parseIndexBlockWithKeys(indexBlock, blockKeys, handles);
+            List<byte[]> blockKeys = ci.blockKeys;
+            List<BlockHandle> handles = ci.handles;
             // 二分：第一个 lastKey >= prefix 的块；再补前一块（目标 key 跨块边界）
             int lo = 0;
             int hi = handles.size();
@@ -1053,6 +1060,51 @@ public class LevelDBReader {
             }
             return found;
         }
+    }
+
+    /**
+     * sst index block 缓存（跨 reader 实例共享）：大世界 300+ 个 sst，
+     * 视口按需渲染逐 chunk 读时每个文件都要 index 定位——缓存后每个
+     * chunk 只解压 1-2 个 data block（index 块 ~3-6KB，全量约 2MB）。
+     */
+    private static class CachedIndex {
+        final long fileSize;
+        final long lastModified;
+        final List<byte[]> blockKeys;
+        final List<BlockHandle> handles;
+
+        CachedIndex(long fileSize, long lastModified,
+                    List<byte[]> blockKeys, List<BlockHandle> handles) {
+            this.fileSize = fileSize;
+            this.lastModified = lastModified;
+            this.blockKeys = blockKeys;
+            this.handles = handles;
+        }
+    }
+
+    private static final Map<String, CachedIndex> INDEX_CACHE = new HashMap<>();
+    private static final int INDEX_CACHE_MAX = 2048;
+
+    private static synchronized CachedIndex getCachedIndex(File file) {
+        CachedIndex ci = INDEX_CACHE.get(file.getAbsolutePath());
+        if (ci != null && ci.fileSize == file.length()
+                && ci.lastModified == file.lastModified()) {
+            return ci;
+        }
+        return null;
+    }
+
+    private static synchronized void putCachedIndex(File file, CachedIndex ci) {
+        if (INDEX_CACHE.size() >= INDEX_CACHE_MAX) {
+            // 简单淘汰一半（无 LRU 链表；块总数受 MAX 限制，内存有界）
+            java.util.Iterator<String> it = INDEX_CACHE.keySet().iterator();
+            int n = INDEX_CACHE.size() / 2;
+            while (it.hasNext() && n-- > 0) {
+                it.next();
+                it.remove();
+            }
+        }
+        INDEX_CACHE.put(file.getAbsolutePath(), ci);
     }
 
     /** 解析 index block，收集每个 data block 的最后 key 与 handle。 */

@@ -973,11 +973,37 @@ public class WorldMapRenderer {
         /**
          * 从给定世界 block 坐标找最近的有数据（非透明）位置：
          * 目标点本身有数据直接返回；否则按切比雪夫距离螺旋向外搜索。
+         * chunk 缓存路径按 chunk 粒度搜索（block 级在大世界上是
+         * 4×maxR² ≈ 12 亿次查找，主线程 ANR）。
          */
         public int[] nearestGeneratedBlock(int worldX, int worldZ) {
             int cx = worldX - minBlockX;
             int cz = worldZ - minBlockZ;
             if (isBlockVisible(cx, cz)) {
+                return new int[]{worldX, worldZ};
+            }
+            if (chunkColors != null) {
+                int tcx = Math.floorDiv(minBlockX + cx, 16);
+                int tcz = Math.floorDiv(minBlockZ + cz, 16);
+                if (chunkHasData(tcx, tcz)) {
+                    return new int[]{worldX, worldZ};
+                }
+                int maxRc = Math.max(width, height) / 16 + 1;
+                for (int r = 1; r <= maxRc; r++) {
+                    for (int dx = -r; dx <= r; dx++) {
+                        for (int dz = -r; dz <= r; dz++) {
+                            if (Math.max(Math.abs(dx), Math.abs(dz)) != r) {
+                                continue;
+                            }
+                            int nx = tcx + dx;
+                            int nz = tcz + dz;
+                            if (chunkHasData(nx, nz)) {
+                                return new int[]{nx * 16 + 8, nz * 16 + 8};
+                            }
+                        }
+                    }
+                }
+                // 全空（视口按需渲染尚未填充）：停在目标点，滑动/渲染后自然填补
                 return new int[]{worldX, worldZ};
             }
             int maxR = Math.max(width, height);
@@ -996,6 +1022,20 @@ public class WorldMapRenderer {
                 }
             }
             return new int[]{minBlockX + width / 2, minBlockZ + height / 2};
+        }
+
+        /** chunk 是否有任何非透明像素。 */
+        private boolean chunkHasData(int cx, int cz) {
+            int[] cc = chunkColors.get(pack(cx, cz));
+            if (cc == null) {
+                return false;
+            }
+            for (int v : cc) {
+                if ((v & 0xFF000000) != 0) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /** 块可见性判定（兼容整图数组与 chunk 缓存两种路径）。 */
@@ -1313,8 +1353,8 @@ public class WorldMapRenderer {
         Map<Long, Integer> monumentChunks = new HashMap<>();
         Map<Long, Integer> endCityChunks = new HashMap<>();
         java.util.Set<Long> renderedChunks = new java.util.HashSet<>();
-        Map<Long, int[]> chunkColors = new HashMap<>();
-        Map<Long, int[]> chunkBiomeColors = new HashMap<>();
+        Map<Long, int[]> chunkColors = new java.util.concurrent.ConcurrentHashMap<>();
+        Map<Long, int[]> chunkBiomeColors = new java.util.concurrent.ConcurrentHashMap<>();
         final int[] finalMinCx = {Integer.MAX_VALUE};
         final int[] finalMaxCx = {Integer.MIN_VALUE};
         final int[] finalMinCz = {Integer.MAX_VALUE};
@@ -1660,7 +1700,7 @@ public class WorldMapRenderer {
                 Log.i(TAG, "chunk 缓存失效（db 已变化），重新渲染");
                 return null;
             }
-            Map<Long, int[]> chunkColors = new HashMap<>(count * 2);
+            Map<Long, int[]> chunkColors = new java.util.concurrent.ConcurrentHashMap<>(count * 2);
             for (int i = 0; i < count; i++) {
                 int cx = dis.readInt();
                 int cz = dis.readInt();
@@ -1743,8 +1783,8 @@ public class WorldMapRenderer {
             }
             WorldMap map = new WorldMap(minCx * 16, minCz * 16,
                     (maxCx - minCx + 1) * 16, (maxCz - minCz + 1) * 16, null, null);
-            map.chunkColors = new HashMap<>();
-            map.chunkBiomeColors = new HashMap<>();
+            map.chunkColors = new java.util.concurrent.ConcurrentHashMap<>();
+            map.chunkBiomeColors = new java.util.concurrent.ConcurrentHashMap<>();
             map.blockScale = 1;
             return map;
         } catch (Exception e) {
