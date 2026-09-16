@@ -1329,6 +1329,7 @@
     <string name="layer_entity">实体</string>
     <string name="layer_structure">结构</string>
     <string name="layer_slime">史莱姆区块</string>
+    <string name="layer_memory">内存优化（离屏卸载）</string>
     <string name="map_hud_placeholder">X: 0  Z: 0</string>
     <string name="point_search_hint">搜索标点…</string>
     <string name="no_points">暂无标点，长按地图添加</string>

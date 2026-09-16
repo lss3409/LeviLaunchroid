@@ -364,6 +364,16 @@
                         android:text="@string/layer_slime"
                         android:textColor="@color/on_surface"
                         android:textSize="12sp" />
+
+                    <CheckBox
+                        android:id="@+id/layer_memory"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:checked="false"
+                        android:fontFamily="@font/misans"
+                        android:text="@string/layer_memory"
+                        android:textColor="@color/on_surface"
+                        android:textSize="12sp" />
                 </LinearLayout>
 
                 <!-- Tab3 标点管理器 -->

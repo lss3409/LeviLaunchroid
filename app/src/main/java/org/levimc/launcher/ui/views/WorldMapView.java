@@ -127,6 +127,63 @@ public class WorldMapView extends View {
         invalidate();
     }
 
+    /**
+     * 内存优化（BTR 式离屏卸载）：开启后视口（含 1 屏缓冲）外的 chunk
+     * 数据与 tile 直接回收，滑到哪渲染到哪——平板 3840×2560 高分辨率
+     * 下渲染压力大，长时间滑动会累积几千 chunk（每 chunk 1KB 色表 +
+     * 1KB tile），卸载后内存恒定在视口规模。
+     */
+    private boolean memoryOptimized = false;
+    private long lastEvictTime = 0;
+
+    public void setMemoryOptimized(boolean on) {
+        memoryOptimized = on;
+        if (on) {
+            evictOffScreen();
+        }
+    }
+
+    /** 卸载视口外（1 屏缓冲）的 chunk 数据与 tile；滑回时重新按需渲染。 */
+    private void evictOffScreen() {
+        if (map == null || map.chunkColors == null || map.chunkColors.isEmpty()) {
+            return;
+        }
+        int viewW = getWidth();
+        int viewH = getHeight();
+        if (viewW <= 0 || viewH <= 0) {
+            return;
+        }
+        float invPpb = 1f / pixelsPerBlock;
+        double leftWorld = (0 - (double) offsetX - viewW) * invPpb + map.minBlockX;
+        double rightWorld = (viewW - (double) offsetX + viewW) * invPpb + map.minBlockX;
+        double topWorld = (0 - (double) offsetY - viewH) * invPpb + map.minBlockZ;
+        double bottomWorld = (viewH - (double) offsetY + viewH) * invPpb + map.minBlockZ;
+        int minCx = Math.floorDiv((int) Math.floor(leftWorld), 16);
+        int maxCx = Math.floorDiv((int) Math.ceil(rightWorld), 16);
+        int minCz = Math.floorDiv((int) Math.floor(topWorld), 16);
+        int maxCz = Math.floorDiv((int) Math.ceil(bottomWorld), 16);
+        java.util.Iterator<java.util.Map.Entry<Long, Bitmap>> it = chunkTiles.entrySet().iterator();
+        while (it.hasNext()) {
+            java.util.Map.Entry<Long, Bitmap> e = it.next();
+            int cx = (int) (e.getKey() >> 32);
+            int cz = (int) (long) e.getKey();
+            if (cx < minCx || cx > maxCx || cz < minCz || cz > maxCz) {
+                e.getValue().recycle();
+                it.remove();
+            }
+        }
+        map.chunkColors.keySet().removeIf(k -> {
+            int cx = (int) (k >> 32);
+            int cz = (int) (long) k;
+            return cx < minCx || cx > maxCx || cz < minCz || cz > maxCz;
+        });
+        chunkDataCache.clear();
+        if (lodMini != null) {
+            lodMini.recycle();
+            lodMini = null;
+        }
+    }
+
     /** 通知视图变化（供 HUD 更新），在缩放/平移/跳转后调用。 */
     private void notifyViewChanged() {
         if (viewChangedListener != null && map != null && getWidth() > 0) {
@@ -468,6 +525,14 @@ public class WorldMapView extends View {
             // 大世界：chunk tile 平铺（BTR 同款）——零重采样、零 39MB 大位图，
             // 每帧只 drawBitmap 视口内 chunk 的小 tile（GPU 加速）
             drawChunkLayer(canvas);
+            // 内存优化：节流 1 秒卸载一次视口外 chunk（滑到哪渲染到哪）
+            if (memoryOptimized) {
+                long now = android.os.SystemClock.uptimeMillis();
+                if (now - lastEvictTime > 1000) {
+                    lastEvictTime = now;
+                    evictOffScreen();
+                }
+            }
         } else {
             // 小世界整图路径：缓存位图三分支
             // 1) 纯平移 → 直接平移缓存位图，零重采样（拖动流畅）；

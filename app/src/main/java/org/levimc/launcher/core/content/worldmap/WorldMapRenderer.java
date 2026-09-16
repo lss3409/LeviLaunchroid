@@ -1608,7 +1608,9 @@ public class WorldMapRenderer {
     // ---------------------------------------------------------------- chunk 缓存磁盘持久化
 
     private static final int MAP_CACHE_MAGIC = 0x4D435632; // "MCv2"
-    private static final int MAP_CACHE_VERSION = 2;
+    // v3：v301 readChunk 多块读取 + v304 地表窗口修复前渲染的缓存数据是错的
+    // （subchunk 缺失/地表层被裁），必须失效重渲染——村庄/建筑错乱的直接来源
+    private static final int MAP_CACHE_VERSION = 3;
 
     /** 缓存文件：db 目录旁 map_cache_<dim>.bin（随世界走，卸载备份都在）。 */
     private static File chunkCacheFile(File dbDir, int dimension) {

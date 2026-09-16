@@ -80,12 +80,17 @@ public class NbtViewerActivity extends BaseActivity {
 
     private ActivityNbtViewerBinding binding;
     private ExecutorService executor;
-    /** 视口按需渲染线程池（多 chunk 并行渲染；LevelDBReader 每次新建实例，线程安全）。 */
-    private final ExecutorService renderPool = Executors.newFixedThreadPool(4, r -> {
+    /** 视口按需渲染线程池（多 chunk 并行渲染；LevelDBReader 每次新建实例，线程安全）。
+     *  6 线程：前几个并发任务绑大核，其余由系统调度到其余核——大小核全部用上
+     *  （游戏式全核调度，类似终末地 Job System 的做法）。 */
+    private final ExecutorService renderPool = Executors.newFixedThreadPool(6, r -> {
         Thread t = new Thread(r, "chunk-render");
         t.setPriority(Thread.MAX_PRIORITY);
         return t;
     });
+    /** 渲染任务序号：< 大核数的任务绑大核，其余自由调度（小核也参与）。 */
+    private final java.util.concurrent.atomic.AtomicInteger renderTaskSeq =
+            new java.util.concurrent.atomic.AtomicInteger();
     /** 渲染完成 chunk 的批量重绘缓冲：80ms 窗口合并，一次局部重绘处理多个 chunk。 */
     private final java.util.Set<Long> renderedChunkBuffer = new java.util.HashSet<>();
     private final android.os.Handler flushHandler = new android.os.Handler(
@@ -249,8 +254,11 @@ public class NbtViewerActivity extends BaseActivity {
                     continue;
                 }
                 renderPool.execute(() -> {
-                    // 渲染线程绑大核（游戏式调度，CPU 全部性能用在地图渲染上）
-                    CpuScheduler.pinCurrentThreadToBigCores();
+                    // 全核调度：前几个并发任务绑大核，其余自由调度到其它核
+                    // （大小核全部参与渲染——发热不严重说明核心没跑满）
+                    if (renderTaskSeq.getAndIncrement() < CpuScheduler.bigCoreCount) {
+                        CpuScheduler.pinCurrentThreadToBigCores();
+                    }
                     try {
                         int cx = (int) (key >> 32);
                         int cz = (int) (long) key;
@@ -344,6 +352,10 @@ public class NbtViewerActivity extends BaseActivity {
         binding.layerSlime.setOnCheckedChangeListener((b, checked) ->
                 binding.worldMapImage.setShowSlimeChunks(checked));
         binding.worldMapImage.setShowSlimeChunks(binding.layerSlime.isChecked());
+        // 内存优化（BTR 式离屏卸载）：滑到哪渲染到哪，视口外的 chunk 直接回收
+        binding.layerMemory.setOnCheckedChangeListener((b, checked) ->
+                binding.worldMapImage.setMemoryOptimized(checked));
+        binding.worldMapImage.setMemoryOptimized(binding.layerMemory.isChecked());
 
         // 左栏标点搜索 → 列表过滤
         binding.pointSearchInput.addTextChangedListener(new android.text.TextWatcher() {
@@ -544,6 +556,13 @@ public class NbtViewerActivity extends BaseActivity {
     /** keepView=true 时重载后保留当前视角（y 轴偏移等原地刷新场景）。 */
     private void loadMapForDimension(String dim, boolean keepView) {
         binding.nbtLoading.setVisibility(View.VISIBLE);
+        // 维度隔绝：切换时立刻清掉旧维度地图与图层——否则新图渲染完成前
+        // 旧图一直显示（"切下界先看到主世界，过一会才跳过去"的根因）
+        currentMap = null;
+        binding.worldMapImage.setWorldMap(null);
+        binding.worldMapImage.setEntityData(new ArrayList<>());
+        binding.worldMapImage.setStructureMarkers(new ArrayList<>());
+        binding.worldMapPlaceholder.setVisibility(View.VISIBLE);
         startBackgroundTask();
         final int gen = loadGeneration;
         final boolean fKeepView = keepView;
