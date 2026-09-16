@@ -949,6 +949,14 @@ public class LevelDBReader {
         prefix[5] = (byte) (cz >> 8);
         prefix[6] = (byte) (cz >> 16);
         prefix[7] = (byte) (cz >> 24);
+        return readEntriesByPrefix(prefix);
+    }
+
+    /**
+     * 按任意 key 前缀读取（index block 二分定位 data block，只解压 1-2 个块）。
+     * 用于单 key/小前缀读取（如 ~local_player），避免全表扫描——大世界全表要 5 秒。
+     */
+    public List<LevelDBEntry> readEntriesByPrefix(byte[] prefix) throws IOException {
         List<LevelDBEntry> out = new ArrayList<>();
         java.util.Set<ByteArrayWrapper> seen = new java.util.HashSet<>();
         File[] sstFiles = dbPath.listFiles((dir, name) ->
@@ -957,9 +965,9 @@ public class LevelDBReader {
             Arrays.sort(sstFiles, Comparator.comparing(File::getName).reversed());
             for (File sstFile : sstFiles) {
                 try {
-                    readChunkFromSst(sstFile, prefix, out, seen);
+                    readPrefixFromSst(sstFile, prefix, prefix.length, out, seen);
                 } catch (Exception e) {
-                    Log.w(TAG, "readChunk failed on " + sstFile.getName(), e);
+                    Log.w(TAG, "readPrefix failed on " + sstFile.getName(), e);
                 }
             }
         }
@@ -969,19 +977,19 @@ public class LevelDBReader {
             for (File logFile : logFiles) {
                 try {
                     // 日志文件小：全读过滤
-                    readLogFileFiltered(logFile, prefix, out, seen);
+                    readLogFileFiltered(logFile, prefix, prefix.length, out, seen);
                 } catch (Exception e) {
-                    Log.w(TAG, "readChunk log failed on " + logFile.getName(), e);
+                    Log.w(TAG, "readPrefix log failed on " + logFile.getName(), e);
                 }
             }
         }
         return out;
     }
 
-    /** sst 内定位目标 chunk 前缀的 data block 并解析。 */
-    private void readChunkFromSst(File file, byte[] prefix,
-                                  List<LevelDBEntry> out,
-                                  java.util.Set<ByteArrayWrapper> seen) throws IOException {
+    /** sst 内定位目标前缀的 data block 并解析。 */
+    private void readPrefixFromSst(File file, byte[] prefix, int prefixLen,
+                                   List<LevelDBEntry> out,
+                                   java.util.Set<ByteArrayWrapper> seen) throws IOException {
         try (RandomAccessFile raf = new RandomAccessFile(file, "r");
              FileChannel channel = raf.getChannel()) {
             long fileSize = channel.size();
@@ -1013,7 +1021,7 @@ public class LevelDBReader {
             int hi = handles.size();
             while (lo < hi) {
                 int mid = (lo + hi) >>> 1;
-                if (compareKeys(blockKeys.get(mid), prefix) < 0) {
+                if (compareKeysPrefix(blockKeys.get(mid), prefix, prefixLen) < 0) {
                     lo = mid + 1;
                 } else {
                     hi = mid;
@@ -1024,7 +1032,7 @@ public class LevelDBReader {
                 if (block == null) {
                     continue;
                 }
-                parseDataBlockFiltered(block, prefix, out, seen);
+                parseDataBlockFiltered(block, prefix, prefixLen, out, seen);
             }
         }
     }
@@ -1077,8 +1085,8 @@ public class LevelDBReader {
         }
     }
 
-    /** 解析 data block，只保留目标 chunk 前缀的条目。 */
-    private void parseDataBlockFiltered(ByteBuffer buffer, byte[] prefix,
+    /** 解析 data block，只保留目标前缀的条目。 */
+    private void parseDataBlockFiltered(ByteBuffer buffer, byte[] prefix, int prefixLen,
                                         List<LevelDBEntry> out,
                                         java.util.Set<ByteArrayWrapper> seen) {
         try {
@@ -1122,7 +1130,7 @@ public class LevelDBReader {
                 }
                 int type = fullKey[fullKey.length - 8] & 0xFF;
                 byte[] userKey = Arrays.copyOf(fullKey, fullKey.length - 8);
-                if (userKey.length < 8 || !prefixMatches(userKey, prefix)) {
+                if (userKey.length < prefixLen || !prefixMatches(userKey, prefix, prefixLen)) {
                     continue;
                 }
                 if (type == 1) {
@@ -1137,8 +1145,8 @@ public class LevelDBReader {
         }
     }
 
-    private static boolean prefixMatches(byte[] key, byte[] prefix) {
-        for (int i = 0; i < 8; i++) {
+    private static boolean prefixMatches(byte[] key, byte[] prefix, int len) {
+        for (int i = 0; i < len; i++) {
             if (key[i] != prefix[i]) {
                 return false;
             }
@@ -1146,27 +1154,31 @@ public class LevelDBReader {
         return true;
     }
 
-    private static int compareKeys(byte[] a, byte[] b) {
-        int n = Math.min(a.length, b.length);
+    /** 与目标前缀比较（只比前缀部分；相等时按完整 key 长度决定先后）。 */
+    private static int compareKeysPrefix(byte[] key, byte[] prefix, int prefixLen) {
+        int n = Math.min(key.length, prefixLen);
         for (int i = 0; i < n; i++) {
-            int d = (a[i] & 0xFF) - (b[i] & 0xFF);
+            int d = (key[i] & 0xFF) - (prefix[i] & 0xFF);
             if (d != 0) {
                 return d;
             }
         }
-        return a.length - b.length;
+        if (key.length < prefixLen) {
+            return -1;
+        }
+        return 0;
     }
 
     /** 日志文件按前缀过滤读取（日志小，全读）。 */
-    private void readLogFileFiltered(File logFile, byte[] prefix,
+    private void readLogFileFiltered(File logFile, byte[] prefix, int prefixLen,
                                      List<LevelDBEntry> out,
                                      java.util.Set<ByteArrayWrapper> seen) throws IOException {
         if (logFile.length() == 0) {
             return;
         }
-        // 日志可能含目标 chunk 的最新写入：全读但只保留前缀匹配
+        // 日志可能含目标前缀的最新写入：全读但只保留前缀匹配
         EntryFilter old = filter;
-        filter = k -> k != null && k.length >= 8 && prefixMatches(k, prefix);
+        filter = k -> k != null && k.length >= prefixLen && prefixMatches(k, prefix, prefixLen);
         try {
             readLogFile(logFile);
             for (Map.Entry<ByteArrayWrapper, byte[]> e : allData.entrySet()) {
