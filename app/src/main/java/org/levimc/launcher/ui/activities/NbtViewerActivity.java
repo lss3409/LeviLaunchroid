@@ -804,40 +804,31 @@ public class NbtViewerActivity extends BaseActivity {
                     worldMap.chunkSourceDir = dbDir;
                     worldMap.chunkSourceDim = 0;
                 }
-                entities = WorldMapRenderer.parseEntitiesStreaming(dbDir, 0);
-                structures = WorldMapRenderer.parseStructureMarkersStreaming(dbDir, 0);
-                if (structures == null) {
-                    structures = new java.util.ArrayList<>();
-                }
-                if (worldMap != null && worldMap.detectedStructures != null) {
-                    structures.addAll(worldMap.detectedStructures);
-                }
-                // 玩家位置：只读玩家 key
-                try {
-                    LevelDBReader reader = new LevelDBReader(dbDir);
-                    entries = reader.readEntries(k -> {
-                        if (k == null || k.length < 8) {
-                            return false;
+                // 实体/结构/玩家位置全部延迟到首屏显示之后（各自要全量读一遍
+                // 183MB db，同步执行会把首屏拖慢 20-30 秒——"更慢"的根因）
+                entities = new ArrayList<>();
+                structures = new ArrayList<>();
+                final WorldMapRenderer.WorldMap fMap0 = worldMap;
+                executor.execute(() -> {
+                    List<WorldMapRenderer.EntityPos> ents =
+                            WorldMapRenderer.parseEntitiesStreaming(dbDir, 0);
+                    List<WorldMapRenderer.StructureMarker> strs =
+                            WorldMapRenderer.parseStructureMarkersStreaming(dbDir, 0);
+                    if (strs == null) {
+                        strs = new ArrayList<>();
+                    }
+                    if (fMap0 != null && fMap0.detectedStructures != null) {
+                        strs.addAll(fMap0.detectedStructures);
+                    }
+                    runOnUiThread(() -> {
+                        if (isFinishing() || isDestroyed() || !isCurrentLoad(gen)) {
+                            return;
                         }
-                        if (k.length == 13 && k[0] == '~') {
-                            return true;
-                        }
-                        boolean printable = true;
-                        for (byte b : k) {
-                            if (b < 32 || b > 126) {
-                                printable = false;
-                                break;
-                            }
-                        }
-                        if (printable) {
-                            String s = new String(k, java.nio.charset.StandardCharsets.US_ASCII);
-                            return s.startsWith("player");
-                        }
-                        return false;
+                        binding.worldMapImage.setEntityData(ents);
+                        binding.worldMapImage.setStructureMarkers(strs);
+                        refreshDataPanelExtras(strs, entries);
                     });
-                    reader.close();
-                } catch (Exception ignored) {
-                }
+                });
             } else if (dbDir.isDirectory()) {
                 // 优先 BTR 同款原生库（自带全部 MCPE 压缩格式），失败回退纯 Java
                 try {
