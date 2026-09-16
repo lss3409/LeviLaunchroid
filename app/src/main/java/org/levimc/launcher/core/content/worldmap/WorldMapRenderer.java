@@ -948,7 +948,7 @@ public class WorldMapRenderer {
      * （grass_top 147/147/147、short_grass 119/119/119、water_still_grey 163/163/163），
      * 必须乘群系色调才是真实颜色（MC 着色器机制）。
      */
-    private static final int[] DEFAULT_WATER_TINT = {63, 118, 228};
+    private static final int[] DEFAULT_WATER_TINT = {75, 140, 235};
     private static final int[] DEFAULT_LEAVES_TINT = {113, 167, 77};
     private static final int[] DEFAULT_GRASS_TINT = {142, 185, 113};
 

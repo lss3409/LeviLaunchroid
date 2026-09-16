@@ -4815,9 +4815,9 @@
   },
   "minecraft:flowing_water": {
     "water_still_grey": [
-      163,
-      163,
-      163,
+      230,
+      230,
+      230,
       240
     ]
   },
@@ -11823,9 +11823,9 @@
   },
   "minecraft:water": {
     "water_still_grey": [
-      163,
-      163,
-      163,
+      230,
+      230,
+      230,
       240
     ]
   },
