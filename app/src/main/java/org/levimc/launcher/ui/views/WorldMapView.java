@@ -645,10 +645,16 @@ public class WorldMapView extends View {
         if (chunkPx < 14f) {
             return; // 缩小到看不清区块时不画
         }
-        int firstCx = Math.floorDiv(map.minBlockX, 16);
-        int firstCz = Math.floorDiv(map.minBlockZ, 16);
-        int lastCx = Math.floorDiv(map.minBlockX + map.width - 1, 16);
-        int lastCz = Math.floorDiv(map.minBlockZ + map.height - 1, 16);
+        // 只遍历视口内的 chunk：全图遍历在 928×1089 大世界上是每帧
+        // 100 万次 isSlimeChunk（"开了史莱姆区块好卡"的根因）
+        float leftWorld = (0 - offsetX) / pixelsPerBlock + map.minBlockX;
+        float rightWorld = (getWidth() - offsetX) / pixelsPerBlock + map.minBlockX;
+        float topWorld = (0 - offsetY) / pixelsPerBlock + map.minBlockZ;
+        float bottomWorld = (getHeight() - offsetY) / pixelsPerBlock + map.minBlockZ;
+        int firstCx = Math.floorDiv((int) Math.floor(leftWorld), 16);
+        int firstCz = Math.floorDiv((int) Math.floor(topWorld), 16);
+        int lastCx = Math.floorDiv((int) Math.ceil(rightWorld), 16);
+        int lastCz = Math.floorDiv((int) Math.ceil(bottomWorld), 16);
         Paint slimePaint = new Paint();
         slimePaint.setColor(0x2E00C853);
         Paint borderPaint = new Paint();
@@ -660,6 +666,10 @@ public class WorldMapView extends View {
                 if (!WorldMapRenderer.isSlimeChunk(cx, cz)) {
                     continue;
                 }
+                // 未渲染（视口按需还没画出来）的 chunk 不显示史莱姆图层
+                if (!chunkRendered(cx, cz)) {
+                    continue;
+                }
                 float sx = offsetX + (cx * 16 - map.minBlockX) * pixelsPerBlock;
                 float sy = offsetY + (cz * 16 - map.minBlockZ) * pixelsPerBlock;
                 if (sx + chunkPx < 0 || sx > getWidth() || sy + chunkPx < 0 || sy > getHeight()) {
@@ -669,6 +679,17 @@ public class WorldMapView extends View {
                 canvas.drawRect(sx, sy, sx + chunkPx, sy + chunkPx, borderPaint);
             }
         }
+    }
+
+    /** 该 chunk 是否已有渲染数据；整图路径（colors 数组）恒为 true。 */
+    private boolean chunkRendered(int cx, int cz) {
+        if (map == null) {
+            return false;
+        }
+        if (map.chunkColors != null) {
+            return map.chunkColors.containsKey(packChunk(cx, cz));
+        }
+        return true;
     }
 
     /** 颜色混合：overlay 按 alpha 叠在 base 上（base 不透明时结果不透明）。 */
@@ -891,6 +912,10 @@ public class WorldMapView extends View {
         Paint iconPaint = new Paint();
         iconPaint.setFilterBitmap(true);
         for (WorldMapRenderer.EntityPos e : entities) {
+            // 未渲染 chunk 上的实体不显示（视口按需渲染出来后才出现）
+            if (!chunkRendered(Math.floorDiv((int) e.x, 16), Math.floorDiv((int) e.z, 16))) {
+                continue;
+            }
             float sx = offsetX + (e.x - map.minBlockX + 0.5f) * pixelsPerBlock;
             float sy = offsetY + (e.z - map.minBlockZ + 0.5f) * pixelsPerBlock;
             if (sx < -40 || sx > getWidth() + 40 || sy < -40 || sy > getHeight() + 40) {
@@ -1050,6 +1075,10 @@ public class WorldMapView extends View {
         Paint iconPaint = new Paint();
         iconPaint.setFilterBitmap(true);
         for (WorldMapRenderer.StructureMarker m : structures) {
+            // 未渲染 chunk 上的结构不显示（视口按需渲染出来后才出现）
+            if (!chunkRendered(Math.floorDiv(m.x, 16), Math.floorDiv(m.z, 16))) {
+                continue;
+            }
             float sx = offsetX + (m.x - map.minBlockX + 0.5f) * pixelsPerBlock;
             float sy = offsetY + (m.z - map.minBlockZ + 0.5f) * pixelsPerBlock;
             if (sx < -60 || sx > getWidth() + 60 || sy < -60 || sy > getHeight() + 60) {
