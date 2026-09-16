@@ -1830,7 +1830,9 @@ public class WorldMapRenderer {
     // 玻璃穿透与 s>=6 裁剪渲染结果已错，必须失效）
     // v7：缓存挪到应用私有目录（旧缓存写世界目录，编辑几次膨胀 100+MB——
     // 内容管理显示体积变大的根因）+ 每 chunk 调色板索引压缩（无损 ~3x）
-    private static final int MAP_CACHE_VERSION = 7;
+    // v9：玻璃下无固体时回退 biome 色（v7 缓存的纯玻璃色 #AFD5DB 大片
+    // "海晶蓝"必须失效）
+    private static final int MAP_CACHE_VERSION = 9;
 
     /** 缓存根目录（应用私有，卸载即清——缓存可再生）。null 时回退旧路径。 */
     private static java.io.File sCacheBase;
@@ -3368,7 +3370,11 @@ public class WorldMapRenderer {
                 return waterColor; // 整列只有水（河床无数据）
             }
             if (glassY >= 0) {
-                return glassColor; // 玻璃下无固体（异常数据）：直接玻璃色
+                // 玻璃下窗口内无固体（高塔/刷怪塔玻璃顶——下方悬空超过
+                // 窗口下界 32 方块）：此前返回纯玻璃色 0xFFAFD5DB，
+                // 生电建筑大片"海晶蓝"的根因。回退该列 biome 主色
+                // （地表观感）而不是玻璃色
+                return biomeColor != 0 ? biomeColor : glassColor;
             }
         }
         // 无 subchunk 数据或找不到方块：
