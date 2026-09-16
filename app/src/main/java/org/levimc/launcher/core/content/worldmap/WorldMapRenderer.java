@@ -2100,14 +2100,16 @@ public class WorldMapRenderer {
         }
     }
 
-    /** 3D 体素区域数据：每列从顶向下 N 层方块（颜色 + y）。 */
+    /** 3D 体素区域数据：每列从顶向下 N 层方块（颜色 + y + 方块名）。 */
     public static final class VoxelColumn {
         public final int[] colors; // 从顶向下的方块颜色（不含空气）
         public final int[] ys;
+        public final String[] names; // 方块全名（纹理贴图用）
 
-        VoxelColumn(int[] colors, int[] ys) {
+        VoxelColumn(int[] colors, int[] ys, String[] names) {
             this.colors = colors;
             this.ys = ys;
+            this.names = names;
         }
     }
 
@@ -2174,6 +2176,7 @@ public class WorldMapRenderer {
                         int lz = wz - cz * 16;
                         int[] colors = new int[depth];
                         int[] ys = new int[depth];
+                        String[] names = new String[depth];
                         java.util.Arrays.fill(colors, 0);
                         int n = 0;
                         int h = hmap != null ? hmap[(lz << 4) | lx] : 128;
@@ -2191,9 +2194,10 @@ public class WorldMapRenderer {
                             }
                             colors[n] = tintColor(name, colorForBlock(name), -1);
                             ys[n] = y;
+                            names[n] = name;
                             n++;
                         }
-                        out[dz][dx] = new VoxelColumn(colors, ys);
+                        out[dz][dx] = new VoxelColumn(colors, ys, names);
                     }
                 }
                 return out;

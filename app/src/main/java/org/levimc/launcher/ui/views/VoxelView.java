@@ -35,6 +35,73 @@ public class VoxelView extends View {
     private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint axisPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint texPaint = new Paint(Paint.ANTI_ALIAS_FLAG
+            | Paint.FILTER_BITMAP_FLAG);
+
+    /** minecraft 方块名 → assets/voxel_textures 文件名（原版纹理优先）。 */
+    private static final java.util.Map<String, String> TEX_MAP = new java.util.HashMap<>();
+    static {
+        TEX_MAP.put("minecraft:grass_block", "grass_top");
+        TEX_MAP.put("minecraft:dirt", "dirt");
+        TEX_MAP.put("minecraft:stone", "stone");
+        TEX_MAP.put("minecraft:cobblestone", "cobblestone");
+        TEX_MAP.put("minecraft:oak_log", "log_oak");
+        TEX_MAP.put("minecraft:oak_planks", "planks_oak");
+        TEX_MAP.put("minecraft:water", "water_still");
+        TEX_MAP.put("minecraft:flowing_water", "water_still");
+        TEX_MAP.put("minecraft:sand", "sand");
+        TEX_MAP.put("minecraft:sandstone", "sandstone_top");
+        TEX_MAP.put("minecraft:brick_block", "brick");
+        TEX_MAP.put("minecraft:glass", "glass");
+        TEX_MAP.put("minecraft:leaves", "leaves_oak_opaque");
+        TEX_MAP.put("minecraft:leaves2", "leaves_oak_opaque");
+        TEX_MAP.put("minecraft:netherrack", "netherrack");
+        TEX_MAP.put("minecraft:soul_sand", "soul_sand");
+        TEX_MAP.put("minecraft:bedrock", "bedrock");
+        TEX_MAP.put("minecraft:gravel", "gravel");
+        TEX_MAP.put("minecraft:magma", "magma");
+        TEX_MAP.put("minecraft:snow", "snow");
+        TEX_MAP.put("minecraft:snow_layer", "snow");
+        TEX_MAP.put("minecraft:tnt", "tnt_top");
+        TEX_MAP.put("minecraft:bookshelf", "bookshelf");
+        TEX_MAP.put("minecraft:crafting_table", "crafting_table_top");
+        TEX_MAP.put("minecraft:soul_soil", "soul-soil");
+        TEX_MAP.put("minecraft:basalt", "basalt");
+        TEX_MAP.put("minecraft:blackstone", "blackstone");
+        TEX_MAP.put("minecraft:crimson_planks", "crimson-planks");
+        TEX_MAP.put("minecraft:warped_planks", "warped-planks");
+    }
+
+    /** 纹理缓存（进程级；assets 读取）。 */
+    private static final java.util.Map<String, android.graphics.Bitmap> texCache =
+            new java.util.HashMap<>();
+
+    /** 方块名 → 纹理位图（无纹理回退 null 走纯色）。 */
+    private android.graphics.Bitmap textureFor(String blockName) {
+        if (blockName == null) {
+            return null;
+        }
+        String file = TEX_MAP.get(blockName);
+        if (file == null) {
+            return null;
+        }
+        synchronized (texCache) {
+            android.graphics.Bitmap bmp = texCache.get(file);
+            if (bmp != null) {
+                return bmp;
+            }
+            try (java.io.InputStream in = getContext().getAssets()
+                    .open("voxel_textures/" + file + ".png")) {
+                bmp = android.graphics.BitmapFactory.decodeStream(in);
+                if (bmp != null) {
+                    texCache.put(file, bmp);
+                }
+                return bmp;
+            } catch (Exception e) {
+                return null;
+            }
+        }
+    }
 
     private GestureDetector gestureDetector;
     private ScaleGestureDetector scaleDetector;
@@ -68,9 +135,9 @@ public class VoxelView extends View {
                     @Override
                     public boolean onScroll(@Nullable MotionEvent e1, @NonNull MotionEvent e2,
                                             float distanceX, float distanceY) {
-                        // 横向滑动 → 旋转；纵向滑动 → 微调俯仰感（缩放）
+                        // 单指滑动只旋转（缩放交给双指捏合——混绑会让单指旋转
+                        // 时误触缩放）
                         angle -= distanceX * 0.008f;
-                        zoom = Math.max(0.5f, Math.min(4f, zoom + distanceY * 0.003f));
                         invalidate();
                         return true;
                     }
@@ -147,7 +214,8 @@ public class VoxelView extends View {
                 float px = cx + (dx * cosA - dz * sinA) * unit;
                 float py = cy + (dx * sinA + dz * cosA) * unit * 0.5f
                         - (y - baseY) * unitH * 0.12f;
-                drawBlock(canvas, px, py, col.colors[i], (y - baseY) * 0.6f, cosA, sinA, 8f, 10f);
+                drawBlock(canvas, px, py, col.colors[i], (y - baseY) * 0.6f,
+                        cosA, sinA, 8f, 10f, col.names[i]);
             }
         }
         return bmp;
@@ -220,9 +288,9 @@ public class VoxelView extends View {
         return dx * sinA + dz * cosA;
     }
 
-    /** 画一个等距方块（顶面菱形 + 两个侧面），侧面明暗随旋转角变化。 */
+    /** 画一个等距方块（顶面 MC 原版纹理/纯色 + 两个侧面明暗）。 */
     private void drawBlock(Canvas canvas, float cx, float topY, int color, float shade,
-                           float cosA, float sinA, float u, float h) {
+                           float cosA, float sinA, float u, float h, String blockName) {
         int base = color;
         int r = Math.max(0, Math.min(255, ((base >> 16) & 0xFF) + (int) shade));
         int g = Math.max(0, Math.min(255, ((base >> 8) & 0xFF) + (int) shade));
@@ -239,16 +307,32 @@ public class VoxelView extends View {
                 | ((int) (g * (0.35f + 0.2f * side)) << 8)
                 | (int) (b * (0.35f + 0.2f * side));
 
-        // 顶面：单位菱形四顶点经旋转投影
-        Path top = new Path();
-        top.moveTo(px(cx, topY, 1, 0, u), py(cx, topY, 1, 0, u));
-        top.lineTo(px(cx, topY, 0, 1, u), py(cx, topY, 0, 1, u));
-        top.lineTo(px(cx, topY, -1, 0, u), py(cx, topY, -1, 0, u));
-        top.lineTo(px(cx, topY, 0, -1, u), py(cx, topY, 0, -1, u));
-        top.close();
-        fillPaint.setColor(lit);
-        canvas.drawPath(top, fillPaint);
-        canvas.drawPath(top, strokePaint);
+        // 顶面：有 MC 原版纹理 → 仿射贴图到菱形（结构方块渲染同款观感）；
+        // 无纹理回退纯色菱形
+        android.graphics.Bitmap tex = textureFor(blockName);
+        if (tex != null) {
+            android.graphics.Matrix m = new android.graphics.Matrix();
+            float[] src = {0f, 0f, tex.getWidth(), 0f, 0f, tex.getHeight()};
+            float[] dst = {
+                    px(cx, topY, 0, -1, u), py(cx, topY, 0, -1, u),
+                    px(cx, topY, 1, 0, u), py(cx, topY, 1, 0, u),
+                    px(cx, topY, -1, 0, u), py(cx, topY, -1, 0, u)};
+            m.setPolyToPoly(src, 0, dst, 0, 3);
+            canvas.save();
+            canvas.concat(m);
+            canvas.drawBitmap(tex, 0f, 0f, texPaint);
+            canvas.restore();
+        } else {
+            Path top = new Path();
+            top.moveTo(px(cx, topY, 1, 0, u), py(cx, topY, 1, 0, u));
+            top.lineTo(px(cx, topY, 0, 1, u), py(cx, topY, 0, 1, u));
+            top.lineTo(px(cx, topY, -1, 0, u), py(cx, topY, -1, 0, u));
+            top.lineTo(px(cx, topY, 0, -1, u), py(cx, topY, 0, -1, u));
+            top.close();
+            fillPaint.setColor(lit);
+            canvas.drawPath(top, fillPaint);
+            canvas.drawPath(top, strokePaint);
+        }
 
         // 侧面 1（左前：-X 与 -Z 边）
         Path side1 = new Path();

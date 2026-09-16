@@ -660,16 +660,28 @@ public class NbtViewerActivity extends BaseActivity {
                 if (renderGen.get() != myGen || Thread.currentThread().isInterrupted()) {
                     return;
                 }
+                // 环内按角度排序：渲染顺序沿圆周连续走——行列顺序渲染
+                // 会导致环上随机跳点，视觉上出现"末地圆环式断层"
+                java.util.List<int[]> ring = new java.util.ArrayList<>();
                 for (int dx = -r; dx <= r; dx++) {
                     for (int dz = -r; dz <= r; dz++) {
                         if (Math.max(Math.abs(dx), Math.abs(dz)) != r) {
-                            continue; // 只处理当前环
+                            continue;
                         }
                         int cx = cCx + dx;
                         int cz = cCz + dz;
                         if (cx < minCx || cx > maxCx || cz < minCz || cz > maxCz) {
                             continue;
                         }
+                        ring.add(new int[]{cx, cz});
+                    }
+                }
+                ring.sort(java.util.Comparator.comparingDouble(
+                        p -> Math.atan2(p[1] - cCz, p[0] - cCx)));
+                for (int[] pc : ring) {
+                    {
+                        int cx = pc[0];
+                        int cz = pc[1];
                         if (renderGen.get() != myGen
                                 || Thread.currentThread().isInterrupted()) {
                             return;

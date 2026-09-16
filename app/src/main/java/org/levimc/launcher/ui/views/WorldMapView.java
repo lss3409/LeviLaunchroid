@@ -123,6 +123,15 @@ public class WorldMapView extends View {
     /** 外部按需渲染完成后调用：清除 pending 标记并重绘。 */
     public void onChunksRendered(java.util.Set<Long> chunkKeys) {
         pendingChunks.removeAll(chunkKeys);
+        // 新 chunk 已渲染：LOD 缩略图快照过期（预渲染渐进铺图时缩小视图
+        // 应能看到新 chunk），置空重建——节流 1 秒（每 20 chunk 回调一次，
+        // 不节流会连续重建 LOD 卡死缩小视图）
+        long now = android.os.SystemClock.uptimeMillis();
+        if (lodMini != null && now - lastLodInvalidate > 1000) {
+            lastLodInvalidate = now;
+            lodMini.recycle();
+            lodMini = null;
+        }
         // chunk tile 路径：tile 在下一帧 onDraw 惰性生成，只需重绘
         invalidate();
     }
@@ -643,6 +652,9 @@ public class WorldMapView extends View {
             };
     /** 缩略 LOD 位图（每 chunk 1 像素）：视口 chunk 数过多时整图一次 drawBitmap。 */
     private Bitmap lodMini;
+    /** LOD 模式（迟滞切换：>5000 进入 <3500 退出，缩放中不切换）。 */
+    private boolean lodMode;
+    private long lastLodInvalidate;
 
     /** 大世界底层绘制：视口 chunk 多时画 LOD 缩略图，否则 tile 平铺。 */
     private void drawChunkLayer(android.graphics.Canvas canvas) {
@@ -666,7 +678,17 @@ public class WorldMapView extends View {
         int visibleChunks = (lastCx - firstCx + 1) * (lastCz - firstCz + 1);
         final java.util.Set<Long> missing = chunksNeededListener != null && !scaling
                 ? new java.util.HashSet<>() : null;
-        if (visibleChunks > 4096) {
+        // LOD 迟滞：>5000 进入、<3500 退出（阈值 4096 上下波动会导致
+        // LOD 与 tile 交替绘制——"地图里嵌套显示缩小版小图"的根因）；
+        // 缩放过程中不切换模式
+        if (!scaling) {
+            if (visibleChunks > 5000) {
+                lodMode = true;
+            } else if (visibleChunks < 3500) {
+                lodMode = false;
+            }
+        }
+        if (lodMode) {
             // LOD：全图缩略一次 drawBitmap（缩小到整图可视时视口含全图 chunk，
             // tile 平铺 2.5 万次 drawBitmap 每帧会卡死）
             ensureLodMini();
