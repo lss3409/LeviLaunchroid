@@ -412,7 +412,9 @@ public class WorldMapView extends View {
     @Override
     protected void onDraw(android.graphics.Canvas canvas) {
         super.onDraw(canvas);
-        if (map == null || map.colors == null) {
+        // 大世界 bounds-only 地图只有 chunkColors（colors==null），
+        // 必须放行 chunk 路径——否则首屏空白且视口按需渲染永不触发
+        if (map == null || (map.colors == null && map.chunkColors == null)) {
             return;
         }
         int viewW = getWidth();
