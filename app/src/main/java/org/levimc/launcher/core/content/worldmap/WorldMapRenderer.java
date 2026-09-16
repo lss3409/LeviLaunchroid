@@ -1969,6 +1969,7 @@ public class WorldMapRenderer {
     }
 
     /** 大世界流式结构解析：方块实体/HSA/村庄等非 subchunk 结构 key。 */
+    private static final java.util.List<String> strKeyDiag = new java.util.ArrayList<>();
     public static List<StructureMarker> parseStructureMarkersStreaming(File dbDir, int dimension) {
         try {
             LevelDBReader reader = new LevelDBReader(dbDir);
@@ -1997,12 +1998,25 @@ public class WorldMapRenderer {
                     }
                     if (printable) {
                         String s = new String(k, java.nio.charset.StandardCharsets.US_ASCII);
+                        // 诊断：收集全部长字符串 key，统计结构类 key 前缀
+                        if (!s.startsWith("VILLAGE_") && !s.startsWith("player")
+                                && !s.startsWith("~")) {
+                            if (strKeyDiag.size() < 30) {
+                                strKeyDiag.add(s.length() > 60 ? s.substring(0, 60) : s);
+                            }
+                            // 沙漠神殿/前哨站等结构 key 一并收下（按值解析，非结构数据
+                            // 在 parseStructureMarkers 里不会产生标记）
+                            return !s.startsWith("level.dat") && !s.contains("_saved");
+                        }
                         return s.startsWith("VILLAGE_");
                     }
                 }
                 return false;
             });
             reader.close();
+            if (!strKeyDiag.isEmpty()) {
+                Log.i(TAG, "结构 key 诊断: " + strKeyDiag);
+            }
             return parseStructureMarkers(entries, dimension);
         } catch (Exception e) {
             Log.w(TAG, "流式结构解析失败", e);
