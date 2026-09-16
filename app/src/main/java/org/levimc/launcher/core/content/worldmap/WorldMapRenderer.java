@@ -1275,12 +1275,16 @@ public class WorldMapRenderer {
         try {
             LevelDBReader reader = new LevelDBReader(dbDir);
             // 1) 第一遍：只读 subchunk key 统计最高 sub（窗口围绕实际 maxSub，
-            //    高度图是生成器预测值不可靠）
+            //    高度图是生成器预测值不可靠）；同时统计 chunk 范围
             Map<Long, Integer> maxSubByChunk = new HashMap<>();
             List<byte[]> subKeys = reader.readKeys(k -> {
                 int[] ck = parseChunkKey(k);
                 return ck != null && ck[3] >= 0 && ck[2] == dimension && isSubchunkKey(k);
             });
+            int minCx = Integer.MAX_VALUE;
+            int maxCx = Integer.MIN_VALUE;
+            int minCz = Integer.MAX_VALUE;
+            int maxCz = Integer.MIN_VALUE;
             for (byte[] k : subKeys) {
                 int[] ck = parseChunkKey(k);
                 if (ck == null) {
@@ -1288,18 +1292,36 @@ public class WorldMapRenderer {
                 }
                 long key = pack(ck[0], ck[1]);
                 maxSubByChunk.merge(key, ck[3], Math::max);
+                minCx = Math.min(minCx, ck[0]);
+                maxCx = Math.max(maxCx, ck[0]);
+                minCz = Math.min(minCz, ck[1]);
+                maxCz = Math.max(maxCz, ck[1]);
             }
             Log.i(TAG, "流式第一遍: subchunk key 数=" + subKeys.size()
                     + ", 有 sub 数据的 chunk 数=" + maxSubByChunk.size());
             subKeys = null; // 释放
-            // 2) 第二遍：高度图 + biome（0x2b/0x2c value）
+            // 大世界降采样：chunk 跨度 > 500×500 时用 4×4 代表 chunk 采样
+            // （BTR 是 chunk 瓦片式按需渲染，从不构造整世界数组；我们保留整图
+            // 架构，用代表采样把 1GB 级地图数组压到 ~65MB。实测 155MB 世界
+            // 928×1089 chunk、236,808 subchunk——全量渲染必 OOM）
+            long spanX = (long) maxCx - minCx + 1;
+            long spanZ = (long) maxCz - minCz + 1;
+            int step = spanX * spanZ > 250000L ? 4 : 1;
+            if (step > 1) {
+                Log.i(TAG, "大世界降采样 4×4: chunk 范围=" + spanX + "x" + spanZ);
+            }
+            // 2) 第二遍：高度图 + biome（0x2b/0x2c value）——降采样时只取代表 chunk
             List<LevelDBEntry> heightEntries = reader.readEntries(k -> {
                 int[] ck = parseChunkKey(k);
                 if (ck == null || ck[2] != dimension) {
                     return false;
                 }
                 int type = k[k.length - (k.length == 9 || k.length == 10 ? 1 : 2)] & 0xFF;
-                return type == KEY_TYPE_DATA_3D || type == 0x2C || type == KEY_TYPE_DATA_2D;
+                if (type != KEY_TYPE_DATA_3D && type != 0x2C && type != KEY_TYPE_DATA_2D) {
+                    return false;
+                }
+                return step == 1 || (Math.floorMod(ck[0], step) == 0
+                        && Math.floorMod(ck[1], step) == 0);
             });
             for (LevelDBEntry entry : heightEntries) {
                 byte[] rawKey = entry.getKey().getRawKey();
@@ -1362,6 +1384,10 @@ public class WorldMapRenderer {
                 int[] ck = parseChunkKey(k);
                 if (ck == null || ck[3] < 0 || ck[2] != dimension || !isSubchunkKey(k)) {
                     return false;
+                }
+                if (step > 1 && (Math.floorMod(ck[0], step) != 0
+                        || Math.floorMod(ck[1], step) != 0)) {
+                    return false; // 降采样：只解码代表 chunk
                 }
                 if (dimension != DIM_NETHER) {
                     Integer maxSub = maxSubByChunk.get(pack(ck[0], ck[1]));
