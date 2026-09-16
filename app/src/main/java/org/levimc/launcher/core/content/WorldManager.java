@@ -98,9 +98,14 @@ public class WorldManager {
         File[] worldDirs = dir.listFiles(File::isDirectory);
         if (worldDirs != null) {
             for (File worldDir : worldDirs) {
-                WorldItem world = new WorldItem(worldDir.getName(), worldDir);
-                if (world.isValid()) {
-                    worlds.add(world);
+                try {
+                    WorldItem world = new WorldItem(worldDir.getName(), worldDir);
+                    if (world.isValid()) {
+                        worlds.add(world);
+                    }
+                } catch (Throwable e) {
+                    // 单个世界读取失败（损坏 db/OOM 等）不能中断整个内容管理
+                    Log.w(TAG, "Failed to scan world " + worldDir.getName(), e);
                 }
             }
         }

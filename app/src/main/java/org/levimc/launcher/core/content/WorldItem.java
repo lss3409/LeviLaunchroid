@@ -87,7 +87,9 @@ public class WorldItem extends ContentItem {
         if (!dbDir.isDirectory()) return;
         try {
             LevelDBReader dbReader = new LevelDBReader(dbDir);
-            List<LevelDBEntry> entries = dbReader.readAllEntries();
+            // 只读玩家相关 key（过滤读取）——大世界全量 readAllEntries 会 OOM
+            // （实测导入 155MB 世界后内容管理崩溃）
+            List<LevelDBEntry> entries = dbReader.readEntries(WorldItem::isPlayerKey);
             for (LevelDBEntry entry : entries) {
                 String name = entry.getKey().getDisplayName();
                 byte[] rawKey = entry.getKey().getRawKey();
@@ -132,9 +134,51 @@ public class WorldItem extends ContentItem {
                 }
             }
             dbReader.close();
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            // 捕获 Throwable：OOM 等 Error 不能让整个世界扫描崩溃
             Log.w(TAG, "Failed to read player state for " + file.getName(), e);
         }
+    }
+
+    /** 玩家数据 key 判定（~local_player / player* 字符串 / 9-10B 非 chunk 二进制 key）。 */
+    private static boolean isPlayerKey(byte[] rawKey) {
+        if (rawKey == null || rawKey.length < 8) {
+            return false;
+        }
+        // "~local_player"（恰好 13 字节）
+        if (rawKey.length == 13 && rawKey[0] == '~') {
+            boolean match = true;
+            byte[] expected = "~local_player".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+            for (int i = 0; i < 13; i++) {
+                if (rawKey[i] != expected[i]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                return true;
+            }
+        }
+        // 可打印 ASCII 字符串 key：player 前缀
+        if (rawKey.length > 8) {
+            boolean printable = true;
+            for (byte b : rawKey) {
+                if (b < 32 || b > 126) {
+                    printable = false;
+                    break;
+                }
+            }
+            if (printable) {
+                String s = new String(rawKey, java.nio.charset.StandardCharsets.US_ASCII);
+                return s.startsWith("player");
+            }
+        }
+        // 9/10B 二进制 key：chunk 数据类（0x2B~0x30）之外的视为玩家/实体数据
+        if (rawKey.length == 9 || rawKey.length == 10) {
+            int type = rawKey[8] & 0xFF;
+            return type < 0x2B || type > 0x30;
+        }
+        return false;
     }
 
     public boolean isHardcore() {

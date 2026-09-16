@@ -29,11 +29,48 @@ public class LevelDBReader {
     private final File dbPath;
     private final Map<ByteArrayWrapper, byte[]> allData = new HashMap<>();
 
+    /** key 过滤：readEntries 只保留 accept 的条目（其余立即丢弃，大世界不炸内存）。 */
+    public interface EntryFilter {
+        boolean accept(byte[] key);
+    }
+
+    private EntryFilter filter;
+
     public LevelDBReader(File dbPath) {
         this.dbPath = dbPath;
     }
 
     public List<LevelDBEntry> readAllEntries() throws IOException {
+        return readEntries(null);
+    }
+
+    /**
+     * 按 key 过滤读取：只有 accept 的条目进入内存。
+     * 155MB 大世界全量 readAllEntries 会 OOM（实测导入大世界后内容管理崩溃），
+     * 玩家状态等场景只需少量 key。
+     */
+    public List<LevelDBEntry> readEntries(EntryFilter keyFilter) throws IOException {
+        this.filter = keyFilter;
+        try {
+            return readAllEntriesInternal();
+        } finally {
+            this.filter = null;
+        }
+    }
+
+    /** 过滤存储：filter 不匹配的条目立即丢弃（大世界只读少量 key 不炸内存）。 */
+    private void storeEntry(byte[] key, byte[] value, boolean overwrite) {
+        if (filter != null && !filter.accept(key)) {
+            return;
+        }
+        if (overwrite) {
+            allData.put(new ByteArrayWrapper(key), value);
+        } else {
+            allData.putIfAbsent(new ByteArrayWrapper(key), value);
+        }
+    }
+
+    private List<LevelDBEntry> readAllEntriesInternal() throws IOException {
         File[] sstFiles = dbPath.listFiles((dir, name) ->
             name.endsWith(".ldb") || name.endsWith(".sst"));
 
@@ -173,14 +210,14 @@ public class LevelDBReader {
                         byte[] value = Arrays.copyOfRange(data, pos, pos + valLen);
                         pos += valLen;
 
-                        allData.put(new ByteArrayWrapper(key), value);
+                        storeEntry(key, value, true);
                         logStructureIfFound(key, value, "log");
                     } else {
                         scanOpsInBatch(data);
                         return;
                     }
                 } else if (recordType == 0) {
-                    allData.put(new ByteArrayWrapper(key), null);
+                    storeEntry(key, null, true);
                 } else {
                     // 非法 op 类型：回退逐字节扫描
                     scanOpsInBatch(data);
@@ -236,7 +273,7 @@ public class LevelDBReader {
                     pos++;
                     continue;
                 }
-                allData.put(new ByteArrayWrapper(key), value);
+                storeEntry(key, value, true);
                 logStructureIfFound(key, value, "log-scan");
             }
             pos = valEnd;
@@ -423,7 +460,7 @@ public class LevelDBReader {
                         int valueLen = estimateNbtLength(data, valueStart);
                         if (valueLen > 0 && valueStart + valueLen <= data.length) {
                             byte[] value = Arrays.copyOfRange(data, valueStart, valueStart + valueLen);
-                            allData.put(new ByteArrayWrapper(key), value);
+                            storeEntry(key, value, true);
                             Log.d(TAG, "Found structure in raw scan: " + keyStr + " size: " + valueLen);
                             found++;
                             i = valueStart + valueLen - 1;
@@ -780,10 +817,10 @@ public class LevelDBReader {
                 if (userKey.length > 0) {
                     if (isValue) {
                         // data block 内同 key 版本按 seq 降序（新在前），putIfAbsent 保留最新版本
-                        allData.putIfAbsent(new ByteArrayWrapper(userKey), value);
+                        storeEntry(userKey, value, false);
                         logStructureIfFound(userKey, value, "SST");
                     } else {
-                        allData.putIfAbsent(new ByteArrayWrapper(userKey), null);
+                        storeEntry(userKey, null, false);
                     }
                 }
             }
