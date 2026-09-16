@@ -109,10 +109,16 @@ public class WorldMapRenderer {
                 if (entry.has("id") && entry.has("rgb")) {
                     int id = entry.getInt("id");
                     int[] rgb = readRgb3(entry.optJSONArray("rgb"));
-                    int[] grass = entry.has("grass") ? readRgb3(entry.optJSONArray("grass")) : rgb;
-                    int[] leaves = entry.has("leaves") ? readRgb3(entry.optJSONArray("leaves")) : rgb;
+                    // bedrock-level color.cpp 语义：biome_grass_map 只存有 grass 键的条目，
+                    // 找不到时 blend_with_biome 用 default_grass_color。不能回退 rgb——
+                    // river rgb=[0,0,255] 纯蓝、cherry_groves 粉、deep_dark 深黑，
+                    // 回退 rgb 会把河岸草方块染成深蓝（实测 -1942,1069）
+                    int[] grass = entry.has("grass") ? readRgb3(entry.optJSONArray("grass"))
+                            : DEFAULT_GRASS_TINT;
+                    int[] leaves = entry.has("leaves") ? readRgb3(entry.optJSONArray("leaves"))
+                            : DEFAULT_LEAVES_TINT;
                     int[] water = entry.has("water") ? readRgb3(entry.optJSONArray("water"))
-                            : new int[]{63, 118, 228};
+                            : DEFAULT_WATER_TINT;
                     biomeTintTable.put(id, new int[]{
                             rgb[0], rgb[1], rgb[2],
                             grass[0], grass[1], grass[2],
