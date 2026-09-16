@@ -449,8 +449,9 @@ public class WorldMapView extends View {
                         cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, 1);
                         continue;
                     }
-                    int cz = Math.floorDiv(by, 16);
-                    int lz = by - cz * 16;
+                    int wbz = map.minBlockZ + by;
+                    int cz = Math.floorDiv(wbz, 16);
+                    int lz = wbz - cz * 16;
                     int zRow = lz << 4;
                     for (int sx = 0; sx < viewW; sx++) {
                         int bx = (int) ((sx - offsetX) * invPpb);
@@ -458,8 +459,9 @@ public class WorldMapView extends View {
                             pixelsBuf[sx] = 0;
                             continue;
                         }
-                        int cx = Math.floorDiv(bx, 16);
-                        int lx = bx - cx * 16;
+                        int wbx = map.minBlockX + bx;
+                        int cx = Math.floorDiv(wbx, 16);
+                        int lx = wbx - cx * 16;
                         int[] cc = map.chunkColors.get(packChunk(cx, cz));
                         if (cc == null) {
                             pixelsBuf[sx] = 0;

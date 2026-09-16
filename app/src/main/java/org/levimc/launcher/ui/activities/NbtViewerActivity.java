@@ -459,7 +459,13 @@ public class NbtViewerActivity extends BaseActivity {
                 if (dbSize > 20 * 1024 * 1024) {
                     // 大世界（155MB 级）：流式渲染，全量 readAllEntries 会 OOM
                     Log.i(TAG, "大世界流式渲染 dbSize=" + dbSize);
-                    worldMap = WorldMapRenderer.buildSatelliteMapStreaming(dbDir, dimId);
+                    worldMap = WorldMapRenderer.loadChunkCache(dbDir, dimId);
+                    if (worldMap == null) {
+                        worldMap = WorldMapRenderer.buildSatelliteMapStreaming(dbDir, dimId);
+                        if (worldMap != null) {
+                            WorldMapRenderer.saveChunkCache(worldMap, dbDir, dimId);
+                        }
+                    }
                     entities = WorldMapRenderer.parseEntitiesStreaming(dbDir, dimId);
                     structures = WorldMapRenderer.parseStructureMarkersStreaming(dbDir, dimId);
                     if (structures == null) {
@@ -755,7 +761,13 @@ public class NbtViewerActivity extends BaseActivity {
                 // 大世界（155MB 级）：流式渲染，全量 readAllEntries 会 OOM
                 largeWorld = true;
                 Log.i(TAG, "大世界流式渲染 dbSize=" + dbSizeBytes(dbDir));
-                worldMap = WorldMapRenderer.buildSatelliteMapStreaming(dbDir, 0);
+                worldMap = WorldMapRenderer.loadChunkCache(dbDir, 0);
+                if (worldMap == null) {
+                    worldMap = WorldMapRenderer.buildSatelliteMapStreaming(dbDir, 0);
+                    if (worldMap != null) {
+                        WorldMapRenderer.saveChunkCache(worldMap, dbDir, 0);
+                    }
+                }
                 entities = WorldMapRenderer.parseEntitiesStreaming(dbDir, 0);
                 structures = WorldMapRenderer.parseStructureMarkersStreaming(dbDir, 0);
                 if (structures == null) {

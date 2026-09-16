@@ -974,8 +974,7 @@ public class WorldMapRenderer {
         public int[] nearestGeneratedBlock(int worldX, int worldZ) {
             int cx = worldX - minBlockX;
             int cz = worldZ - minBlockZ;
-            if (cx >= 0 && cx < width && cz >= 0 && cz < height
-                    && (colors[cz * width + cx] & 0xFF000000) != 0) {
+            if (isBlockVisible(cx, cz)) {
                 return new int[]{worldX, worldZ};
             }
             int maxR = Math.max(width, height);
@@ -987,14 +986,34 @@ public class WorldMapRenderer {
                         }
                         int nx = cx + dx;
                         int nz = cz + dz;
-                        if (nx >= 0 && nx < width && nz >= 0 && nz < height
-                                && (colors[nz * width + nx] & 0xFF000000) != 0) {
+                        if (isBlockVisible(nx, nz)) {
                             return new int[]{minBlockX + nx, minBlockZ + nz};
                         }
                     }
                 }
             }
             return new int[]{minBlockX + width / 2, minBlockZ + height / 2};
+        }
+
+        /** 块可见性判定（兼容整图数组与 chunk 缓存两种路径）。 */
+        private boolean isBlockVisible(int bx, int bz) {
+            if (bx < 0 || bx >= width || bz < 0 || bz >= height) {
+                return false;
+            }
+            if (colors != null) {
+                return (colors[bz * width + bx] & 0xFF000000) != 0;
+            }
+            if (chunkColors != null) {
+                int[] cc = chunkColors.get(pack(Math.floorDiv(minBlockX + bx, 16),
+                        Math.floorDiv(minBlockZ + bz, 16)));
+                if (cc == null) {
+                    return false;
+                }
+                int lx = Math.floorMod(minBlockX + bx, 16);
+                int lz = Math.floorMod(minBlockZ + bz, 16);
+                return (cc[(lz << 4) | lx] & 0xFF000000) != 0;
+            }
+            return false;
         }
     }
 
@@ -1331,7 +1350,9 @@ public class WorldMapRenderer {
             //    立即释放——内存 O(单 chunk)，整图色缓存仅 chunk 数×1KB
             //    （155MB 世界 2.5 万 chunk ≈ 25MB，整图数组需 1GB）
             final Map<Long, Integer> maxSubRef = maxSubByChunk;
+            final int[] filterDiag = new int[6]; // [总key, 高度图, subchunk通过, subchunk窗口拒, sub<0拒, parseNull]
             List<LevelDBEntry> heightEntries = reader.readEntries(k -> {
+                filterDiag[0]++;
                 int[] ck = parseChunkKey(k);
                 if (ck == null || ck[2] != dimension) {
                     return false;
@@ -1339,20 +1360,30 @@ public class WorldMapRenderer {
                 // 类型字节：9/10B 在 k[8]（10B 的 k[9] 是 sub 字节！），13/14B 在 k[12]
                 int type = k[k.length == 13 || k.length == 14 ? 12 : 8] & 0xFF;
                 if (type == KEY_TYPE_DATA_3D || type == 0x2C || type == KEY_TYPE_DATA_2D) {
+                    filterDiag[1]++;
                     return true; // 高度图
                 }
-                if (type == KEY_TYPE_LEGACY_MIXED && ck[3] >= 0) {
+                if (type == KEY_TYPE_LEGACY_MIXED) {
+                    if (ck[3] < 0) {
+                        filterDiag[4]++;
+                        return false;
+                    }
                     // 窗口内 subchunk（maxSub±2）；下界全量
                     if (dimension != DIM_NETHER) {
                         Integer maxSub = maxSubRef.get(pack(ck[0], ck[1]));
                         if (maxSub == null || ck[3] < maxSub - 2 || ck[3] > maxSub + 2) {
+                            filterDiag[3]++;
                             return false;
                         }
                     }
+                    filterDiag[2]++;
                     return true;
                 }
                 return false;
             });
+            Log.i(TAG, "流式 filter 诊断: 总key=" + filterDiag[0] + " 高度图=" + filterDiag[1]
+                    + " subchunk通过=" + filterDiag[2] + " 窗口拒=" + filterDiag[3]
+                    + " 负sub拒=" + filterDiag[4]);
             // 逐 chunk 收集 → 渲染 → 释放（sst 内同 chunk key 相邻有序）
             int curCx = Integer.MIN_VALUE;
             int curCz = Integer.MIN_VALUE;
@@ -1529,6 +1560,123 @@ public class WorldMapRenderer {
         finalMaxCx[0] = Math.max(finalMaxCx[0], cx);
         finalMinCz[0] = Math.min(finalMinCz[0], cz);
         finalMaxCz[0] = Math.max(finalMaxCz[0], cz);
+    }
+
+    // ---------------------------------------------------------------- chunk 缓存磁盘持久化
+
+    private static final int MAP_CACHE_MAGIC = 0x4D435632; // "MCv2"
+    private static final int MAP_CACHE_VERSION = 2;
+
+    /** 缓存文件：db 目录旁 map_cache_<dim>.bin（随世界走，卸载备份都在）。 */
+    private static File chunkCacheFile(File dbDir, int dimension) {
+        return new File(dbDir.getParentFile(), "map_cache_" + dimension + ".bin");
+    }
+
+    /** db 指纹：文件总大小 + 最新修改时间（变了就失效重渲染）。 */
+    private static long[] dbFingerprint(File dbDir) {
+        long total = 0;
+        long latest = 0;
+        File[] files = dbDir.listFiles();
+        if (files != null) {
+            for (File f : files) {
+                if (f.isFile()) {
+                    total += f.length();
+                    latest = Math.max(latest, f.lastModified());
+                }
+            }
+        }
+        return new long[]{total, latest};
+    }
+
+    /**
+     * 保存 chunk 色缓存到磁盘（BTR 式"打开不重渲染"：下次进入直接读缓存秒开）。
+     * 格式：magic/version/chunkCount/minCx/minCz/maxCx/maxCz/dbSize/dbMtime
+     * + 每 chunk(cx,cz,256×ARGB)。155MB 世界缓存文件 ≈ 25MB，写入 <1s。
+     */
+    public static boolean saveChunkCache(WorldMap map, File dbDir, int dimension) {
+        if (map == null || map.chunkColors == null || map.chunkColors.isEmpty()) {
+            return false;
+        }
+        File out = chunkCacheFile(dbDir, dimension);
+        try (java.io.DataOutputStream dos = new java.io.DataOutputStream(
+                new java.io.BufferedOutputStream(new java.io.FileOutputStream(out)))) {
+            long[] fp = dbFingerprint(dbDir);
+            int minCx = map.minBlockX / 16;
+            int minCz = map.minBlockZ / 16;
+            int maxCx = minCx + map.width / 16 - 1;
+            int maxCz = minCz + map.height / 16 - 1;
+            dos.writeInt(MAP_CACHE_MAGIC);
+            dos.writeInt(MAP_CACHE_VERSION);
+            dos.writeInt(map.chunkColors.size());
+            dos.writeInt(minCx);
+            dos.writeInt(minCz);
+            dos.writeInt(maxCx);
+            dos.writeInt(maxCz);
+            dos.writeLong(fp[0]);
+            dos.writeLong(fp[1]);
+            for (Map.Entry<Long, int[]> e : map.chunkColors.entrySet()) {
+                dos.writeInt(unpackX(e.getKey()));
+                dos.writeInt(unpackZ(e.getKey()));
+                int[] cc = e.getValue();
+                for (int i = 0; i < 256; i++) {
+                    dos.writeInt(cc[i]);
+                }
+            }
+            Log.i(TAG, "chunk 缓存已保存: " + out.getName() + " "
+                    + (out.length() / 1024 / 1024) + "MB");
+            return true;
+        } catch (Exception e) {
+            Log.w(TAG, "chunk 缓存保存失败", e);
+            return false;
+        }
+    }
+
+    /** 加载磁盘 chunk 缓存；db 指纹不匹配（世界改过）返回 null 走全量渲染。 */
+    public static WorldMap loadChunkCache(File dbDir, int dimension) {
+        File in = chunkCacheFile(dbDir, dimension);
+        if (!in.isFile()) {
+            return null;
+        }
+        try (java.io.DataInputStream dis = new java.io.DataInputStream(
+                new java.io.BufferedInputStream(new java.io.FileInputStream(in)))) {
+            if (dis.readInt() != MAP_CACHE_MAGIC || dis.readInt() != MAP_CACHE_VERSION) {
+                return null;
+            }
+            int count = dis.readInt();
+            if (count < 1 || count > 10_000_000) {
+                return null;
+            }
+            int minCx = dis.readInt();
+            int minCz = dis.readInt();
+            int maxCx = dis.readInt();
+            int maxCz = dis.readInt();
+            long dbSize = dis.readLong();
+            long dbMtime = dis.readLong();
+            long[] fp = dbFingerprint(dbDir);
+            if (fp[0] != dbSize || fp[1] != dbMtime) {
+                Log.i(TAG, "chunk 缓存失效（db 已变化），重新渲染");
+                return null;
+            }
+            Map<Long, int[]> chunkColors = new HashMap<>(count * 2);
+            for (int i = 0; i < count; i++) {
+                int cx = dis.readInt();
+                int cz = dis.readInt();
+                int[] cc = new int[256];
+                for (int j = 0; j < 256; j++) {
+                    cc[j] = dis.readInt();
+                }
+                chunkColors.put(pack(cx, cz), cc);
+            }
+            WorldMap map = new WorldMap(minCx * 16, minCz * 16,
+                    (maxCx - minCx + 1) * 16, (maxCz - minCz + 1) * 16, null, null);
+            map.chunkColors = chunkColors;
+            map.blockScale = 1;
+            Log.i(TAG, "chunk 缓存已加载: " + count + " chunk");
+            return map;
+        } catch (Exception e) {
+            Log.w(TAG, "chunk 缓存加载失败", e);
+            return null;
+        }
     }
 
     /** 大世界流式实体解析：只读实体/玩家相关 key。 */
