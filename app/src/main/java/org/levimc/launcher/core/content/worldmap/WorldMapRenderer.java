@@ -1844,21 +1844,44 @@ public class WorldMapRenderer {
             if (hmap == null) {
                 return null; // 无高度数据（未生成 chunk）
             }
-            // 窗口裁剪：只保留 maxSub±2（下界全留）
+            // 窗口裁剪（下界全留）：以高度图推算的地表层为中心，向下 2 层
+            // （河床/海底）到实际最高 sub（树冠/建筑）。之前用「实际最高 sub ±2」
+            // ——树/建筑让 maxSub 偏离地表，地表层被裁掉，海洋/平原 chunk
+            // 回退 biome 色显示成大片水蓝（"y 轴高度错乱"根因）
             if (dimension != DIM_NETHER && !subs.isEmpty()) {
+                int maxH = 0;
+                for (int h : hmap) {
+                    if (h > maxH) {
+                        maxH = h;
+                    }
+                }
+                int surfaceSub = Math.floorDiv(maxH - 1, 16);
                 int maxSub = Integer.MIN_VALUE;
                 for (int s : subs.keySet()) {
                     maxSub = Math.max(maxSub, s);
                 }
-                final int fMaxSub = maxSub;
-                subs.keySet().removeIf(s -> s < fMaxSub - 2 || s > fMaxSub + 2);
+                final int fMin = surfaceSub - 2;
+                final int fMax = Math.max(surfaceSub + 2, maxSub);
+                subs.keySet().removeIf(s -> s < fMin || s > fMax);
             }
             int[] colors = new int[256];
+            java.util.HashSet<Integer> distinct = new java.util.HashSet<>();
+            int opaque = 0;
             for (int i = 0; i < 256; i++) {
                 int lx = i & 15;
                 int lz = i >> 4;
                 colors[i] = surfaceColor(hmap[i], lx, lz, subs, biomes, dimension);
+                if ((colors[i] & 0xFF000000) != 0) {
+                    opaque++;
+                    distinct.add(colors[i]);
+                }
             }
+            Log.i(TAG, "按需渲染 chunk(" + cx + "," + cz + "): 条目=" + entries.size()
+                    + " hmap=" + hmap.length + " subs=" + subs.keySet()
+                    + " biomes=" + (biomes != null) + " 非透明=" + opaque
+                    + " 颜色数=" + distinct.size() + " 样例="
+                    + distinct.stream().limit(5).map(v -> String.format("#%06X", v & 0xFFFFFF))
+                            .reduce((x, y) -> x + "," + y).orElse("-"));
             return colors;
         } catch (Exception e) {
             Log.w(TAG, "按需渲染 chunk(" + cx + "," + cz + ") 失败", e);
