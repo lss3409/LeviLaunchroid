@@ -417,7 +417,9 @@ public class WorldMapView extends View {
         } else if (cachedBmp == null || cachedW != viewW || cachedH != viewH
                 || ppbChanged || farMoved) {
             // 全量重采样：按行填充（单行缓冲 15KB，避免整屏 int[] 占用数十 MB）。
-            // 缓存位图用 RGB_565（地图颜色精度足够，内存减半）。
+            // 缓存位图必须 ARGB_8888：RGB_565 无 alpha 通道，未生成区域的透明色
+            // (COLOR_BACKGROUND=0) 写入后被存成纯黑，地图上出现成片黑块
+            // （tju 大范围稀疏世界未生成 chunk 多，问题尤为明显）。
             // 生物群系图层 = 整图替换为 biome 色（biome 缺失处回退卫星色，不再叠加染村庄）
             int[] biomeSrc = showBiomeLayer ? map.biomeColors : null;
             if (pixelsBuf == null || pixelsBuf.length != viewW) {
@@ -427,7 +429,7 @@ public class WorldMapView extends View {
                 if (cachedBmp != null) {
                     cachedBmp.recycle();
                 }
-                cachedBmp = Bitmap.createBitmap(viewW, viewH, Bitmap.Config.RGB_565);
+                cachedBmp = Bitmap.createBitmap(viewW, viewH, Bitmap.Config.ARGB_8888);
                 cachedW = viewW;
                 cachedH = viewH;
             }

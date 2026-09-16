@@ -1715,6 +1715,13 @@ public class WorldMapRenderer {
      * 新方块也能乘上色调（MC 着色器机制）；查不到色调时用 bedrock-level 默认色。
      */
     private static int tintColor(String name, int color, int biomeId) {
+        // 固定色方块排除：草径（dirt_path 别名）色表里是"土黄成品色"模板
+        // （148,121,65），不是灰色模板——乘 grass 色调会变深绿（原版 MC 草径
+        // 顶部也不受群系色调影响）。bedrockmap 子串匹配会命中它，这里按原版
+        // 观感排除，保持土黄色。
+        if (name.equals("minecraft:grass_path") || name.equals("minecraft:dirt_path")) {
+            return color;
+        }
         int[] tint = biomeTintTable.get(biomeId);
         if (name.contains("water")) {
             return tint != null ? multiplyTint(color, tint, 9)

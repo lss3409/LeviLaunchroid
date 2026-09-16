@@ -482,6 +482,7 @@ public class NbtViewerActivity extends BaseActivity {
                 if (isFinishing() || isDestroyed() || !isCurrentLoad(gen)) return;
                 binding.nbtLoading.setVisibility(View.GONE);
                 if (fMap != null) {
+                    WorldMapRenderer.debugExport(fMap); // 调试导出 map_debug.png
                     binding.worldMapImage.setWorldMap(fMap, fKeepView);
                     binding.worldMapImage.setEntityData(fEntities);
                     binding.worldMapImage.setStructureMarkers(fStructures);
