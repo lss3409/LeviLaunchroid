@@ -12,6 +12,7 @@ import org.levimc.launcher.core.content.nbt.BedrockNbtReader;
 import org.levimc.launcher.core.content.nbt.NbtTag;
 
 import java.io.File;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
