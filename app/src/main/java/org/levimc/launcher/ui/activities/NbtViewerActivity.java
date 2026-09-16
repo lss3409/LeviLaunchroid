@@ -662,59 +662,8 @@ public class NbtViewerActivity extends BaseActivity {
         }
         prerenderThread = new Thread(() -> {
             try {
-                // 流式回调：每 20 chunk 增量合并进当前视图并通知 UI——
-                // 此前整轮渲染完成才一次性合并，"过一会刷的一下全出来"。
-                // UI 通知节流 200ms（大世界 2.5 万 chunk = 1242 批回调，
-                // 每批一条 UI 消息会刷爆主线程——v293 per-chunk 消息风暴
-                // ANR 同款教训；攒批合并，节拍内只发一次）
-                final boolean merge = !binding.worldMapImage.isMemoryOptimized();
-                final java.util.concurrent.atomic.AtomicLong lastUiNotify =
-                        new java.util.concurrent.atomic.AtomicLong(0);
-                final java.util.Set<Long> pendingUiKeys = new java.util.HashSet<>();
                 WorldMapRenderer.WorldMap full =
-                        WorldMapRenderer.buildSatelliteMapStreaming(dbDir, dim,
-                                (colors, biomes, newKeys) -> {
-                                    if (renderGen.get() != myGen
-                                            || Thread.currentThread().isInterrupted()) {
-                                        return;
-                                    }
-                                    if (!merge) {
-                                        // 内存优化开启：预渲染只落盘不驻留内存
-                                        // （合并进 fMap 会与离屏卸载互相打架）
-                                        return;
-                                    }
-                                    java.util.Set<Long> keys = new java.util.HashSet<>();
-                                    for (Long k : newKeys) {
-                                        if (fMap.chunkColors.putIfAbsent(k, colors.get(k)) == null) {
-                                            keys.add(k);
-                                        }
-                                    }
-                                    if (fMap.chunkBiomeColors != null && biomes != null) {
-                                        for (Long k : newKeys) {
-                                            int[] bc = biomes.get(k);
-                                            if (bc != null) {
-                                                fMap.chunkBiomeColors.putIfAbsent(k, bc);
-                                            }
-                                        }
-                                    }
-                                    if (!keys.isEmpty()) {
-                                        long now = android.os.SystemClock.uptimeMillis();
-                                        if (now - lastUiNotify.get() < 200) {
-                                            pendingUiKeys.addAll(keys);
-                                            return;
-                                        }
-                                        lastUiNotify.set(now);
-                                        final java.util.Set<Long> notify =
-                                                new java.util.HashSet<>(pendingUiKeys);
-                                        notify.addAll(keys);
-                                        pendingUiKeys.clear();
-                                        runOnUiThread(() -> {
-                                            if (renderGen.get() == myGen) {
-                                                binding.worldMapImage.onChunksRendered(notify);
-                                            }
-                                        });
-                                    }
-                                });
+                        WorldMapRenderer.buildSatelliteMapStreaming(dbDir, dim);
                 if (full == null || renderGen.get() != myGen
                         || Thread.currentThread().isInterrupted()) {
                     return;
@@ -723,22 +672,19 @@ public class NbtViewerActivity extends BaseActivity {
                 if (renderGen.get() != myGen) {
                     return;
                 }
-                if (merge) {
-                    // 合并进当前视图：putIfAbsent——视口按需已渲染的 chunk 是
-                    // 地表窗口版（正确），流式版窗口可能不同（树冠层），
-                    // 覆盖会让结构附近颜色回退/异常
-                    for (java.util.Map.Entry<Long, int[]> e : full.chunkColors.entrySet()) {
-                        fMap.chunkColors.putIfAbsent(e.getKey(), e.getValue());
-                    }
-                    if (full.chunkBiomeColors != null && fMap.chunkBiomeColors != null) {
-                        for (java.util.Map.Entry<Long, int[]> e
-                                : full.chunkBiomeColors.entrySet()) {
-                            fMap.chunkBiomeColors.putIfAbsent(e.getKey(), e.getValue());
-                        }
+                // 合并进当前视图：putIfAbsent——视口按需已渲染的 chunk 是
+                // 地表窗口版（正确），流式版窗口可能不同（树冠层），
+                // 覆盖会让结构附近颜色回退/异常
+                for (java.util.Map.Entry<Long, int[]> e : full.chunkColors.entrySet()) {
+                    fMap.chunkColors.putIfAbsent(e.getKey(), e.getValue());
+                }
+                if (full.chunkBiomeColors != null && fMap.chunkBiomeColors != null) {
+                    for (java.util.Map.Entry<Long, int[]> e
+                            : full.chunkBiomeColors.entrySet()) {
+                        fMap.chunkBiomeColors.putIfAbsent(e.getKey(), e.getValue());
                     }
                 }
-                Log.i(TAG, "预渲染完成: " + full.chunkColors.size() + " chunk (dim=" + dim
-                        + ", merge=" + merge + ")");
+                Log.i(TAG, "预渲染完成: " + full.chunkColors.size() + " chunk (dim=" + dim + ")");
                 runOnUiThread(() -> {
                     if (renderGen.get() == myGen) {
                         binding.worldMapImage.onChunksRendered(

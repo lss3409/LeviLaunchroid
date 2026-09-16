@@ -120,8 +120,6 @@ public class WorldMapRenderer {
      *  草地/树叶贴图是灰度模板，渲染时乘群系色调（MC 着色器机制）。 */
     private static final Map<Integer, int[]> biomeTintTable = new HashMap<>();
     private static final Map<String, Integer> blockColorTable = new HashMap<>();
-    /** 半透明方块 alpha（仅 glass/ice 类，bedrockmap 色表语义）。 */
-    private static final Map<String, Integer> blockAlphaTable = new HashMap<>();
 
     private WorldMapRenderer() {
     }
@@ -181,19 +179,11 @@ public class WorldMapRenderer {
                     if (rgb.length() >= 3) {
                         int color = 0xFF000000 | (rgb.getInt(0) << 16) | (rgb.getInt(1) << 8) | rgb.getInt(2);
                         blockColorTable.put(name, color);
-                        // 半透明方块记录 alpha（bedrockmap 色表语义：玻璃 64 / 冰 190 /
-                        // 染色玻璃 ~117）。surfaceColor 遇到这些方块继续向下找固体再混合
-                        // ——大块不透明浅蓝玻璃顶"颜色异常"的修复
-                        int alpha = rgb.length() >= 4 ? rgb.optInt(3, 255) : 255;
-                        if (alpha < 255 && (name.contains("glass") || name.endsWith("ice"))) {
-                            blockAlphaTable.put(name, alpha);
-                        }
                     }
                 } catch (Exception ignored) {
                 }
             }
-            Log.i(TAG, "方块色表加载: " + blockColorTable.size() + " 项, 半透明: "
-                    + blockAlphaTable.size());
+            Log.i(TAG, "方块色表加载: " + blockColorTable.size() + " 项");
         } catch (Exception e) {
             Log.w(TAG, "方块色表加载失败，回退内置色表", e);
         }
@@ -1450,19 +1440,6 @@ public class WorldMapRenderer {
      * 3) readEntries：只解码窗口内 subchunk（maxSub±2）
      */
     public static WorldMap buildSatelliteMapStreaming(File dbDir, int dimension) {
-        return buildSatelliteMapStreaming(dbDir, dimension, null);
-    }
-
-    /** 流式渲染进度回调：每渲染 20 chunk 回调一次（预渲染渐进显示用——
-     *  此前整轮渲染完成才一次性合并，UI 上"过一会刷的一下全出来"）。 */
-    public interface StreamProgress {
-        void onChunksRendered(java.util.Map<Long, int[]> colors,
-                              java.util.Map<Long, int[]> biomes,
-                              java.util.List<Long> newKeys);
-    }
-
-    public static WorldMap buildSatelliteMapStreaming(File dbDir, int dimension,
-                                                      StreamProgress progress) {
         List<StructureMarker> detected = new ArrayList<>();
         Map<Long, Integer> monumentChunks = new HashMap<>();
         Map<Long, Integer> endCityChunks = new HashMap<>();
@@ -1559,7 +1536,6 @@ public class WorldMapRenderer {
             int[] curHmap = null;
             byte[] curBiomes = null;
             Map<Integer, SubChunk> curSubs = new HashMap<>();
-            java.util.List<Long> progressBatch = new java.util.ArrayList<>();
             for (LevelDBEntry entry : heightEntries) {
                 byte[] rawKey = entry.getKey().getRawKey();
                 int[] chunkKey = parseChunkKey(rawKey);
@@ -1574,14 +1550,6 @@ public class WorldMapRenderer {
                                 monumentChunks, endCityChunks,
                                 finalMinCx, finalMaxCx, finalMinCz, finalMaxCz);
                         decoded += curSubs.size();
-                        if (progress != null) {
-                            progressBatch.add(pack(curCx, curCz));
-                            if (progressBatch.size() >= 20) {
-                                progress.onChunksRendered(chunkColors, chunkBiomeColors,
-                                        new java.util.ArrayList<>(progressBatch));
-                                progressBatch.clear();
-                            }
-                        }
                     }
                     curCx = chunkKey[0];
                     curCz = chunkKey[1];
@@ -1635,14 +1603,6 @@ public class WorldMapRenderer {
                         monumentChunks, endCityChunks,
                         finalMinCx, finalMaxCx, finalMinCz, finalMaxCz);
                 decoded += curSubs.size();
-                if (progress != null) {
-                    progressBatch.add(pack(curCx, curCz));
-                }
-            }
-            if (progress != null && !progressBatch.isEmpty()) {
-                progress.onChunksRendered(chunkColors, chunkBiomeColors,
-                        new java.util.ArrayList<>(progressBatch));
-                progressBatch.clear();
             }
             Log.i(TAG, "流式第二遍: 渲染 chunk 数=" + renderedChunks.size()
                     + " 解码 subchunk=" + decoded);
@@ -1830,7 +1790,9 @@ public class WorldMapRenderer {
     // 玻璃穿透与 s>=6 裁剪渲染结果已错，必须失效）
     // v7：缓存挪到应用私有目录（旧缓存写世界目录，编辑几次膨胀 100+MB——
     // 内容管理显示体积变大的根因）+ 每 chunk 调色板索引压缩（无损 ~3x）
-    private static final int MAP_CACHE_VERSION = 7;
+    // v8：渲染回滚（玻璃半透明混合/活塞臂补色撤销）——v7 缓存内容是回滚前
+    // 渲染结果，必须失效重渲染
+    private static final int MAP_CACHE_VERSION = 8;
 
     /** 缓存根目录（应用私有，卸载即清——缓存可再生）。null 时回退旧路径。 */
     private static java.io.File sCacheBase;
@@ -3286,9 +3248,6 @@ public class WorldMapRenderer {
             // 解决"海洋显示干河床"（水面数据在 storage 1，只读 storage 0 会漏掉）
             int waterY = -1;
             int waterColor = 0;
-            int glassY = -1;
-            int glassColor = 0;
-            int glassAlpha = 255;
             for (int y = yStart; y >= -64; y--) {
                 int subIndex = Math.floorDiv(y, 16);
                 SubChunk sub = subs.get(subIndex);
@@ -3329,11 +3288,6 @@ public class WorldMapRenderer {
                 }
                 int color = tintColor(name, colorForBlock(name), biomeId);
                 if (isWaterName(name)) {
-                    if (glassY >= 0) {
-                        // 冰面下是水（冻洋）：冰色按 alpha 混在水色上
-                        return blendColors(glassColor, color,
-                                Math.min(glassAlpha / 255f, 0.9f));
-                    }
                     if (waterY < 0) {
                         waterY = y;
                         waterColor = color;
@@ -3345,30 +3299,10 @@ public class WorldMapRenderer {
                     float opacity = Math.min(0.15f * (waterY - y), 0.85f);
                     return blendColors(waterColor, color, opacity);
                 }
-                // 半透明方块（玻璃/冰，bedrockmap 色表 alpha<255）：不直接
-                // 返回——继续向下找固体，再按 alpha 混合。此前玻璃强制
-                // 不透明 0xFFC8D8E8，建筑玻璃顶渲染成大块浅蓝（"建筑附近
-                // 颜色异常"根因之一）；混合版 = 玻璃色薄纱透出屋内结构
-                Integer semiAlpha = blockAlphaTable.get(name);
-                if (semiAlpha != null) {
-                    if (glassY < 0) {
-                        glassY = y;
-                        glassColor = color;
-                        glassAlpha = semiAlpha;
-                    }
-                    continue;
-                }
-                if (glassY >= 0) {
-                    return blendColors(glassColor, color,
-                            Math.min(glassAlpha / 255f, 0.9f));
-                }
                 return color;
             }
             if (waterY >= 0) {
                 return waterColor; // 整列只有水（河床无数据）
-            }
-            if (glassY >= 0) {
-                return glassColor; // 玻璃下无固体（异常数据）：直接玻璃色
             }
         }
         // 无 subchunk 数据或找不到方块：
@@ -3568,10 +3502,6 @@ public class WorldMapRenderer {
         if (name.equals("minecraft:prismarine")) return 0xFF6E9A9A;
         if (name.equals("minecraft:sponge")) return 0xFFC8C83B;
         if (name.equals("minecraft:piston") || name.equals("minecraft:sticky_piston")) return 0xFF8C8C8C;
-        // 活塞臂碰撞体（隐形占位方块，色表无条目）——此前落 fallback 灰
-        // 0xFF7F7F7F，刷石机等活塞结构旁"大片灰色"根因（实测 hrd 734+190 处）
-        if (name.equals("minecraft:piston_arm_collision")
-                || name.equals("minecraft:sticky_piston_arm_collision")) return 0xFFA89070;
         if (name.equals("minecraft:observer")) return 0xFF6E6E6E;
         if (name.equals("minecraft:repeater")) return 0xFF8C8C8C;
         if (name.equals("minecraft:torch")) return 0xFFE8C83B;
