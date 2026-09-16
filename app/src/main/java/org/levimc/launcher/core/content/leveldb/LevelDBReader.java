@@ -1030,7 +1030,8 @@ public class LevelDBReader {
                 List<byte[]> blockKeys = new ArrayList<>();
                 List<BlockHandle> handles = new ArrayList<>();
                 parseIndexBlockWithKeys(indexBlock, blockKeys, handles);
-                ci = new CachedIndex(fileSize, file.lastModified(), blockKeys, handles);
+                ci = new CachedIndex(fileSize, file.lastModified(), indexOffset, indexSize,
+                        blockKeys, handles);
                 putCachedIndex(file, ci);
             }
             List<byte[]> blockKeys = ci.blockKeys;
@@ -1070,13 +1071,17 @@ public class LevelDBReader {
     private static class CachedIndex {
         final long fileSize;
         final long lastModified;
+        final long indexOffset;
+        final long indexSize;
         final List<byte[]> blockKeys;
         final List<BlockHandle> handles;
 
-        CachedIndex(long fileSize, long lastModified,
+        CachedIndex(long fileSize, long lastModified, long indexOffset, long indexSize,
                     List<byte[]> blockKeys, List<BlockHandle> handles) {
             this.fileSize = fileSize;
             this.lastModified = lastModified;
+            this.indexOffset = indexOffset;
+            this.indexSize = indexSize;
             this.blockKeys = blockKeys;
             this.handles = handles;
         }

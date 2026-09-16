@@ -80,7 +80,7 @@ public class NbtViewerActivity extends BaseActivity {
     private ActivityNbtViewerBinding binding;
     private ExecutorService executor;
     /** 视口按需渲染线程池（多 chunk 并行渲染；LevelDBReader 每次新建实例，线程安全）。 */
-    private final ExecutorService renderPool = Executors.newFixedThreadPool(3);
+    private final ExecutorService renderPool = Executors.newFixedThreadPool(4);
 
     /**
      * 启动后台任务：取消上一个未完成的加载再新建线程池。
@@ -232,15 +232,17 @@ public class NbtViewerActivity extends BaseActivity {
                     } catch (Throwable ignored) {
                     } finally {
                         inFlight.remove(key);
-                        // 每完成 8 个（或全部完成）重绘一次：渐进显示 + 防消息风暴
-                        if (remaining.decrementAndGet() % 8 == 0 || remaining.get() == 0) {
-                            runOnUiThread(() -> {
-                                if (isFinishing() || isDestroyed()) {
-                                    return;
-                                }
-                                binding.worldMapImage.onChunksRendered(new java.util.HashSet<>(keys));
-                            });
-                        }
+                        remaining.decrementAndGet();
+                        // 每完成一个 chunk 立即局部重绘（WorldMapView 局部重采样，
+                        // 主线程几十 ms），地图渐进出现
+                        runOnUiThread(() -> {
+                            if (isFinishing() || isDestroyed()) {
+                                return;
+                            }
+                            java.util.Set<Long> one = new java.util.HashSet<>(2);
+                            one.add(key);
+                            binding.worldMapImage.onChunksRendered(one);
+                        });
                     }
                 });
             }

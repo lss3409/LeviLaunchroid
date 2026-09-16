@@ -123,7 +123,40 @@ public class WorldMapView extends View {
     /** 外部按需渲染完成后调用：清除 pending 标记并重绘。 */
     public void onChunksRendered(java.util.Set<Long> chunkKeys) {
         pendingChunks.removeAll(chunkKeys);
-        invalidateFullRender();
+        if (chunkKeys.isEmpty() || map == null || map.chunkColors == null
+                || cachedBmp == null || pixelsBuf == null) {
+            invalidateFullRender();
+            return;
+        }
+        // 局部重绘：只重采样受影响 chunk 的屏幕区域（合并行区间一次完成）。
+        // 全量重采样在主线程要 300-500ms；局部只需几十 ms。
+        float cw = 16f * pixelsPerBlock;
+        int uy0 = Integer.MAX_VALUE;
+        int uy1 = Integer.MIN_VALUE;
+        int ux0 = Integer.MAX_VALUE;
+        int ux1 = Integer.MIN_VALUE;
+        for (Long key : chunkKeys) {
+            int cx = (int) (key >> 32);
+            int cz = (int) (long) key;
+            float left = offsetX + (cx * 16 - map.minBlockX) * pixelsPerBlock;
+            float top = offsetY + (cz * 16 - map.minBlockZ) * pixelsPerBlock;
+            int sx0 = Math.max(0, (int) Math.floor(left));
+            int sy0 = Math.max(0, (int) Math.floor(top));
+            int sx1 = Math.min(cachedW, (int) Math.ceil(left + cw));
+            int sy1 = Math.min(cachedH, (int) Math.ceil(top + cw));
+            if (sx1 <= sx0 || sy1 <= sy0) {
+                continue;
+            }
+            ux0 = Math.min(ux0, sx0);
+            ux1 = Math.max(ux1, sx1);
+            uy0 = Math.min(uy0, sy0);
+            uy1 = Math.max(uy1, sy1);
+        }
+        if (uy0 >= uy1) {
+            return;
+        }
+        resampleRegion(uy0, uy1);
+        invalidate(ux0, uy0, ux1, uy1);
     }
 
     /** 通知视图变化（供 HUD 更新），在缩放/平移/跳转后调用。 */
@@ -392,7 +425,11 @@ public class WorldMapView extends View {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        initialView();
+        // 只在尺寸真正变化时重排视角（悬浮层布局抖动会反复触发
+        // onSizeChanged → initialView → 全量重采样 → invalidate 死循环）
+        if (w != oldw || h != oldh) {
+            initialView();
+        }
     }
 
     // ---------------- 底层位图缓存（拖动时平移缓存位图，避免每帧全屏重采样） ----------------
@@ -442,13 +479,9 @@ public class WorldMapView extends View {
             canvas.restore();
         } else if (cachedBmp == null || cachedW != viewW || cachedH != viewH
                 || ppbChanged || farMoved) {
-            // 全量重采样：按行填充（单行缓冲 15KB，避免整屏 int[] 占用数十 MB）。
             // 缓存位图必须 ARGB_8888：RGB_565 无 alpha 通道，未生成区域的透明色
             // (COLOR_BACKGROUND=0) 写入后被存成纯黑，地图上出现成片黑块
             // （tju 大范围稀疏世界未生成 chunk 多，问题尤为明显）。
-            // 生物群系图层 = 整图替换为 biome 色（biome 缺失处回退卫星色，不再叠加染村庄）
-            int[] biomeSrc = showBiomeLayer ? map.biomeColors : null;
-            boolean showBiome = showBiomeLayer;
             if (pixelsBuf == null || pixelsBuf.length != viewW) {
                 pixelsBuf = new int[viewW];
             }
@@ -460,93 +493,9 @@ public class WorldMapView extends View {
                 cachedW = viewW;
                 cachedH = viewH;
             }
-            float invPpb = 1f / pixelsPerBlock;
-            // 大世界 chunk 缓存路径（BTR 同款）：逐像素查 chunk 16×16 色表
-            final java.util.Set<Long> missingChunks = map.chunkColors != null
-                    && chunksNeededListener != null ? new java.util.HashSet<>() : null;
-            if (map.chunkColors != null) {
-                for (int sy = 0; sy < viewH; sy++) {
-                    int by = (int) ((sy - offsetY) * invPpb);
-                    if (by < 0 || by >= map.height) {
-                        java.util.Arrays.fill(pixelsBuf, 0);
-                        cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, 1);
-                        continue;
-                    }
-                    int wbz = map.minBlockZ + by;
-                    int cz = Math.floorDiv(wbz, 16);
-                    int lz = wbz - cz * 16;
-                    int zRow = lz << 4;
-                    for (int sx = 0; sx < viewW; sx++) {
-                        int bx = (int) ((sx - offsetX) * invPpb);
-                        if (bx < 0 || bx >= map.width) {
-                            pixelsBuf[sx] = 0;
-                            continue;
-                        }
-                        int wbx = map.minBlockX + bx;
-                        int cx = Math.floorDiv(wbx, 16);
-                        int lx = wbx - cx * 16;
-                        long ck = packChunk(cx, cz);
-                        int[] cc = map.chunkColors.get(ck);
-                        if (cc == null) {
-                            pixelsBuf[sx] = 0;
-                            // 视口按需渲染：收集缺失 chunk（限一次，避免每帧重复报告）
-                            if (chunksNeededListener != null && missingChunks != null
-                                    && missingChunks.size() < 2048
-                                    && !pendingChunks.contains(ck)) {
-                                missingChunks.add(ck);
-                            }
-                            continue;
-                        }
-                        int c = cc[zRow | lx];
-                        if (showBiome) {
-                            int[] bc = map.chunkBiomeColors != null
-                                    ? map.chunkBiomeColors.get(packChunk(cx, cz)) : null;
-                            if (bc != null && bc[zRow | lx] != 0) {
-                                c = bc[zRow | lx];
-                            }
-                        }
-                        pixelsBuf[sx] = c;
-                    }
-                    cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, 1);
-                }
-            } else {
-                for (int sy = 0; sy < viewH; sy++) {
-                    int by = (int) ((sy - offsetY) * invPpb);
-                    if (by < 0 || by >= map.height) {
-                        // 地图外行：必须显式写透明，否则缓存位图残留旧帧（盗梦空间套图）
-                        java.util.Arrays.fill(pixelsBuf, 0);
-                        cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, 1);
-                        continue;
-                    }
-                    int bRow = by * map.width;
-                    for (int sx = 0; sx < viewW; sx++) {
-                        int bx = (int) ((sx - offsetX) * invPpb);
-                        if (bx < 0 || bx >= map.width) {
-                            pixelsBuf[sx] = 0;
-                            continue;
-                        }
-                        int idx = bRow + bx;
-                        if (biomeSrc != null && biomeSrc[idx] != 0) {
-                            pixelsBuf[sx] = biomeSrc[idx];
-                        } else {
-                            pixelsBuf[sx] = map.colors[idx];
-                        }
-                    }
-                    cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, 1);
-                }
-            }
+            resampleRegion(0, viewH);
             cachedPpb = pixelsPerBlock;
             cachedOffsetX = offsetX;
-            // 视口按需渲染：报告缺失 chunk（外部后台渲染后 onChunksRendered 重绘）
-            if (missingChunks != null && !missingChunks.isEmpty()) {
-                pendingChunks.addAll(missingChunks);
-                java.util.Set<Long> report = new java.util.HashSet<>(missingChunks);
-                missingChunks.clear();
-                OnChunksNeededListener l = chunksNeededListener;
-                if (l != null) {
-                    l.onChunksNeeded(report);
-                }
-            }
             cachedOffsetY = offsetY;
             canvas.drawBitmap(cachedBmp, 0, 0, null);
         } else {
@@ -561,6 +510,106 @@ public class WorldMapView extends View {
         drawStructures(canvas);
         drawTapMarker(canvas);
         drawMarkers(canvas); // 玩家/出生点标记画在最上层（不被实体贴图遮挡）
+    }
+
+    /**
+     * 重采样行区间 [sy0, sy1) 到缓存位图（全量/局部共用）。
+     * 按行填充（单行缓冲 15KB，避免整屏 int[] 占用数十 MB）。
+     * 局部重绘（视口 chunk 渲染完成回调）只重采样受影响行——
+     * 全屏 920 万像素 × HashMap 查找在主线程要 300-500ms/帧，
+     * 每 chunk 全量重绘会卡死（骁龙 8e 也扛不住串行查找）。
+     */
+    private void resampleRegion(int sy0, int sy1) {
+        if (map == null || cachedBmp == null) {
+            return;
+        }
+        int viewW = cachedW;
+        int viewH = cachedH;
+        float invPpb = 1f / pixelsPerBlock;
+        int[] biomeSrc = showBiomeLayer ? map.biomeColors : null;
+        final java.util.Set<Long> missingChunks = map.chunkColors != null
+                && chunksNeededListener != null ? new java.util.HashSet<>() : null;
+        if (map.chunkColors != null) {
+            // 大世界 chunk 缓存路径（BTR 同款）：逐像素查 chunk 16×16 色表
+            for (int sy = sy0; sy < sy1; sy++) {
+                int by = (int) ((sy - offsetY) * invPpb);
+                if (by < 0 || by >= map.height) {
+                    java.util.Arrays.fill(pixelsBuf, 0);
+                    cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, 1);
+                    continue;
+                }
+                int wbz = map.minBlockZ + by;
+                int cz = Math.floorDiv(wbz, 16);
+                int lz = wbz - cz * 16;
+                int zRow = lz << 4;
+                for (int sx = 0; sx < viewW; sx++) {
+                    int bx = (int) ((sx - offsetX) * invPpb);
+                    if (bx < 0 || bx >= map.width) {
+                        pixelsBuf[sx] = 0;
+                        continue;
+                    }
+                    int wbx = map.minBlockX + bx;
+                    int cx = Math.floorDiv(wbx, 16);
+                    int lx = wbx - cx * 16;
+                    long ck = packChunk(cx, cz);
+                    int[] cc = map.chunkColors.get(ck);
+                    if (cc == null) {
+                        pixelsBuf[sx] = 0;
+                        // 视口按需渲染：收集缺失 chunk（限一次，避免每帧重复报告）
+                        if (missingChunks != null && missingChunks.size() < 2048
+                                && !pendingChunks.contains(ck)) {
+                            missingChunks.add(ck);
+                        }
+                        continue;
+                    }
+                    int c = cc[zRow | lx];
+                    if (biomeSrc != null) {
+                        int[] bc = map.chunkBiomeColors != null
+                                ? map.chunkBiomeColors.get(packChunk(cx, cz)) : null;
+                        if (bc != null && bc[zRow | lx] != 0) {
+                            c = bc[zRow | lx];
+                        }
+                    }
+                    pixelsBuf[sx] = c;
+                }
+                cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, 1);
+            }
+        } else {
+            for (int sy = sy0; sy < sy1; sy++) {
+                int by = (int) ((sy - offsetY) * invPpb);
+                if (by < 0 || by >= map.height) {
+                    // 地图外行：必须显式写透明，否则缓存位图残留旧帧（盗梦空间套图）
+                    java.util.Arrays.fill(pixelsBuf, 0);
+                    cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, 1);
+                    continue;
+                }
+                int bRow = by * map.width;
+                for (int sx = 0; sx < viewW; sx++) {
+                    int bx = (int) ((sx - offsetX) * invPpb);
+                    if (bx < 0 || bx >= map.width) {
+                        pixelsBuf[sx] = 0;
+                        continue;
+                    }
+                    int idx = bRow + bx;
+                    if (biomeSrc != null && biomeSrc[idx] != 0) {
+                        pixelsBuf[sx] = biomeSrc[idx];
+                    } else {
+                        pixelsBuf[sx] = map.colors[idx];
+                    }
+                }
+                cachedBmp.setPixels(pixelsBuf, 0, viewW, 0, sy, viewW, 1);
+            }
+        }
+        // 视口按需渲染：报告缺失 chunk（外部后台渲染后 onChunksRendered 重绘）
+        if (missingChunks != null && !missingChunks.isEmpty()) {
+            pendingChunks.addAll(missingChunks);
+            java.util.Set<Long> report = new java.util.HashSet<>(missingChunks);
+            missingChunks.clear();
+            OnChunksNeededListener l = chunksNeededListener;
+            if (l != null) {
+                l.onChunksNeeded(report);
+            }
+        }
     }
 
     /** 史莱姆区块（半透明绿块；仅主世界；bedrock-level is_slime 同款算法）。 */
