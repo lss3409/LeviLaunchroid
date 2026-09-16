@@ -1339,6 +1339,7 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="tool_point_list">Points</string>
     <string name="tool_blueprint">Export HTML</string>
     <string name="tool_voxel">3D View</string>
+    <string name="voxel_size">Select region size (centered on viewport)</string>
     <string name="point_add_title">Add point</string>
     <string name="point_edit_title">Edit point</string>
     <string name="point_name">Name</string>

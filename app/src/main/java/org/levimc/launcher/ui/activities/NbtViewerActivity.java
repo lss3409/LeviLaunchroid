@@ -905,12 +905,18 @@ public class NbtViewerActivity extends BaseActivity {
     private void loadMapForDimension(String dim, boolean keepView) {
         binding.nbtLoading.setVisibility(View.VISIBLE);
         // 切维度前保存当前维度渲染缓存——否则刚渲染的 chunk 只存在内存，
-        // 切回来缓存是旧的，又要重新渲染（下界切换慢的帮凶）
+        // 切回来缓存是旧的，又要重新渲染（下界切换慢的帮凶）。
+        // 必须异步：大世界缓存可达几十 MB，UI 线程同步写 2-5 秒会让旧图
+        // 一直留在屏幕上（"切下界渲染的却是主世界图"的根因）
         WorldMapRenderer.WorldMap oldMap = currentMap;
         if (oldMap != null && oldMap.chunkColors != null && !oldMap.chunkColors.isEmpty()
                 && currentWorldDir != null) {
-            WorldMapRenderer.saveChunkCache(oldMap, new File(currentWorldDir, "db"),
-                    "nether".equals(mapDimension) ? 1 : "end".equals(mapDimension) ? 2 : 0);
+            final WorldMapRenderer.WorldMap toSave = oldMap;
+            final File saveDb = new File(currentWorldDir, "db");
+            final int saveDim = "nether".equals(mapDimension) ? 1
+                    : "end".equals(mapDimension) ? 2 : 0;
+            new Thread(() -> WorldMapRenderer.saveChunkCache(toSave, saveDb, saveDim),
+                    "cache-save").start();
         }
         // 维度隔绝：切换时立刻清掉旧维度地图与图层——否则新图渲染完成前
         // 旧图一直显示（"切下界先看到主世界，过一会才跳过去"的根因）
@@ -2328,6 +2334,30 @@ public class NbtViewerActivity extends BaseActivity {
 
     /** 标点详情弹窗：详情 + 编辑 + 删除。 */
     private void showPointDetail(BlueprintDb.Point point) {
+        float d = getResources().getDisplayMetrics().density;
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding((int) (12 * d), (int) (8 * d), (int) (12 * d), (int) (8 * d));
+        // 颜色行：色块 + hex（未命名标点/分类默认色都要可见）
+        LinearLayout colorRow = new LinearLayout(this);
+        colorRow.setOrientation(LinearLayout.HORIZONTAL);
+        colorRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        String colorHex = point.color != null && !point.color.isEmpty()
+                ? point.color : categoryColor(point.category);
+        ImageView swatch = new ImageView(this);
+        swatch.setImageResource(R.drawable.bg_circle);
+        swatch.setColorFilter(parseColorSafe(colorHex));
+        int sp = (int) (20 * d);
+        colorRow.addView(swatch, new LinearLayout.LayoutParams(sp, sp));
+        TextView colorText = new TextView(this);
+        colorText.setText(getString(R.string.point_color) + ": " + colorHex);
+        colorText.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+        colorText.setTextSize(12);
+        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        clp.leftMargin = (int) (8 * d);
+        colorRow.addView(colorText, clp);
+        panel.addView(colorRow);
         StringBuilder info = new StringBuilder();
         info.append(getString(R.string.point_coord)).append(": X:").append(point.x)
                 .append(" Y:").append(point.y).append(" Z:").append(point.z).append('\n');
@@ -2335,9 +2365,17 @@ public class NbtViewerActivity extends BaseActivity {
         if (point.detail != null && !point.detail.isEmpty()) {
             info.append(getString(R.string.point_detail)).append(": ").append(point.detail).append('\n');
         }
+        TextView infoText = new TextView(this);
+        infoText.setText(info.toString());
+        infoText.setTextColor(ContextCompat.getColor(this, R.color.on_surface));
+        infoText.setTextSize(13);
+        LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        ilp.topMargin = (int) (8 * d);
+        panel.addView(infoText, ilp);
         new CustomAlertDialog(this)
                 .setTitleText(point.name)
-                .setMessage(info.toString())
+                .setCustomView(panel)
                 .setPositiveButton(getString(R.string.point_edit_title), v -> {
                     showPointEditor(point, point.x, point.z);
                 })
@@ -2668,12 +2706,23 @@ public class NbtViewerActivity extends BaseActivity {
         return sb.toString();
     }
 
-    /** 3D 体素视图：视口中心 24×24 区域，后台全解码后弹全屏对话框。 */
+    /** 3D 体素视图：先选区域尺寸（以当前视口中心渲染），后台全解码后弹全屏对话框。 */
     private void showVoxelDialog() {
         if (currentWorldDir == null || currentMap == null) {
             Toast.makeText(this, "地图尚未加载", Toast.LENGTH_SHORT).show();
             return;
         }
+        String[] sizes = {"16 × 16", "24 × 24", "32 × 32", "48 × 48"};
+        int[] sizeVals = {16, 24, 32, 48};
+        new CustomAlertDialog(this)
+                .setTitleText(getString(R.string.tool_voxel) + " · " + getString(R.string.voxel_size))
+                .setItems(sizes, (dialog, which) -> startVoxelRender(sizeVals[which]))
+                .setNegativeButton(getString(R.string.nbt_edit_cancel), null)
+                .show();
+    }
+
+    /** 后台渲染 3D 区域数据。 */
+    private void startVoxelRender(int size) {
         final File dbDir = new File(currentWorldDir, "db");
         final int dim = "nether".equals(mapDimension) ? 1 : "end".equals(mapDimension) ? 2 : 0;
         int vcx = viewCenterX.get();
@@ -2687,14 +2736,14 @@ public class NbtViewerActivity extends BaseActivity {
         binding.nbtLoading.setVisibility(View.VISIBLE);
         executor.execute(() -> {
             WorldMapRenderer.VoxelColumn[][] data = WorldMapRenderer.renderVoxelRegion(
-                    dbDir, centerX, centerZ, dim, 24, 14);
+                    dbDir, centerX, centerZ, dim, size, 14);
             runOnUiThread(() -> {
                 binding.nbtLoading.setVisibility(View.GONE);
                 if (data == null) {
                     Toast.makeText(this, "该区域无数据", Toast.LENGTH_SHORT).show();
                     return;
                 }
-                showVoxelView(data, 24, centerX, centerZ);
+                showVoxelView(data, size, centerX, centerZ);
             });
         });
     }

@@ -66,6 +66,14 @@ public class WorldMapRenderer {
      *  硬编码剔除 bedrock+netherrack）。 */
     public static volatile java.util.Set<String> netherExcludeBlocks = null;
 
+    /** 玻璃类方块（视为空气穿透，全维度）。 */
+    private static boolean isGlassName(String name) {
+        return name != null && (name.equals("minecraft:glass")
+                || name.equals("minecraft:glass_pane")
+                || name.endsWith("_stained_glass")
+                || name.endsWith("_stained_glass_pane"));
+    }
+
     /** 下界窗口裁剪：sub 与 [yMin,yMax] 无交集则剔除。
      *  未设 y 范围（全量档）时也跳过基岩天花板层（sub 6+，y96+ 只有基岩/
      *  空气——实测下界 hmap max=64 是地表高度，主世界同款经验：高空层
@@ -3044,6 +3052,11 @@ public class WorldMapRenderer {
                     }
                 }
                 if (name == null || isAirName(name)) {
+                    continue;
+                }
+                // 玻璃类视为空气穿透（玩家玻璃屋顶/温室不遮挡建筑内部——
+                // 染色玻璃同；卫星图透视屋顶观感）
+                if (isGlassName(name)) {
                     continue;
                 }
                 // 下界剔除黑名单（设置页可选）：视为空气向下穿透，
