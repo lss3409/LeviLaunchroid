@@ -711,7 +711,9 @@ public class WorldMapView extends View {
         return tile;
     }
 
-    /** 生成/刷新 LOD 缩略图（每 chunk 1 像素代表色）。 */
+    /** 生成/刷新 LOD 缩略图（每 chunk 1 像素代表色；
+     *  biome 图层开启时用 biome 纯色版——缩小后糊成像素是 LOD 的妥协，
+     *  但群系视图本应显示纯色） */
     private void ensureLodMini() {
         if (map == null || map.chunkColors == null) {
             return;
@@ -734,7 +736,14 @@ public class WorldMapView extends View {
             if (px < 0 || px >= cw || pz < 0 || pz >= ch) {
                 continue;
             }
-            for (int v : e.getValue()) {
+            int[] src = e.getValue();
+            if (showBiomeLayer && map.chunkBiomeColors != null) {
+                int[] bc = map.chunkBiomeColors.get(e.getKey());
+                if (bc != null) {
+                    src = bc;
+                }
+            }
+            for (int v : src) {
                 if ((v & 0xFF000000) != 0) {
                     mini.setPixel(px, pz, v);
                     break;

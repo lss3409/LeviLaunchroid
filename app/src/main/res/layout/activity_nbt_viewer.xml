@@ -559,6 +559,22 @@
                             android:textColor="@color/text_secondary"
                             android:textSize="11sp" />
                     </LinearLayout>
+
+                    <!-- 下界剔除方块（黑名单）：看穿下界岩/灵魂沙显示矿物洞穴 -->
+                    <TextView
+                        android:id="@+id/nether_exclude_btn"
+                        android:layout_width="match_parent"
+                        android:layout_height="36dp"
+                        android:layout_marginTop="10dp"
+                        android:background="@drawable/bg_rounded_card"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="@font/misans"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="12dp"
+                        android:text="@string/nether_exclude_title"
+                        android:textColor="@color/on_surface"
+                        android:textSize="12sp" />
                 </LinearLayout>
             </LinearLayout>
         </ScrollView>

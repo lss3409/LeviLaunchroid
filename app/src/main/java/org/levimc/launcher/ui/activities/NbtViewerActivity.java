@@ -498,6 +498,8 @@ public class NbtViewerActivity extends BaseActivity {
         // 下界渲染层（y 轴范围）：全部/上部/中部/下部——下界 sub 0-7 每层
         // 都有方块，全量解码是下界渲染慢的主因；选窄范围大幅提速
         setupNetherYSegment();
+        // 下界剔除方块黑名单
+        setupNetherExclude();
 
         // 左栏标点搜索 → 列表过滤
         binding.pointSearchInput.addTextChangedListener(new android.text.TextWatcher() {
@@ -507,6 +509,108 @@ public class NbtViewerActivity extends BaseActivity {
             }
             @Override public void afterTextChanged(android.text.Editable s) {}
         });
+    }
+
+    /** 下界剔除方块黑名单（方块名多选，色块图标来自 bedrockmap 色表）。 */
+    private void setupNetherExclude() {
+        java.util.Set<String> saved = getSharedPreferences("nbt_viewer", MODE_PRIVATE)
+                .getStringSet("nether_exclude", null);
+        WorldMapRenderer.netherExcludeBlocks = saved != null
+                ? new java.util.HashSet<>(saved) : null;
+        binding.netherExcludeBtn.setOnClickListener(v -> showNetherExcludeDialog());
+        DynamicAnim.applyPressScale(binding.netherExcludeBtn);
+        refreshNetherExcludeLabel();
+    }
+
+    /** 常用下界方块（中文名 / 完整名）。 */
+    private static final String[][] NETHER_BLOCKS = {
+            {"基岩", "minecraft:bedrock"},
+            {"下界岩", "minecraft:netherrack"},
+            {"灵魂沙", "minecraft:soul_sand"},
+            {"灵魂土", "minecraft:soul_soil"},
+            {"玄武岩", "minecraft:basalt"},
+            {"黑石", "minecraft:blackstone"},
+            {"绯红菌岩", "minecraft:crimson_nylium"},
+            {"诡异菌岩", "minecraft:warped_nylium"},
+            {"沙砾", "minecraft:gravel"},
+            {"岩浆块", "minecraft:magma"},
+    };
+
+    private void refreshNetherExcludeLabel() {
+        java.util.Set<String> ex = WorldMapRenderer.netherExcludeBlocks;
+        if (ex == null) {
+            binding.netherExcludeBtn.setText(getString(R.string.nether_exclude_title)
+                    + " · " + getString(R.string.nether_exclude_default));
+            return;
+        }
+        StringBuilder names = new StringBuilder();
+        for (String[] b : NETHER_BLOCKS) {
+            if (ex.contains(b[1])) {
+                if (names.length() > 0) {
+                    names.append("、");
+                }
+                names.append(b[0]);
+            }
+        }
+        binding.netherExcludeBtn.setText(getString(R.string.nether_exclude_title)
+                + (names.length() > 0 ? " · " + names : " · 无"));
+    }
+
+    private void showNetherExcludeDialog() {
+        final java.util.Set<String> sel = new java.util.HashSet<>();
+        if (WorldMapRenderer.netherExcludeBlocks != null) {
+            sel.addAll(WorldMapRenderer.netherExcludeBlocks);
+        }
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        float d = getResources().getDisplayMetrics().density;
+        panel.setPadding((int) (12 * d), (int) (8 * d), (int) (12 * d), (int) (8 * d));
+        for (String[] b : NETHER_BLOCKS) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            row.setPadding(0, (int) (4 * d), 0, (int) (4 * d));
+            // 色块图标（block_color.json 颜色；贴图爬取后续版本接入）
+            ImageView swatch = new ImageView(this);
+            swatch.setImageResource(R.drawable.bg_circle);
+            swatch.setColorFilter(WorldMapRenderer.blockColor(b[1]));
+            int sp = (int) (20 * d);
+            row.addView(swatch, new LinearLayout.LayoutParams(sp, sp));
+            android.widget.CheckBox cb = new android.widget.CheckBox(this);
+            cb.setText(b[0]);
+            cb.setTextSize(13);
+            cb.setTextColor(ContextCompat.getColor(this, R.color.on_surface));
+            cb.setChecked(sel.contains(b[1]));
+            cb.setOnCheckedChangeListener((btn, checked) -> {
+                if (checked) {
+                    sel.add(b[1]);
+                } else {
+                    sel.remove(b[1]);
+                }
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            lp.leftMargin = (int) (10 * d);
+            row.addView(cb, lp);
+            panel.addView(row);
+        }
+        new CustomAlertDialog(this)
+                .setTitleText(getString(R.string.nether_exclude_title))
+                .setCustomView(panel)
+                .setPositiveButton(getString(R.string.nbt_edit_save), v2 -> {
+                    // null = 从未设置（默认剔除基岩+下界岩）；
+                    // 保存后按选择生效（空集 = 全不剔除）
+                    WorldMapRenderer.netherExcludeBlocks = new java.util.HashSet<>(sel);
+                    getSharedPreferences("nbt_viewer", MODE_PRIVATE).edit()
+                            .putStringSet("nether_exclude", new java.util.HashSet<>(sel)).apply();
+                    refreshNetherExcludeLabel();
+                    // 当前在下界：重载（缓存带黑名单后缀，独立缓存）
+                    if ("nether".equals(mapDimension) && currentWorldDir != null) {
+                        loadMapForDimension("nether");
+                    }
+                })
+                .setNegativeButton(getString(R.string.nbt_edit_cancel), null)
+                .show();
     }
 
     /** 下界渲染层分段选择：全部/上部(y64-127)/中部(y32-95)/下部(y0-63)。 */
@@ -522,9 +626,9 @@ public class NbtViewerActivity extends BaseActivity {
             else mode = 3;
             applyNetherY(mode);
             getSharedPreferences("nbt_viewer", MODE_PRIVATE).edit().putInt(PREFS, mode).apply();
-            // 当前在下界：清缓存重载（y 范围变了表面色会变）
+            // 当前在下界：重载（缓存文件名带 y 参数后缀，各设置独立缓存，
+            // 切换回来命中旧缓存不用重渲染）
             if ("nether".equals(mapDimension) && currentWorldDir != null) {
-                new File(currentWorldDir, "map_cache_1.bin").delete();
                 loadMapForDimension("nether");
             }
         };

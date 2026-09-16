@@ -62,6 +62,9 @@ public class WorldMapRenderer {
     /** 下界渲染 y 范围（设置页可调；netherYMin<0 = 全量渲染）。 */
     public static volatile int netherYMin = -1;
     public static volatile int netherYMax = -1;
+    /** 下界剔除方块黑名单（渲染时视为空气向下穿透；null = 默认
+     *  硬编码剔除 bedrock+netherrack）。 */
+    public static volatile java.util.Set<String> netherExcludeBlocks = null;
 
     /** 下界窗口裁剪：sub 与 [yMin,yMax] 无交集则剔除（全量时不动）。 */
     private static void applyNetherWindow(Map<Integer, SubChunk> subs) {
@@ -173,6 +176,12 @@ public class WorldMapRenderer {
         } catch (Exception e) {
             Log.w(TAG, "方块色表加载失败，回退内置色表", e);
         }
+    }
+
+    /** 方块色表颜色（设置页方块选择器色块图标用；未收录回退灰色）。 */
+    public static int blockColor(String fullName) {
+        Integer c = blockColorTable.get(fullName);
+        return c != null ? c : 0xFF888888;
     }
 
     private static int[] readRgb3(org.json.JSONArray rgb) {
@@ -1746,9 +1755,23 @@ public class WorldMapRenderer {
     // v4：缓存加入 biome 图层色（v3 只存地形色，缓存命中后 biome 图层永远没数据）
     private static final int MAP_CACHE_VERSION = 4;
 
-    /** 缓存文件：db 目录旁 map_cache_<dim>.bin（随世界走，卸载备份都在）。 */
+    /** 缓存文件：db 目录旁 map_cache_<dim>.bin（随世界走，卸载备份都在）。
+     *  下界缓存文件名带渲染参数后缀（y 范围 + 剔除名单 hash）——不同设置
+     *  各自缓存互不覆盖，切换设置不用每次重渲染。 */
     private static File chunkCacheFile(File dbDir, int dimension) {
-        return new File(dbDir.getParentFile(), "map_cache_" + dimension + ".bin");
+        String suffix = "";
+        if (dimension == DIM_NETHER && (netherYMin >= 0 || netherExcludeBlocks != null)) {
+            StringBuilder sb = new StringBuilder("_y");
+            sb.append(netherYMin >= 0 ? netherYMin + "-" + netherYMax : "all");
+            java.util.Set<String> ex = netherExcludeBlocks;
+            if (ex != null && !ex.isEmpty()) {
+                java.util.List<String> names = new java.util.ArrayList<>(ex);
+                java.util.Collections.sort(names);
+                sb.append("_x").append(Integer.toHexString(names.hashCode()));
+            }
+            suffix = sb.toString();
+        }
+        return new File(dbDir.getParentFile(), "map_cache_" + dimension + suffix + ".bin");
     }
 
     /** db 指纹：文件总大小 + 最新修改时间（变了就失效重渲染）。 */
@@ -2907,13 +2930,20 @@ public class WorldMapRenderer {
                 if (name == null || isAirName(name)) {
                     continue;
                 }
-                // 下界：剔除基岩与下界岩（用户要求——基岩天花板 y>96 跳过；
-                // 下界岩大面积深红盖住地形细节，跳过它显示底下的玄武岩/灵魂沙/菌岩等），
-                // 找不到其它方块时回退 biome 色
-                if (dimension == DIM_NETHER
-                        && (name.equals("minecraft:bedrock") || name.endsWith("bedrock")
-                        || name.equals("minecraft:netherrack"))) {
-                    continue;
+                // 下界剔除黑名单（设置页可选）：视为空气向下穿透，
+                // 用于看穿下界岩/灵魂沙显示矿物与洞穴。
+                // null = 默认硬编码剔除 bedrock+netherrack（基岩天花板 + 大面
+                // 积深红下界岩盖住地形细节）
+                if (dimension == DIM_NETHER) {
+                    java.util.Set<String> ex = netherExcludeBlocks;
+                    if (ex == null) {
+                        if (name.equals("minecraft:bedrock") || name.endsWith("bedrock")
+                                || name.equals("minecraft:netherrack")) {
+                            continue;
+                        }
+                    } else if (ex.contains(name)) {
+                        continue;
+                    }
                 }
                 int color = tintColor(name, colorForBlock(name), biomeId);
                 if (isWaterName(name)) {
