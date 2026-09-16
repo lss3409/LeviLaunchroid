@@ -802,6 +802,16 @@ public class NbtViewerActivity extends BaseActivity {
         // 结构标记点击 → 详情弹窗（NBT 数据/附近实体/坐标）
         binding.worldMapImage.setOnStructureClickListener(this::showStructureDetail);
 
+        // 3D 区域拖选（BedrockMap 右键拖选同款）：松手回调区域 → 渲染 3D
+        binding.worldMapImage.setOnRegionSelectListener((minX, minZ, maxX, maxZ) -> {
+            int w = maxX - minX + 1;
+            int h = maxZ - minZ + 1;
+            int side = Math.max(2, Math.min(64, Math.max(w, h)));
+            int cx = (minX + maxX) / 2;
+            int cz = (minZ + maxZ) / 2;
+            startVoxelRender(cx, cz, side);
+        });
+
         // 地图交互：长按添加标点、点击标点弹详情、单击空地显示坐标
         binding.worldMapImage.setOnMapInteractListener(new WorldMapView.OnMapInteractListener() {
             @Override
@@ -878,6 +888,11 @@ public class NbtViewerActivity extends BaseActivity {
                 : "nether".equals(dim) ? getString(R.string.dim_nether)
                 : getString(R.string.dim_end);
         binding.nbtTitle.setText(name);
+        // 下界专属设置（渲染层 y 范围 + 黑名单）只在切到下界时显示
+        if (binding.netherSettingsGroup != null) {
+            binding.netherSettingsGroup.setVisibility(
+                    "nether".equals(dim) ? View.VISIBLE : View.GONE);
+        }
         binding.worldMapImage.setDimension(dim);
         loadMapForDimension(dim);
     }
@@ -2706,58 +2721,29 @@ public class NbtViewerActivity extends BaseActivity {
         return sb.toString();
     }
 
-    /** 3D 体素视图：先选区域尺寸（以当前视口中心渲染），后台全解码后弹全屏对话框。 */
+    /** 3D 体素视图：进入地图拖选模式（BedrockMap 右键拖选同款），松手生成。 */
     private void showVoxelDialog() {
         if (currentWorldDir == null || currentMap == null) {
             Toast.makeText(this, "地图尚未加载", Toast.LENGTH_SHORT).show();
             return;
         }
-        String[] sizes = {"16 × 16", "24 × 24", "32 × 32", "48 × 48"};
-        int[] sizeVals = {16, 24, 32, 48};
-        new CustomAlertDialog(this)
-                .setTitleText(getString(R.string.tool_voxel) + " · " + getString(R.string.voxel_size))
-                .setItems(sizes, (dialog, which) -> startVoxelRender(sizeVals[which]))
-                .setNegativeButton(getString(R.string.nbt_edit_cancel), null)
-                .show();
+        binding.worldMapImage.setVoxelSelectMode(true);
+        Toast.makeText(this, R.string.voxel_select_hint, Toast.LENGTH_LONG).show();
     }
 
-    /** 后台渲染 3D 区域数据。 */
-    private void startVoxelRender(int size) {
+    /** 后台渲染 3D 区域数据（立即弹对话框显示加载状态，完成后回填）。 */
+    private void startVoxelRender(int centerX, int centerZ, int size) {
         final File dbDir = new File(currentWorldDir, "db");
         final int dim = "nether".equals(mapDimension) ? 1 : "end".equals(mapDimension) ? 2 : 0;
-        int vcx = viewCenterX.get();
-        int vcz = viewCenterZ.get();
-        if (vcx == Integer.MIN_VALUE) {
-            vcx = currentMap.playerBlockX >= 0 ? currentMap.playerBlockX : 0;
-            vcz = currentMap.playerBlockZ >= 0 ? currentMap.playerBlockZ : 0;
-        }
-        final int centerX = vcx;
-        final int centerZ = vcz;
-        binding.nbtLoading.setVisibility(View.VISIBLE);
-        executor.execute(() -> {
-            WorldMapRenderer.VoxelColumn[][] data = WorldMapRenderer.renderVoxelRegion(
-                    dbDir, centerX, centerZ, dim, size, 14);
-            runOnUiThread(() -> {
-                binding.nbtLoading.setVisibility(View.GONE);
-                if (data == null) {
-                    Toast.makeText(this, "该区域无数据", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                showVoxelView(data, size, centerX, centerZ);
-            });
-        });
-    }
-
-    /** 全屏 3D 体素对话框：VoxelView + 旋转/缩放/关闭按钮。 */
-    private void showVoxelView(WorldMapRenderer.VoxelColumn[][] data, int size,
-                               int centerX, int centerZ) {
-        android.app.Dialog dialog = new android.app.Dialog(this,
+        final int fCenterX = centerX;
+        final int fCenterZ = centerZ;
+        // 先弹对话框（VoxelView 空数据显示"加载中…"），大世界读 chunk 要数秒
+        final android.app.Dialog dialog = new android.app.Dialog(this,
                 android.R.style.Theme_Black_NoTitleBar_Fullscreen);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(ContextCompat.getColor(this, R.color.background));
         float d = getResources().getDisplayMetrics().density;
-
         TextView title = new TextView(this);
         title.setText(getString(R.string.tool_voxel) + "  ·  "
                 + centerX + ", " + centerZ + "  ·  " + dimName(mapDimension));
@@ -2766,12 +2752,9 @@ public class NbtViewerActivity extends BaseActivity {
         title.setTypeface(null, android.graphics.Typeface.BOLD);
         title.setPadding((int) (16 * d), (int) (10 * d), (int) (16 * d), (int) (10 * d));
         root.addView(title);
-
         VoxelView voxel = new VoxelView(this);
-        voxel.setVoxelData(data, size);
         root.addView(voxel, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-
         LinearLayout btns = new LinearLayout(this);
         btns.setOrientation(LinearLayout.HORIZONTAL);
         btns.setGravity(android.view.Gravity.CENTER);
@@ -2801,6 +2784,21 @@ public class NbtViewerActivity extends BaseActivity {
         root.addView(btns);
         dialog.setContentView(root);
         dialog.show();
+        executor.execute(() -> {
+            WorldMapRenderer.VoxelColumn[][] data = WorldMapRenderer.renderVoxelRegion(
+                    dbDir, fCenterX, fCenterZ, dim, size, 14);
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) {
+                    return;
+                }
+                if (data == null) {
+                    Toast.makeText(this, "该区域无数据", Toast.LENGTH_SHORT).show();
+                    dialog.dismiss();
+                    return;
+                }
+                voxel.setVoxelData(data, size);
+            });
+        });
     }
 
     private void showBlueprintDialog() {

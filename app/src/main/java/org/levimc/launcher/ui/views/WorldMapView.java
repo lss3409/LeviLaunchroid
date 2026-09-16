@@ -430,12 +430,15 @@ public class WorldMapView extends View {
             return;
         }
 
-        pixelsPerBlock = clampPixelsPerBlock(Math.max(fit, 20f));
-        // 目标点：玩家 > 出生点；若该处未生成（透明），螺旋找最近的有数据位置
-        int targetX = map.playerBlockX >= 0 ? map.playerBlockX
-                : map.spawnBlockX >= 0 ? map.spawnBlockX : map.minBlockX + map.width / 2;
-        int targetZ = map.playerBlockZ >= 0 ? map.playerBlockZ
-                : map.spawnBlockZ >= 0 ? map.spawnBlockZ : map.minBlockZ + map.height / 2;
+        pixelsPerBlock = clampPixelsPerBlock(Math.max(fit, 26f));
+        // 目标点：出生点 > 玩家（打开地图停在出生点，用户要求）；
+        // 若该处未生成（透明），螺旋找最近的有数据位置
+        int targetX = map.spawnBlockX >= 0 ? map.spawnBlockX
+                : map.playerBlockX >= 0 ? map.playerBlockX
+                : map.minBlockX + map.width / 2;
+        int targetZ = map.spawnBlockZ >= 0 ? map.spawnBlockZ
+                : map.playerBlockZ >= 0 ? map.playerBlockZ
+                : map.minBlockZ + map.height / 2;
         int[] center = map.nearestGeneratedBlock(targetX, targetZ);
         // 以中心点居中（地图大于视图时），小于视图则居中
         if (map.width * pixelsPerBlock > getWidth()) {
@@ -602,6 +605,26 @@ public class WorldMapView extends View {
         drawStructures(canvas);
         drawTapMarker(canvas);
         drawMarkers(canvas); // 玩家/出生点标记画在最上层（不被实体贴图遮挡）
+        drawVoxelSelection(canvas); // 3D 区域选择矩形（最上层）
+    }
+
+    /** 3D 区域选择矩形（半透明填充 + 主题色边框）。 */
+    private void drawVoxelSelection(Canvas canvas) {
+        if (!voxelSelecting) {
+            return;
+        }
+        float sx1 = worldToScreenX(Math.min(voxelStartX, voxelCurX));
+        float sy1 = worldToScreenY(Math.min(voxelStartZ, voxelCurZ));
+        float sx2 = worldToScreenX(Math.max(voxelStartX, voxelCurX) + 1);
+        float sy2 = worldToScreenY(Math.max(voxelStartZ, voxelCurZ) + 1);
+        Paint fill = new Paint();
+        fill.setColor(0x335B9CF6);
+        canvas.drawRect(sx1, sy1, sx2, sy2, fill);
+        Paint border = new Paint();
+        border.setStyle(Paint.Style.STROKE);
+        border.setStrokeWidth(2f);
+        border.setColor(0xFF5B9CF6);
+        canvas.drawRect(sx1, sy1, sx2, sy2, border);
     }
 
     // ---------------- 大世界 chunk tile 渲染（BTR 同款） ----------------
@@ -1489,6 +1512,49 @@ public class WorldMapView extends View {
         if (map == null) {
             return super.onTouchEvent(event);
         }
+        // 3D 区域选择模式（BedrockMap 右键拖选同款）：按下记起点，
+        // 拖动拉出矩形，松手回调区域并退出模式
+        if (voxelSelectMode) {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN: {
+                    int[] b = screenToBlock(event.getX(), event.getY());
+                    voxelStartX = b[0];
+                    voxelStartZ = b[1];
+                    voxelCurX = b[0];
+                    voxelCurZ = b[1];
+                    voxelSelecting = true;
+                    invalidate();
+                    return true;
+                }
+                case MotionEvent.ACTION_MOVE: {
+                    if (voxelSelecting) {
+                        int[] b = screenToBlock(event.getX(), event.getY());
+                        voxelCurX = b[0];
+                        voxelCurZ = b[1];
+                        invalidate();
+                    }
+                    return true;
+                }
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL: {
+                    if (voxelSelecting && regionSelectListener != null) {
+                        int minX = Math.min(voxelStartX, voxelCurX);
+                        int maxX = Math.max(voxelStartX, voxelCurX);
+                        int minZ = Math.min(voxelStartZ, voxelCurZ);
+                        int maxZ = Math.max(voxelStartZ, voxelCurZ);
+                        // 至少 2×2 方块才算选区
+                        if (maxX - minX >= 1 && maxZ - minZ >= 1) {
+                            regionSelectListener.onRegionSelected(minX, minZ, maxX, maxZ);
+                        }
+                    }
+                    voxelSelecting = false;
+                    voxelSelectMode = false;
+                    invalidate();
+                    return true;
+                }
+            }
+            return true;
+        }
         // 阻止父布局（ScrollView 等）拦截拖动手势
         getParent().requestDisallowInterceptTouchEvent(true);
         scaleDetector.onTouchEvent(event);
@@ -1501,6 +1567,30 @@ public class WorldMapView extends View {
             }
         }
         return true;
+    }
+
+    /** 3D 区域选择回调（松手时返回选中矩形区域）。 */
+    public interface OnRegionSelectListener {
+        void onRegionSelected(int minX, int minZ, int maxX, int maxZ);
+    }
+
+    private OnRegionSelectListener regionSelectListener;
+    private boolean voxelSelectMode;
+    private boolean voxelSelecting;
+    private int voxelStartX;
+    private int voxelStartZ;
+    private int voxelCurX;
+    private int voxelCurZ;
+
+    public void setOnRegionSelectListener(OnRegionSelectListener l) {
+        this.regionSelectListener = l;
+    }
+
+    /** 进入/退出 3D 区域选择模式。 */
+    public void setVoxelSelectMode(boolean on) {
+        voxelSelectMode = on;
+        voxelSelecting = false;
+        invalidate();
     }
 
     /** 结构标记点击回调（详情弹窗：NBT/附近实体/坐标）。 */

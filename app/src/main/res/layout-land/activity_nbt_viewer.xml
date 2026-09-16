@@ -480,12 +480,21 @@
                         android:textColor="@color/on_surface"
                         android:textSize="12sp" />
 
-                    <!-- 下界渲染层（y 轴范围）：下界 sub 0-7 每层都有方块，
-                         默认全量渲染较慢；选窄范围加速 -->
+                    <!-- 下界专属设置（仅下界维度显示）：
+                         y 轴渲染层 + 黑名单，包在分区卡片里 -->
+                    <LinearLayout
+                        android:id="@+id/nether_settings_group"
+                        android:visibility="gone"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:background="@drawable/bg_rounded_card"
+                        android:orientation="vertical"
+                        android:padding="10dp">
+
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
                         android:fontFamily="@font/misans"
                         android:text="@string/nether_y_title"
                         android:textColor="@color/primary"
@@ -566,7 +575,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="36dp"
                         android:layout_marginTop="10dp"
-                        android:background="@drawable/bg_rounded_card"
+                        android:background="@drawable/bg_search_field_light"
                         android:clickable="true"
                         android:focusable="true"
                         android:fontFamily="@font/misans"
@@ -575,6 +584,7 @@
                         android:text="@string/nether_exclude_title"
                         android:textColor="@color/on_surface"
                         android:textSize="12sp" />
+                    </LinearLayout>
                 </LinearLayout>
             </LinearLayout>
         </ScrollView>
