@@ -1621,6 +1621,8 @@ public class WorldMapRenderer {
             boolean endBricks = false;
             boolean chiseledSandstone = false;
             boolean orangeTerracotta = false;
+            boolean blueTerracotta = false;
+            boolean tnt = false;
             boolean cutSandstone = false;
             boolean darkOak = false;
             boolean darkOakLog = false;
@@ -1640,10 +1642,14 @@ public class WorldMapRenderer {
                         endBricks = true;
                     } else if (pn.contains("chiseled_sandstone")) {
                         chiseledSandstone = true;
-                    } else if (pn.contains("orange_terracotta")) {
-                        orangeTerracotta = true;
                     } else if (pn.contains("cut_sandstone")) {
                         cutSandstone = true;
+                    } else if (pn.contains("orange_terracotta")) {
+                        orangeTerracotta = true;
+                    } else if (pn.contains("blue_terracotta")) {
+                        blueTerracotta = true;
+                    } else if (pn.contains("tnt")) {
+                        tnt = true;
                     } else if (pn.contains("dark_oak_planks")) {
                         darkOak = true;
                     } else if (pn.contains("dark_oak_log")) {
@@ -1660,7 +1666,7 @@ public class WorldMapRenderer {
                 endCityChunks.put(key, 1);
             }
             if (dimension == DIM_OVERWORLD && (chiseledSandstone
-                    || (cutSandstone && orangeTerracotta))) {
+                    || (orangeTerracotta && blueTerracotta) || tnt)) {
                 monumentChunks.put(key, 2); // 复用 map：value 2 = 沙漠神殿
             }
             if (dimension == DIM_OVERWORLD && darkOak && darkOakLog && stone) {
@@ -2419,6 +2425,10 @@ public class WorldMapRenderer {
                     cutSandstone = true;
                 } else if (pn.contains("orange_terracotta")) {
                     orangeTerracotta = true;
+                } else if (pn.contains("blue_terracotta")) {
+                    blueTerracotta = true;
+                } else if (pn.contains("tnt")) {
+                    tnt = true;
                 } else if (pn.contains("dark_oak_planks")) {
                     darkOak = true;
                 } else if (pn.contains("dark_oak_log")) {
@@ -2428,9 +2438,23 @@ public class WorldMapRenderer {
                 }
             }
         }
-        String type = (chiseledSandstone || (cutSandstone && orangeTerracotta))
+        String type = (chiseledSandstone || (orangeTerracotta && blueTerracotta)
+                || tnt)
                 ? "desert_temple"
                 : darkOak && darkOakLog && stone ? "outpost" : null;
+        if (type == null && (cutSandstone || chiseledSandstone)) {
+            StringBuilder names = new StringBuilder();
+            for (SubChunk sc : subs.values()) {
+                for (String pn : sc.palette) {
+                    if (pn != null && (pn.contains("sandstone") || pn.contains("terracotta")
+                            || pn.contains("tnt"))) {
+                        if (names.length() > 0) names.append(",");
+                        names.append(pn);
+                    }
+                }
+            }
+            Log.i(TAG, "砂岩chunk(" + cx + "," + cz + ") palette: " + names);
+        }
         if (type == null) {
             return;
         }
