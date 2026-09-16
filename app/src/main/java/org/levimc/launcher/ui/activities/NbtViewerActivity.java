@@ -1063,12 +1063,10 @@ public class NbtViewerActivity extends BaseActivity {
             final List<WorldMapRenderer.StructureMarker> fStructures = structures;
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed() || !isCurrentLoad(gen)) return;
-                Log.i(TAG, "loadData 回填开始: entities=" + (fEntities != null ? fEntities.size() : -1));
                 onDataLoaded(fWorld, fRoot, fEntries, fLevelMissing, fDbMissing, fWorldMap);
                 binding.worldMapImage.setEntityData(fEntities);
                 binding.worldMapImage.setStructureMarkers(fStructures);
                 refreshDataPanelExtras(fStructures, fEntries);
-                Log.i(TAG, "loadData 回填结束");
             });
         });
     }
@@ -1076,17 +1074,14 @@ public class NbtViewerActivity extends BaseActivity {
     private void onDataLoaded(WorldItem worldItem, NbtTag root, List<LevelDBEntry> entries,
                               boolean levelDatMissing, boolean dbMissing,
                               WorldMapRenderer.WorldMap worldMap) {
-        long t0 = android.os.SystemClock.uptimeMillis();
                 currentMap = worldMap;
         binding.nbtLoading.setVisibility(View.GONE);
 
         // 世界地图：占满全屏（PRD 布局），缩放/平移时按比例重采样方块颜色
         if (worldMap != null) {
             WorldMapRenderer.debugExport(worldMap); // 调试导出 map_debug.png
-            Log.i(TAG, "onDataLoaded 计时: debugExport=" + (android.os.SystemClock.uptimeMillis() - t0));
                         binding.worldMapImage.setWorldMap(worldMap);
             binding.worldMapPlaceholder.setVisibility(View.GONE);
-            Log.i(TAG, "onDataLoaded 计时: setWorldMap=" + (android.os.SystemClock.uptimeMillis() - t0));
         } else {
             binding.worldMapPlaceholder.setText(R.string.world_map_unavailable);
         }
