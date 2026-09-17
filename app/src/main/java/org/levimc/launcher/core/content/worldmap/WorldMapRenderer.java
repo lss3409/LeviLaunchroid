@@ -2291,22 +2291,30 @@ public class WorldMapRenderer {
                     }
                 }
                 subKeys = null; // 释放
-                // 距离排序：从世界原点向外烘焙（圆形铺开）
+                // 距离排序：从地图中心向外烘焙（圆形铺开）。
+                // 曾用世界原点 (0,0)——主世界 (0,0) 在整图左下角，
+                // 铺开圆只有一角在屏幕内，视觉呈长条状（用户反馈）
+                final long centerX = map.minBlockX / 16L + map.width / 32L;
+                final long centerZ = map.minBlockZ / 16L + map.height / 32L;
                 ordered.sort((a, b) -> {
-                    long ax = a >> 32;
-                    long az = (int) (long) a;
-                    long bx = b >> 32;
-                    long bz = (int) (long) b;
+                    long ax = (a >> 32) - centerX;
+                    long az = (int) (long) a - centerZ;
+                    long bx = (b >> 32) - centerX;
+                    long bz = (int) (long) b - centerZ;
                     return Long.compare(ax * ax + az * az, bx * bx + bz * bz);
                 });
-                Log.i(TAG, "烘焙开始: dim=" + dimension + " chunk=" + ordered.size());
+                Log.i(TAG, "烘焙开始: dim=" + dimension + " chunk=" + ordered.size()
+                        + " 中心=(" + centerX + "," + centerZ + ")");
                 // 多线程并行烘焙：原子索引交错取 chunk（保持距离序），
                 // 每线程独立 reader（LevelDBReader 无状态线程安全）
                 final java.util.concurrent.atomic.AtomicInteger nextIdx =
                         new java.util.concurrent.atomic.AtomicInteger(0);
                 final java.util.concurrent.atomic.AtomicInteger rendered =
                         new java.util.concurrent.atomic.AtomicInteger(0);
-                final int bakeThreads = 4;
+                // 线程数按 chunk 量自适应：下界/末地 chunk 解码重（8 层
+                // subchunk 大 palette），4 线程 10 秒才 400 chunk；大世界
+                // 6 线程低优先级不抢视口渲染（视口用大核，烘焙自由调度）
+                final int bakeThreads = ordered.size() > 6000 ? 6 : 4;
                 java.util.concurrent.ExecutorService pool =
                         java.util.concurrent.Executors.newFixedThreadPool(bakeThreads, r -> {
                             Thread bt = new Thread(r, "world-bake-w");
