@@ -1774,6 +1774,10 @@ public class WorldMapRenderer {
         // maxSub±2 只是读数据窗口（含树冠/建筑顶），渲染必须再裁到
         // 地表窗口——否则高树 chunk 从树冠层渲染、地表被裁，颜色回退/
         // 异常（预渲染合并后"结构附近错误颜色"的根因）
+        // v372：下界放宽 -2 → -4（64 方块深）——悬空商店（建筑高出地表
+        // 40+ 方块）下方列在窗口内全空，回退 savanna 群系草黄 (191,183,85)
+        // 大片"黄色色块"的根因（hmap 同一 chunk 内 63~104 突变，fMin
+        // 只到 surfaceSub-2 把低处河床裁掉）
         if (dimension != DIM_NETHER && !subs.isEmpty()) {
             int maxH = 0;
             for (int hh : hmap) {
@@ -1786,7 +1790,7 @@ public class WorldMapRenderer {
             for (int s : subs.keySet()) {
                 maxSub = Math.max(maxSub, s);
             }
-            final int fMin = surfaceSub - 2;
+            final int fMin = surfaceSub - 4;
             final int fMax = Math.max(surfaceSub + 2, maxSub);
             subs.keySet().removeIf(s -> s < fMin || s > fMax);
         }
@@ -1838,7 +1842,8 @@ public class WorldMapRenderer {
     // v10：chunk 边界阴影减半（v9 缓存边界阴影未减半，边缘色差须失效）
     // v11：阴影高度差 <2 阈值（v10 缓存仍含建筑边缘 ±20% 亮暗带须失效）
     // v12：忽略光源方块开关（火把等光源方块渲染结果变化须失效）
-    private static final int MAP_CACHE_VERSION = 12;
+    // v13：渲染窗口下界 -2 → -4（悬空建筑下方列不再回退群系黄）
+    private static final int MAP_CACHE_VERSION = 13;
 
     /** 缓存根目录（应用私有，卸载即清——缓存可再生）。null 时回退旧路径。 */
     private static java.io.File sCacheBase;
@@ -2229,7 +2234,7 @@ public class WorldMapRenderer {
                 for (int s : subs.keySet()) {
                     maxSub = Math.max(maxSub, s);
                 }
-                final int fMin = surfaceSub - 2;
+                final int fMin = surfaceSub - 4; // v372：-2 → -4（见流式路径注释）
                 final int fMax = Math.max(surfaceSub + 2, maxSub);
                 subs.keySet().removeIf(s -> s < fMin || s > fMax);
             }
