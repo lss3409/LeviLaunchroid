@@ -687,59 +687,11 @@ public class NbtViewerActivity extends BaseActivity {
         }
         prerenderThread = new Thread(() -> {
             try {
-                // 流式回调：每 20 chunk 增量合并进当前视图并通知 UI——
-                // 此前整轮渲染完成才一次性合并，"过一会刷的一下全出来"。
-                // UI 通知节流 200ms（大世界 2.5 万 chunk = 1242 批回调，
-                // 每批一条 UI 消息会刷爆主线程——v293 per-chunk 消息风暴
-                // ANR 同款教训；攒批合并，节拍内只发一次）
+                // 整轮渲染完成才合并（渐进动画版在 v365 曾按用户要求回滚；
+                // 进度回调 StreamProgress 现仅供 HTML 导出通知使用）
                 final boolean merge = !binding.worldMapImage.isMemoryOptimized();
-                final java.util.concurrent.atomic.AtomicLong lastUiNotify =
-                        new java.util.concurrent.atomic.AtomicLong(0);
-                final java.util.Set<Long> pendingUiKeys = new java.util.HashSet<>();
                 WorldMapRenderer.WorldMap full =
-                        WorldMapRenderer.buildSatelliteMapStreaming(dbDir, dim,
-                                (colors, biomes, newKeys) -> {
-                                    if (renderGen.get() != myGen
-                                            || Thread.currentThread().isInterrupted()) {
-                                        return;
-                                    }
-                                    if (!merge) {
-                                        // 内存优化开启：预渲染只落盘不驻留内存
-                                        // （合并进 fMap 会与离屏卸载互相打架）
-                                        return;
-                                    }
-                                    java.util.Set<Long> keys = new java.util.HashSet<>();
-                                    for (Long k : newKeys) {
-                                        if (fMap.chunkColors.putIfAbsent(k, colors.get(k)) == null) {
-                                            keys.add(k);
-                                        }
-                                    }
-                                    if (fMap.chunkBiomeColors != null && biomes != null) {
-                                        for (Long k : newKeys) {
-                                            int[] bc = biomes.get(k);
-                                            if (bc != null) {
-                                                fMap.chunkBiomeColors.putIfAbsent(k, bc);
-                                            }
-                                        }
-                                    }
-                                    if (!keys.isEmpty()) {
-                                        long now = android.os.SystemClock.uptimeMillis();
-                                        if (now - lastUiNotify.get() < 200) {
-                                            pendingUiKeys.addAll(keys);
-                                            return;
-                                        }
-                                        lastUiNotify.set(now);
-                                        final java.util.Set<Long> notify =
-                                                new java.util.HashSet<>(pendingUiKeys);
-                                        notify.addAll(keys);
-                                        pendingUiKeys.clear();
-                                        runOnUiThread(() -> {
-                                            if (renderGen.get() == myGen) {
-                                                binding.worldMapImage.onChunksRendered(notify);
-                                            }
-                                        });
-                                    }
-                                });
+                        WorldMapRenderer.buildSatelliteMapStreaming(dbDir, dim);
                 if (full == null || renderGen.get() != myGen
                         || Thread.currentThread().isInterrupted()) {
                     return;
@@ -2847,6 +2799,46 @@ public class NbtViewerActivity extends BaseActivity {
 
     /** 蓝图码弹窗：生成/复制/分享/导入（冲突处理三选项）。 */
     /** 后台导出交互式 HTML 地图（Leaflet 单文件，含卫星图/标点/连线/结构/玩家出生点）。 */
+    /** 导出 HTML 通知（通知栏实时进度百分比；-1 失败 100 完成）。 */
+    private void showExportNotification(int percent, String detail) {
+        try {
+            android.app.NotificationManager nm =
+                    getSystemService(android.app.NotificationManager.class);
+            if (nm == null) {
+                return;
+            }
+            if (android.os.Build.VERSION.SDK_INT >= 33 && !nm.areNotificationsEnabled()) {
+                return;
+            }
+            String channelId = "map_export";
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                android.app.NotificationChannel ch = new android.app.NotificationChannel(
+                        channelId, "地图导出", android.app.NotificationManager.IMPORTANCE_LOW);
+                nm.createNotificationChannel(ch);
+            }
+            android.app.Notification.Builder b;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                b = new android.app.Notification.Builder(this, channelId);
+            } else {
+                b = new android.app.Notification.Builder(this);
+            }
+            b.setSmallIcon(android.R.drawable.stat_sys_download)
+                    .setContentTitle("导出世界 HTML")
+                    .setOngoing(percent < 100);
+            if (percent < 0) {
+                b.setContentText("导出失败: " + detail);
+            } else if (percent < 100) {
+                b.setContentText("正在导出… " + percent + "%")
+                        .setProgress(100, percent, false);
+            } else {
+                b.setContentText("导出完成: " + detail);
+            }
+            nm.notify(0x5E97E, b.build());
+        } catch (Throwable t) {
+            Log.w(TAG, "导出通知失败", t);
+        }
+    }
+
     private void exportWorldHtmlAsync() {
         if (currentMap == null || currentWorldDir == null) {
             Toast.makeText(this, "地图尚未加载", Toast.LENGTH_SHORT).show();
@@ -2859,14 +2851,27 @@ public class NbtViewerActivity extends BaseActivity {
         final String fVersion = readLevelVersion();
         final long fSeed = getWorldSeed();
         binding.nbtLoading.setVisibility(View.VISIBLE);
+        showExportNotification(0, "");
         executor.execute(() -> {
             try {
                 // 大世界无条件全量流式渲染（一次 30-60 秒，导出精度优先——
-                // 视口按需渲染只覆盖屏幕附近 chunk，直接导出会缺大片地形）
+                // 视口按需渲染只覆盖屏幕附近 chunk，直接导出会缺大片地形）。
+                // 渲染阶段占进度 0~70%，通知节流 1 秒（每 20 chunk 回调一次，
+                // 大世界 1242 次回调全发通知会刷爆通知服务）
                 WorldMapRenderer.WorldMap exportMap = fMap;
+                final java.util.concurrent.atomic.AtomicLong lastNotif =
+                        new java.util.concurrent.atomic.AtomicLong(0);
                 if (exportMap.chunkColors != null) {
                     WorldMapRenderer.WorldMap full = WorldMapRenderer.buildSatelliteMapStreaming(
-                            new File(worldDir, "db"), 0);
+                            new File(worldDir, "db"), 0, (done, total) -> {
+                                int pct = total > 0 ? (int) (done * 70L / total) : 0;
+                                long now = android.os.SystemClock.uptimeMillis();
+                                if (now - lastNotif.get() < 1000) {
+                                    return;
+                                }
+                                lastNotif.set(now);
+                                runOnUiThread(() -> showExportNotification(pct, ""));
+                            });
                     if (full != null) {
                         exportMap = full;
                     }
@@ -2904,6 +2909,7 @@ public class NbtViewerActivity extends BaseActivity {
                 if (!dir.exists()) {
                     dir.mkdirs();
                 }
+                showExportNotification(80, "");
                 File out = WorldMapRenderer.exportWorldHtml(exportMap, dir,
                         worldDir.getName() + "_map.html",
                         worldDir.getName(), fSeed, fVersion, px, pz, sx, sz,
@@ -2911,6 +2917,7 @@ public class NbtViewerActivity extends BaseActivity {
                 final File fOut = out;
                 runOnUiThread(() -> {
                     binding.nbtLoading.setVisibility(View.GONE);
+                    showExportNotification(100, fOut.getName());
                     Toast.makeText(this, "已导出: " + fOut.getAbsolutePath(),
                             Toast.LENGTH_LONG).show();
                 });
@@ -2918,6 +2925,7 @@ public class NbtViewerActivity extends BaseActivity {
                 Log.w(TAG, "导出 HTML 失败", e);
                 runOnUiThread(() -> {
                     binding.nbtLoading.setVisibility(View.GONE);
+                    showExportNotification(-1, String.valueOf(e.getMessage()));
                     Toast.makeText(this, "导出失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
             }
