@@ -2395,8 +2395,13 @@ public class WorldMapRenderer {
             biomeSnapshot = new HashMap<>(map.chunkBiomeColors);
         }
         synchronized (CACHE_SAVE_LOCK) {
+            // v398：原子写——先写临时文件再 rename 替换。直接写 chunks.bin
+            // 时并发读（下次打开 loadChunkCache 与烘焙落盘节流撞车）读到
+            // 半写文件 → EOF 损坏 → 打开重烘死循环的另一根因。
+            // Linux rename 原子覆盖，读者永远看到完整文件（旧或新）
+            File tmp = new File(out.getParentFile(), out.getName() + ".tmp");
             try (java.io.DataOutputStream dos = new java.io.DataOutputStream(
-                    new java.io.BufferedOutputStream(new java.io.FileOutputStream(out)))) {
+                    new java.io.BufferedOutputStream(new java.io.FileOutputStream(tmp)))) {
             long[] fp = dbFingerprint(dbDir);
             int minCx = map.minBlockX / 16;
             int minCz = map.minBlockZ / 16;
@@ -2433,6 +2438,10 @@ public class WorldMapRenderer {
                     writePaletteChunk(dos, bc != null ? bc : EMPTY_CHUNK_COLORS);
                 }
             }
+                if (!tmp.renameTo(out)) {
+                    Log.w(TAG, "chunk 缓存 rename 失败: " + out.getName());
+                    return false;
+                }
                 Log.i(TAG, "chunk 缓存已保存: " + out.getName() + " "
                         + (out.length() / 1024 / 1024) + "MB 文件指纹=" + fps.size());
                 return true;
@@ -2816,7 +2825,25 @@ public class WorldMapRenderer {
                                         final WorldMap targetMap,
                                         final BakeProgress progress,
                                         final Runnable onDone) {
+        return bakeWorldCache(dbDir, dimension, targetMap, progress, onDone, false);
+    }
+
+    /** v398：forceRebake=true 时忽略已有缓存全部重渲染（渲染参数变化
+     *  ——如坡度阴影开关——后缓存作废重烘）。内存保留旧缓存显示，
+     *  烘焙完新渲染逐 chunk 覆盖；中途退出落盘 = 旧缓存 ∪ 已烘部分，
+     *  磁盘缓存不缩水（此前清空内存后中断烘焙会覆盖写缩水磁盘缓存）。 */
+    public static Thread bakeWorldCache(final File dbDir, final int dimension,
+                                        final WorldMap targetMap,
+                                        final BakeProgress progress,
+                                        final Runnable onDone,
+                                        final boolean forceRebake) {
         Thread t = new Thread(() -> {
+            // worker 池引用在 try 外声明：中断/异常路径需要 shutdownNow
+            // 停掉 worker（此前 latch.await 抛异常后 pool 未关闭，worker
+            // 泄漏继续烘焙并触发落盘节流——与退出保存/下次打开读取并发
+            // 写 chunks.bin，半写文件 EOF 损坏）
+            final java.util.concurrent.ExecutorService[] poolRef =
+                    new java.util.concurrent.ExecutorService[1];
             try {
                 final WorldMap map;
                 WorldMap m = targetMap != null ? targetMap
@@ -2853,8 +2880,9 @@ public class WorldMapRenderer {
                         long key = pack(ck[0], ck[1]);
                         // 缺啥补啥：缓存已有（且非全透明占位）的 chunk
                         // 跳过不重渲染——缓存 90% 时只烘缺失的 10%
+                        // （force 模式全部重烘，不跳过）
                         int[] cached = map.chunkColors.get(key);
-                        if (cached != null && hasOpaque(cached)) {
+                        if (!forceRebake && cached != null && hasOpaque(cached)) {
                             alreadyCached++;
                             continue;
                         }
@@ -2888,16 +2916,21 @@ public class WorldMapRenderer {
                 final int bakeThreads = ordered.size() > 6000
                         ? Math.min(8, Math.max(6, cpus))
                         : Math.min(6, Math.max(4, cpus));
-                java.util.concurrent.ExecutorService pool =
+                poolRef[0] =
                         java.util.concurrent.Executors.newFixedThreadPool(bakeThreads, r -> {
                             Thread bt = new Thread(r, "world-bake-w");
                             bt.setPriority(Thread.MIN_PRIORITY);
                             return bt;
                         });
+                // force 模式全部重烘：视口队列与 ordered 可能重叠
+                // （视口优先烘过、nextIdx 又轮到），bakedKeys 并发去重
+                // 防重复渲染；非 force 靠 chunkColors.containsKey 去重
+                final java.util.Set<Long> bakedKeys = forceRebake
+                        ? java.util.concurrent.ConcurrentHashMap.newKeySet() : null;
                 java.util.concurrent.CountDownLatch latch =
                         new java.util.concurrent.CountDownLatch(bakeThreads);
                 for (int wi = 0; wi < bakeThreads; wi++) {
-                    pool.execute(() -> {
+                    poolRef[0].execute(() -> {
                         LevelDBReader wReader = new LevelDBReader(dbDir);
                         java.util.Set<Long> batch = new java.util.HashSet<>();
                         int sinceSave = 0;
@@ -2913,7 +2946,9 @@ public class WorldMapRenderer {
                                 long key;
                                 Long vpKey = bakeViewportQueue.poll();
                                 if (vpKey != null) {
-                                    if (map.chunkColors.containsKey(vpKey)) {
+                                    if (bakedKeys != null
+                                            ? !bakedKeys.add(vpKey)
+                                            : map.chunkColors.containsKey(vpKey)) {
                                         continue;
                                     }
                                     key = vpKey;
@@ -2923,6 +2958,9 @@ public class WorldMapRenderer {
                                         break;
                                     }
                                     key = ordered.get(i);
+                                    if (bakedKeys != null && !bakedKeys.add(key)) {
+                                        continue;
+                                    }
                                 }
                                 int cx = (int) (key >> 32);
                                 int cz = (int) (long) key;
@@ -2969,11 +3007,21 @@ public class WorldMapRenderer {
                     });
                 }
                 latch.await();
-                pool.shutdown();
+                poolRef[0].shutdown();
                 saveChunkCache(map, dbDir, dimension);
                 Log.i(TAG, "烘焙完成: dim=" + dimension + " 渲染=" + rendered.get()
                         + "/" + ordered.size());
+            } catch (InterruptedException ie) {
+                // 中断是正常路径（切维度/退出/参数变化）——shutdownNow
+                // 停 worker 防泄漏（I 级，不打堆栈噪音）
+                if (poolRef[0] != null) {
+                    poolRef[0].shutdownNow();
+                }
+                Log.i(TAG, "烘焙中断: dim=" + dimension);
             } catch (Throwable err) {
+                if (poolRef[0] != null) {
+                    poolRef[0].shutdownNow();
+                }
                 Log.w(TAG, "烘焙失败 (dim=" + dimension + ")", err);
             } finally {
                 if (onDone != null) {

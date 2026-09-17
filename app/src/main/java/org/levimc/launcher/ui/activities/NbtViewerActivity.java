@@ -552,19 +552,17 @@ public class NbtViewerActivity extends BaseActivity {
     /** 后台烘焙线程（v386：无缓存时逐 chunk 补全缓存，低优先级）。 */
     private volatile Thread bakeThread;
 
-    /** v397：渲染参数变化（阴影开关等）——清当前渲染数据 + 中断烘焙 +
-     *  重新烘焙当前维度（渲染结果变了缓存作废）。 */
+    /** v397：渲染参数变化（阴影开关等）——中断烘焙 + 强制重烘焙当前
+     *  维度（渲染结果变了缓存作废）。
+     *  v398 修复"每次打开都重新渲染"：不再清空内存缓存——旧渲染继续
+     *  显示，烘焙完成后新渲染逐 chunk 覆盖。此前清空内存 → 用户没等
+     *  烘焙跑完就退出 → saveChunkCache 落盘部分缓存覆盖完整缓存文件
+     *  → 下次打开缓存不足 60% 又触发补缺烘焙 = 死循环。 */
     private void invalidateRenderCacheAndBake() {
         renderGen.incrementAndGet();
         if (bakeThread != null) {
             bakeThread.interrupt();
             bakeThread = null;
-        }
-        if (currentMap != null && currentMap.chunkColors != null) {
-            currentMap.chunkColors.clear();
-            if (currentMap.chunkBiomeColors != null) {
-                currentMap.chunkBiomeColors.clear();
-            }
         }
         binding.worldMapImage.clearChunkData();
         if (currentMap != null && currentMap.chunkSourceDir != null
@@ -584,7 +582,8 @@ public class NbtViewerActivity extends BaseActivity {
                             binding.worldMapImage.onChunksRendered(
                                     java.util.Collections.emptySet());
                         }
-                    }));
+                    }),
+                    true);
         }
     }
 
