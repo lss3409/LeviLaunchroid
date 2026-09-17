@@ -1991,6 +1991,76 @@ public class WorldMapRenderer {
     /** 缓存根目录（应用私有，卸载即清——缓存可再生）。null 时回退旧路径。 */
     private static java.io.File sCacheBase;
 
+    /** 维度名（v395 新目录结构：map_cache/<世界目录名>/<维度名>/）。 */
+    private static String dimDirName(int dimension) {
+        return dimension == DIM_NETHER ? "nether"
+                : dimension == DIM_END ? "end" : "overworld";
+    }
+
+    /** 世界缓存子目录：map_cache/<世界目录名（唯一标识）>/。 */
+    private static java.io.File worldCacheDir(File dbDir) {
+        if (sCacheBase != null) {
+            String world = dbDir.getParentFile() != null
+                    ? dbDir.getParentFile().getName() : "world";
+            java.io.File d = new java.io.File(sCacheBase, world);
+            if (!d.isDirectory()) {
+                d.mkdirs();
+            }
+            return d;
+        }
+        return dbDir.getParentFile();
+    }
+
+    /** 维度缓存子目录：<世界>/<维度名>/（自动创建）。 */
+    private static java.io.File dimCacheDir(File dbDir, int dimension) {
+        java.io.File base = worldCacheDir(dbDir);
+        java.io.File d = new java.io.File(base, dimDirName(dimension));
+        if (!d.isDirectory()) {
+            d.mkdirs();
+        }
+        return d;
+    }
+
+    /** v395 迁移：把旧扁平缓存文件（<世界名>_map_cache_*.bin 等）移动
+     *  到新目录结构（<世界名>/<维度名>/）。迁移后旧路径文件删除，
+     *  缓存内容不变无需重渲染。 */
+    public static void migrateLegacyCache(File dbDir) {
+        try {
+            if (sCacheBase == null || dbDir == null || dbDir.getParentFile() == null) {
+                return;
+            }
+            String world = dbDir.getParentFile().getName();
+            java.io.File[] old = sCacheBase.listFiles(f -> f.isFile()
+                    && f.getName().startsWith(world + "_map_") && f.getName().endsWith(".bin"));
+            if (old == null || old.length == 0) {
+                return;
+            }
+            for (java.io.File f : old) {
+                String n = f.getName();
+                // world_map_cache_<dim><suffix>.bin → <dim>/chunks<suffix>.bin
+                // world_map_bounds_<dim>.bin    → <dim>/bounds.bin
+                // world_map_small_<dim>.bin     → <dim>/small.bin
+                String rest = n.substring((world + "_map_").length(), n.length() - 4);
+                if (rest.startsWith("cache_")) {
+                    int dim = rest.charAt(6) - '0';
+                    String suffix = rest.substring(7);
+                    java.io.File dst = new java.io.File(dimCacheDir(dbDir, dim),
+                            "chunks" + suffix + ".bin");
+                    f.renameTo(dst);
+                } else if (rest.startsWith("bounds_")) {
+                    int dim = rest.charAt(7) - '0';
+                    f.renameTo(new java.io.File(dimCacheDir(dbDir, dim), "bounds.bin"));
+                } else if (rest.startsWith("small_")) {
+                    int dim = rest.charAt(6) - '0';
+                    f.renameTo(new java.io.File(dimCacheDir(dbDir, dim), "small.bin"));
+                }
+            }
+            Log.i(TAG, "旧缓存已迁移到新目录结构: " + old.length + " 个文件");
+        } catch (Exception e) {
+            Log.w(TAG, "缓存迁移失败", e);
+        }
+    }
+
     /** 初始化缓存目录（应用私有 files/map_cache/）。 */
     public static void initCacheDir(android.content.Context ctx) {
         try {
@@ -2071,12 +2141,11 @@ public class WorldMapRenderer {
         return suffix;
     }
 
-    /** 保存路径：map 创建时定格的渲染参数后缀（不是当前全局参数）。 */
+    /** 保存路径：map 创建时定格的渲染参数后缀（不是当前全局参数）。
+     *  v395 新目录结构：<世界目录名>/<维度名>/chunks<suffix>.bin。 */
     private static File chunkCacheFileFor(File dbDir, int dimension, String suffix) {
         if (sCacheBase != null) {
-            String world = dbDir.getParentFile() != null
-                    ? dbDir.getParentFile().getName() : "world";
-            return new File(sCacheBase, world + "_map_cache_" + dimension + suffix + ".bin");
+            return new File(dimCacheDir(dbDir, dimension), "chunks" + suffix + ".bin");
         }
         return new File(dbDir.getParentFile(), "map_cache_" + dimension + suffix + ".bin");
     }
@@ -2086,12 +2155,10 @@ public class WorldMapRenderer {
     private static final int SMALL_CACHE_MAGIC = 0x4D437653; // "MCvs"
     private static final int SMALL_CACHE_VERSION = 1;
 
-    /** 小世界全图缓存文件（colors 数组路径——与大世界 chunk 缓存并列）。 */
+    /** 小世界全图缓存文件（v395 新结构：<世界>/<维度>/small.bin）。 */
     private static File smallCacheFile(File dbDir, int dimension) {
         if (sCacheBase != null) {
-            String world = dbDir.getParentFile() != null
-                    ? dbDir.getParentFile().getName() : "world";
-            return new File(sCacheBase, world + "_map_small_" + dimension + ".bin");
+            return new File(dimCacheDir(dbDir, dimension), "small.bin");
         }
         return new File(dbDir.getParentFile(), "map_small_" + dimension + ".bin");
     }
@@ -2244,32 +2311,37 @@ public class WorldMapRenderer {
     /** 删除指定维度的全部缓存文件（含 y 段后缀变体）。退出地图清理下界/末地缓存用。 */
     public static void deleteDimCacheFiles(File dbDir, int dimension) {
         try {
-            String prefix;
-            java.io.File dir;
+            // v395 新结构：删整个维度文件夹（<世界>/<维度>/）
             if (sCacheBase != null) {
-                String world = dbDir.getParentFile() != null
-                        ? dbDir.getParentFile().getName() : "world";
-                prefix = world + "_map_cache_" + dimension;
-                dir = sCacheBase;
+                deleteRecursive(new File(dimCacheDir(dbDir, dimension), ""));
             } else {
-                prefix = "map_cache_" + dimension;
-                dir = dbDir.getParentFile();
-            }
-            if (dir == null) {
-                return;
-            }
-            java.io.File[] files = dir.listFiles();
-            if (files == null) {
-                return;
-            }
-            for (java.io.File f : files) {
-                String n = f.getName();
-                if (n.startsWith(prefix) && n.endsWith(".bin")) {
-                    f.delete();
+                String prefix = "map_cache_" + dimension;
+                java.io.File dir = dbDir.getParentFile();
+                java.io.File[] files = dir != null ? dir.listFiles() : null;
+                if (files != null) {
+                    for (java.io.File f : files) {
+                        if (f.getName().startsWith(prefix) && f.getName().endsWith(".bin")) {
+                            f.delete();
+                        }
+                    }
                 }
             }
         } catch (Exception ignored) {
         }
+    }
+
+    private static void deleteRecursive(java.io.File dir) {
+        java.io.File[] files = dir.listFiles();
+        if (files != null) {
+            for (java.io.File f : files) {
+                if (f.isDirectory()) {
+                    deleteRecursive(f);
+                } else {
+                    f.delete();
+                }
+            }
+        }
+        dir.delete();
     }
 
     /** db 指纹：文件总大小 + 最新修改时间（变了就失效重渲染）。 */
@@ -2830,9 +2902,8 @@ public class WorldMapRenderer {
     /** 世界范围小文件：首次 readKeys 后缓存，之后打开免扫描。 */
     private static File boundsFile(File dbDir, int dimension) {
         if (sCacheBase != null) {
-            String world = dbDir.getParentFile() != null
-                    ? dbDir.getParentFile().getName() : "world";
-            return new File(sCacheBase, world + "_map_bounds_" + dimension + ".bin");
+            // v395 新结构：<世界>/<维度>/bounds.bin
+            return new File(dimCacheDir(dbDir, dimension), "bounds.bin");
         }
         return new File(dbDir.getParentFile(), "map_bounds_" + dimension + ".bin");
     }

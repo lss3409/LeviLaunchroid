@@ -898,6 +898,7 @@ public class NbtViewerActivity extends BaseActivity {
             WorldMapRenderer.initCacheDir(getApplicationContext());
             if (dbDir.getParentFile() != null) {
                 WorldMapRenderer.cleanupLegacyWorldCache(dbDir);
+                WorldMapRenderer.migrateLegacyCache(dbDir);
             }
             WorldMapRenderer.WorldMap worldMap = null;
             List<WorldMapRenderer.EntityPos> entities = null;
@@ -1349,6 +1350,8 @@ public class NbtViewerActivity extends BaseActivity {
             // 缓存统一走应用私有目录（v7），清掉世界目录遗留旧缓存
             WorldMapRenderer.initCacheDir(getApplicationContext());
             WorldMapRenderer.cleanupLegacyWorldCache(dbDir);
+            // v395：旧扁平缓存迁移到新目录结构（<世界>/<维度>/）
+            WorldMapRenderer.migrateLegacyCache(dbDir);
             Log.i(TAG, "db 目录: " + dbDir.getAbsolutePath()
                     + ", 存在=" + dbDir.isDirectory());
             WorldMapRenderer.WorldMap worldMap = null;
