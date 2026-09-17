@@ -113,7 +113,12 @@ public class NbtViewerActivity extends BaseActivity {
     }
 
     private static ExecutorService newRenderPool() {
-        return Executors.newFixedThreadPool(6, r -> {
+        // 渲染线程数 = CPU 核数（上限 12）：小世界/大世界视口按需渲染
+        // 压满 CPU（此前固定 6 线程，8 核平板浪费 2 核——"小地图渲染
+        // 慢、CPU 没压榨满"的修复）
+        int threads = Math.max(6, Math.min(12,
+                Runtime.getRuntime().availableProcessors()));
+        return Executors.newFixedThreadPool(threads, r -> {
             Thread t = new Thread(r, "chunk-render");
             t.setPriority(Thread.MAX_PRIORITY);
             return t;
@@ -687,11 +692,67 @@ public class NbtViewerActivity extends BaseActivity {
         }
         prerenderThread = new Thread(() -> {
             try {
-                // 整轮渲染完成才合并（渐进动画版在 v365 曾按用户要求回滚；
-                // 进度回调 StreamProgress 现仅供 HTML 导出通知使用）
+                // 渐进动画：每 20 chunk 增量合并进当前视图并通知 UI，
+                // 从世界中心环形向外铺开（用户要求的"以世界为圆心向外刷"）。
+                // UI 通知节流 200ms（2.5 万 chunk = 1242 批回调，每批一条
+                // UI 消息会刷爆主线程——v293 per-chunk 消息风暴 ANR 教训）
                 final boolean merge = !binding.worldMapImage.isMemoryOptimized();
+                final java.util.concurrent.atomic.AtomicLong lastUiNotify =
+                        new java.util.concurrent.atomic.AtomicLong(0);
+                final java.util.Set<Long> pendingUiKeys = new java.util.HashSet<>();
                 WorldMapRenderer.WorldMap full =
-                        WorldMapRenderer.buildSatelliteMapStreaming(dbDir, dim);
+                        WorldMapRenderer.buildSatelliteMapStreaming(dbDir, dim,
+                                new WorldMapRenderer.StreamProgress() {
+                                    @Override
+                                    public void onProgress(int done, int total) {
+                                    }
+
+                                    @Override
+                                    public void onChunkData(
+                                            java.util.Map<Long, int[]> colors,
+                                            java.util.Map<Long, int[]> biomes,
+                                            java.util.List<Long> newKeys) {
+                                        if (renderGen.get() != myGen
+                                                || Thread.currentThread().isInterrupted()) {
+                                            return;
+                                        }
+                                        if (!merge) {
+                                            // 内存优化开启：预渲染只落盘不驻留
+                                            return;
+                                        }
+                                        java.util.Set<Long> keys = new java.util.HashSet<>();
+                                        for (Long k : newKeys) {
+                                            if (fMap.chunkColors.putIfAbsent(k, colors.get(k)) == null) {
+                                                keys.add(k);
+                                            }
+                                        }
+                                        if (fMap.chunkBiomeColors != null && biomes != null) {
+                                            for (Long k : newKeys) {
+                                                int[] bc = biomes.get(k);
+                                                if (bc != null) {
+                                                    fMap.chunkBiomeColors.putIfAbsent(k, bc);
+                                                }
+                                            }
+                                        }
+                                        if (!keys.isEmpty()) {
+                                            long now = android.os.SystemClock.uptimeMillis();
+                                            if (now - lastUiNotify.get() < 200) {
+                                                pendingUiKeys.addAll(keys);
+                                                return;
+                                            }
+                                            lastUiNotify.set(now);
+                                            final java.util.Set<Long> notify =
+                                                    new java.util.HashSet<>(pendingUiKeys);
+                                            notify.addAll(keys);
+                                            pendingUiKeys.clear();
+                                            runOnUiThread(() -> {
+                                                if (renderGen.get() == myGen) {
+                                                    binding.worldMapImage.onChunksRendered(notify);
+                                                }
+                                            });
+                                        }
+                                    }
+                                });
                 if (full == null || renderGen.get() != myGen
                         || Thread.currentThread().isInterrupted()) {
                     return;
@@ -1536,6 +1597,31 @@ public class NbtViewerActivity extends BaseActivity {
                         }
                         if (all == null || all.isEmpty()) {
                             return;
+                        }
+                        // 全量渲染整图（colors 数组路径）完成后回填：小世界
+                        // 缩小到全景时显示完整图而非视口 tile 色块（"小地图
+                        // 缩小之后没必要改成色块"）。渲染线程池并行压满 CPU
+                        WorldMapRenderer.WorldMap fullMap =
+                                WorldMapRenderer.buildSatelliteMap(all);
+                        if (fullMap != null && fullMap.colors != null) {
+                            // 保留玩家位置/出生点（整图渲染不解析这些）
+                            fullMap.playerBlockX = fWm.playerBlockX;
+                            fullMap.playerBlockZ = fWm.playerBlockZ;
+                            fullMap.playerBlockY = fWm.playerBlockY;
+                            fullMap.spawnBlockX = fWm.spawnBlockX;
+                            fullMap.spawnBlockZ = fWm.spawnBlockZ;
+                            fullMap.playerUniqueId = fWm.playerUniqueId;
+                            fullMap.chunkSourceDir = fWm.chunkSourceDir;
+                            fullMap.chunkSourceDim = fWm.chunkSourceDim;
+                            runOnUiThread(() -> {
+                                if (isFinishing() || isDestroyed() || !isCurrentLoad(fGen)) {
+                                    return;
+                                }
+                                if (currentMap == fWm) {
+                                    currentMap = fullMap;
+                                    binding.worldMapImage.setWorldMap(fullMap);
+                                }
+                            });
                         }
                         List<WorldMapRenderer.EntityPos> ents =
                                 WorldMapRenderer.parseEntities(all, 0);

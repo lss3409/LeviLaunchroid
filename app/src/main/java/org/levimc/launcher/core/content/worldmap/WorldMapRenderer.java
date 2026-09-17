@@ -1466,9 +1466,16 @@ public class WorldMapRenderer {
         return buildSatelliteMapStreaming(dbDir, dimension, null);
     }
 
-    /** 流式渲染进度回调（每渲染 20 chunk 回调一次；导出 HTML 通知进度用）。 */
+    /** 流式渲染进度回调（每渲染 20 chunk 回调一次）。
+     *  onProgress：计数进度（导出 HTML 通知百分比用）；
+     *  onChunkData：最近一批 chunk 的渲染数据（预渲染渐进显示用）。 */
     public interface StreamProgress {
         void onProgress(int done, int total);
+
+        default void onChunkData(java.util.Map<Long, int[]> colors,
+                                 java.util.Map<Long, int[]> biomes,
+                                 java.util.List<Long> newKeys) {
+        }
     }
 
     public static WorldMap buildSatelliteMapStreaming(File dbDir, int dimension,
@@ -1581,7 +1588,7 @@ public class WorldMapRenderer {
             int[] curHmap = null;
             byte[] curBiomes = null;
             Map<Integer, SubChunk> curSubs = new HashMap<>();
-            int progressCount = 0;
+            java.util.List<Long> progressBatch = new java.util.ArrayList<>();
             for (LevelDBEntry entry : heightEntries) {
                 byte[] rawKey = entry.getKey().getRawKey();
                 int[] chunkKey = parseChunkKey(rawKey);
@@ -1596,14 +1603,16 @@ public class WorldMapRenderer {
                                 monumentChunks, endCityChunks,
                                 finalMinCx, finalMaxCx, finalMinCz, finalMaxCz);
                         decoded += curSubs.size();
-                        // 进度回调（导出 HTML 通知百分比用）：每 20 个渲染
-                        // chunk 回调一次
+                        // 进度回调：每 20 个渲染 chunk 回调一次
+                        // （onProgress 计数 + onChunkData 批数据）
                         if (progress != null) {
-                            progressCount++;
-                            if (progressCount >= 20) {
-                                progressCount = 0;
+                            progressBatch.add(pack(curCx, curCz));
+                            if (progressBatch.size() >= 20) {
                                 progress.onProgress(renderedChunks.size(),
                                         maxSubByChunk.size());
+                                progress.onChunkData(chunkColors, chunkBiomeColors,
+                                        new java.util.ArrayList<>(progressBatch));
+                                progressBatch.clear();
                             }
                         }
                     }
@@ -1662,6 +1671,11 @@ public class WorldMapRenderer {
             }
             if (progress != null) {
                 progress.onProgress(renderedChunks.size(), maxSubByChunk.size());
+                if (!progressBatch.isEmpty()) {
+                    progress.onChunkData(chunkColors, chunkBiomeColors,
+                            new java.util.ArrayList<>(progressBatch));
+                    progressBatch.clear();
+                }
             }
             Log.i(TAG, "流式第二遍: 渲染 chunk 数=" + renderedChunks.size()
                     + " 解码 subchunk=" + decoded);
