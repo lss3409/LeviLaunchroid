@@ -230,6 +230,16 @@ public class WorldMapRenderer {
         }
     }
 
+    /** 读取 asset 文件，失败返回空串（HTML 内联资源缺失时降级不崩溃）。 */
+    private static String readAssetSafely(String name) {
+        try {
+            return readAsset(appContext, name);
+        } catch (Exception e) {
+            Log.w(TAG, "asset 读取失败: " + name, e);
+            return "";
+        }
+    }
+
     /**
      * 渲染主世界俯视缩略图。内部自行读取 LevelDB。
      * 必须在线程中调用（IO + NBT 解析耗时较长）。
@@ -4093,11 +4103,16 @@ public class WorldMapRenderer {
         int maxX = minX + map.width;
         int maxZ = minZ + map.height;
         StringBuilder html = new StringBuilder(16384);
+        // Leaflet 库内联（assets/leaflet/）——此前走 unpkg CDN，平板离线/
+        // 网络不稳时 leaflet.js 加载失败，导出文件打开地图完全空白
+        // （"导出成功但地图不显示"的根因）
+        String leafletCss = readAssetSafely("leaflet/leaflet.css");
+        String leafletJs = readAssetSafely("leaflet/leaflet.js");
         html.append("<!DOCTYPE html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">")
                 .append("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">")
                 .append("<title>").append(escapeHtml(title)).append("</title>")
-                .append("<link rel=\"stylesheet\" href=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.css\"/>")
-                .append("<script src=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.js\"></script>")
+                .append("<style>").append(leafletCss).append("</style>")
+                .append("<script>").append(leafletJs).append("</script>")
                 .append("<style>")
                 .append("body{margin:0;background:#12141a;font-family:system-ui,sans-serif}")
                 .append("#map{position:absolute;top:0;bottom:0;width:100%}")
@@ -4150,8 +4165,11 @@ public class WorldMapRenderer {
                 .append("<div id=\"hint\">长按地图 = 添加标点；点击标点气泡内可删除</div></div>")
                 .append("<script>")
                 .append("var map=L.map('map',{crs:L.CRS.Simple,minZoom:-5,maxZoom:3});")
-                .append("var BOUNDS=[[").append(minZ).append(',').append(maxX).append("],[")
-                .append(maxZ).append(',').append(minX).append("]];")
+                // Leaflet bounds = [[south, west], [north, east]]——此前 X 写反
+                // （west=maxX > east=minX，bounds 无效 → imageOverlay 不渲染，
+                // 大世界导出后地图不显示的根因）
+                .append("var BOUNDS=[[").append(minZ).append(',').append(minX).append("],[")
+                .append(maxZ).append(',').append(maxX).append("]];")
                 .append("L.imageOverlay('data:image/png;base64,").append(b64)
                 .append("',BOUNDS).addTo(map);")
                 .append("var FZ=map.getBoundsZoom(BOUNDS);")
