@@ -94,6 +94,42 @@ public class LevelDBReader {
         return keysOnly;
     }
 
+    /** 只读指定文件的 key（增量更新：扫新生成的 sst/log 找变化 chunk，
+     *  不用全库扫——大世界 312 个文件全扫要 5 秒，增量只有几个文件）。 */
+    public List<byte[]> readKeysFromFiles(java.util.Set<String> fileNames,
+                                          EntryFilter keyFilter) throws IOException {
+        this.filter = keyFilter;
+        this.keysOnlyMode = true;
+        this.keysOnly = new ArrayList<>();
+        try {
+            if (fileNames != null) {
+                for (String name : fileNames) {
+                    if (Thread.currentThread().isInterrupted()) {
+                        break;
+                    }
+                    File f = new File(dbPath, name);
+                    if (!f.isFile()) {
+                        continue;
+                    }
+                    try {
+                        if (name.endsWith(".ldb") || name.endsWith(".sst")) {
+                            readSSTable(f);
+                        } else if (name.endsWith(".log")) {
+                            // storeEntry 走 keysOnlyMode 只存 key
+                            readLogFile(f);
+                        }
+                    } catch (Exception e) {
+                        Log.w(TAG, "readKeysFromFiles failed on " + name + " - " + e.getMessage());
+                    }
+                }
+            }
+        } finally {
+            this.filter = null;
+            this.keysOnlyMode = false;
+        }
+        return keysOnly;
+    }
+
     private List<LevelDBEntry> readAllEntriesInternal() throws IOException {
         File[] sstFiles = dbPath.listFiles((dir, name) ->
             name.endsWith(".ldb") || name.endsWith(".sst"));

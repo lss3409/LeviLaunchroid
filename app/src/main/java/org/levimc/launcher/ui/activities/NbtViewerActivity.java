@@ -799,6 +799,52 @@ public class NbtViewerActivity extends BaseActivity {
         prerenderThread.start();
     }
 
+    /**
+     * 增量更新（v384 用户新思路"专门存地图数据的地方"）：缓存命中秒开后，
+     * 后台对比 db 文件指纹（sst 不可变，存档更新 = 新增文件/追加 log），
+     * 只重渲染变化文件覆盖的 chunk，完成后合并保存——用户玩过存档后
+     * 打开地图不用全量重渲染。
+     */
+    private void startIncrementalUpdate(File dbDir, WorldMapRenderer.WorldMap map,
+                                        int dim) {
+        if (map == null || map.chunkColors == null || dbDir == null) {
+            return;
+        }
+        executor.execute(() -> {
+            java.util.Set<String> changed = WorldMapRenderer.diffDbFiles(dbDir, map);
+            if (changed.isEmpty()) {
+                Log.i(TAG, "增量更新: db 无变化 (dim=" + dim + ")");
+                return;
+            }
+            java.util.Set<Long> chunks =
+                    WorldMapRenderer.collectChangedChunks(dbDir, changed, dim);
+            if (chunks.isEmpty()) {
+                return;
+            }
+            Log.i(TAG, "增量更新: " + changed.size() + " 个新文件, "
+                    + chunks.size() + " 个变化 chunk (dim=" + dim + ")");
+            try {
+                LevelDBReader reader = new LevelDBReader(dbDir);
+                int done = WorldMapRenderer.refreshChangedChunks(
+                        reader, dbDir, map, chunks, dim);
+                reader.close();
+                if (done > 0) {
+                    map.chunkCacheSuffix = WorldMapRenderer.cacheSuffixFor(dim);
+                    WorldMapRenderer.saveChunkCache(map, dbDir, dim);
+                    runOnUiThread(() -> {
+                        if (!isFinishing() && !isDestroyed() && currentMap == map) {
+                            binding.worldMapImage.onChunksRendered(
+                                    java.util.Collections.emptySet());
+                        }
+                    });
+                }
+                Log.i(TAG, "增量更新完成: " + done + " chunk (dim=" + dim + ")");
+            } catch (Exception e) {
+                Log.w(TAG, "增量更新失败", e);
+            }
+        });
+    }
+
     /** 下界渲染层分段选择：全部/上部(y64-127)/中部(y32-95)/下部(y0-63)。 */
     private void setupNetherYSegment() {
         final String PREFS = "nether_render_y";
@@ -1299,6 +1345,11 @@ public class NbtViewerActivity extends BaseActivity {
                         if (fMap.chunkColors != null && fMap.chunkSourceDir != null
                                 && (fMap.chunkColors.isEmpty() || cacheInsufficient)) {
                             startPrerender();
+                        } else if (fMap.chunkColors != null && !fMap.chunkColors.isEmpty()
+                                && fMap.chunkSourceDir != null) {
+                            // 缓存命中：增量更新（存档玩过后只重渲染变化 chunk）
+                            startIncrementalUpdate(fMap.chunkSourceDir, fMap,
+                                    "nether".equals(mapDimension) ? 1 : 2);
                         }
                     }
                 } else {
@@ -1746,6 +1797,12 @@ public class NbtViewerActivity extends BaseActivity {
             // （v382 实测"预渲染失败 OutOfMemoryError"）。主世界视口按需
             // 渲染 + LOD 已覆盖；全图预渲染只用于切维度自动（下界/末地
             // 数据量小）
+            // 缓存命中（chunkColors 非空）：后台增量更新——存档玩过之后
+            // 只重渲染变化文件覆盖的 chunk
+            if (worldMap.chunkColors != null && !worldMap.chunkColors.isEmpty()
+                    && worldMap.chunkSourceDir != null) {
+                startIncrementalUpdate(worldMap.chunkSourceDir, worldMap, 0);
+            }
         } else {
             binding.worldMapPlaceholder.setText(R.string.world_map_unavailable);
         }
@@ -2457,18 +2514,13 @@ public class NbtViewerActivity extends BaseActivity {
         // 大世界按需渲染：把本次会话渲染过的 chunk 增量写入磁盘缓存
         // （v378 小世界全量回填后 currentMap 是 colors 数组路径 map，
         // 其 chunkColors 为 null——判空保护，否则 onDestroy NPE 崩溃）。
-        // 主世界缓存保存（下次打开秒开）；下界/末地退出即删缓存
-        // （退出地图后重新渲染——用户要求的行为）
+        // 所有维度缓存都持久保存（v384：撤销 v382 的退出删除——用户
+        // 新思路"专门存地图数据的地方，打开瞬间读，存档更新时更新"）
         if (currentMap != null && currentMap.chunkSourceDir != null
                 && currentMap.chunkColors != null
-                && !currentMap.chunkColors.isEmpty()
-                && currentMap.chunkSourceDim == 0) {
+                && !currentMap.chunkColors.isEmpty()) {
             WorldMapRenderer.saveChunkCache(currentMap, currentMap.chunkSourceDir,
                     currentMap.chunkSourceDim);
-        }
-        if (currentWorldDir != null) {
-            WorldMapRenderer.deleteDimCacheFiles(new File(currentWorldDir, "db"), 1);
-            WorldMapRenderer.deleteDimCacheFiles(new File(currentWorldDir, "db"), 2);
         }
         super.onDestroy();
         if (executor != null) {

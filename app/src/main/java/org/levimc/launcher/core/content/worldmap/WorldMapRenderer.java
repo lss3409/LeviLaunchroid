@@ -1111,6 +1111,10 @@ public class WorldMapRenderer {
          *  保存缓存必须用它而不是当前全局参数：切段时全局参数已改成新段，
          *  旧段数据会存进新段文件名（"切段总是重新渲染"的根因）。 */
         public String chunkCacheSuffix = "";
+        /** 缓存保存时的 db 文件指纹列表（"name:size:mtime"）——
+         *  增量更新：打开时对比找出新文件，只重渲染这些文件覆盖的 chunk。
+         *  LevelDB sst 文件不可变，存档更新只会新增文件/追加 log。 */
+        public java.util.List<String> dbFileFingerprints;
         /** 出生点位置（block 坐标，-1 = 无） */
         public int spawnBlockX = -1;
         public int spawnBlockZ = -1;
@@ -1977,7 +1981,9 @@ public class WorldMapRenderer {
     // v17：1.26 单值存储 subchunk 解码（bits=0 header，末地 end_stone 层
     //      实测格式）+ onChunkData NPE 修复——v16 缓存含解码失败/半渲染
     //      结果（末地 122 chunk 坏缓存）须失效
-    private static final int MAP_CACHE_VERSION = 17;
+    // v18：缓存头加 db 文件指纹列表（"name:size:mtime"）——增量更新：
+    //      打开时 diff 找出新文件只重渲染变化 chunk，db 变化不再全量失效
+    private static final int MAP_CACHE_VERSION = 18;
 
     /** 缓存根目录（应用私有，卸载即清——缓存可再生）。null 时回退旧路径。 */
     private static java.io.File sCacheBase;
@@ -2124,6 +2130,16 @@ public class WorldMapRenderer {
             dos.writeInt(maxCz);
             dos.writeLong(fp[0]);
             dos.writeLong(fp[1]);
+            // v18：db 文件指纹列表（增量更新的依据——sst 不可变，
+            // 存档更新 = 新增文件/追加 log，对比找出变化文件）
+            java.util.List<String> fps = dbFileFingerprintList(dbDir);
+            map.dbFileFingerprints = fps;
+            dos.writeInt(fps.size());
+            for (String f : fps) {
+                byte[] fb = f.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                dos.writeShort(fb.length);
+                dos.write(fb);
+            }
             boolean hasBiome = map.chunkBiomeColors != null && !map.chunkBiomeColors.isEmpty();
             dos.writeBoolean(hasBiome);
             for (Map.Entry<Long, int[]> e : map.chunkColors.entrySet()) {
@@ -2136,12 +2152,112 @@ public class WorldMapRenderer {
                 }
             }
             Log.i(TAG, "chunk 缓存已保存: " + out.getName() + " "
-                    + (out.length() / 1024 / 1024) + "MB");
+                    + (out.length() / 1024 / 1024) + "MB 文件指纹=" + fps.size());
             return true;
         } catch (Exception e) {
             Log.w(TAG, "chunk 缓存保存失败", e);
             return false;
         }
+    }
+
+    /** db 文件指纹列表（"name:size:mtime"，名字排序稳定）。 */
+    private static java.util.List<String> dbFileFingerprintList(File dbDir) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        File[] files = dbDir.listFiles(f -> f.isFile()
+                && (f.getName().endsWith(".ldb") || f.getName().endsWith(".sst")
+                || f.getName().endsWith(".log")));
+        if (files != null) {
+            Arrays.sort(files, java.util.Comparator.comparing(File::getName));
+            for (File f : files) {
+                out.add(f.getName() + ":" + f.length() + ":" + f.lastModified());
+            }
+        }
+        return out;
+    }
+
+    /** 对比 db 当前文件与缓存保存时的指纹——返回新文件/变化文件的名字集合。
+     *  空集合 = 存档没变，缓存完全有效。 */
+    public static java.util.Set<String> diffDbFiles(File dbDir, WorldMap cached) {
+        java.util.Set<String> changed = new java.util.HashSet<>();
+        if (dbDir == null || cached == null) {
+            return changed;
+        }
+        java.util.List<String> now = dbFileFingerprintList(dbDir);
+        java.util.Set<String> old = cached.dbFileFingerprints != null
+                ? new java.util.HashSet<>(cached.dbFileFingerprints)
+                : java.util.Collections.emptySet();
+        for (String f : now) {
+            if (!old.contains(f)) {
+                changed.add(f.substring(0, f.indexOf(':')));
+            }
+        }
+        return changed;
+    }
+
+    /** 扫变化文件的 key，收集指定维度受影响的 chunk 集合（增量更新：
+     *  只重渲染这些 chunk，其余从缓存秒开）。 */
+    public static java.util.Set<Long> collectChangedChunks(File dbDir,
+                                                           java.util.Set<String> files,
+                                                           int dimension) {
+        java.util.Set<Long> chunks = new java.util.HashSet<>();
+        if (dbDir == null || files == null || files.isEmpty()) {
+            return chunks;
+        }
+        try {
+            LevelDBReader reader = new LevelDBReader(dbDir);
+            List<byte[]> keys = reader.readKeysFromFiles(files, k -> {
+                if (k == null || (k.length != 9 && k.length != 10
+                        && k.length != 13 && k.length != 14)) {
+                    return false;
+                }
+                int[] ck = parseChunkKey(k);
+                return ck != null && ck[2] == dimension && isSubchunkKey(k);
+            });
+            reader.close();
+            for (byte[] k : keys) {
+                int[] ck = parseChunkKey(k);
+                if (ck != null) {
+                    chunks.add(pack(ck[0], ck[1]));
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "collectChangedChunks 失败", e);
+        }
+        return chunks;
+    }
+
+    /** 增量更新缓存：重渲染变化 chunk 并覆盖（调用方决定保存时机）。
+     *  reader 复用（调用方 ThreadLocal）；返回重渲染的 chunk 数。 */
+    public static int refreshChangedChunks(LevelDBReader reader, File dbDir,
+                                           WorldMap map, java.util.Set<Long> chunks,
+                                           int dimension) {
+        if (reader == null || map == null || map.chunkColors == null
+                || chunks == null || chunks.isEmpty()) {
+            return 0;
+        }
+        int done = 0;
+        for (Long key : chunks) {
+            if (Thread.currentThread().isInterrupted()) {
+                break;
+            }
+            int cx = (int) (key >> 32);
+            int cz = (int) (long) key;
+            try {
+                int[][] res = renderChunkOnDemand(reader, cx, cz, dimension);
+                int[] colors = res != null ? res[0] : null;
+                // 变化的 chunk 直接覆盖（旧数据已过时）
+                if (colors != null) {
+                    map.chunkColors.put(key, colors);
+                    if (res[1] != null && map.chunkBiomeColors != null) {
+                        map.chunkBiomeColors.put(key, res[1]);
+                    }
+                }
+                done++;
+            } catch (Exception e) {
+                Log.w(TAG, "增量更新 chunk(" + cx + "," + cz + ") 失败", e);
+            }
+        }
+        return done;
     }
 
     /** 调色板编码写一个 chunk 的 256 像素（v7）：1B 色数 + n×4B 色值 +
@@ -2190,7 +2306,9 @@ public class WorldMapRenderer {
         return cc;
     }
 
-    /** 加载磁盘 chunk 缓存；db 指纹不匹配（世界改过）返回 null 走全量渲染。 */
+    /** 加载磁盘 chunk 缓存。
+     *  v18 起：db 变化不再直接失效——带文件指纹列表，打开时 diffDbFiles
+     *  找出新文件增量更新对应 chunk（用户玩过存档后只重渲染变化区域）。 */
     public static WorldMap loadChunkCache(File dbDir, int dimension) {
         File in = chunkCacheFile(dbDir, dimension);
         if (!in.isFile()) {
@@ -2211,8 +2329,22 @@ public class WorldMapRenderer {
             int maxCz = dis.readInt();
             long dbSize = dis.readLong();
             long dbMtime = dis.readLong();
+            // v18：文件指纹列表（增量更新依据）。读完后 dbSize/mtime
+            // 变化不再失效——diffDbFiles 精确对比每个文件
+            int fpCount = dis.readInt();
+            java.util.List<String> fps = new java.util.ArrayList<>(fpCount);
+            for (int i = 0; i < fpCount; i++) {
+                int len = dis.readUnsignedShort();
+                byte[] fb = new byte[len];
+                dis.readFully(fb);
+                fps.add(new String(fb, java.nio.charset.StandardCharsets.UTF_8));
+            }
+            if (fpCount > 0 && (fps.get(0).isEmpty() || !fps.get(0).contains(":"))) {
+                Log.w(TAG, "chunk 缓存文件列表损坏，重新渲染");
+                return null;
+            }
             long[] fp = dbFingerprint(dbDir);
-            if (fp[0] != dbSize || fp[1] != dbMtime) {
+            if (fpCount == 0 && (fp[0] != dbSize || fp[1] != dbMtime)) {
                 Log.i(TAG, "chunk 缓存失效（db 已变化），重新渲染");
                 return null;
             }
@@ -2240,7 +2372,9 @@ public class WorldMapRenderer {
             map.chunkColors = chunkColors;
             map.chunkBiomeColors = chunkBiomeColors;
             map.blockScale = 1;
-            Log.i(TAG, "chunk 缓存已加载: " + count + " chunk (biome=" + hasBiome + ")");
+            map.dbFileFingerprints = fps;
+            Log.i(TAG, "chunk 缓存已加载: " + count + " chunk (biome=" + hasBiome
+                    + ", 文件指纹=" + fps.size() + ")");
             return map;
         } catch (Exception e) {
             Log.w(TAG, "chunk 缓存加载失败", e);
