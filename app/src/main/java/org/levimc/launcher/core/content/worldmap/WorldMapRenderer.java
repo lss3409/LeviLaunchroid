@@ -1859,7 +1859,8 @@ public class WorldMapRenderer {
     // v11：阴影高度差 <2 阈值（v10 缓存仍含建筑边缘 ±20% 亮暗带须失效）
     // v12：忽略光源方块开关（火把等光源方块渲染结果变化须失效）
     // v13：渲染窗口下界 -2 → -4（悬空建筑下方列不再回退群系黄）
-    private static final int MAP_CACHE_VERSION = 13;
+    // v14：切维度保存缓存维度错乱（主世界图写进下界缓存文件）须失效
+    private static final int MAP_CACHE_VERSION = 14;
 
     /** 缓存根目录（应用私有，卸载即清——缓存可再生）。null 时回退旧路径。 */
     private static java.io.File sCacheBase;

@@ -1049,8 +1049,10 @@ public class NbtViewerActivity extends BaseActivity {
                 && currentWorldDir != null) {
             final WorldMapRenderer.WorldMap toSave = oldMap;
             final File saveDb = new File(currentWorldDir, "db");
-            final int saveDim = "nether".equals(mapDimension) ? 1
-                    : "end".equals(mapDimension) ? 2 : 0;
+            // 维度必须取 toSave 自己的 chunkSourceDim——switchToDimension 已把
+            // mapDimension 改成新维度，用它算会把主世界图存进下界缓存文件
+            // （"切下界显示主世界图、颜色错乱"的根因）
+            final int saveDim = toSave.chunkSourceDim >= 0 ? toSave.chunkSourceDim : 0;
             new Thread(() -> WorldMapRenderer.saveChunkCache(toSave, saveDb, saveDim),
                     "cache-save").start();
         }
