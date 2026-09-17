@@ -961,6 +961,67 @@ public class WorldMapRenderer {
 
     /** chunk 内坡度阴影（BTR btrHeightShading 同款：西/北邻居高度差，
      * chunk 边界取自身高度——樱花树冠/山地的立体感来源）。 */
+    /**
+     * 无高度图 chunk 的合成高度图：逐列从顶向下找第一个"可见"方块 y
+     * （surfaceColor 同款规则：空气穿透、下界 bedrock/netherrack 剔除
+     * 穿透、水层计入）。1.26 下界/末地大部分 chunk 没有 0x2b/0x2d
+     * 高度图 key，只有 subchunk 数据——阴影/窗口裁剪需要高度值。
+     */
+    private static int[] synthesizeHeightMap(Map<Integer, SubChunk> subs, int dimension) {
+        int[] hmap = new int[256];
+        if (subs == null || subs.isEmpty()) {
+            return hmap;
+        }
+        int maxSub = Integer.MIN_VALUE;
+        for (Integer s : subs.keySet()) {
+            maxSub = Math.max(maxSub, s);
+        }
+        if (maxSub == Integer.MIN_VALUE) {
+            return hmap;
+        }
+        int yStart = Math.min(maxSub * 16 + 15, 320);
+        java.util.Set<String> ex = netherExcludeBlocks;
+        for (int i = 0; i < 256; i++) {
+            int lx = i & 15;
+            int lz = i >> 4;
+            for (int y = yStart; y >= -64; y--) {
+                int si = Math.floorDiv(y, 16);
+                SubChunk sub = subs.get(si);
+                if (sub == null) {
+                    continue;
+                }
+                int ly = y - si * 16;
+                int idx = sub.getIndex(lx, ly, lz);
+                String name = idx < sub.palette.length ? sub.palette[idx] : null;
+                if (name == null || isAirName(name)) {
+                    if (sub.waterLayer != null) {
+                        int widx = sub.waterLayer.getIndex(lx, ly, lz);
+                        String wname = widx < sub.waterLayer.palette.length
+                                ? sub.waterLayer.palette[widx] : null;
+                        if (wname != null && !isAirName(wname)) {
+                            hmap[i] = y;
+                            break;
+                        }
+                    }
+                    continue;
+                }
+                if (dimension == DIM_NETHER) {
+                    if (ex == null) {
+                        if (name.equals("minecraft:bedrock") || name.endsWith("bedrock")
+                                || name.equals("minecraft:netherrack")) {
+                            continue; // 与 surfaceColor 剔除一致：穿透
+                        }
+                    } else if (ex.contains(name)) {
+                        continue;
+                    }
+                }
+                hmap[i] = y;
+                break;
+            }
+        }
+        return hmap;
+    }
+
     private static int applyShading(int color, int[] hmap, int i) {
         if ((color & 0xFF000000) == 0) {
             return color;
@@ -1571,12 +1632,19 @@ public class WorldMapRenderer {
             // readEntries 内部是 HashMap 无序遍历——逐 chunk 收集逻辑依赖
             // 同 chunk key 相邻（"换 chunk 渲染上一个"），乱序时 subchunk 先到、
             // 高度图后到，换 chunk 重置 curSubs 把 subchunk 丢掉 → 渲染时
-            // subs 空 → 整片回退 biome 纯色（下界/末地"无阴影无方块"的根因）
-            // 按 chunk 距世界原点 (0,0) 距离排序——预渲染从中心向外环形铺开
-            // （用户要的"以世界为圆心向外刷"）。稳定排序：同 chunk 的多个
-            // key 距离相同保持原相对顺序（同 chunk 相邻依赖此性质——
-            // 逐 chunk 收集逻辑"换 chunk 渲染上一个"）。排序 56.9 万条目
-            // 约 0.5-1 秒，与 30-60 秒渲染相比可忽略
+            // subs 空 → 整片回退 biome 纯色（下界/末地"无阴影无方块"的根因）。
+            // 两级排序：
+            // ① 先按字节序（compareBytes，v322 同款）——同一 chunk 的所有 key
+            //   （高度图+subchunk）前缀相同必然相邻，逐 chunk 收集逻辑依赖此性质；
+            //   v374 只用距离排序，输入是无序 HashMap，同 chunk key 在等距组内
+            //   仍按无序输入顺序排列 → 下界/末地 subchunk 数据丢失（大世界
+            //   下界末地连区块网格都不显示的根因）
+            // ② 再按 chunk 距世界原点 (0,0) 距离稳定排序——预渲染从中心向外
+            //   环形铺开（用户要的"以世界为圆心向外刷"）。List.sort 是稳定
+            //   排序：同 chunk key 距离相同，保持 ① 排好的相邻顺序。
+            // 排序 56.9 万条目两次约 1-2 秒，与 30-60 秒渲染相比可忽略
+            heightEntries.sort((a, b) -> compareBytes(
+                    a.getKey().getRawKey(), b.getKey().getRawKey()));
             heightEntries.sort((a, b) -> {
                 int[] ka = parseChunkKey(a.getKey().getRawKey());
                 int[] kb = parseChunkKey(b.getKey().getRawKey());
@@ -1600,7 +1668,13 @@ public class WorldMapRenderer {
                     continue;
                 }
                 if (chunkKey[0] != curCx || chunkKey[1] != curCz) {
-                    // 换 chunk：渲染上一个并释放
+                    // 换 chunk：渲染上一个并释放。
+                    // 1.26 下界/末地大量 chunk 无高度图 key——有 subchunk
+                    // 数据时合成高度图（与视口按需渲染同款；此前 curHmap
+                    // ==null 直接跳过不渲染，预渲染路径同样丢下界/末地）
+                    if (curHmap == null && !curSubs.isEmpty()) {
+                        curHmap = synthesizeHeightMap(curSubs, dimension);
+                    }
                     if (curHmap != null) {
                         renderChunkToCache(curCx, curCz, curHmap, curBiomes, curSubs,
                                 dimension, renderedChunks, chunkColors, chunkBiomeColors,
@@ -1665,6 +1739,10 @@ public class WorldMapRenderer {
                 } catch (Exception e) {
                     Log.w(TAG, "Failed to decode chunk at " + chunkKey[0] + "," + chunkKey[1], e);
                 }
+            }
+            // 收尾：渲染最后一个 chunk（同样合成无高度图 chunk 的高度）
+            if (curHmap == null && !curSubs.isEmpty()) {
+                curHmap = synthesizeHeightMap(curSubs, dimension);
             }
             if (curHmap != null) {
                 renderChunkToCache(curCx, curCz, curHmap, curBiomes, curSubs,
@@ -1879,7 +1957,9 @@ public class WorldMapRenderer {
     // v13：渲染窗口下界 -2 → -4（悬空建筑下方列不再回退群系黄）
     // v14：切维度保存缓存维度错乱（主世界图写进下界缓存文件）须失效
     // v15：流式 filter 窗口下界 maxSub-6（v14 缓存缺失深层数据须失效）
-    private static final int MAP_CACHE_VERSION = 15;
+    // v16：流式渲染两级排序（compareBytes 字节序 + 距离稳定排序）——
+    //      v15 缓存含 v374 距离排序导致的下界/末地数据丢失结果须失效
+    private static final int MAP_CACHE_VERSION = 16;
 
     /** 缓存根目录（应用私有，卸载即清——缓存可再生）。null 时回退旧路径。 */
     private static java.io.File sCacheBase;
@@ -2245,7 +2325,17 @@ public class WorldMapRenderer {
                 }
             }
             if (hmap == null) {
-                return null; // 无高度数据（未生成 chunk）
+                // 1.26 下界/末地大部分 chunk 没有 0x2b/0x2d 高度图 key
+                // （实测 TK 世界下界 7752 个有 subchunk 数据的 chunk 只有
+                // 8299 个高度图 key，且 (0,0) 等大量 chunk 完全没有）——
+                // 此前直接 return null → 视口按需渲染全部空白（大世界
+                // 下界/末地"连区块网格都不显示"的根因）。surfaceColor
+                // 从顶向下找方块本来就不依赖高度图；有 subchunk 数据
+                // 时合成高度图供阴影/窗口裁剪使用
+                if (subs.isEmpty()) {
+                    return null; // 真·未生成 chunk（无 subchunk 数据）
+                }
+                hmap = synthesizeHeightMap(subs, dimension);
             }
             // 结构特征检测（视口按需渲染路径同样要做——主世界大世界
             // 不走流式渲染，沙漠神殿/前哨站没有专门 key 只能靠 palette）
