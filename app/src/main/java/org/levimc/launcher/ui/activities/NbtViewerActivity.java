@@ -113,12 +113,9 @@ public class NbtViewerActivity extends BaseActivity {
     }
 
     private static ExecutorService newRenderPool() {
-        // 渲染线程数 = CPU 核数（上限 12）：小世界/大世界视口按需渲染
-        // 压满 CPU（此前固定 6 线程，8 核平板浪费 2 核——"小地图渲染
-        // 慢、CPU 没压榨满"的修复）
-        int threads = Math.max(6, Math.min(12,
-                Runtime.getRuntime().availableProcessors()));
-        return Executors.newFixedThreadPool(threads, r -> {
+        // 6 线程（v378 试过核数线程=8：视口渲染+后台任务抢 CPU，小地图
+        // 打开时卡顿——回滚固定 6，IO 瓶颈下线程数不是关键）
+        return Executors.newFixedThreadPool(6, r -> {
             Thread t = new Thread(r, "chunk-render");
             t.setPriority(Thread.MAX_PRIORITY);
             return t;
@@ -1259,6 +1256,13 @@ public class NbtViewerActivity extends BaseActivity {
                 if (fMap != null) {
                     WorldMapRenderer.debugExport(fMap); // 调试导出 map_debug.png
                     binding.worldMapImage.setWorldMap(fMap, fKeepView);
+                    // 下界/末地（非 keepView 重载）：整图适配——initialView
+                    // 默认定位 spawn/(0,0)，主世界远处切过来时对应下界坐标
+                    // 往往未生成（玩家没去过）→ 全屏空白"不渲染"的根因。
+                    // fit 后看到整个维度的生成范围轮廓
+                    if (!fKeepView && !"overworld".equals(mapDimension)) {
+                        binding.worldMapImage.fitToView();
+                    }
                     binding.worldMapImage.setEntityData(fEntities);
                     binding.worldMapImage.setStructureMarkers(fStructures);
                     binding.worldMapPlaceholder.setVisibility(View.GONE);
@@ -1597,31 +1601,6 @@ public class NbtViewerActivity extends BaseActivity {
                         }
                         if (all == null || all.isEmpty()) {
                             return;
-                        }
-                        // 全量渲染整图（colors 数组路径）完成后回填：小世界
-                        // 缩小到全景时显示完整图而非视口 tile 色块（"小地图
-                        // 缩小之后没必要改成色块"）。渲染线程池并行压满 CPU
-                        WorldMapRenderer.WorldMap fullMap =
-                                WorldMapRenderer.buildSatelliteMap(all);
-                        if (fullMap != null && fullMap.colors != null) {
-                            // 保留玩家位置/出生点（整图渲染不解析这些）
-                            fullMap.playerBlockX = fWm.playerBlockX;
-                            fullMap.playerBlockZ = fWm.playerBlockZ;
-                            fullMap.playerBlockY = fWm.playerBlockY;
-                            fullMap.spawnBlockX = fWm.spawnBlockX;
-                            fullMap.spawnBlockZ = fWm.spawnBlockZ;
-                            fullMap.playerUniqueId = fWm.playerUniqueId;
-                            fullMap.chunkSourceDir = fWm.chunkSourceDir;
-                            fullMap.chunkSourceDim = fWm.chunkSourceDim;
-                            runOnUiThread(() -> {
-                                if (isFinishing() || isDestroyed() || !isCurrentLoad(fGen)) {
-                                    return;
-                                }
-                                if (currentMap == fWm) {
-                                    currentMap = fullMap;
-                                    binding.worldMapImage.setWorldMap(fullMap);
-                                }
-                            });
                         }
                         List<WorldMapRenderer.EntityPos> ents =
                                 WorldMapRenderer.parseEntities(all, 0);
@@ -3100,10 +3079,42 @@ public class NbtViewerActivity extends BaseActivity {
         Toast.makeText(this, R.string.voxel_select_hint, Toast.LENGTH_LONG).show();
     }
 
+    /** 3D 选区（结构导出用）：左上角 + 边长。 */
+    private int voxelMinX;
+    private int voxelMinZ;
+    private int voxelSize;
+
+    /** 导出选中区域为 .mcstructure 结构文件。 */
+    private void exportVoxelStructure(int minX, int minZ, int size) {
+        if (currentWorldDir == null) {
+            return;
+        }
+        File dir = new File("/sdcard/Download/LeviLauncher/structures");
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
+        String name = "structure_" + minX + "_" + minZ + "_" + size + ".mcstructure";
+        File out = new File(dir, name);
+        binding.nbtLoading.setVisibility(View.VISIBLE);
+        executor.execute(() -> {
+            int dim = "nether".equals(mapDimension) ? 1 : "end".equals(mapDimension) ? 2 : 0;
+            boolean ok = WorldMapRenderer.exportStructureRegion(
+                    new File(currentWorldDir, "db"), minX, minZ, size, dim, out);
+            runOnUiThread(() -> {
+                binding.nbtLoading.setVisibility(View.GONE);
+                Toast.makeText(this, ok ? "结构已导出: " + out.getAbsolutePath()
+                        : "结构导出失败（区域无方块数据）", Toast.LENGTH_LONG).show();
+            });
+        });
+    }
+
     /** 后台渲染 3D 区域数据（立即弹对话框显示加载状态，完成后回填）。 */
     private void startVoxelRender(int centerX, int centerZ, int size) {
         final File dbDir = new File(currentWorldDir, "db");
         final int dim = "nether".equals(mapDimension) ? 1 : "end".equals(mapDimension) ? 2 : 0;
+        voxelMinX = centerX - size / 2;
+        voxelMinZ = centerZ - size / 2;
+        voxelSize = size;
         final int fCenterX = centerX;
         final int fCenterZ = centerZ;
         // 先弹对话框（VoxelView 空数据显示"加载中…"），大世界读 chunk 要数秒
@@ -3128,10 +3139,17 @@ public class NbtViewerActivity extends BaseActivity {
         btns.setOrientation(LinearLayout.HORIZONTAL);
         btns.setGravity(android.view.Gravity.CENTER);
         btns.setPadding(0, 0, 0, (int) (16 * d));
-        String[] labels = {"⟲ 旋转", "放大", "关闭"};
+        String[] labels = {"⟲ 旋转", "放大", "导出结构", "关闭"};
+        final int[] selMinX = new int[1];
+        final int[] selMinZ = new int[1];
+        final int[] selSize = new int[1];
+        selMinX[0] = voxelMinX;
+        selMinZ[0] = voxelMinZ;
+        selSize[0] = voxelSize;
         android.view.View.OnClickListener[] clicks = {
                 v2 -> voxel.rotateClockwise(),
                 v2 -> voxel.toggleZoom(),
+                v2 -> exportVoxelStructure(selMinX[0], selMinZ[0], selSize[0]),
                 v2 -> dialog.dismiss()
         };
         for (int i = 0; i < labels.length; i++) {

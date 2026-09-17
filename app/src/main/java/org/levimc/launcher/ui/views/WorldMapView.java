@@ -512,7 +512,7 @@ public class WorldMapView extends View {
     }
 
     /** 整图适配视图（fit-center）。 */
-    private void fitToView() {
+    public void fitToView() {
         float fit = fitScale();
         if (fit <= 0f) {
             pixelsPerBlock = 1f;

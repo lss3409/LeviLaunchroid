@@ -9,6 +9,7 @@ import org.levimc.launcher.core.content.leveldb.LevelDBEntry;
 import org.levimc.launcher.core.content.leveldb.LevelDBReader;
 import org.levimc.launcher.core.content.leveldb.NativeLevelDb;
 import org.levimc.launcher.core.content.nbt.BedrockNbtReader;
+import org.levimc.launcher.core.content.nbt.BedrockNbtWriter;
 import org.levimc.launcher.core.content.nbt.NbtTag;
 
 import java.io.File;
@@ -4409,6 +4410,159 @@ public class WorldMapRenderer {
                     .append(r.length > 3 ? r[3] : "#ffd54f").append("'}");
         }
         return sb.append(']').toString();
+    }
+
+    /**
+     * 导出选中区域为 MC 结构文件（.mcstructure，NBT 格式）。
+     * 区域 = 以 (minX,minZ) 为西北角的 size×size 方块；y 范围取区域内
+     * 实际方块的最小/最大高度。方块名只存 palette 名称（不含 block
+     * states——结构方块加载时用默认状态，v1 简化）。
+     */
+    public static boolean exportStructureRegion(File dbDir, int minX, int minZ,
+                                                int size, int dimension, File outFile) {
+        try {
+            int maxX = minX + size - 1;
+            int maxZ = minZ + size - 1;
+            int minCx = Math.floorDiv(minX, 16);
+            int maxCx = Math.floorDiv(maxX, 16);
+            int minCz = Math.floorDiv(minZ, 16);
+            int maxCz = Math.floorDiv(maxZ, 16);
+            LevelDBReader reader = new LevelDBReader(dbDir);
+            // 每列 (x,z) → TreeMap<y, name>（非空气；含水跳过——结构导出
+            // 不含水面，水面下河床直接落地）
+            java.util.Map<Long, java.util.TreeMap<Integer, String>> columns =
+                    new java.util.HashMap<>();
+            int minY = Integer.MAX_VALUE;
+            int maxY = Integer.MIN_VALUE;
+            try {
+                for (int cz = minCz; cz <= maxCz; cz++) {
+                    for (int cx = minCx; cx <= maxCx; cx++) {
+                        List<LevelDBEntry> entries = reader.readChunk(cx, cz);
+                        for (LevelDBEntry e : entries) {
+                            byte[] rawKey = e.getKey().getRawKey();
+                            int[] ck = parseChunkKey(rawKey);
+                            if (ck == null || ck[2] != dimension || !isSubchunkKey(rawKey)) {
+                                continue;
+                            }
+                            SubChunk sc = decodeSubChunk(e.getValue());
+                            if (sc == null) {
+                                continue;
+                            }
+                            int subIndex = ck[3];
+                            for (int lz = 0; lz < 16; lz++) {
+                                for (int lx = 0; lx < 16; lx++) {
+                                    int wx = cx * 16 + lx;
+                                    int wz = cz * 16 + lz;
+                                    if (wx < minX || wx > maxX || wz < minZ || wz > maxZ) {
+                                        continue;
+                                    }
+                                    for (int ly = 0; ly < 16; ly++) {
+                                        int idx = sc.getIndex(lx, ly, lz);
+                                        String name = idx < sc.palette.length ? sc.palette[idx] : null;
+                                        if (name == null || isAirName(name)) {
+                                            continue;
+                                        }
+                                        if (isWaterName(name)) {
+                                            continue; // 结构导出跳过水面
+                                        }
+                                        int y = subIndex * 16 + ly;
+                                        java.util.TreeMap<Integer, String> col =
+                                                columns.computeIfAbsent(
+                                                        (long) (wx - minX) * size + (wz - minZ),
+                                                        k -> new java.util.TreeMap<>());
+                                        col.put(y, name);
+                                        minY = Math.min(minY, y);
+                                        maxY = Math.max(maxY, y);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } finally {
+                reader.close();
+            }
+            if (columns.isEmpty()) {
+                Log.w(TAG, "结构导出：区域内无方块数据");
+                return false;
+            }
+            int sizeY = maxY - minY + 1;
+            // palette：名称 → 索引（稳定顺序：首次出现序）
+            java.util.List<String> palette = new java.util.ArrayList<>();
+            java.util.Map<String, Integer> paletteIdx = new java.util.HashMap<>();
+            // block_indices[y][z][x] = palette 索引（-1 空气）
+            int[][][] indices = new int[sizeY][size][size];
+            for (int[][] zz : indices) {
+                for (int[] row : zz) {
+                    java.util.Arrays.fill(row, -1);
+                }
+            }
+            for (java.util.Map.Entry<Long, java.util.TreeMap<Integer, String>> col
+                    : columns.entrySet()) {
+                int lx = (int) (col.getKey() / size);
+                int lz = (int) (col.getKey() % size);
+                for (java.util.Map.Entry<Integer, String> b : col.getValue().entrySet()) {
+                    String name = b.getValue();
+                    Integer id = paletteIdx.get(name);
+                    if (id == null) {
+                        id = palette.size();
+                        paletteIdx.put(name, id);
+                        palette.add(name);
+                    }
+                    indices[b.getKey() - minY][lz][lx] = id;
+                }
+            }
+            // NBT 组装（.mcstructure 官方格式）
+            NbtTag root = new NbtTag(NbtTag.TAG_COMPOUND, "", null);
+            root.getCompound().put("format_version", new NbtTag(NbtTag.TAG_INT, "", 1));
+            java.util.List<NbtTag> sizeList = new java.util.ArrayList<>();
+            sizeList.add(new NbtTag(NbtTag.TAG_INT, "", size));
+            sizeList.add(new NbtTag(NbtTag.TAG_INT, "", sizeY));
+            sizeList.add(new NbtTag(NbtTag.TAG_INT, "", size));
+            root.getCompound().put("size", new NbtTag(NbtTag.TAG_LIST, "", sizeList));
+            // structure.block_indices：size_y 层，每层 size 行（z），每行 size 个 int
+            java.util.List<NbtTag> layers = new java.util.ArrayList<>();
+            for (int y = 0; y < sizeY; y++) {
+                java.util.List<NbtTag> rows = new java.util.ArrayList<>();
+                for (int z = 0; z < size; z++) {
+                    java.util.List<NbtTag> row = new java.util.ArrayList<>();
+                    for (int x = 0; x < size; x++) {
+                        row.add(new NbtTag(NbtTag.TAG_INT, "", indices[y][z][x]));
+                    }
+                    rows.add(new NbtTag(NbtTag.TAG_LIST, "", row));
+                }
+                layers.add(new NbtTag(NbtTag.TAG_LIST, "", rows));
+            }
+            NbtTag blockIndices = new NbtTag(NbtTag.TAG_LIST, "", layers);
+            // structure.palette.default.block_palette
+            java.util.List<NbtTag> palEntries = new java.util.ArrayList<>();
+            for (String name : palette) {
+                NbtTag entry = new NbtTag(NbtTag.TAG_COMPOUND, "", null);
+                entry.getCompound().put("name", new NbtTag(NbtTag.TAG_STRING, "", name));
+                entry.getCompound().put("states",
+                        new NbtTag(NbtTag.TAG_COMPOUND, "", null));
+                entry.getCompound().put("version",
+                        new NbtTag(NbtTag.TAG_INT, "", 17825808));
+                palEntries.add(entry);
+            }
+            NbtTag defaultPal = new NbtTag(NbtTag.TAG_COMPOUND, "", null);
+            defaultPal.getCompound().put("block_palette",
+                    new NbtTag(NbtTag.TAG_LIST, "", palEntries));
+            NbtTag paletteTag = new NbtTag(NbtTag.TAG_COMPOUND, "", null);
+            paletteTag.getCompound().put("default", defaultPal);
+            NbtTag structure = new NbtTag(NbtTag.TAG_COMPOUND, "", null);
+            structure.getCompound().put("block_indices", blockIndices);
+            structure.getCompound().put("palette", paletteTag);
+            root.getCompound().put("structure", structure);
+            BedrockNbtWriter writer = new BedrockNbtWriter();
+            writer.writeFile(outFile, root);
+            Log.i(TAG, "结构导出完成: " + outFile.getName() + " "
+                    + size + "x" + sizeY + "x" + size + " palette=" + palette.size());
+            return true;
+        } catch (Exception e) {
+            Log.w(TAG, "结构导出失败", e);
+            return false;
+        }
     }
 
     public static void debugExport(WorldMap map) {
