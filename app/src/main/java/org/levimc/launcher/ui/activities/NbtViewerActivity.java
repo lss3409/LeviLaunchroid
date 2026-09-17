@@ -1781,12 +1781,15 @@ public class NbtViewerActivity extends BaseActivity {
             addTreeRoot(binding.nbtLevelTree, root, getString(R.string.nbt_level_dat));
         }
 
-        // b) db 条目
+        // b) db 条目（v374 小世界秒进：entries 延迟后台解析，此处可能为 null）
         dbEntries.clear();
-        dbEntries.addAll(entries);
+        if (entries != null) {
+            dbEntries.addAll(entries);
+        }
         dbAdapter.notifyDataSetChanged();
-        binding.nbtTabDb.setText(getString(R.string.nbt_db_entries) + " (" + entries.size() + ")");
-        if (entries.isEmpty()) {
+        int entryCount = entries != null ? entries.size() : 0;
+        binding.nbtTabDb.setText(getString(R.string.nbt_db_entries) + " (" + entryCount + ")");
+        if (entryCount == 0) {
             binding.nbtDbEmpty.setVisibility(View.VISIBLE);
             if (!dbMissing) {
                 binding.nbtDbEmpty.setText(R.string.nbt_no_data);
