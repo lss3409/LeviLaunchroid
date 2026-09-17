@@ -2055,6 +2055,154 @@ public class WorldMapRenderer {
         return new File(dbDir.getParentFile(), "map_cache_" + dimension + suffix + ".bin");
     }
 
+    // ---------------------------------------------------------------- 小世界全图缓存
+
+    private static final int SMALL_CACHE_MAGIC = 0x4D437653; // "MCvs"
+    private static final int SMALL_CACHE_VERSION = 1;
+
+    /** 小世界全图缓存文件（colors 数组路径——与大世界 chunk 缓存并列）。 */
+    private static File smallCacheFile(File dbDir, int dimension) {
+        if (sCacheBase != null) {
+            String world = dbDir.getParentFile() != null
+                    ? dbDir.getParentFile().getName() : "world";
+            return new File(sCacheBase, world + "_map_small_" + dimension + ".bin");
+        }
+        return new File(dbDir.getParentFile(), "map_small_" + dimension + ".bin");
+    }
+
+    /** 保存小世界全图缓存（colors 数组调色板压缩——打开秒开的依据）。 */
+    public static boolean saveSmallMapCache(WorldMap map, File dbDir, int dimension) {
+        if (map == null || map.colors == null || dbDir == null) {
+            return false;
+        }
+        File out = smallCacheFile(dbDir, dimension);
+        synchronized (CACHE_SAVE_LOCK) {
+            try (java.io.DataOutputStream dos = new java.io.DataOutputStream(
+                    new java.io.BufferedOutputStream(new java.io.FileOutputStream(out)))) {
+                long[] fp = dbFingerprint(dbDir);
+                dos.writeInt(SMALL_CACHE_MAGIC);
+                dos.writeInt(SMALL_CACHE_VERSION);
+                dos.writeInt(map.width);
+                dos.writeInt(map.height);
+                dos.writeInt(map.minBlockX);
+                dos.writeInt(map.minBlockZ);
+                dos.writeLong(fp[0]);
+                dos.writeLong(fp[1]);
+                writeLargePalette(dos, map.colors);
+                boolean hasBiome = map.biomeColors != null;
+                dos.writeBoolean(hasBiome);
+                if (hasBiome) {
+                    writeLargePalette(dos, map.biomeColors);
+                }
+                Log.i(TAG, "小世界缓存已保存: " + out.getName() + " "
+                        + (out.length() / 1024 / 1024) + "MB");
+                return true;
+            } catch (Exception e) {
+                Log.w(TAG, "小世界缓存保存失败", e);
+                return false;
+            }
+        }
+    }
+
+    /** 大数组调色板编码：色数(short) + 色值(4B×n) + 索引（n≤256 时 1B/像素，否则 2B）。 */
+    private static void writeLargePalette(java.io.DataOutputStream dos, int[] pixels)
+            throws java.io.IOException {
+        java.util.HashMap<Integer, Integer> idx = new java.util.HashMap<>(512);
+        int[] palette = new int[65536];
+        int n = 0;
+        int[] indices = new int[pixels.length];
+        for (int i = 0; i < pixels.length; i++) {
+            Integer id = idx.get(pixels[i]);
+            if (id == null) {
+                id = n;
+                if (n >= 65536) {
+                    throw new java.io.IOException("too many colors");
+                }
+                palette[n] = pixels[i];
+                idx.put(pixels[i], id);
+                n++;
+            }
+            indices[i] = id;
+        }
+        dos.writeInt(n);
+        for (int i = 0; i < n; i++) {
+            dos.writeInt(palette[i]);
+        }
+        if (n <= 256) {
+            for (int v : indices) {
+                dos.writeByte(v);
+            }
+        } else {
+            for (int v : indices) {
+                dos.writeShort(v);
+            }
+        }
+    }
+
+    /** 大数组调色板解码（writeLargePalette 逆操作）。 */
+    private static int[] readLargePalette(java.io.DataInputStream dis, int count)
+            throws java.io.IOException {
+        int n = dis.readInt();
+        if (n < 1 || n > 65536) {
+            throw new java.io.IOException("bad palette size " + n);
+        }
+        int[] palette = new int[n];
+        for (int i = 0; i < n; i++) {
+            palette[i] = dis.readInt();
+        }
+        int[] pixels = new int[count];
+        if (n <= 256) {
+            for (int i = 0; i < count; i++) {
+                pixels[i] = palette[dis.readUnsignedByte()];
+            }
+        } else {
+            for (int i = 0; i < count; i++) {
+                int id = dis.readUnsignedShort();
+                pixels[i] = id < n ? palette[id] : 0;
+            }
+        }
+        return pixels;
+    }
+
+    /** 加载小世界全图缓存；db 变化或格式不符返回 null。 */
+    public static WorldMap loadSmallMapCache(File dbDir, int dimension) {
+        File in = smallCacheFile(dbDir, dimension);
+        if (!in.isFile()) {
+            return null;
+        }
+        try (java.io.DataInputStream dis = new java.io.DataInputStream(
+                new java.io.BufferedInputStream(new java.io.FileInputStream(in)))) {
+            if (dis.readInt() != SMALL_CACHE_MAGIC || dis.readInt() != SMALL_CACHE_VERSION) {
+                return null;
+            }
+            int w = dis.readInt();
+            int h = dis.readInt();
+            int minX = dis.readInt();
+            int minZ = dis.readInt();
+            if (w <= 0 || h <= 0 || (long) w * h > 60L * 1024 * 1024) {
+                return null;
+            }
+            long dbSize = dis.readLong();
+            long dbMtime = dis.readLong();
+            long[] fp = dbFingerprint(dbDir);
+            if (fp[0] != dbSize || fp[1] != dbMtime) {
+                Log.i(TAG, "小世界缓存失效（db 已变化）");
+                return null;
+            }
+            int[] colors = readLargePalette(dis, w * h);
+            int[] biome = null;
+            if (dis.readBoolean()) {
+                biome = readLargePalette(dis, w * h);
+            }
+            WorldMap map = new WorldMap(minX, minZ, w, h, colors, biome);
+            Log.i(TAG, "小世界缓存已加载: " + w + "x" + h + " (dim=" + dimension + ")");
+            return map;
+        } catch (Exception e) {
+            Log.w(TAG, "小世界缓存加载失败", e);
+            return null;
+        }
+    }
+
     /** 删除指定维度的全部缓存文件（含 y 段后缀变体）。退出地图清理下界/末地缓存用。 */
     public static void deleteDimCacheFiles(File dbDir, int dimension) {
         try {
@@ -2238,6 +2386,19 @@ public class WorldMapRenderer {
         void onBatch(java.util.Set<Long> chunkKeys);
     }
 
+    /** chunk 色数据里是否有非透明像素（全透明 = 未生成/占位，不算已缓存）。 */
+    private static boolean hasOpaque(int[] cc) {
+        if (cc == null) {
+            return false;
+        }
+        for (int c : cc) {
+            if ((c & 0xFF000000) != 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * 后台烘焙：把存档直接转成可视化缓存（用户新思路——不用打开卫星图
      * 跑第一遍，导入世界后/无缓存打开时后台跑）。
@@ -2284,10 +2445,19 @@ public class WorldMapRenderer {
                 reader.close();
                 java.util.List<Long> ordered = new java.util.ArrayList<>();
                 java.util.Set<Long> seen = new java.util.HashSet<>();
+                int alreadyCached = 0;
                 for (byte[] k : subKeys) {
                     int[] ck = parseChunkKey(k);
                     if (ck != null && seen.add(pack(ck[0], ck[1]))) {
-                        ordered.add(pack(ck[0], ck[1]));
+                        long key = pack(ck[0], ck[1]);
+                        // 缺啥补啥：缓存已有（且非全透明占位）的 chunk
+                        // 跳过不重渲染——缓存 90% 时只烘缺失的 10%
+                        int[] cached = map.chunkColors.get(key);
+                        if (cached != null && hasOpaque(cached)) {
+                            alreadyCached++;
+                            continue;
+                        }
+                        ordered.add(key);
                     }
                 }
                 subKeys = null; // 释放
@@ -2303,8 +2473,8 @@ public class WorldMapRenderer {
                     long bz = (int) (long) b - centerZ;
                     return Long.compare(ax * ax + az * az, bx * bx + bz * bz);
                 });
-                Log.i(TAG, "烘焙开始: dim=" + dimension + " chunk=" + ordered.size()
-                        + " 中心=(" + centerX + "," + centerZ + ")");
+                Log.i(TAG, "烘焙开始: dim=" + dimension + " 缺失=" + ordered.size()
+                        + " 已有=" + alreadyCached + " 中心=(" + centerX + "," + centerZ + ")");
                 // 多线程并行烘焙：原子索引交错取 chunk（保持距离序），
                 // 每线程独立 reader（LevelDBReader 无状态线程安全）
                 final java.util.concurrent.atomic.AtomicInteger nextIdx =
@@ -5054,102 +5224,6 @@ public class WorldMapRenderer {
         }
     }
 
-    public static void debugExport(WorldMap map) {
-        try {
-            if (map == null || map.width <= 0 || map.height <= 0) {
-                return;
-            }
-            int w = map.width;
-            int h = map.height;
-            Bitmap bmp;
-            if (map.chunkColors != null) {
-                // chunk 缓存路径：每 chunk 1 像素代表色概览。
-                // 注意：不能先 createBitmap(w,h) 再丢弃——大世界 bounds
-                // 14848×17424×4B ≈ 1GB 位图，512MB 设备分配失败/挤占
-                // （切维度 OOM 的帮凶）
-                int cw = Math.max(1, w / 16);
-                int ch = Math.max(1, h / 16);
-                Bitmap mini = Bitmap.createBitmap(cw, ch, Bitmap.Config.ARGB_8888);
-                for (Map.Entry<Long, int[]> e : map.chunkColors.entrySet()) {
-                    int cx = unpackX(e.getKey());
-                    int cz = unpackZ(e.getKey());
-                    int px = cx - map.minBlockX / 16;
-                    int pz = cz - map.minBlockZ / 16;
-                    if (px < 0 || px >= cw || pz < 0 || pz >= ch) {
-                        continue;
-                    }
-                    int[] cc = e.getValue();
-                    // 代表色 = 该 chunk 内最暗非透明色的均值（简化：取第 128 个非透明）
-                    int c = 0;
-                    for (int v : cc) {
-                        if ((v & 0xFF000000) != 0) {
-                            c = v;
-                            break;
-                        }
-                    }
-                    mini.setPixel(px, pz, c);
-                }
-                bmp = mini;
-            } else {
-                bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-                bmp.setPixels(map.colors, 0, w, 0, 0, w, h);
-            }
-            // scoped storage 下 /sdcard/Download 直接写会 EACCES，
-            // 优先写 app 外部目录（/sdcard/Android/data/org.levimc.launcher/files/）
-            File dir = new File("/sdcard/Android/data/org.levimc.launcher/files");
-            if (!dir.exists() || !dir.canWrite()) {
-                dir = new File("/sdcard/Download");
-            }
-            File out = new File(dir, "map_debug.png");
-            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(out)) {
-                bmp.compress(Bitmap.CompressFormat.PNG, 100, fos);
-            }
-            bmp.recycle();
-            Log.i(TAG, "调试导出: " + out.getAbsolutePath());
-            // biome 图层调试导出（chunk 路径）
-            if (map.biomeColors != null) {
-                int bw = map.width;
-                int bh = map.height;
-                Bitmap bio = Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888);
-                bio.setPixels(map.biomeColors, 0, bw, 0, 0, bw, bh);
-                File bout = new File(dir, "map_debug_biome.png");
-                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(bout)) {
-                    bio.compress(Bitmap.CompressFormat.PNG, 100, fos);
-                }
-                bio.recycle();
-                Log.i(TAG, "调试导出 biome: " + bout.getAbsolutePath());
-            } else if (map.chunkBiomeColors != null && !map.chunkBiomeColors.isEmpty()) {
-                int cw = Math.max(1, w / 16);
-                int ch = Math.max(1, h / 16);
-                Bitmap bio = Bitmap.createBitmap(cw, ch, Bitmap.Config.ARGB_8888);
-                for (Map.Entry<Long, int[]> e : map.chunkBiomeColors.entrySet()) {
-                    int cx = unpackX(e.getKey());
-                    int cz = unpackZ(e.getKey());
-                    int px = cx - map.minBlockX / 16;
-                    int pz = cz - map.minBlockZ / 16;
-                    if (px < 0 || px >= cw || pz < 0 || pz >= ch) {
-                        continue;
-                    }
-                    int c = 0;
-                    for (int v : e.getValue()) {
-                        if ((v & 0xFF000000) != 0) {
-                            c = v;
-                            break;
-                        }
-                    }
-                    bio.setPixel(px, pz, c);
-                }
-                File bout = new File(dir, "map_debug_biome.png");
-                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(bout)) {
-                    bio.compress(Bitmap.CompressFormat.PNG, 100, fos);
-                }
-                bio.recycle();
-                Log.i(TAG, "调试导出 biome: " + bout.getAbsolutePath());
-            }
-        } catch (Throwable t) {
-            Log.w(TAG, "调试导出失败", t);
-        }
-    }
 
     /** palette NBT 条目（compound）里提取 "name" TAG_String。 */
     private static String extractPaletteName(byte[] value, int p, int type) {

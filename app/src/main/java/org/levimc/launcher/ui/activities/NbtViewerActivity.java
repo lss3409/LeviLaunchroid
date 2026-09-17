@@ -506,12 +506,8 @@ public class NbtViewerActivity extends BaseActivity {
         binding.layerGrid.setOnCheckedChangeListener((b, checked) ->
                 binding.worldMapImage.setShowGrid(checked));
         binding.worldMapImage.setShowGrid(binding.layerGrid.isChecked());
-        binding.layerBiome.setOnCheckedChangeListener((b, checked) -> {
-            binding.worldMapImage.setShowBiomeLayer(checked);
-            if (checked && currentMap != null) {
-                WorldMapRenderer.debugExport(currentMap); // 调试导出 biome 图层
-            }
-        });
+        binding.layerBiome.setOnCheckedChangeListener((b, checked) ->
+                binding.worldMapImage.setShowBiomeLayer(checked));
         binding.worldMapImage.setShowBiomeLayer(binding.layerBiome.isChecked());
         binding.layerEntity.setOnCheckedChangeListener((b, checked) ->
                 binding.worldMapImage.setShowEntities(checked));
@@ -1136,39 +1132,53 @@ public class NbtViewerActivity extends BaseActivity {
                         });
                     }, 6000);
                 } else {
-                    List<LevelDBEntry> entries = null;
+                    // 小世界切维度：优先读缓存（v390），miss 才全量渲染+存缓存
                     try {
-                        entries = NativeLevelDb.readAllEntries(dbDir);
-                    } catch (Throwable ignored) {
+                        worldMap = WorldMapRenderer.loadSmallMapCache(dbDir, dimId);
+                    } catch (Exception ignored) {
+                        worldMap = null;
                     }
-                    if (entries == null) {
+                    if (worldMap == null) {
+                        List<LevelDBEntry> entries = null;
                         try {
-                            LevelDBReader reader = new LevelDBReader(dbDir);
-                            entries = reader.readAllEntries();
-                            reader.close();
-                        } catch (Exception ignored) {
+                            entries = NativeLevelDb.readAllEntries(dbDir);
+                        } catch (Throwable ignored) {
                         }
-                    }
-                    if (entries != null) {
-                        worldMap = WorldMapRenderer.buildSatelliteMap(entries, dimId);
-                        // 原生库可能漏读 13/14B key（下界/末地），失败时回退纯 Java 重读
-                        if (worldMap == null) {
+                        if (entries == null) {
                             try {
                                 LevelDBReader reader = new LevelDBReader(dbDir);
-                                List<LevelDBEntry> javaEntries = reader.readAllEntries();
+                                entries = reader.readAllEntries();
                                 reader.close();
-                                if (javaEntries.size() > entries.size()) {
-                                    entries = javaEntries;
-                                    worldMap = WorldMapRenderer.buildSatelliteMap(entries, dimId);
-                                    Log.i(TAG, "维度切换原生库漏读回退纯 Java: " + entries.size()
-                                            + " 条目, 地图=" + (worldMap != null
-                                            ? worldMap.width + "x" + worldMap.height : "仍失败"));
-                                }
                             } catch (Exception ignored) {
                             }
                         }
-                        entities = WorldMapRenderer.parseEntities(entries, dimId);
-                        structures = WorldMapRenderer.parseStructureMarkers(entries, dimId);
+                        if (entries != null) {
+                            worldMap = WorldMapRenderer.buildSatelliteMap(entries, dimId);
+                            // 原生库可能漏读 13/14B key（下界/末地），失败时回退纯 Java 重读
+                            if (worldMap == null) {
+                                try {
+                                    LevelDBReader reader = new LevelDBReader(dbDir);
+                                    List<LevelDBEntry> javaEntries = reader.readAllEntries();
+                                    reader.close();
+                                    if (javaEntries.size() > entries.size()) {
+                                        entries = javaEntries;
+                                        worldMap = WorldMapRenderer.buildSatelliteMap(entries, dimId);
+                                        Log.i(TAG, "维度切换原生库漏读回退纯 Java: " + entries.size()
+                                                + " 条目, 地图=" + (worldMap != null
+                                                ? worldMap.width + "x" + worldMap.height : "仍失败"));
+                                    }
+                                } catch (Exception ignored) {
+                                }
+                            }
+                            if (worldMap != null) {
+                                WorldMapRenderer.saveSmallMapCache(worldMap, dbDir, dimId);
+                            }
+                            entities = WorldMapRenderer.parseEntities(entries, dimId);
+                            structures = WorldMapRenderer.parseStructureMarkers(entries, dimId);
+                        }
+                    } else {
+                        entities = new java.util.ArrayList<>();
+                        structures = new java.util.ArrayList<>();
                     }
                 }
             }
@@ -1184,10 +1194,6 @@ public class NbtViewerActivity extends BaseActivity {
                     // 和 startPrerender 检查 currentMap==null 直接 return，
                     // 切维度后视口按需渲染/预渲染全不工作的根因）
                     currentMap = fMap;
-                    // 调试导出移到后台：大世界 mini 位图 928×1089 创建 +
-                    // PNG 压缩在主线程几百 ms（切维度时每秒 Jank 的帮凶）
-                    final WorldMapRenderer.WorldMap fDbgMap = fMap;
-                    executor.execute(() -> WorldMapRenderer.debugExport(fDbgMap));
                     binding.worldMapImage.setWorldMap(fMap, fKeepView);
                     // 不 fitToView：fit 后下界 ×0.44 缩放太小（视口 chunk
                     // >4096 进 LOD、网格不画），进图一片黑像没渲染（v380
@@ -1545,15 +1551,27 @@ public class NbtViewerActivity extends BaseActivity {
             Log.i(TAG, "db 读取完成: 条目数=" + (entries != null ? entries.size() : -1));
 
             if (!largeWorld) {
-                // 世界地图：BTR 卫星模式（方块颜色 + 坡度阴影），同步全量渲染
-                // （v380 秒进路径视口按需渲染首屏无渲染，回滚 v372 全量渲染代码）
+                // 小世界优先读磁盘缓存（v390：第二次打开秒开，不再每次
+                // 全量渲染 8-20 秒）；miss 才全量渲染并存缓存
                 try {
-                    worldMap = WorldMapRenderer.buildSatelliteMap(entries);
-                    Log.i(TAG, "卫星地图完成: " + (worldMap != null
-                            ? worldMap.width + "x" + worldMap.height
-                            : "失败(null)"));
-                } catch (Exception e) {
-                    Log.i(TAG, "卫星地图渲染异常", e);
+                    worldMap = WorldMapRenderer.loadSmallMapCache(dbDir, 0);
+                } catch (Exception ignored) {
+                    worldMap = null;
+                }
+                if (worldMap == null) {
+                    // 世界地图：BTR 卫星模式（方块颜色 + 坡度阴影），同步全量渲染
+                    // （v380 秒进路径视口按需渲染首屏无渲染，回滚 v372 全量渲染代码）
+                    try {
+                        worldMap = WorldMapRenderer.buildSatelliteMap(entries);
+                        Log.i(TAG, "卫星地图完成: " + (worldMap != null
+                                ? worldMap.width + "x" + worldMap.height
+                                : "失败(null)"));
+                    } catch (Exception e) {
+                        Log.i(TAG, "卫星地图渲染异常", e);
+                    }
+                    if (worldMap != null) {
+                        WorldMapRenderer.saveSmallMapCache(worldMap, dbDir, 0);
+                    }
                 }
 
                 // 原生库可能漏读 13/14B key（下界/末地），失败时回退纯 Java 重读
@@ -1567,6 +1585,9 @@ public class NbtViewerActivity extends BaseActivity {
                             worldMap = WorldMapRenderer.buildSatelliteMap(entries);
                             Log.i(TAG, "原生库漏读回退纯 Java: " + entries.size() + " 条目, 地图="
                                     + (worldMap != null ? worldMap.width + "x" + worldMap.height : "仍失败"));
+                            if (worldMap != null) {
+                                WorldMapRenderer.saveSmallMapCache(worldMap, dbDir, 0);
+                            }
                         }
                     } catch (Exception ignored) {
                     }
@@ -1675,9 +1696,6 @@ public class NbtViewerActivity extends BaseActivity {
 
         // 世界地图：占满全屏（PRD 布局），缩放/平移时按比例重采样方块颜色
         if (worldMap != null) {
-            // 调试导出移到后台（大世界位图创建+PNG 压缩主线程几百 ms）
-            final WorldMapRenderer.WorldMap fDbgMap = worldMap;
-            executor.execute(() -> WorldMapRenderer.debugExport(fDbgMap));
                         binding.worldMapImage.setWorldMap(worldMap);
             binding.worldMapPlaceholder.setVisibility(View.GONE);
             // 主世界打开不自动预渲染：流式渲染 18 万条目（subchunk value
@@ -2884,27 +2902,23 @@ public class NbtViewerActivity extends BaseActivity {
         showExportNotification(0, "");
         executor.execute(() -> {
             try {
-                // 大世界无条件全量流式渲染（一次 30-60 秒，导出精度优先——
-                // 视口按需渲染只覆盖屏幕附近 chunk，直接导出会缺大片地形）。
-                // 渲染阶段占进度 0~70%，通知节流 1 秒（每 20 chunk 回调一次，
-                // 大世界 1242 次回调全发通知会刷爆通知服务）
+                // v390：导出改用缓存数据——缓存已有 chunk 直接读，缺失的
+                // 烘焙补全（缺啥补啥），不再每次全量流式渲染 30-60 秒
                 WorldMapRenderer.WorldMap exportMap = fMap;
-                final java.util.concurrent.atomic.AtomicLong lastNotif =
-                        new java.util.concurrent.atomic.AtomicLong(0);
+                final File exportDb = new File(worldDir, "db");
                 if (exportMap.chunkColors != null) {
-                    WorldMapRenderer.WorldMap full = WorldMapRenderer.buildSatelliteMapStreaming(
-                            new File(worldDir, "db"), exportDim, (done, total) -> {
-                                int pct = total > 0 ? (int) (done * 70L / total) : 0;
-                                long now = android.os.SystemClock.uptimeMillis();
-                                if (now - lastNotif.get() < 1000) {
-                                    return;
-                                }
-                                lastNotif.set(now);
-                                runOnUiThread(() -> showExportNotification(pct, ""));
-                            });
-                    if (full != null) {
-                        exportMap = full;
+                    showExportNotification(5, "");
+                    // 同步等待缺失补全完成（烘焙只烘缺失 chunk，
+                    // 缓存完整时几乎瞬间返回）
+                    final java.util.concurrent.CountDownLatch bakeDone =
+                            new java.util.concurrent.CountDownLatch(1);
+                    Thread bt = WorldMapRenderer.bakeWorldCache(
+                            exportDb, exportDim, exportMap, null, bakeDone::countDown);
+                    try {
+                        bakeDone.await(10, java.util.concurrent.TimeUnit.MINUTES);
+                    } catch (InterruptedException ignored) {
                     }
+                    showExportNotification(70, "");
                 }
                 java.util.List<String[]> pts = new java.util.ArrayList<>();
                 synchronized (mapPoints) {
