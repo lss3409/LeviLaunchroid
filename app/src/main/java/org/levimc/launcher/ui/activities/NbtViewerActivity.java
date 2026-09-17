@@ -719,7 +719,15 @@ public class NbtViewerActivity extends BaseActivity {
                                         }
                                         java.util.Set<Long> keys = new java.util.HashSet<>();
                                         for (Long k : newKeys) {
-                                            if (fMap.chunkColors.putIfAbsent(k, colors.get(k)) == null) {
+                                            // 渲染全透明（hasAny=false）的 chunk 不 put
+                                            // 进 colors——get 为 null 直接 putIfAbsent
+                                            // 会 NPE 把整个流式渲染打崩（末地"只渲染
+                                            // 主岛"的根因：第一个全透明 chunk 出现即崩）
+                                            int[] cc = colors.get(k);
+                                            if (cc == null) {
+                                                continue;
+                                            }
+                                            if (fMap.chunkColors.putIfAbsent(k, cc) == null) {
                                                 keys.add(k);
                                             }
                                         }
@@ -754,6 +762,9 @@ public class NbtViewerActivity extends BaseActivity {
                         || Thread.currentThread().isInterrupted()) {
                     return;
                 }
+                // 渲染参数后缀定格（保存用 map 后缀而非当前全局参数——
+                // 预渲染期间用户可能已切段/切维度）
+                full.chunkCacheSuffix = WorldMapRenderer.cacheSuffixFor(dim);
                 WorldMapRenderer.saveChunkCache(full, dbDir, dim);
                 if (renderGen.get() != myGen) {
                     return;
@@ -1161,6 +1172,10 @@ public class NbtViewerActivity extends BaseActivity {
                     if (worldMap != null) {
                         worldMap.chunkSourceDir = dbDir;
                         worldMap.chunkSourceDim = dimId;
+                        // 渲染参数后缀定格在 map 创建时——保存缓存用它
+                        // （切段时全局参数已改成新段）
+                        worldMap.chunkCacheSuffix =
+                                WorldMapRenderer.cacheSuffixFor(dimId);
                     }
                     entities = new java.util.ArrayList<>();
                     structures = new java.util.ArrayList<>();
@@ -1277,9 +1292,13 @@ public class NbtViewerActivity extends BaseActivity {
                     // 自动启动流式全量渲染（v373 切维度行为）：后台渐进
                     // 合并（onChunkData 节流通知 → LOD 增量更新），完成后
                     // 落盘缓存，下次切维度直接读缓存秒开。
-                    // chunkColors 非空 = 磁盘缓存命中，无需再渲染
-                    if (fMap.chunkColors != null && fMap.chunkColors.isEmpty()
-                            && fMap.chunkSourceDir != null) {
+                    // 缓存 chunk 数不足 bounds 应有数 60% 时也补渲染
+                    // （末地 122/1260 的坏缓存命中后外岛永远缺失的根因）
+                    long expectChunks = (long) (fMap.width / 16) * (fMap.height / 16);
+                    boolean cacheInsufficient = fMap.chunkColors != null
+                            && fMap.chunkColors.size() * 10L < expectChunks * 6L;
+                    if (fMap.chunkColors != null && fMap.chunkSourceDir != null
+                            && (fMap.chunkColors.isEmpty() || cacheInsufficient)) {
                         startPrerender();
                     }
                 } else {
@@ -1510,6 +1529,7 @@ public class NbtViewerActivity extends BaseActivity {
                 if (worldMap != null) {
                     worldMap.chunkSourceDir = dbDir;
                     worldMap.chunkSourceDim = 0;
+                    worldMap.chunkCacheSuffix = WorldMapRenderer.cacheSuffixFor(0);
                 }
                 // 实体/结构/玩家位置全部延迟到首屏显示之后（各自要全量读一遍
                 // 183MB db，同步执行会把首屏拖慢 20-30 秒——"更慢"的根因）
@@ -1721,10 +1741,11 @@ public class NbtViewerActivity extends BaseActivity {
             WorldMapRenderer.debugExport(worldMap); // 调试导出 map_debug.png
                         binding.worldMapImage.setWorldMap(worldMap);
             binding.worldMapPlaceholder.setVisibility(View.GONE);
-            // 预渲染开关保持勾选时，新维度加载完自动继续后台预渲染
-            if (binding.prerenderAll.isChecked()) {
-                startPrerender();
-            }
+            // 主世界打开不自动预渲染：流式渲染 18 万条目（subchunk value
+            // ~300MB）叠加视口按需渲染+实体解析，536MB heap 直接 OOM
+            // （v382 实测"预渲染失败 OutOfMemoryError"）。主世界视口按需
+            // 渲染 + LOD 已覆盖；全图预渲染只用于切维度自动（下界/末地
+            // 数据量小）
         } else {
             binding.worldMapPlaceholder.setText(R.string.world_map_unavailable);
         }
@@ -2435,12 +2456,19 @@ public class NbtViewerActivity extends BaseActivity {
     protected void onDestroy() {
         // 大世界按需渲染：把本次会话渲染过的 chunk 增量写入磁盘缓存
         // （v378 小世界全量回填后 currentMap 是 colors 数组路径 map，
-        // 其 chunkColors 为 null——判空保护，否则 onDestroy NPE 崩溃）
+        // 其 chunkColors 为 null——判空保护，否则 onDestroy NPE 崩溃）。
+        // 主世界缓存保存（下次打开秒开）；下界/末地退出即删缓存
+        // （退出地图后重新渲染——用户要求的行为）
         if (currentMap != null && currentMap.chunkSourceDir != null
                 && currentMap.chunkColors != null
-                && !currentMap.chunkColors.isEmpty()) {
+                && !currentMap.chunkColors.isEmpty()
+                && currentMap.chunkSourceDim == 0) {
             WorldMapRenderer.saveChunkCache(currentMap, currentMap.chunkSourceDir,
                     currentMap.chunkSourceDim);
+        }
+        if (currentWorldDir != null) {
+            WorldMapRenderer.deleteDimCacheFiles(new File(currentWorldDir, "db"), 1);
+            WorldMapRenderer.deleteDimCacheFiles(new File(currentWorldDir, "db"), 2);
         }
         super.onDestroy();
         if (executor != null) {

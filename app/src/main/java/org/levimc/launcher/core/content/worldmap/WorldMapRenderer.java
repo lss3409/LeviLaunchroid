@@ -1107,6 +1107,10 @@ public class WorldMapRenderer {
         /** 视口按需渲染源（BTR 式）：db 目录与维度；非空时缺失 chunk 由外部按需渲染。 */
         public File chunkSourceDir;
         public int chunkSourceDim;
+        /** 缓存文件名后缀（下界 y 段等渲染参数，map 创建时定格）——
+         *  保存缓存必须用它而不是当前全局参数：切段时全局参数已改成新段，
+         *  旧段数据会存进新段文件名（"切段总是重新渲染"的根因）。 */
+        public String chunkCacheSuffix = "";
         /** 出生点位置（block 坐标，-1 = 无） */
         public int spawnBlockX = -1;
         public int spawnBlockZ = -1;
@@ -1241,13 +1245,17 @@ public class WorldMapRenderer {
 
         SubChunk(int bits, byte[] data, String[] palette) {
             this.bits = bits;
-            this.blocksPerWord = 32 / bits;
+            // bits=0 = 1.26 单值存储（整层同一方块，无字数据）
+            this.blocksPerWord = bits > 0 ? 32 / bits : 1;
             this.data = data;
             this.palette = palette;
         }
 
         /** 读 (x,z,y) 的 palette 索引（BTR 新版 getBlockId 同款位序）。 */
         int getIndex(int x, int y, int z) {
+            if (bits == 0) {
+                return 0; // 单值存储：全部方块 = palette[0]
+            }
             int blockPos = ((x * 16) + z) * 16 + y;
             int wordStart = blockPos / blocksPerWord;
             int bitOffset = (blockPos % blocksPerWord) * bits;
@@ -1959,7 +1967,10 @@ public class WorldMapRenderer {
     // v15：流式 filter 窗口下界 maxSub-6（v14 缓存缺失深层数据须失效）
     // v16：流式渲染两级排序（compareBytes 字节序 + 距离稳定排序）——
     //      v15 缓存含 v374 距离排序导致的下界/末地数据丢失结果须失效
-    private static final int MAP_CACHE_VERSION = 16;
+    // v17：1.26 单值存储 subchunk 解码（bits=0 header，末地 end_stone 层
+    //      实测格式）+ onChunkData NPE 修复——v16 缓存含解码失败/半渲染
+    //      结果（末地 122 chunk 坏缓存）须失效
+    private static final int MAP_CACHE_VERSION = 17;
 
     /** 缓存根目录（应用私有，卸载即清——缓存可再生）。null 时回退旧路径。 */
     private static java.io.File sCacheBase;
@@ -1997,8 +2008,15 @@ public class WorldMapRenderer {
 
     /** 缓存文件：应用私有目录 <世界名>_map_cache_<dim>.bin（不再写世界目录）。
      *  下界缓存文件名带渲染参数后缀（y 范围 + 剔除名单 hash）——不同设置
-     *  各自缓存互不覆盖，切换设置不用每次重渲染。 */
+     *  各自缓存互不覆盖，切换设置不用每次重渲染。
+     *  读取用当前全局参数；保存用 map.chunkCacheSuffix（渲染时定格）——
+     *  切段时全局参数已改成新段，用全局参数保存会把旧段数据写进新段文件名。 */
     private static File chunkCacheFile(File dbDir, int dimension) {
+        return chunkCacheFileFor(dbDir, dimension, cacheSuffixFor(dimension));
+    }
+
+    /** 按给定渲染参数算后缀（map.chunkCacheSuffix 的取值来源）。 */
+    public static String cacheSuffixFor(int dimension) {
         String suffix = "";
         if (dimension == DIM_NETHER && (netherYMin >= 0 || netherExcludeBlocks != null)) {
             StringBuilder sb = new StringBuilder("_y");
@@ -2011,12 +2029,48 @@ public class WorldMapRenderer {
             }
             suffix = sb.toString();
         }
+        return suffix;
+    }
+
+    /** 保存路径：map 创建时定格的渲染参数后缀（不是当前全局参数）。 */
+    private static File chunkCacheFileFor(File dbDir, int dimension, String suffix) {
         if (sCacheBase != null) {
             String world = dbDir.getParentFile() != null
                     ? dbDir.getParentFile().getName() : "world";
             return new File(sCacheBase, world + "_map_cache_" + dimension + suffix + ".bin");
         }
         return new File(dbDir.getParentFile(), "map_cache_" + dimension + suffix + ".bin");
+    }
+
+    /** 删除指定维度的全部缓存文件（含 y 段后缀变体）。退出地图清理下界/末地缓存用。 */
+    public static void deleteDimCacheFiles(File dbDir, int dimension) {
+        try {
+            String prefix;
+            java.io.File dir;
+            if (sCacheBase != null) {
+                String world = dbDir.getParentFile() != null
+                        ? dbDir.getParentFile().getName() : "world";
+                prefix = world + "_map_cache_" + dimension;
+                dir = sCacheBase;
+            } else {
+                prefix = "map_cache_" + dimension;
+                dir = dbDir.getParentFile();
+            }
+            if (dir == null) {
+                return;
+            }
+            java.io.File[] files = dir.listFiles();
+            if (files == null) {
+                return;
+            }
+            for (java.io.File f : files) {
+                String n = f.getName();
+                if (n.startsWith(prefix) && n.endsWith(".bin")) {
+                    f.delete();
+                }
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     /** db 指纹：文件总大小 + 最新修改时间（变了就失效重渲染）。 */
@@ -2044,7 +2098,9 @@ public class WorldMapRenderer {
         if (map == null || map.chunkColors == null || map.chunkColors.isEmpty()) {
             return false;
         }
-        File out = chunkCacheFile(dbDir, dimension);
+        // 保存用 map 创建时定格的渲染参数后缀（切段后全局参数已变，
+        // 用全局参数会把旧段数据写进新段文件名）
+        File out = chunkCacheFileFor(dbDir, dimension, map.chunkCacheSuffix);
         try (java.io.DataOutputStream dos = new java.io.DataOutputStream(
                 new java.io.BufferedOutputStream(new java.io.FileOutputStream(out)))) {
             long[] fp = dbFingerprint(dbDir);
@@ -4044,6 +4100,40 @@ public class WorldMapRenderer {
         for (int s = 0; s < count && p + 2 <= value.length; s++) {
             int header = value[p++] & 0xFF;
             int bits = header >> 1;
+            if (bits == 0 && (header & 1) == 0) {
+                // 1.26 单值存储：整层同一方块，palette 条目直接跟在 header
+                // 后（无字数据、无 4B 计数）。实测末地 sub=1/2 len=60：
+                // 09 01 01 00 | 0A 00 00 08 04 00 "name" 13 00
+                // "minecraft:end_stone"——此前按 bits<1 直接 return null，
+                // 末地大量 subchunk 解码失败 → 渲染全透明（"末地只渲染
+                // 主岛"的根因：主岛有正常 bits 层所以能渲染，end_stone
+                // 单值层全失败）
+                if (p + 3 > value.length) {
+                    if (s == 1) {
+                        break;
+                    }
+                    return null;
+                }
+                int t0 = value[p] & 0xFF;
+                int nl = (value[p + 1] & 0xFF) | ((value[p + 2] & 0xFF) << 8);
+                int pe = p + 3 + nl;
+                if (pe > value.length) {
+                    return null;
+                }
+                String sname = extractPaletteName(value, pe, t0);
+                pe = skipNbtPayload(value, pe, t0);
+                if (pe < 0) {
+                    return null;
+                }
+                p = pe;
+                String[] single = new String[]{sname != null ? sname : "minecraft:air"};
+                if (s == 0) {
+                    primary = new SubChunk(0, new byte[0], single);
+                } else if (primary != null) {
+                    primary.waterLayer = new SubChunk(0, new byte[0], single);
+                }
+                continue;
+            }
             if (bits < 1 || bits > 16) {
                 if (s == 1) {
                     // 1.18+ 无水的 subchunk 水层 storage header=0（bits 非法）：
