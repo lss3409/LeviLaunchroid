@@ -1479,14 +1479,26 @@ public class WorldMapRenderer {
         Log.i(TAG, "assembleMap: chunk 范围=(" + minX + "," + minZ + ")-(" + maxX + "," + maxZ
                 + ") span=" + spanX + "x" + spanZ + " 数组=" + (cells * 4 / 1024 / 1024)
                 + "MB heightMaps=" + heightMaps.size());
-        if (cells > 100_000_000L) {
-            // 防御：>1 亿格（3 个 400MB 数组）必 OOM，拒绝渲染
-            Log.e(TAG, "地图过大拒绝渲染: " + spanX + "x" + spanZ);
+        if (cells > 16_000_000L) {
+            // v411：防御阈值从 1 亿格收紧到 1600 万格——3 个数组
+            // 共 192MB，叠加进程既有内存逼近 536MB 上限（实测 44.7M
+            // 格世界 3×178MB 直接 OOM 崩溃）。超过走大世界 chunk 路径
+            Log.e(TAG, "地图过大拒绝渲染: " + spanX + "x" + spanZ
+                    + " 格数=" + cells);
             return null;
         }
-        int[] heights = new int[width * height];
-        int[] colors = new int[width * height];
-        int[] biomeColors = new int[width * height];
+        int[] heights;
+        int[] colors;
+        int[] biomeColors;
+        try {
+            heights = new int[width * height];
+            colors = new int[width * height];
+            biomeColors = new int[width * height];
+        } catch (OutOfMemoryError oom) {
+            // v411：分配失败不崩进程——返回 null 由调用方降级
+            Log.e(TAG, "全图数组 OOM: " + width + "x" + height, oom);
+            return null;
+        }
         Arrays.fill(colors, COLOR_BACKGROUND);
 
         for (Map.Entry<Long, int[]> e : heightMaps.entrySet()) {

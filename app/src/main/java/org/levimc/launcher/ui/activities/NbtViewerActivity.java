@@ -1554,6 +1554,27 @@ public class NbtViewerActivity extends BaseActivity {
                 // （磁盘缓存 / 只扫范围），滑动到新区域才渲染新 chunk
                 largeWorld = true;
                 Log.i(TAG, "大世界按需渲染 dbSize=" + dbSizeBytes(dbDir));
+            } else if (dbDir.isDirectory()) {
+                // v411：面积巨大但 db 小的稀疏世界（玩家跑图跑得很远）
+                // ——小世界路径 assembleMap 全图数组按面积分配：6686×
+                // 6686 方块要 178MB，进程 536MB 上限直接 OOM（实测
+                // 用户导入 17 存档崩溃）。面积 > 1000 万方块也走大
+                // 世界 chunk 路径（bounds 缓存 16 字节快读）
+                WorldMapRenderer.WorldMap probe =
+                        WorldMapRenderer.buildBoundsOnly(dbDir, 0);
+                if (probe != null) {
+                    long area = (long) probe.width * probe.height;
+                    if (area > 10_000_000L) {
+                        largeWorld = true;
+                        Log.i(TAG, "面积巨大走大世界路径: " + probe.width
+                                + "x" + probe.height + " dbSize="
+                                + dbSizeBytes(dbDir));
+                    }
+                }
+            }
+            if (dbDir.isDirectory() && largeWorld) {
+                // 大世界：先快速进入（磁盘缓存 / 只扫范围）
+                // ——路径在上一分支判断，这里统一初始化
                 worldMap = WorldMapRenderer.loadChunkCache(dbDir, 0);
                 if (worldMap == null) {
                     worldMap = WorldMapRenderer.buildBoundsOnly(dbDir, 0);
