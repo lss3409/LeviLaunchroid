@@ -902,6 +902,10 @@ public class NbtViewerActivity extends BaseActivity {
             WorldMapRenderer.WorldMap worldMap = null;
             List<WorldMapRenderer.EntityPos> entities = null;
             List<WorldMapRenderer.StructureMarker> structures = null;
+            // v394：下界切段 fallback——新段缓存 miss 时先显示"全部"段
+            // 的缓存图（立即有图），新段后台烘焙完成后自动切换。
+            // 声明在 if 块外（完成回调 runOnUiThread 在块外引用）
+            final WorldMapRenderer.WorldMap[] fallbackMap = {null};
             if (dbDir.isDirectory()) {
                 int dimId = "nether".equals(dim) ? 1 : "end".equals(dim) ? 2 : 0;
                 long dbSize = dbSizeBytes(dbDir);
@@ -911,6 +915,15 @@ public class NbtViewerActivity extends BaseActivity {
                     // 30-60 秒（"渲染完全部区块才显示"的根因）
                     Log.i(TAG, "大世界按需渲染(切维度) dbSize=" + dbSize);
                     worldMap = WorldMapRenderer.loadChunkCache(dbDir, dimId);
+                    if (worldMap == null && dimId == 1) {
+                        fallbackMap[0] = WorldMapRenderer.loadChunkCacheWithSuffix(
+                                dbDir, dimId,
+                                WorldMapRenderer.netherYallCacheSuffix());
+                        if (fallbackMap[0] != null) {
+                            worldMap = fallbackMap[0];
+                            Log.i(TAG, "下界切段 fallback: 先显示全部段缓存图");
+                        }
+                    }
                     if (worldMap == null) {
                         worldMap = WorldMapRenderer.buildBoundsOnly(dbDir, dimId);
                     }
@@ -1057,30 +1070,73 @@ public class NbtViewerActivity extends BaseActivity {
                         long expectChunks = (long) (fMap.width / 16) * (fMap.height / 16);
                         boolean cacheInsufficient = fMap.chunkColors != null
                                 && fMap.chunkColors.size() * 10L < expectChunks * 6L;
+                        final int bakeDim = "nether".equals(mapDimension) ? 1 : 2;
                         if (fMap.chunkColors != null && fMap.chunkSourceDir != null
                                 && (fMap.chunkColors.isEmpty() || cacheInsufficient)) {
-                            final int bakeDim = "nether".equals(mapDimension) ? 1 : 2;
-                            final WorldMapRenderer.WorldMap fBake = fMap;
-                            bakeThread = WorldMapRenderer.bakeWorldCache(
-                                    fMap.chunkSourceDir, bakeDim, fBake,
-                                    batch -> runOnUiThread(() -> {
-                                        if (!isFinishing() && !isDestroyed()
-                                                && currentMap == fBake) {
-                                            binding.worldMapImage.onChunksRendered(batch);
-                                        }
-                                    }),
-                                    () -> runOnUiThread(() -> {
-                                        if (!isFinishing() && !isDestroyed()
-                                                && currentMap == fBake) {
-                                            binding.worldMapImage.onChunksRendered(
-                                                    java.util.Collections.emptySet());
-                                        }
-                                    }));
+                            if (fallbackMap[0] != null) {
+                                // 切段 fallback 场景：显示"全部"段旧图，
+                                // 烘焙用独立新 map（新段渲染窗口不同），
+                                // 第一批 chunk 完成后切换显示到新 map
+                                final WorldMapRenderer.WorldMap fFallback =
+                                        fallbackMap[0];
+                                WorldMapRenderer.WorldMap bakeMap =
+                                        WorldMapRenderer.buildBoundsOnly(
+                                                fMap.chunkSourceDir, bakeDim);
+                                if (bakeMap != null) {
+                                    bakeMap.chunkSourceDir = fMap.chunkSourceDir;
+                                    bakeMap.chunkSourceDim = bakeDim;
+                                    bakeMap.chunkCacheSuffix =
+                                            WorldMapRenderer.cacheSuffixFor(bakeDim);
+                                    final WorldMapRenderer.WorldMap fBakeMap = bakeMap;
+                                    final boolean[] switched = {false};
+                                    bakeThread = WorldMapRenderer.bakeWorldCache(
+                                            fMap.chunkSourceDir, bakeDim, fBakeMap,
+                                            batch -> runOnUiThread(() -> {
+                                                if (isFinishing() || isDestroyed()
+                                                        || renderGen.get() != gen) {
+                                                    return;
+                                                }
+                                                if (!switched[0]) {
+                                                    // 第一批数据就绪：切到新段视图
+                                                    switched[0] = true;
+                                                    currentMap = fBakeMap;
+                                                    binding.worldMapImage.setWorldMap(fBakeMap);
+                                                }
+                                                binding.worldMapImage.onChunksRendered(batch);
+                                            }),
+                                            () -> runOnUiThread(() -> {
+                                                if (isFinishing() || isDestroyed()
+                                                        || renderGen.get() != gen) {
+                                                    return;
+                                                }
+                                                if (switched[0]) {
+                                                    binding.worldMapImage.onChunksRendered(
+                                                            java.util.Collections.emptySet());
+                                                }
+                                            }));
+                                }
+                            } else {
+                                final WorldMapRenderer.WorldMap fBake = fMap;
+                                bakeThread = WorldMapRenderer.bakeWorldCache(
+                                        fMap.chunkSourceDir, bakeDim, fBake,
+                                        batch -> runOnUiThread(() -> {
+                                            if (!isFinishing() && !isDestroyed()
+                                                    && currentMap == fBake) {
+                                                binding.worldMapImage.onChunksRendered(batch);
+                                            }
+                                        }),
+                                        () -> runOnUiThread(() -> {
+                                            if (!isFinishing() && !isDestroyed()
+                                                    && currentMap == fBake) {
+                                                binding.worldMapImage.onChunksRendered(
+                                                        java.util.Collections.emptySet());
+                                            }
+                                        }));
+                            }
                         } else if (fMap.chunkColors != null && !fMap.chunkColors.isEmpty()
                                 && fMap.chunkSourceDir != null) {
                             // 缓存命中：增量更新（存档玩过后只重渲染变化 chunk）
-                            startIncrementalUpdate(fMap.chunkSourceDir, fMap,
-                                    "nether".equals(mapDimension) ? 1 : 2);
+                            startIncrementalUpdate(fMap.chunkSourceDir, fMap, bakeDim);
                         }
                     }
                 } else {

@@ -2031,6 +2031,29 @@ public class WorldMapRenderer {
         return chunkCacheFileFor(dbDir, dimension, cacheSuffixFor(dimension));
     }
 
+    /** 下界"全部"段的缓存后缀（切段 fallback 显示用——切到未缓存段时
+     *  先显示全部段的图，新段后台烘焙完成后自动切换）。 */
+    public static String netherYallCacheSuffix() {
+        StringBuilder sb = new StringBuilder("_yall");
+        java.util.Set<String> ex = netherExcludeBlocks;
+        if (ex != null && !ex.isEmpty()) {
+            java.util.List<String> names = new java.util.ArrayList<>(ex);
+            java.util.Collections.sort(names);
+            sb.append("_x").append(Integer.toHexString(names.hashCode()));
+        }
+        return sb.toString();
+    }
+
+    /** 加载指定渲染参数后缀的 chunk 缓存（切段 fallback：读"全部"段）。 */
+    public static WorldMap loadChunkCacheWithSuffix(File dbDir, int dimension,
+                                                    String suffix) {
+        File in = chunkCacheFileFor(dbDir, dimension, suffix);
+        if (!in.isFile()) {
+            return null;
+        }
+        return loadChunkCacheFile(in, dbDir);
+    }
+
     /** 按给定渲染参数算后缀（map.chunkCacheSuffix 的取值来源）。 */
     public static String cacheSuffixFor(int dimension) {
         String suffix = "";
@@ -2731,6 +2754,11 @@ public class WorldMapRenderer {
         if (!in.isFile()) {
             return null;
         }
+        return loadChunkCacheFile(in, dbDir);
+    }
+
+    /** 从指定缓存文件加载（loadChunkCache 与切段 fallback 共用）。 */
+    private static WorldMap loadChunkCacheFile(File in, File dbDir) {
         try (java.io.DataInputStream dis = new java.io.DataInputStream(
                 new java.io.BufferedInputStream(new java.io.FileInputStream(in)))) {
             if (dis.readInt() != MAP_CACHE_MAGIC || dis.readInt() != MAP_CACHE_VERSION) {
