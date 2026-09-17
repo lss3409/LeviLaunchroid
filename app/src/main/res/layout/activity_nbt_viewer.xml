@@ -476,7 +476,41 @@
                         android:fontFamily="@font/misans"
                         android:text="@string/layer_ore"
                         android:textColor="@color/on_surface"
+                        android:textSize="12sp" />                    <CheckBox
+                        android:id="@+id/layer_shading"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:checked="true"
+                        android:fontFamily="@font/misans"
+                        android:text="@string/layer_shading"
+                        android:textColor="@color/on_surface"
                         android:textSize="12sp" />
+
+                    <CheckBox
+                        android:id="@+id/layer_struct_detect"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:checked="true"
+                        android:fontFamily="@font/misans"
+                        android:text="@string/layer_struct_detect"
+                        android:textColor="@color/on_surface"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/btn_clear_cache"
+                        android:layout_width="match_parent"
+                        android:layout_height="36dp"
+                        android:layout_marginTop="6dp"
+                        android:background="@drawable/bg_tab_unselected"
+                        android:fontFamily="@font/misans"
+                        android:gravity="center"
+                        android:text="@string/btn_clear_cache"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+
 
 
                     <!-- 下界专属设置（仅下界维度显示）：

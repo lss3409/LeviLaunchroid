@@ -363,6 +363,46 @@ public class NbtViewerActivity extends BaseActivity {
         // 火把/灯笼等非固体光源俯视渲染视为空气穿透（黄色杂点问题）
         WorldMapRenderer.ignoreLightBlocks = true;
 
+        // v397：坡度阴影开关（渲染管线参数——变化后缓存作废重烘焙）
+        binding.layerShading.setOnCheckedChangeListener((b, checked) -> {
+            WorldMapRenderer.enableShading = checked;
+            invalidateRenderCacheAndBake();
+        });
+
+        // v397：结构特征检测开关（palette 猜结构可能误报）
+        binding.layerStructDetect.setOnCheckedChangeListener((b, checked) -> {
+            WorldMapRenderer.enableStructureDetection = checked;
+            if (!checked) {
+                // 清掉 palette 特征检测类结构标记（沙漠神殿/前哨站）
+                synchronized (currentStructures) {
+                    currentStructures.removeIf(m -> "desert_temple".equals(m.type)
+                            || "outpost".equals(m.type));
+                }
+                binding.worldMapImage.setStructureMarkers(currentStructures);
+            }
+        });
+
+        // v397：清空世界缓存（确认弹窗 → 删缓存 → 重烘焙）
+        binding.btnClearCache.setOnClickListener(v -> {
+            if (currentWorldDir == null) {
+                return;
+            }
+            new CustomAlertDialog(this)
+                    .setTitleText(getString(R.string.btn_clear_cache))
+                    .setMessage("将删除当前世界的全部渲染缓存（三个维度）并重新烘焙。存档数据不受影响。")
+                    .setPositiveButton("清空", v2 -> {
+                        File db = new File(currentWorldDir, "db");
+                        WorldMapRenderer.deleteDimCacheFiles(db, 0);
+                        WorldMapRenderer.deleteDimCacheFiles(db, 1);
+                        WorldMapRenderer.deleteDimCacheFiles(db, 2);
+                        invalidateRenderCacheAndBake();
+                        Toast.makeText(this, "缓存已清空，正在重新烘焙",
+                                Toast.LENGTH_SHORT).show();
+                    })
+                    .setNegativeButton(getString(R.string.nbt_edit_cancel), null)
+                    .show();
+        });
+
         // 矿物热力图图层：开启后后台烘焙矿物密度数据（chunk 级热力色），
         // 关闭即清（数据不落盘，按需生成）
         binding.layerOre.setOnCheckedChangeListener((b, checked) -> {
@@ -511,6 +551,42 @@ public class NbtViewerActivity extends BaseActivity {
 
     /** 后台烘焙线程（v386：无缓存时逐 chunk 补全缓存，低优先级）。 */
     private volatile Thread bakeThread;
+
+    /** v397：渲染参数变化（阴影开关等）——清当前渲染数据 + 中断烘焙 +
+     *  重新烘焙当前维度（渲染结果变了缓存作废）。 */
+    private void invalidateRenderCacheAndBake() {
+        renderGen.incrementAndGet();
+        if (bakeThread != null) {
+            bakeThread.interrupt();
+            bakeThread = null;
+        }
+        if (currentMap != null && currentMap.chunkColors != null) {
+            currentMap.chunkColors.clear();
+            if (currentMap.chunkBiomeColors != null) {
+                currentMap.chunkBiomeColors.clear();
+            }
+        }
+        binding.worldMapImage.clearChunkData();
+        if (currentMap != null && currentMap.chunkSourceDir != null
+                && currentWorldDir != null) {
+            final WorldMapRenderer.WorldMap fBake = currentMap;
+            final int bakeDim = "nether".equals(mapDimension) ? 1
+                    : "end".equals(mapDimension) ? 2 : 0;
+            bakeThread = WorldMapRenderer.bakeWorldCache(
+                    currentMap.chunkSourceDir, bakeDim, fBake,
+                    batch -> runOnUiThread(() -> {
+                        if (!isFinishing() && !isDestroyed() && currentMap == fBake) {
+                            binding.worldMapImage.onChunksRendered(batch);
+                        }
+                    }),
+                    () -> runOnUiThread(() -> {
+                        if (!isFinishing() && !isDestroyed() && currentMap == fBake) {
+                            binding.worldMapImage.onChunksRendered(
+                                    java.util.Collections.emptySet());
+                        }
+                    }));
+        }
+    }
 
     /**
      * 增量更新（v384 用户新思路"专门存地图数据的地方"）：缓存命中秒开后，

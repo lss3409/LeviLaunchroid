@@ -69,6 +69,11 @@ public class WorldMapRenderer {
     /** 忽略光源方块（设置页开关）：火把等非固体光源俯视渲染成黄色杂点，
      *  开启后视为空气向下穿透显示地表。 */
     public static volatile boolean ignoreLightBlocks = false;
+    /** 坡度阴影开关（v397 设置区）：关闭后平面色块无高差明暗。 */
+    public static volatile boolean enableShading = true;
+    /** 结构特征检测开关（v397 设置区）：palette 特征猜结构
+     * （沙漠神殿/前哨站等无 key 结构）可能误报，可关闭。 */
+    public static volatile boolean enableStructureDetection = true;
 
     /** 下界窗口裁剪：sub 与 [yMin,yMax] 无交集则剔除。
      *  未设 y 范围（全量档）时也跳过基岩天花板层。推演：下界顶基岩在
@@ -1023,6 +1028,9 @@ public class WorldMapRenderer {
     }
 
     private static int applyShading(int color, int[] hmap, int i) {
+        if (!enableShading) {
+            return color; // v397 设置区开关：平面色块
+        }
         if ((color & 0xFF000000) == 0) {
             return color;
         }
@@ -1844,7 +1852,7 @@ public class WorldMapRenderer {
         // palette 结构特征（1.26 无 HSA 记录）——chunk 级一次判定：
         // 海底神殿 sea_lantern+prismarine / 末地城 purpur+end_stone_bricks /
         // 沙漠神殿 chiseled_sandstone / 掠夺者前哨站 dark_oak+stone
-        if (monumentChunks != null) {
+        if (monumentChunks != null && enableStructureDetection) {
             boolean lantern = false;
             boolean prismarine = false;
             boolean purpur = false;
@@ -2734,7 +2742,9 @@ public class WorldMapRenderer {
                         java.util.Set<Long> batch = new java.util.HashSet<>();
                         try {
                             while (true) {
-                                if (Thread.currentThread().isInterrupted()) {
+                                if (Thread.currentThread().isInterrupted()
+                                        || map.chunkOreColors == null) {
+                                    // 图层被关闭（Activity 清 null）：立即停止
                                     break;
                                 }
                                 long key;
@@ -2754,7 +2764,7 @@ public class WorldMapRenderer {
                                 int[] counts = countChunkOres(wReader,
                                         (int) (key >> 32), (int) (long) key, dimension);
                                 int color = oreHeatColor(counts);
-                                if (color != 0) {
+                                if (color != 0 && map.chunkOreColors != null) {
                                     map.chunkOreColors.put(key, color);
                                     batch.add(key);
                                 }
@@ -3975,6 +3985,9 @@ public class WorldMapRenderer {
      *  前哨站 dark_oak+cobblestone；相邻特征 chunk 合并为一个标记。 */
     private static void detectOnDemandStructure(int cx, int cz,
                                                 Map<Integer, SubChunk> subs, int dimension) {
+        if (!enableStructureDetection) {
+            return; // v397 设置区开关：关闭 palette 特征结构检测
+        }
         if (dimension != DIM_OVERWORLD || subs.isEmpty()) {
             return;
         }
