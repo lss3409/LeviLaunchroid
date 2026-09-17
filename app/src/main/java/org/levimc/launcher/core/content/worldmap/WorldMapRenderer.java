@@ -1670,6 +1670,13 @@ public class WorldMapRenderer {
             Map<Integer, SubChunk> curSubs = new HashMap<>();
             java.util.List<Long> progressBatch = new java.util.ArrayList<>();
             for (LevelDBEntry entry : heightEntries) {
+                // 中断检查：切维度中断旧预渲染时尽快退出（3 万 chunk
+                // 渲染循环可达数十秒，期间旧 heightEntries 数百 MB 驻留）
+                if (Thread.currentThread().isInterrupted()) {
+                    heightEntries = null;
+                    reader.close();
+                    return null;
+                }
                 byte[] rawKey = entry.getKey().getRawKey();
                 int[] chunkKey = parseChunkKey(rawKey);
                 if (chunkKey == null) {
@@ -4752,16 +4759,15 @@ public class WorldMapRenderer {
             }
             int w = map.width;
             int h = map.height;
-            Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-            if (map.colors != null) {
-                bmp.setPixels(map.colors, 0, w, 0, 0, w, h);
-            } else if (map.chunkColors != null) {
-                // chunk 缓存路径：逐 chunk 拼装（155MB 世界 928×1089 chunk 图太大，
-                // 导出缩小为每 chunk 1 像素的代表色概览）
-                int cw = w / 16;
-                int ch = h / 16;
-                Bitmap mini = Bitmap.createBitmap(Math.max(1, cw), Math.max(1, ch),
-                        Bitmap.Config.ARGB_8888);
+            Bitmap bmp;
+            if (map.chunkColors != null) {
+                // chunk 缓存路径：每 chunk 1 像素代表色概览。
+                // 注意：不能先 createBitmap(w,h) 再丢弃——大世界 bounds
+                // 14848×17424×4B ≈ 1GB 位图，512MB 设备分配失败/挤占
+                // （切维度 OOM 的帮凶）
+                int cw = Math.max(1, w / 16);
+                int ch = Math.max(1, h / 16);
+                Bitmap mini = Bitmap.createBitmap(cw, ch, Bitmap.Config.ARGB_8888);
                 for (Map.Entry<Long, int[]> e : map.chunkColors.entrySet()) {
                     int cx = unpackX(e.getKey());
                     int cz = unpackZ(e.getKey());
@@ -4782,6 +4788,9 @@ public class WorldMapRenderer {
                     mini.setPixel(px, pz, c);
                 }
                 bmp = mini;
+            } else {
+                bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                bmp.setPixels(map.colors, 0, w, 0, 0, w, h);
             }
             // scoped storage 下 /sdcard/Download 直接写会 EACCES，
             // 优先写 app 外部目录（/sdcard/Android/data/org.levimc.launcher/files/）

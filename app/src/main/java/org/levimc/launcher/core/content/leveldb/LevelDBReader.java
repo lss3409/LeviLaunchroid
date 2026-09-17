@@ -102,6 +102,12 @@ public class LevelDBReader {
             // 文件名数字越大越新；新文件先读，配合 putIfAbsent 保留最新版本
             Arrays.sort(sstFiles, Comparator.comparing(File::getName).reversed());
             for (File sstFile : sstFiles) {
+                // 中断检查：快速切维度时旧预渲染线程尽快停止收集，
+                // 否则多个 heightEntries（各数百 MB）同时驻留必 OOM
+                if (Thread.currentThread().isInterrupted()) {
+                    Log.i(TAG, "readEntries 中断，停止收集");
+                    break;
+                }
                 try {
                     readSSTable(sstFile);
                 } catch (Exception e) {

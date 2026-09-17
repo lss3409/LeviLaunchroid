@@ -1276,30 +1276,30 @@ public class NbtViewerActivity extends BaseActivity {
                     currentMap = fMap;
                     WorldMapRenderer.debugExport(fMap); // 调试导出 map_debug.png
                     binding.worldMapImage.setWorldMap(fMap, fKeepView);
-                    // 下界/末地（非 keepView 重载）：整图适配——initialView
-                    // 默认定位 spawn/(0,0)，主世界远处切过来时对应下界坐标
-                    // 往往未生成（玩家没去过）→ 全屏空白"不渲染"的根因。
-                    // fit 后看到整个维度的生成范围轮廓
-                    if (!fKeepView && !"overworld".equals(mapDimension)) {
-                        binding.worldMapImage.fitToView();
-                    }
+                    // 不 fitToView：fit 后下界 ×0.44 缩放太小（视口 chunk
+                    // >4096 进 LOD、网格不画），进图一片黑像没渲染（v380
+                    // fit 改动被用户要求回退——与主世界一致走 initialView
+                    // 默认放大 20px/block，渲染从玩家/出生点周边渐进）
                     binding.worldMapImage.setEntityData(fEntities);
                     binding.worldMapImage.setStructureMarkers(fStructures);
                     binding.worldMapPlaceholder.setVisibility(View.GONE);
                     refreshMapBlueprintData();
-                    // 大世界：fit 后视口含全图 chunk（>4096）→ LOD 模式，
-                    // LOD 不收集缺失 chunk，视口按需渲染永不触发 → 全空白。
-                    // 自动启动流式全量渲染（v373 切维度行为）：后台渐进
-                    // 合并（onChunkData 节流通知 → LOD 增量更新），完成后
-                    // 落盘缓存，下次切维度直接读缓存秒开。
+                    // 下界/末地自动启动流式全量渲染（v373 切维度行为）：
+                    // 后台渐进合并（onChunkData 节流通知 → LOD 增量更新），
+                    // 完成后落盘缓存，下次切维度直接读缓存秒开。
                     // 缓存 chunk 数不足 bounds 应有数 60% 时也补渲染
-                    // （末地 122/1260 的坏缓存命中后外岛永远缺失的根因）
-                    long expectChunks = (long) (fMap.width / 16) * (fMap.height / 16);
-                    boolean cacheInsufficient = fMap.chunkColors != null
-                            && fMap.chunkColors.size() * 10L < expectChunks * 6L;
-                    if (fMap.chunkColors != null && fMap.chunkSourceDir != null
-                            && (fMap.chunkColors.isEmpty() || cacheInsufficient)) {
-                        startPrerender();
+                    // （末地 122/1260 的坏缓存命中后外岛永远缺失的根因）。
+                    // 主世界不自动渲染：18 万条目 ~300MB 叠加视口渲染+
+                    // 实体解析并行，512MB heap 必 OOM（v382 实测崩溃，
+                    // tombstone OutOfMemoryError）——主世界走视口按需+LOD
+                    if (!"overworld".equals(mapDimension)) {
+                        long expectChunks = (long) (fMap.width / 16) * (fMap.height / 16);
+                        boolean cacheInsufficient = fMap.chunkColors != null
+                                && fMap.chunkColors.size() * 10L < expectChunks * 6L;
+                        if (fMap.chunkColors != null && fMap.chunkSourceDir != null
+                                && (fMap.chunkColors.isEmpty() || cacheInsufficient)) {
+                            startPrerender();
+                        }
                     }
                 } else {
                     // 该维度无数据：清空旧地图（避免上一维度地图残留误导）
@@ -2908,6 +2908,10 @@ public class NbtViewerActivity extends BaseActivity {
         }
         final WorldMapRenderer.WorldMap fMap = currentMap;
         final File worldDir = currentWorldDir;
+        // 导出当前显示维度（切到哪个维度点导出就导出哪个维度的图）
+        final int exportDim = "nether".equals(mapDimension) ? 1
+                : "end".equals(mapDimension) ? 2 : 0;
+        final String dimName = exportDim == 1 ? "nether" : exportDim == 2 ? "end" : "overworld";
         final java.util.List<WorldMapRenderer.EntityPos> fEntities =
                 binding.worldMapImage.getEntities();
         final String fVersion = readLevelVersion();
@@ -2925,7 +2929,7 @@ public class NbtViewerActivity extends BaseActivity {
                         new java.util.concurrent.atomic.AtomicLong(0);
                 if (exportMap.chunkColors != null) {
                     WorldMapRenderer.WorldMap full = WorldMapRenderer.buildSatelliteMapStreaming(
-                            new File(worldDir, "db"), 0, (done, total) -> {
+                            new File(worldDir, "db"), exportDim, (done, total) -> {
                                 int pct = total > 0 ? (int) (done * 70L / total) : 0;
                                 long now = android.os.SystemClock.uptimeMillis();
                                 if (now - lastNotif.get() < 1000) {
@@ -2972,10 +2976,11 @@ public class NbtViewerActivity extends BaseActivity {
                     dir.mkdirs();
                 }
                 showExportNotification(80, "");
+                // 文件名带维度后缀——不同维度的导出互不覆盖
                 File out = WorldMapRenderer.exportWorldHtml(exportMap, dir,
-                        worldDir.getName() + "_map.html",
-                        worldDir.getName(), fSeed, fVersion, px, pz, sx, sz,
-                        pts, lks, sts, fEntities);
+                        worldDir.getName() + "_map_" + dimName + ".html",
+                        worldDir.getName() + " (" + dimName + ")", fSeed, fVersion,
+                        px, pz, sx, sz, pts, lks, sts, fEntities);
                 final File fOut = out;
                 runOnUiThread(() -> {
                     binding.nbtLoading.setVisibility(View.GONE);
