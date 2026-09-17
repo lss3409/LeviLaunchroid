@@ -79,6 +79,17 @@ public class WorldManager {
         }
     }
 
+    /** 全部世界根目录（v400 静默烘焙扫描用：聚合多个实例目录时含多个）。 */
+    public List<File> getWorldsDirectories() {
+        List<File> out = new ArrayList<>();
+        if (aggregateWorldsDirs != null) {
+            out.addAll(aggregateWorldsDirs);
+        } else if (worldsDirectory != null) {
+            out.add(worldsDirectory);
+        }
+        return out;
+    }
+
     public List<WorldItem> getWorlds() {
         List<WorldItem> worlds = new ArrayList<>();
         if (aggregateWorldsDirs != null) {
@@ -150,16 +161,15 @@ public class WorldManager {
 
                     copyDirectory(worldDir, targetDir);
 
-                    // 导入后后台烘焙主世界可视化缓存（v386 用户新思路：
-                    // 代码直接把存档转成可视化数据，不用打开卫星图跑第一遍。
-                    // 低优先级线程逐 chunk 渲染，完成后第一次打开卫星图秒开）
+                    // 导入后入队静默烘焙（v400：后台慢速渲染可视化缓存，
+                    // 不用打开卫星图跑第一遍；启动器开着就持续烘）
                     try {
                         File db = new File(targetDir, "db");
                         if (db.isDirectory()) {
                             org.levimc.launcher.core.content.worldmap.WorldMapRenderer
                                     .initCacheDir(context);
-                            org.levimc.launcher.core.content.worldmap.WorldMapRenderer
-                                    .bakeWorldCache(db, 0, null, null, null);
+                            org.levimc.launcher.core.content.worldmap.SilentBakeManager
+                                    .get().enqueue(targetDir);
                         }
                     } catch (Throwable ignored) {
                     }

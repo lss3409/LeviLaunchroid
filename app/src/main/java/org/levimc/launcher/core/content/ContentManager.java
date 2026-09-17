@@ -156,6 +156,11 @@ public class ContentManager {
         return worldsLiveData;
     }
 
+    /** v400 静默烘焙扫描用。 */
+    public WorldManager getWorldManager() {
+        return worldManager;
+    }
+
     public LiveData<List<ResourcePackItem>> getResourcePacksLiveData() {
         return resourcePacksLiveData;
     }

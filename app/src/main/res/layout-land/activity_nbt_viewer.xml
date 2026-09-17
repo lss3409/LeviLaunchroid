@@ -18,7 +18,12 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
+        android:background="@drawable/bg_rounded_card"
         android:fontFamily="@font/misans"
+        android:paddingLeft="18dp"
+        android:paddingTop="10dp"
+        android:paddingRight="18dp"
+        android:paddingBottom="10dp"
         android:text="@string/world_map_loading"
         android:textColor="@color/text_secondary"
         android:textSize="13sp" />

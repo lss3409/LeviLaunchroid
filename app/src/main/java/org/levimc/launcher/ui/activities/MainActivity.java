@@ -784,6 +784,22 @@ import okhttp3.OkHttpClient;
         checkHardcoreBackups();
         // 延迟执行：冷启动时版本列表可能尚未加载完成，立即扫描会空转。
         new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(this::captureXalTemplate, 5000);
+        // v400 静默烘焙扫描：导入/游玩过的存档缓存不完整时，后台慢速
+        // 补烘（启动器开着就持续烘，无需打开卫星图）。延迟 3 秒——
+        // 等版本/世界目录就绪；扫描本身轻量（只读缓存文件头）
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            try {
+                if (contentManager != null) {
+                    org.levimc.launcher.core.content.worldmap.SilentBakeManager sb =
+                            org.levimc.launcher.core.content.worldmap.SilentBakeManager.get();
+                    sb.init(this);
+                    sb.scanWorldsDirectories(
+                            contentManager.getWorldManager()
+                                    .getWorldsDirectories());
+                }
+            } catch (Throwable ignored) {
+            }
+        }, 3000);
     }
 
     /** 游戏退出回到启动器时，扫描版本的 xal 目录，

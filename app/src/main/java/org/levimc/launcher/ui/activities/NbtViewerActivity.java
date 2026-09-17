@@ -226,6 +226,9 @@ public class NbtViewerActivity extends BaseActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // v400：进入卫星图——其它存档的静默烘焙停止（卫星图内
+        // 烘焙由本 Activity 全速 ACTIVE 模式负责），退出后恢复
+        org.levimc.launcher.core.content.worldmap.SilentBakeManager.get().pause();
         binding = ActivityNbtViewerBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
@@ -618,7 +621,9 @@ public class NbtViewerActivity extends BaseActivity {
                 reader.close();
                 if (done > 0) {
                     map.chunkCacheSuffix = WorldMapRenderer.cacheSuffixFor(dim);
-                    WorldMapRenderer.saveChunkCache(map, dbDir, dim);
+                    // 增量更新完成后缓存仍完整
+                    map.cacheComplete = true;
+                    WorldMapRenderer.saveChunkCache(map, dbDir, dim, true);
                     runOnUiThread(() -> {
                         if (!isFinishing() && !isDestroyed() && currentMap == map) {
                             binding.worldMapImage.onChunksRendered(
@@ -956,7 +961,10 @@ public class NbtViewerActivity extends BaseActivity {
             // mapDimension 改成新维度，用它算会把主世界图存进下界缓存文件
             // （"切下界显示主世界图、颜色错乱"的根因）
             final int saveDim = toSave.chunkSourceDim >= 0 ? toSave.chunkSourceDim : 0;
-            new Thread(() -> WorldMapRenderer.saveChunkCache(toSave, saveDb, saveDim),
+            // 保持读入时的完整性标志（完整缓存切维度后仍是完整）
+            final boolean saveComplete = toSave.cacheComplete;
+            new Thread(() -> WorldMapRenderer.saveChunkCache(
+                    toSave, saveDb, saveDim, saveComplete),
                     "cache-save").start();
         }
         // 维度隔绝：切换时立刻清掉旧维度地图与图层——否则新图渲染完成前
@@ -1156,9 +1164,10 @@ public class NbtViewerActivity extends BaseActivity {
                         // 下界/末地切维度：缓存不足时自动烘焙（v388 起与
                         // 主世界统一机制——替代已删除的流式预渲染；共享
                         // fMap 圆形铺开 + 落盘缓存）
-                        long expectChunks = (long) (fMap.width / 16) * (fMap.height / 16);
-                        boolean cacheInsufficient = fMap.chunkColors != null
-                                && fMap.chunkColors.size() * 10L < expectChunks * 6L;
+                        // v19：完整性用缓存头部标志（bounds 面积×60% 对
+                        // 稀疏世界永远"不足"——TK 实际 24844 chunk 只占
+                        // 外包矩形 2.5%，误判会空转烘焙）
+                        boolean cacheInsufficient = !fMap.cacheComplete;
                         final int bakeDim = "nether".equals(mapDimension) ? 1 : 2;
                         if (fMap.chunkColors != null && fMap.chunkSourceDir != null
                                 && (fMap.chunkColors.isEmpty() || cacheInsufficient)) {
@@ -1717,10 +1726,10 @@ public class NbtViewerActivity extends BaseActivity {
             // 渲染 + LOD 已覆盖；全图预渲染只用于切维度自动（下界/末地
             // 数据量小）
             // 缓存完整命中：后台增量更新——存档玩过之后只重渲染变化文件
-            // 覆盖的 chunk
-            long expectOw = (long) (worldMap.width / 16) * (worldMap.height / 16);
-            boolean cacheLacking = worldMap.chunkColors != null
-                    && worldMap.chunkColors.size() * 10L < expectOw * 6L;
+            // 覆盖的 chunk。v19：完整性用缓存头部标志（bounds 面积×60%
+            // 对稀疏世界永远"不足"——TK 实际 24844 chunk 只占外包
+            // 矩形 2.5%，误判导致每次打开都补缺烘焙"重新渲染"）
+            boolean cacheLacking = !worldMap.cacheComplete;
             if (worldMap.chunkColors != null && !worldMap.chunkColors.isEmpty()
                     && !cacheLacking && worldMap.chunkSourceDir != null) {
                 startIncrementalUpdate(worldMap.chunkSourceDir, worldMap, 0);
@@ -2459,12 +2468,15 @@ public class NbtViewerActivity extends BaseActivity {
         if (currentMap != null && currentMap.chunkSourceDir != null
                 && currentMap.chunkColors != null
                 && !currentMap.chunkColors.isEmpty()) {
+            // v19：保持 map 的完整性标志（完整缓存退出后再存仍是完整）
             WorldMapRenderer.saveChunkCache(currentMap, currentMap.chunkSourceDir,
-                    currentMap.chunkSourceDim);
+                    currentMap.chunkSourceDim, currentMap.cacheComplete);
         }
         if (bakeThread != null) {
             bakeThread.interrupt();
         }
+        // v400：退出卫星图——恢复其它存档的后台静默烘焙
+        org.levimc.launcher.core.content.worldmap.SilentBakeManager.get().resume();
         super.onDestroy();
         if (executor != null) {
             executor.shutdown();

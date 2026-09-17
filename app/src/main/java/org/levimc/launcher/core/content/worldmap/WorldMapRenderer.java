@@ -1128,6 +1128,11 @@ public class WorldMapRenderer {
         /** 小世界缓存 db 已变化（allowStale 加载的旧图）——调用方
          *  先显示旧图、后台重渲染替换。 */
         public boolean cacheStale = false;
+        /** v19：缓存是否完整（烘焙完整跑完落盘时置 true）——完整性
+         *  判定依据。此前用 bounds 面积×60% 判 chunk 数——稀疏世界
+         *  （TK 实际 24844 chunk 只占 bounds 面积 2.5%）永远"不足"，
+         *  静默烘焙每次启动空转。 */
+        public boolean cacheComplete = false;
         /** 出生点位置（block 坐标，-1 = 无） */
         public int spawnBlockX = -1;
         public int spawnBlockZ = -1;
@@ -1996,7 +2001,7 @@ public class WorldMapRenderer {
     //      结果（末地 122 chunk 坏缓存）须失效
     // v18：缓存头加 db 文件指纹列表（"name:size:mtime"）——增量更新：
     //      打开时 diff 找出新文件只重渲染变化 chunk，db 变化不再全量失效
-    private static final int MAP_CACHE_VERSION = 18;
+    private static final int MAP_CACHE_VERSION = 19;
 
     /** 缓存根目录（应用私有，卸载即清——缓存可再生）。null 时回退旧路径。 */
     private static java.io.File sCacheBase;
@@ -2374,8 +2379,11 @@ public class WorldMapRenderer {
      * 保存 chunk 色缓存到磁盘（BTR 式"打开不重渲染"：下次进入直接读缓存秒开）。
      * 格式：magic/version/chunkCount/minCx/minCz/maxCx/maxCz/dbSize/dbMtime
      * + 每 chunk(cx,cz,256×ARGB)。155MB 世界缓存文件 ≈ 25MB，写入 <1s。
+     * complete：缓存是否完整（v19 完整性标志——烘焙完整跑完置 true，
+     * 中断/落盘节流置 false；静默烘焙与打开判定据此决定是否补烘）。
      */
-    public static boolean saveChunkCache(WorldMap map, File dbDir, int dimension) {
+    public static boolean saveChunkCache(WorldMap map, File dbDir, int dimension,
+                                         boolean complete) {
         if (map == null || map.chunkColors == null || map.chunkColors.isEmpty()) {
             return false;
         }
@@ -2426,6 +2434,9 @@ public class WorldMapRenderer {
                 dos.writeShort(fb.length);
                 dos.write(fb);
             }
+            // v19：完整性标志（烘焙完整跑完 = true；节流/退出保存保持
+            // map.cacheComplete——完整缓存退出后再存仍是完整）
+            dos.writeBoolean(complete);
             boolean hasBiome = biomeSnapshot != null;
             dos.writeBoolean(hasBiome);
             // 写快照（保存期间 map 并发 put 不影响文件一致性）
@@ -2837,6 +2848,24 @@ public class WorldMapRenderer {
                                         final BakeProgress progress,
                                         final Runnable onDone,
                                         final boolean forceRebake) {
+        return bakeWorldCache(dbDir, dimension, targetMap, progress, onDone,
+                forceRebake, BakeMode.ACTIVE);
+    }
+
+    /** 烘焙模式（v400）：
+     *  ACTIVE=卫星图内全速——8 线程大核绑定高优先级（接近原实时渲染
+     *  速度，卫星图内烘焙是唯一渲染源）；
+     *  SILENT=后台静默——2 线程低优先级 + 每 chunk 限速，启动器
+     *  运行期间慢速补烘（导入/游玩过的存档，无需打开卫星图）。 */
+    public enum BakeMode { ACTIVE, SILENT }
+
+    public static Thread bakeWorldCache(final File dbDir, final int dimension,
+                                        final WorldMap targetMap,
+                                        final BakeProgress progress,
+                                        final Runnable onDone,
+                                        final boolean forceRebake,
+                                        final BakeMode mode) {
+        final boolean silent = mode == BakeMode.SILENT;
         Thread t = new Thread(() -> {
             // worker 池引用在 try 外声明：中断/异常路径需要 shutdownNow
             // 停掉 worker（此前 latch.await 抛异常后 pool 未关闭，worker
@@ -2913,13 +2942,17 @@ public class WorldMapRenderer {
                 // 线程数按 chunk 量自适应（v393 提速：视口渲染已删，
                 // 烘焙是唯一渲染源——放开到核数上限，静默生成更快）
                 int cpus = Runtime.getRuntime().availableProcessors();
-                final int bakeThreads = ordered.size() > 6000
-                        ? Math.min(8, Math.max(6, cpus))
-                        : Math.min(6, Math.max(4, cpus));
+                // SILENT：2 线程慢速（后台静默，不抢前台 IO/CPU）；
+                // ACTIVE：按 chunk 量放开到核数上限 + 高优先级
+                final int bakeThreads = silent ? 2
+                        : ordered.size() > 6000
+                            ? Math.min(8, Math.max(6, cpus))
+                            : Math.min(6, Math.max(4, cpus));
                 poolRef[0] =
                         java.util.concurrent.Executors.newFixedThreadPool(bakeThreads, r -> {
                             Thread bt = new Thread(r, "world-bake-w");
-                            bt.setPriority(Thread.MIN_PRIORITY);
+                            bt.setPriority(silent ? Thread.MIN_PRIORITY
+                                    : Thread.MAX_PRIORITY);
                             return bt;
                         });
                 // force 模式全部重烘：视口队列与 ordered 可能重叠
@@ -2931,6 +2964,12 @@ public class WorldMapRenderer {
                         new java.util.concurrent.CountDownLatch(bakeThreads);
                 for (int wi = 0; wi < bakeThreads; wi++) {
                     poolRef[0].execute(() -> {
+                        // ACTIVE：大核绑定（卫星图内全速烘焙——
+                        // CpuScheduler 反射 sched_setaffinity，失败静默）
+                        if (!silent) {
+                            org.levimc.launcher.core.CpuScheduler
+                                    .pinCurrentThreadToBigCores();
+                        }
                         LevelDBReader wReader = new LevelDBReader(dbDir);
                         java.util.Set<Long> batch = new java.util.HashSet<>();
                         int sinceSave = 0;
@@ -2994,7 +3033,8 @@ public class WorldMapRenderer {
                                         || nowMs - lastSaveAt[0] > 20000) {
                                     sinceSave = 0;
                                     lastSaveAt[0] = nowMs;
-                                    saveChunkCache(map, dbDir, dimension);
+                                    // 烘焙中落盘：完整性标志 false
+                                    saveChunkCache(map, dbDir, dimension, false);
                                 }
                             }
                         } finally {
@@ -3008,7 +3048,10 @@ public class WorldMapRenderer {
                 }
                 latch.await();
                 poolRef[0].shutdown();
-                saveChunkCache(map, dbDir, dimension);
+                // 完整烘焙收尾落盘：完整性标志 true（v19 静默烘焙/
+                // 打开补烘判定的依据）
+                map.cacheComplete = true;
+                saveChunkCache(map, dbDir, dimension, true);
                 Log.i(TAG, "烘焙完成: dim=" + dimension + " 渲染=" + rendered.get()
                         + "/" + ordered.size());
             } catch (InterruptedException ie) {
@@ -3163,6 +3206,14 @@ public class WorldMapRenderer {
                 return null;
             }
             Map<Long, int[]> chunkColors = new java.util.concurrent.ConcurrentHashMap<>(count * 2);
+            // v19：完整性标志（v18 旧文件无此字节，读失败按 false——
+            // 静默烘焙会补烘一次并打上标志）
+            boolean complete = false;
+            try {
+                complete = dis.readBoolean();
+            } catch (Exception e) {
+                complete = false;
+            }
             boolean hasBiome = false;
             try {
                 hasBiome = dis.readBoolean();
@@ -3187,12 +3238,88 @@ public class WorldMapRenderer {
             map.chunkBiomeColors = chunkBiomeColors;
             map.blockScale = 1;
             map.dbFileFingerprints = fps;
+            map.cacheComplete = complete;
             Log.i(TAG, "chunk 缓存已加载: " + count + " chunk (biome=" + hasBiome
-                    + ", 文件指纹=" + fps.size() + ")");
+                    + ", 文件指纹=" + fps.size() + ", 完整=" + complete + ")");
             return map;
         } catch (Exception e) {
             Log.w(TAG, "chunk 缓存加载失败", e);
             return null;
+        }
+    }
+
+    /** 缓存完整性状态（v400 静默烘焙队列用）。 */
+    public enum CacheStatus {
+        /** 完整有效：chunk 数充足且 db 指纹未变 */
+        COMPLETE,
+        /** chunk 数不足（烘焙曾中断） */
+        INCOMPLETE,
+        /** db 指纹变化（存档玩过/更新过） */
+        STALE,
+        /** 无缓存文件 */
+        MISSING,
+        /** 头部损坏（重烘覆盖） */
+        BROKEN
+    }
+
+    /** 轻量缓存状态检查：只读头部字段与指纹列表，不读 chunk 数据
+     *  ——静默烘焙扫描全部世界时近 O(1) 开销（避免 loadChunkCache
+     *  完整读 15MB 文件）。 */
+    public static CacheStatus peekChunkCacheStatus(File dbDir, int dimension) {
+        File in = chunkCacheFile(dbDir, dimension);
+        if (in == null || !in.isFile()) {
+            return CacheStatus.MISSING;
+        }
+        try (java.io.DataInputStream dis = new java.io.DataInputStream(
+                new java.io.BufferedInputStream(new java.io.FileInputStream(in)))) {
+            if (dis.readInt() != MAP_CACHE_MAGIC || dis.readInt() != MAP_CACHE_VERSION) {
+                return CacheStatus.BROKEN;
+            }
+            int count = dis.readInt();
+            if (count < 1 || count > 10_000_000) {
+                return CacheStatus.BROKEN;
+            }
+            int minCx = dis.readInt();
+            int minCz = dis.readInt();
+            int maxCx = dis.readInt();
+            int maxCz = dis.readInt();
+            long dbSize = dis.readLong();
+            long dbMtime = dis.readLong();
+            int fpCount = dis.readInt();
+            java.util.List<String> fps = new java.util.ArrayList<>(fpCount);
+            for (int i = 0; i < fpCount; i++) {
+                int len = dis.readUnsignedShort();
+                byte[] fb = new byte[len];
+                dis.readFully(fb);
+                fps.add(new String(fb, java.nio.charset.StandardCharsets.UTF_8));
+            }
+            if (fpCount > 0 && (fps.get(0).isEmpty() || !fps.get(0).contains(":"))) {
+                return CacheStatus.BROKEN;
+            }
+            if (fpCount == 0) {
+                long[] fp = dbFingerprint(dbDir);
+                if (fp[0] != dbSize || fp[1] != dbMtime) {
+                    return CacheStatus.STALE;
+                }
+            } else {
+                // 与当前 db 文件列表精确对比（sst 不可变，追加即变化）
+                if (!fps.equals(dbFileFingerprintList(dbDir))) {
+                    return CacheStatus.STALE;
+                }
+            }
+            // v19：完整性用头部标志判定（烘焙完整跑完落盘时置 true）。
+            // 此前用 bounds 面积×60% 比 chunk 数——稀疏世界（TK 实际
+            // 24844 chunk 只占 bounds 外包矩形面积的 2.5%）永远判"不足"
+            // → 静默烘焙每次启动空转 readKeys
+            boolean complete = false;
+            try {
+                complete = dis.readBoolean();
+            } catch (Exception e) {
+                complete = false; // v18 旧文件无标志 → 补烘一次打上标志
+            }
+            return complete ? CacheStatus.COMPLETE : CacheStatus.INCOMPLETE;
+        } catch (Exception e) {
+            return CacheStatus.BROKEN;
         }
     }
 

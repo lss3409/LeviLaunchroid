@@ -576,7 +576,7 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="dp_structs_title">Structures</string>
     <string name="dp_struct_empty">No structures detected</string>
     <string name="dp_member_empty">No member data</string>
-    <string name="world_map_loading">Rendering map…</string>
+    <string name="world_map_loading">Loading world data…</string>
     <string name="dp_perm_local">Local player</string>
     <string name="dp_perm_owner">Owner</string>
     <string name="dp_perm_member">Member</string>

@@ -536,7 +536,7 @@
     <string name="world_data_title">世界数据</string>
     <string name="world_map_title">世界地图</string>
     <string name="world_map_unavailable">地图不可用</string>
-    <string name="world_map_loading">地图渲染中…</string>
+    <string name="world_map_loading">正在加载世界数据…</string>
     <string name="nbt_view_world_data">查看 NBT</string>
     <string name="nbt_level_dat">level.dat</string>
     <string name="dp_perm_local">本地玩家</string>
