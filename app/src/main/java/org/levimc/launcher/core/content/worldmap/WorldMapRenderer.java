@@ -2114,8 +2114,11 @@ public class WorldMapRenderer {
         // 保存用 map 创建时定格的渲染参数后缀（切段后全局参数已变，
         // 用全局参数会把旧段数据写进新段文件名）
         File out = chunkCacheFileFor(dbDir, dimension, map.chunkCacheSuffix);
-        try (java.io.DataOutputStream dos = new java.io.DataOutputStream(
-                new java.io.BufferedOutputStream(new java.io.FileOutputStream(out)))) {
+        // 并发写互斥：烘焙线程（每 200 chunk 落盘）/退出保存/切维度
+        // 保存可能同时写同一文件 → 文件损坏
+        synchronized (CACHE_SAVE_LOCK) {
+            try (java.io.DataOutputStream dos = new java.io.DataOutputStream(
+                    new java.io.BufferedOutputStream(new java.io.FileOutputStream(out)))) {
             long[] fp = dbFingerprint(dbDir);
             int minCx = map.minBlockX / 16;
             int minCz = map.minBlockZ / 16;
@@ -2151,12 +2154,13 @@ public class WorldMapRenderer {
                     writePaletteChunk(dos, bc != null ? bc : EMPTY_CHUNK_COLORS);
                 }
             }
-            Log.i(TAG, "chunk 缓存已保存: " + out.getName() + " "
-                    + (out.length() / 1024 / 1024) + "MB 文件指纹=" + fps.size());
-            return true;
-        } catch (Exception e) {
-            Log.w(TAG, "chunk 缓存保存失败", e);
-            return false;
+                Log.i(TAG, "chunk 缓存已保存: " + out.getName() + " "
+                        + (out.length() / 1024 / 1024) + "MB 文件指纹=" + fps.size());
+                return true;
+            } catch (Exception e) {
+                Log.w(TAG, "chunk 缓存保存失败", e);
+                return false;
+            }
         }
     }
 
@@ -2226,8 +2230,105 @@ public class WorldMapRenderer {
         return chunks;
     }
 
+    /** 缓存写入互斥（烘焙线程/退出保存/增量更新可能并发写同一文件）。 */
+    private static final Object CACHE_SAVE_LOCK = new Object();
+
+    /**
+     * 后台烘焙：把存档直接转成可视化缓存（用户新思路——不用打开卫星图
+     * 跑第一遍，导入世界后/无缓存打开时后台跑）。
+     * 逐 chunk 渲染（renderChunkOnDemand），内存 O(1) 无流式渲染的
+     * 18 万条目 OOM 风险；每 200 chunk 增量落盘，中断即停（已保存
+     * 部分下次继续）。低优先级线程，不抢 UI。
+     */
+    public static Thread bakeWorldCache(final File dbDir, final int dimension,
+                                        final Runnable onDone) {
+        Thread t = new Thread(() -> {
+            try {
+                WorldMap map = loadChunkCache(dbDir, dimension);
+                if (map == null) {
+                    map = buildBoundsOnly(dbDir, dimension);
+                }
+                if (map == null) {
+                    Log.i(TAG, "烘焙失败: 无 bounds (dim=" + dimension + ")");
+                    if (onDone != null) {
+                        onDone.run();
+                    }
+                    return;
+                }
+                map.chunkSourceDir = dbDir;
+                map.chunkSourceDim = dimension;
+                map.chunkCacheSuffix = cacheSuffixFor(dimension);
+                if (map.chunkBiomeColors == null) {
+                    map.chunkBiomeColors = new java.util.concurrent.ConcurrentHashMap<>();
+                }
+                LevelDBReader reader = new LevelDBReader(dbDir);
+                List<byte[]> subKeys = reader.readKeys(k -> {
+                    int[] ck = parseChunkKey(k);
+                    return ck != null && ck[2] == dimension && isSubchunkKey(k);
+                });
+                java.util.List<Long> ordered = new java.util.ArrayList<>();
+                java.util.Set<Long> seen = new java.util.HashSet<>();
+                for (byte[] k : subKeys) {
+                    int[] ck = parseChunkKey(k);
+                    if (ck != null && seen.add(pack(ck[0], ck[1]))) {
+                        ordered.add(pack(ck[0], ck[1]));
+                    }
+                }
+                subKeys = null; // 释放
+                // 距离排序：从世界原点向外烘焙（先出中心区域）
+                ordered.sort((a, b) -> {
+                    long ax = a >> 32;
+                    long az = (int) (long) a;
+                    long bx = b >> 32;
+                    long bz = (int) (long) b;
+                    return Long.compare(ax * ax + az * az, bx * bx + bz * bz);
+                });
+                Log.i(TAG, "烘焙开始: dim=" + dimension + " chunk=" + ordered.size());
+                int done = 0;
+                int rendered = 0;
+                for (Long key : ordered) {
+                    if (Thread.currentThread().isInterrupted()) {
+                        break;
+                    }
+                    int cx = (int) (key >> 32);
+                    int cz = (int) (long) key;
+                    try {
+                        int[][] res = renderChunkOnDemand(reader, cx, cz, dimension);
+                        int[] colors = res != null ? res[0] : null;
+                        if (colors != null) {
+                            map.chunkColors.put(key, colors);
+                            if (res[1] != null) {
+                                map.chunkBiomeColors.put(key, res[1]);
+                            }
+                            rendered++;
+                        }
+                    } catch (Exception e) {
+                        Log.w(TAG, "烘焙 chunk(" + cx + "," + cz + ") 失败", e);
+                    }
+                    if (++done % 200 == 0) {
+                        saveChunkCache(map, dbDir, dimension);
+                    }
+                }
+                reader.close();
+                saveChunkCache(map, dbDir, dimension);
+                Log.i(TAG, "烘焙完成: dim=" + dimension + " 渲染=" + rendered
+                        + "/" + done);
+            } catch (Throwable err) {
+                Log.w(TAG, "烘焙失败 (dim=" + dimension + ")", err);
+            } finally {
+                if (onDone != null) {
+                    onDone.run();
+                }
+            }
+        }, "world-bake-" + dimension);
+        t.setPriority(Thread.MIN_PRIORITY);
+        t.start();
+        return t;
+    }
+
     /** 增量更新缓存：重渲染变化 chunk 并覆盖（调用方决定保存时机）。
      *  reader 复用（调用方 ThreadLocal）；返回重渲染的 chunk 数。 */
+
     public static int refreshChangedChunks(LevelDBReader reader, File dbDir,
                                            WorldMap map, java.util.Set<Long> chunks,
                                            int dimension) {

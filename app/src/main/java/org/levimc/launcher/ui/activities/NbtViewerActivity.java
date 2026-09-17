@@ -91,8 +91,13 @@ public class NbtViewerActivity extends BaseActivity {
     private final java.util.concurrent.atomic.AtomicInteger renderGen =
             new java.util.concurrent.atomic.AtomicInteger();
     /** 当前批次渲染队列：拖动时清空（旧区域任务作废），执行时检查。 */
-    private final java.util.Set<Long> renderQueue = java.util.Collections.synchronizedSet(
-            new java.util.HashSet<>());
+    /** 渲染排队集合：主线程（报告/清空）与渲染线程（v385 任务完成
+     *  移除）并发访问——synchronizedSet 单操作安全但迭代（new
+     *  HashSet<>(renderQueue)）不持锁，渲染线程 remove 时主线程
+     *  迭代抛 ConcurrentModificationException（v386 崩溃根因）。
+     *  ConcurrentHashMap keySet 弱一致迭代不抛 CME。 */
+    private final java.util.Set<Long> renderQueue =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
     /** 渲染线程复用的 LevelDBReader（每 chunk 新建 reader 要重开全部 sst
      *  文件——大世界几百个 sst，是拖动跟不上渲染的主因；reader 实例无状态
      *  线程安全，按 dbDir 校验失效换新）。 */
@@ -671,6 +676,8 @@ public class NbtViewerActivity extends BaseActivity {
 
     /** 预渲染后台线程（设置开关打开后逐 chunk 渲染全图）。 */
     private volatile Thread prerenderThread;
+    /** 后台烘焙线程（v386：无缓存时逐 chunk 补全缓存，低优先级）。 */
+    private volatile Thread bakeThread;
 
     /** 启动预渲染：从地图中心螺旋向外逐 chunk 渲染（跳过已有数据）。 */
     /**
@@ -1189,6 +1196,11 @@ public class NbtViewerActivity extends BaseActivity {
         if (prerenderThread != null) {
             prerenderThread.interrupt();
             prerenderThread = null;
+        }
+        // 烘焙线程换维度时也中断（新维度有自己的烘焙/预渲染）
+        if (bakeThread != null) {
+            bakeThread.interrupt();
+            bakeThread = null;
         }
         ExecutorService oldPool = renderPool;
         renderPool = newRenderPool();
@@ -1811,6 +1823,18 @@ public class NbtViewerActivity extends BaseActivity {
             if (worldMap.chunkColors != null && !worldMap.chunkColors.isEmpty()
                     && worldMap.chunkSourceDir != null) {
                 startIncrementalUpdate(worldMap.chunkSourceDir, worldMap, 0);
+            } else if (worldMap.chunkColors != null && worldMap.chunkSourceDir != null) {
+                // 无缓存（首次打开/导入未烘焙完）：后台逐 chunk 烘焙补全
+                // （v386：替代流式预渲染，内存 O(1) 无 OOM 风险；视口
+                // 按需渲染照常，烘焙渐进填满缓存）
+                final WorldMapRenderer.WorldMap fBake = worldMap;
+                bakeThread = WorldMapRenderer.bakeWorldCache(
+                        worldMap.chunkSourceDir, 0, () -> runOnUiThread(() -> {
+                            if (!isFinishing() && !isDestroyed() && currentMap == fBake) {
+                                binding.worldMapImage.onChunksRendered(
+                                        java.util.Collections.emptySet());
+                            }
+                        }));
             }
         } else {
             binding.worldMapPlaceholder.setText(R.string.world_map_unavailable);
@@ -2530,6 +2554,9 @@ public class NbtViewerActivity extends BaseActivity {
                 && !currentMap.chunkColors.isEmpty()) {
             WorldMapRenderer.saveChunkCache(currentMap, currentMap.chunkSourceDir,
                     currentMap.chunkSourceDim);
+        }
+        if (bakeThread != null) {
+            bakeThread.interrupt();
         }
         super.onDestroy();
         if (executor != null) {

@@ -149,7 +149,21 @@ public class WorldManager {
                     File targetDir = new File(worldsDirectory, worldName);
 
                     copyDirectory(worldDir, targetDir);
-                    
+
+                    // 导入后后台烘焙主世界可视化缓存（v386 用户新思路：
+                    // 代码直接把存档转成可视化数据，不用打开卫星图跑第一遍。
+                    // 低优先级线程逐 chunk 渲染，完成后第一次打开卫星图秒开）
+                    try {
+                        File db = new File(targetDir, "db");
+                        if (db.isDirectory()) {
+                            org.levimc.launcher.core.content.worldmap.WorldMapRenderer
+                                    .initCacheDir(context);
+                            org.levimc.launcher.core.content.worldmap.WorldMapRenderer
+                                    .bakeWorldCache(db, 0, null);
+                        }
+                    } catch (Throwable ignored) {
+                    }
+
                     callback.onSuccess("World imported successfully");
                     
                 } finally {
