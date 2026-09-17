@@ -1564,8 +1564,20 @@ public class WorldMapRenderer {
             // 同 chunk key 相邻（"换 chunk 渲染上一个"），乱序时 subchunk 先到、
             // 高度图后到，换 chunk 重置 curSubs 把 subchunk 丢掉 → 渲染时
             // subs 空 → 整片回退 biome 纯色（下界/末地"无阴影无方块"的根因）
-            heightEntries.sort((a, b) -> compareBytes(
-                    a.getKey().getRawKey(), b.getKey().getRawKey()));
+            // 按 chunk 距世界原点 (0,0) 距离排序——预渲染从中心向外环形铺开
+            // （用户要的"以世界为圆心向外刷"）。稳定排序：同 chunk 的多个
+            // key 距离相同保持原相对顺序（同 chunk 相邻依赖此性质——
+            // 逐 chunk 收集逻辑"换 chunk 渲染上一个"）。排序 56.9 万条目
+            // 约 0.5-1 秒，与 30-60 秒渲染相比可忽略
+            heightEntries.sort((a, b) -> {
+                int[] ka = parseChunkKey(a.getKey().getRawKey());
+                int[] kb = parseChunkKey(b.getKey().getRawKey());
+                long da = ka != null ? (long) ka[0] * ka[0] + (long) ka[1] * ka[1]
+                        : Long.MAX_VALUE;
+                long db = kb != null ? (long) kb[0] * kb[0] + (long) kb[1] * kb[1]
+                        : Long.MAX_VALUE;
+                return Long.compare(da, db);
+            });
             // 逐 chunk 收集 → 渲染 → 释放（sst 内同 chunk key 相邻有序）
             int curCx = Integer.MIN_VALUE;
             int curCz = Integer.MIN_VALUE;

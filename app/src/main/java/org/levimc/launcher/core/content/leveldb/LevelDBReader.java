@@ -413,8 +413,10 @@ public class LevelDBReader {
             long magic = footer.getLong();
 
             if (magic != TABLE_MAGIC_NUMBER) {
-                Log.w(TAG, "Invalid magic number in " + file.getName() + ", trying raw scan");
-                readSSTableRaw(file);
+                // 无效 sst（游戏异常退出残留的坏文件）直接跳过——此前 raw
+                // scan 逐字节全扫：每个 chunk 的 readPrefix 都会重复扫一次，
+                // 渲染线程卡死在下界/末地空白（"切下界不渲染"的根因）
+                Log.w(TAG, "Invalid magic number in " + file.getName() + ", skipping");
                 return;
             }
 

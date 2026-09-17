@@ -411,6 +411,10 @@ public class NbtViewerActivity extends BaseActivity {
                             fMap.chunkBiomeColors.put(key, res[1]);
                         }
                     } catch (Throwable ignored) {
+                        // 渲染失败（如切维度 shutdownNow 中断读文件，FileChannel
+                        // 已关闭）：ThreadLocal 里复用同一个坏 reader 会让后续
+                        // 全部失败（"切下界后一直空白"的另一根因）——丢弃重建
+                        renderReaderTl.remove();
                     } finally {
                         inFlight.remove(key);
                         remaining.decrementAndGet();
@@ -1530,61 +1534,118 @@ public class NbtViewerActivity extends BaseActivity {
                     }, 6000);
                 });
             } else if (dbDir.isDirectory()) {
-                // 优先 BTR 同款原生库（自带全部 MCPE 压缩格式），失败回退纯 Java
-                try {
-                    entries = NativeLevelDb.readAllEntries(dbDir);
-                } catch (Throwable ignored) {
-                    entries = null;
-                }
-                if (entries == null) {
-                    try {
-                        LevelDBReader reader = new LevelDBReader(dbDir);
-                        entries = reader.readAllEntries();
-                        reader.close();
-                    } catch (Exception ignored) {
-                    }
-                }
+                // 小世界秒进路径（v374）：不再同步全量读 entries——全量读 +
+                // 实体/结构解析延迟到后台（与大世界同款错峰）。此前全量
+                // readAllEntries + buildSatelliteMap 同步渲染 8-20 秒才显示
+                // ——"小存档进图比大世界慢"的根因
+                entries = null;
             } else {
                 dbMissing = true;
             }
-            Log.i(TAG, "db 读取完成: 条目数=" + (entries != null ? entries.size() : -1));
+            Log.i(TAG, "db 快速读取完成（小世界全量读延迟后台）");
 
             if (!largeWorld) {
-                // 世界地图：BTR 卫星模式（方块颜色 + 坡度阴影），后台解码，缩放时按比例重采样
-                try {
-                    worldMap = WorldMapRenderer.buildSatelliteMap(entries);
-                    Log.i(TAG, "卫星地图完成: " + (worldMap != null
-                            ? worldMap.width + "x" + worldMap.height
-                            : "失败(null)"));
-                } catch (Exception e) {
-                    Log.i(TAG, "卫星地图渲染异常", e);
+                // 磁盘缓存 / bounds 秒进 + 视口按需渲染（与大世界同款路径）。
+                // 缓存 miss 时 buildBoundsOnly 只扫 subchunk key（小世界
+                // db 几 MB，几百 ms~2 秒），首屏后视口按需渲染渐进填充
+                worldMap = WorldMapRenderer.loadChunkCache(dbDir, 0);
+                if (worldMap == null) {
+                    worldMap = WorldMapRenderer.buildBoundsOnly(dbDir, 0);
                 }
-
-                // 原生库可能漏读 13/14B key（下界/末地），失败时回退纯 Java 重读
-                if (worldMap == null && dbDir.isDirectory()) {
-                    try {
-                        LevelDBReader reader = new LevelDBReader(dbDir);
-                        List<LevelDBEntry> javaEntries = reader.readAllEntries();
-                        reader.close();
-                        if (javaEntries.size() > entries.size()) {
-                            entries = javaEntries;
-                            worldMap = WorldMapRenderer.buildSatelliteMap(entries);
-                            Log.i(TAG, "原生库漏读回退纯 Java: " + entries.size() + " 条目, 地图="
-                                    + (worldMap != null ? worldMap.width + "x" + worldMap.height : "仍失败"));
-                        }
-                    } catch (Exception ignored) {
-                    }
-                }
-
-                // 实体 / 结构图层数据（actorprefix 实体 + 方块实体结构检测）
                 if (worldMap != null) {
-                    entities = WorldMapRenderer.parseEntities(entries, 0);
-                    structures = WorldMapRenderer.parseStructureMarkers(entries, 0);
+                    worldMap.chunkSourceDir = dbDir;
+                    worldMap.chunkSourceDim = 0;
+                    entities = new ArrayList<>();
+                    structures = new ArrayList<>();
+                    Log.i(TAG, "小世界快速进入: bounds=(" + worldMap.minBlockX + ","
+                            + worldMap.minBlockZ + ") " + worldMap.width + "x" + worldMap.height);
+                }
+                // 全量读 + 实体/结构/玩家位置解析延迟后台（与首屏视口渲染
+                // 错峰，完成后回填图层）
+                final File fDbDir = dbDir;
+                final WorldMapRenderer.WorldMap fWm = worldMap;
+                final int fGen = loadGeneration;
+                if (fWm != null) {
+                    flushHandler.postDelayed(() -> executor.execute(() -> {
+                        List<LevelDBEntry> all = null;
+                        try {
+                            all = NativeLevelDb.readAllEntries(fDbDir);
+                        } catch (Throwable ignored) {
+                        }
+                        if (all == null || all.isEmpty()) {
+                            try {
+                                LevelDBReader reader = new LevelDBReader(fDbDir);
+                                all = reader.readAllEntries();
+                                reader.close();
+                            } catch (Exception ignored) {
+                            }
+                        }
+                        if (all == null || all.isEmpty()) {
+                            return;
+                        }
+                        List<WorldMapRenderer.EntityPos> ents =
+                                WorldMapRenderer.parseEntities(all, 0);
+                        List<WorldMapRenderer.StructureMarker> strs =
+                                WorldMapRenderer.parseStructureMarkers(all, 0);
+                        // 玩家位置（Pos 解析，同旧版同步逻辑；死亡存档回退 DeathPosition）
+                        for (LevelDBEntry entry : all) {
+                            String name = entry.getKey().getDisplayName();
+                            byte[] rawKey = entry.getKey().getRawKey();
+                            boolean isPlayerKey = false;
+                            if (name != null && (name.contains("local_player")
+                                    || name.startsWith("player"))) {
+                                isPlayerKey = true;
+                            } else if (rawKey != null && (rawKey.length == 9 || rawKey.length == 10)
+                                    && !entry.getKey().isChunkKey()) {
+                                isPlayerKey = true;
+                            }
+                            if (!isPlayerKey) {
+                                continue;
+                            }
+                            try {
+                                NbtTag playerRoot = new BedrockNbtReader().readFromBytes(entry.getValue());
+                                if (playerRoot == null) {
+                                    continue;
+                                }
+                                NbtTag posTag = playerRoot.getTag("Pos");
+                                if (posTag != null && posTag.getType() == NbtTag.TAG_LIST
+                                        && posTag.getList().size() >= 3) {
+                                    float px = posTag.getList().get(0).getFloat();
+                                    float py = posTag.getList().get(1).getFloat();
+                                    float pz = posTag.getList().get(2).getFloat();
+                                    if (Math.abs(px) < 3e7f && Math.abs(pz) < 3e7f) {
+                                        fWm.playerBlockX = (int) Math.floor(px);
+                                        fWm.playerBlockY = (int) Math.floor(py);
+                                        fWm.playerBlockZ = (int) Math.floor(pz);
+                                        NbtTag uid = playerRoot.getTag("UniqueID");
+                                        if (uid != null) {
+                                            fWm.playerUniqueId = uid.getLong();
+                                        }
+                                        break;
+                                    }
+                                }
+                            } catch (Exception ignored) {
+                            }
+                        }
+                        runOnUiThread(() -> {
+                            if (isFinishing() || isDestroyed() || !isCurrentLoad(fGen)) {
+                                return;
+                            }
+                            binding.worldMapImage.setEntityData(ents);
+                            synchronized (currentStructures) {
+                                currentStructures.clear();
+                                currentStructures.addAll(strs);
+                            }
+                            binding.worldMapImage.setStructureMarkers(currentStructures);
+                            binding.worldMapImage.invalidate(); // 玩家标记回填重绘
+                        });
+                    }), 6000);
                 }
             }
 
             // 玩家位置（db 玩家数据的 Pos）与出生点（level.dat SpawnX/Z）
-            if (worldMap != null) {
+            // （v374：小世界 entries 已延迟后台解析，此处只处理大世界）
+            if (worldMap != null && entries != null) {
                 for (LevelDBEntry entry : entries) {
                     String name = entry.getKey().getDisplayName();
                     byte[] rawKey = entry.getKey().getRawKey();
