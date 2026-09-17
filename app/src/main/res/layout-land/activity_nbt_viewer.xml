@@ -467,18 +467,17 @@
                         android:text="@string/lb_settings"
                         android:textColor="@color/primary"
                         android:textSize="12sp"
-                        android:textStyle="bold" />
-
-                    <CheckBox
-                        android:id="@+id/layer_ignore_light"
+                        android:textStyle="bold" />                    <CheckBox
+                        android:id="@+id/layer_ore"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:checked="false"
                         android:fontFamily="@font/misans"
-                        android:text="@string/layer_ignore_light"
+                        android:text="@string/layer_ore"
                         android:textColor="@color/on_surface"
                         android:textSize="12sp" />
+
 
                     <!-- 下界专属设置（仅下界维度显示）：
                          y 轴渲染层 + 黑名单，包在分区卡片里 -->

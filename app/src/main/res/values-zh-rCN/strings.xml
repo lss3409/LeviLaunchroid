@@ -1342,10 +1342,10 @@
     <string name="nether_exclude_default">默认：基岩 + 下界岩</string>
     <string name="layer_grid">区块网格</string>
     <string name="layer_biome">生物群系</string>
+    <string name="layer_ore">矿物热力图（找矿）</string>
     <string name="layer_entity">实体</string>
     <string name="layer_structure">结构</string>
     <string name="layer_slime">史莱姆区块</string>
-    <string name="layer_ignore_light">忽略光源方块（火把等）</string>
     <string name="map_hud_placeholder">X: 0  Z: 0</string>
     <string name="point_search_hint">搜索标点…</string>
     <string name="no_points">暂无标点，长按地图添加</string>

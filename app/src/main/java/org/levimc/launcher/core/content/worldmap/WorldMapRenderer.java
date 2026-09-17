@@ -1104,6 +1104,8 @@ public class WorldMapRenderer {
         public Map<Long, int[]> chunkColors;
         /** 大世界 chunk biome 色缓存（biome 图层用；同 chunkColors 布局）。 */
         public Map<Long, int[]> chunkBiomeColors;
+        /** 矿物热力图（chunk → 热力色，图层开关开启时后台烘焙生成）。 */
+        public Map<Long, Integer> chunkOreColors;
         /** 视口按需渲染源（BTR 式）：db 目录与维度；非空时缺失 chunk 由外部按需渲染。 */
         public File chunkSourceDir;
         public int chunkSourceDim;
@@ -2549,6 +2551,243 @@ public class WorldMapRenderer {
             }
         }
         return false;
+    }
+
+    // ---------------------------------------------------------------- 矿物热力图
+
+    /** 矿物方块 → 热力色（矿石分布图层）。 */
+    private static final java.util.Map<String, Integer> ORE_COLORS = new HashMap<>();
+    static {
+        ORE_COLORS.put("diamond_ore", 0xFF4AE8FF);      // 钻石：亮青
+        ORE_COLORS.put("deepslate_diamond_ore", 0xFF4AE8FF);
+        ORE_COLORS.put("emerald_ore", 0xFF3DFF6A);      // 绿宝石：亮绿
+        ORE_COLORS.put("deepslate_emerald_ore", 0xFF3DFF6A);
+        ORE_COLORS.put("gold_ore", 0xFFFFE24D);         // 金：金黄
+        ORE_COLORS.put("deepslate_gold_ore", 0xFFFFE24D);
+        ORE_COLORS.put("nether_gold_ore", 0xFFFFE24D);
+        ORE_COLORS.put("iron_ore", 0xFFFFB08A);         // 铁：浅棕
+        ORE_COLORS.put("deepslate_iron_ore", 0xFFFFB08A);
+        ORE_COLORS.put("coal_ore", 0xFF9E9E9E);         // 煤：灰
+        ORE_COLORS.put("deepslate_coal_ore", 0xFF9E9E9E);
+        ORE_COLORS.put("copper_ore", 0xFFFFA64D);       // 铜：橙
+        ORE_COLORS.put("deepslate_copper_ore", 0xFFFFA64D);
+        ORE_COLORS.put("redstone_ore", 0xFFFF4D4D);     // 红石：红
+        ORE_COLORS.put("deepslate_redstone_ore", 0xFFFF4D4D);
+        ORE_COLORS.put("lit_redstone_ore", 0xFFFF4D4D);
+        ORE_COLORS.put("lapis_ore", 0xFF4D5DFF);        // 青金石：深蓝
+        ORE_COLORS.put("deepslate_lapis_ore", 0xFF4D5DFF);
+        ORE_COLORS.put("quartz_ore", 0xFFFFF2F2);       // 下界石英：白
+        ORE_COLORS.put("ancient_debris", 0xFFFFB84D);   // 远古残骸：橙黄
+    }
+
+    /** 矿物热力色（密度加权混合）：counts 为各矿物数量，返回单色或 0（无矿物）。 */
+    private static int oreHeatColor(int[] counts) {
+        long r = 0;
+        long g = 0;
+        long b = 0;
+        long total = 0;
+        int i = 0;
+        for (java.util.Map.Entry<String, Integer> e : ORE_COLORS.entrySet()) {
+            int c = counts[i++];
+            if (c <= 0) {
+                continue;
+            }
+            int col = e.getValue();
+            r += (long) ((col >> 16) & 0xFF) * c;
+            g += (long) ((col >> 8) & 0xFF) * c;
+            b += (long) (col & 0xFF) * c;
+            total += c;
+        }
+        if (total == 0) {
+            return 0;
+        }
+        r /= total;
+        g /= total;
+        b /= total;
+        // 密度增强：矿物越多 alpha 越高（0.35~1.0）
+        int alpha = (int) (255 * Math.min(1.0, 0.35 + total / 20.0));
+        return (alpha << 24) | ((int) r << 16) | ((int) g << 8) | (int) b;
+    }
+
+    /** 统计单个 chunk 的矿物数量（解码全部 subchunk 的 palette 索引
+     *  线性扫描——16×16×N 层）。返回长度 = ORE_COLORS.size() 的计数。 */
+    private static int[] countChunkOres(LevelDBReader reader, int cx, int cz,
+                                        int dimension) {
+        int[] counts = new int[ORE_COLORS.size()];
+        try {
+            List<LevelDBEntry> entries = reader.readChunk(cx, cz);
+            Map<Integer, SubChunk> subs = new HashMap<>();
+            for (LevelDBEntry e : entries) {
+                byte[] rawKey = e.getKey().getRawKey();
+                int[] ck = parseChunkKey(rawKey);
+                if (ck == null || ck[2] != dimension || !isSubchunkKey(rawKey)) {
+                    continue;
+                }
+                SubChunk sc = decodeSubChunk(e.getValue());
+                if (sc != null) {
+                    subs.put(ck[3], sc);
+                }
+            }
+            // 热力图统计全层矿物（不受下界 y 段设置影响——找矿要全量）
+            java.util.Map<String, Integer> idxByName = new HashMap<>();
+            int i = 0;
+            for (String n : ORE_COLORS.keySet()) {
+                idxByName.put(n, i++);
+            }
+            for (SubChunk sc : subs.values()) {
+                for (String pn : sc.palette) {
+                    if (pn == null) {
+                        continue;
+                    }
+                    Integer oreIdx = null;
+                    for (String oreName : ORE_COLORS.keySet()) {
+                        if (pn.endsWith(oreName)) {
+                            oreIdx = idxByName.get(oreName);
+                            break;
+                        }
+                    }
+                    if (oreIdx == null) {
+                        continue;
+                    }
+                    // 该 palette 索引对应的方块数：遍历数据区统计
+                    int palIdx = indexOf(sc.palette, pn);
+                    for (int j = 0; j < 4096; j++) {
+                        if (sc.getIndex(j >> 8, j & 15, (j >> 4) & 15) == palIdx) {
+                            counts[oreIdx]++;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "矿物统计 chunk(" + cx + "," + cz + ") 失败", e);
+        }
+        return counts;
+    }
+
+    private static int indexOf(String[] arr, String v) {
+        for (int i = 0; i < arr.length; i++) {
+            if (v.equals(arr[i])) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** 后台烘焙矿物热力图：逐 chunk 统计矿物 → 热力色存 map.chunkOreColors。
+     *  与地形烘焙同款结构（视口优先+距离排序+中断即停），不落盘
+     *  （开关图层时按需生成，图层关闭即清）。 */
+    public static Thread bakeOreLayer(final File dbDir, final int dimension,
+                                      final WorldMap map,
+                                      final BakeProgress progress,
+                                      final Runnable onDone) {
+        Thread t = new Thread(() -> {
+            try {
+                if (map == null) {
+                    if (onDone != null) {
+                        onDone.run();
+                    }
+                    return;
+                }
+                if (map.chunkOreColors == null) {
+                    map.chunkOreColors = new java.util.concurrent.ConcurrentHashMap<>();
+                }
+                LevelDBReader reader = new LevelDBReader(dbDir);
+                List<byte[]> subKeys = reader.readKeys(k -> {
+                    int[] ck = parseChunkKey(k);
+                    return ck != null && ck[2] == dimension && isSubchunkKey(k);
+                });
+                reader.close();
+                java.util.List<Long> ordered = new java.util.ArrayList<>();
+                java.util.Set<Long> seen = new java.util.HashSet<>();
+                for (byte[] k : subKeys) {
+                    int[] ck = parseChunkKey(k);
+                    if (ck != null && seen.add(pack(ck[0], ck[1]))) {
+                        ordered.add(pack(ck[0], ck[1]));
+                    }
+                }
+                subKeys = null;
+                final long centerX = map.minBlockX / 16L + map.width / 32L;
+                final long centerZ = map.minBlockZ / 16L + map.height / 32L;
+                ordered.sort((a, b) -> {
+                    long ax = (a >> 32) - centerX;
+                    long az = (int) (long) a - centerZ;
+                    long bx = (b >> 32) - centerX;
+                    long bz = (int) (long) b - centerZ;
+                    return Long.compare(ax * ax + az * az, bx * bx + bz * bz);
+                });
+                Log.i(TAG, "矿物热力图烘焙: dim=" + dimension + " chunk=" + ordered.size());
+                final java.util.concurrent.atomic.AtomicInteger nextIdx =
+                        new java.util.concurrent.atomic.AtomicInteger(0);
+                final int bakeThreads = Math.min(6, Math.max(3,
+                        Runtime.getRuntime().availableProcessors()));
+                java.util.concurrent.ExecutorService pool =
+                        java.util.concurrent.Executors.newFixedThreadPool(bakeThreads, r -> {
+                            Thread bt = new Thread(r, "ore-bake");
+                            bt.setPriority(Thread.MIN_PRIORITY);
+                            return bt;
+                        });
+                java.util.concurrent.CountDownLatch latch =
+                        new java.util.concurrent.CountDownLatch(bakeThreads);
+                for (int wi = 0; wi < bakeThreads; wi++) {
+                    pool.execute(() -> {
+                        LevelDBReader wReader = new LevelDBReader(dbDir);
+                        java.util.Set<Long> batch = new java.util.HashSet<>();
+                        try {
+                            while (true) {
+                                if (Thread.currentThread().isInterrupted()) {
+                                    break;
+                                }
+                                long key;
+                                Long vpKey = bakeViewportQueue.poll();
+                                if (vpKey != null) {
+                                    if (map.chunkOreColors.containsKey(vpKey)) {
+                                        continue;
+                                    }
+                                    key = vpKey;
+                                } else {
+                                    int i = nextIdx.getAndIncrement();
+                                    if (i >= ordered.size()) {
+                                        break;
+                                    }
+                                    key = ordered.get(i);
+                                }
+                                int[] counts = countChunkOres(wReader,
+                                        (int) (key >> 32), (int) (long) key, dimension);
+                                int color = oreHeatColor(counts);
+                                if (color != 0) {
+                                    map.chunkOreColors.put(key, color);
+                                    batch.add(key);
+                                }
+                                if (batch.size() >= 50 && progress != null) {
+                                    java.util.Set<Long> out =
+                                            new java.util.HashSet<>(batch);
+                                    batch.clear();
+                                    progress.onBatch(out);
+                                }
+                            }
+                        } finally {
+                            if (!batch.isEmpty() && progress != null) {
+                                progress.onBatch(new java.util.HashSet<>(batch));
+                            }
+                            wReader.close();
+                            latch.countDown();
+                        }
+                    });
+                }
+                latch.await();
+                pool.shutdown();
+                Log.i(TAG, "矿物热力图完成: " + map.chunkOreColors.size() + " chunk 含矿物");
+            } catch (Throwable err) {
+                Log.w(TAG, "矿物热力图烘焙失败", err);
+            } finally {
+                if (onDone != null) {
+                    onDone.run();
+                }
+            }
+        }, "ore-bake");
+        t.setPriority(Thread.MIN_PRIORITY);
+        t.start();
+        return t;
     }
 
     /**

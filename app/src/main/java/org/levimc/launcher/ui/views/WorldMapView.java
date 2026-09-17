@@ -78,6 +78,8 @@ public class WorldMapView extends View {
     /** 图层开关 */
     private boolean showGrid = false;
     private boolean showBiomeLayer = false;
+    /** 矿物热力图图层（chunk 级矿物密度色）。 */
+    private boolean showOreLayer = false;
     private boolean showEntities = false;
     private boolean showStructures = false;
     private boolean showSlimeChunks = false;
@@ -225,6 +227,20 @@ public class WorldMapView extends View {
     public void setShowBiomeLayer(boolean show) {
         this.showBiomeLayer = show;
         // chunk tile 用的数据源随图层切换变化，全部重建
+        for (Bitmap b : chunkTiles.values()) {
+            b.recycle();
+        }
+        chunkTiles.clear();
+        if (lodMini != null) {
+            lodMini.recycle();
+            lodMini = null;
+        }
+        invalidateFullRender();
+    }
+
+    /** 矿物热力图图层开关（v396：chunk 级矿物密度色）。 */
+    public void setShowOreLayer(boolean show) {
+        this.showOreLayer = show;
         for (Bitmap b : chunkTiles.values()) {
             b.recycle();
         }
@@ -648,6 +664,20 @@ public class WorldMapView extends View {
 
     /** 惰性生成 chunk tile（chunkColors 有数据但 tile 未建时）。 */
     private Bitmap ensureChunkTile(long ck) {
+        // v396 矿物热力图：chunk 级单色 tile
+        if (showOreLayer) {
+            Integer oreColor = map.chunkOreColors != null
+                    ? map.chunkOreColors.get(ck) : null;
+            if (oreColor == null) {
+                return null;
+            }
+            int[] oc = new int[256];
+            java.util.Arrays.fill(oc, oreColor);
+            Bitmap tile = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888);
+            tile.setPixels(oc, 0, 16, 0, 0, 16, 16);
+            chunkTiles.put(ck, tile);
+            return tile;
+        }
         int[] cc = map.chunkColors != null ? map.chunkColors.get(ck) : null;
         if (cc == null) {
             return null;
@@ -687,6 +717,15 @@ public class WorldMapView extends View {
             int px = cx - minCx;
             int pz = cz - minCz;
             if (px < 0 || px >= cw || pz < 0 || pz >= ch) {
+                continue;
+            }
+            // v396 矿物热力图：chunk 级单色直接填
+            if (showOreLayer) {
+                Integer ore = map.chunkOreColors != null
+                        ? map.chunkOreColors.get(e.getKey()) : null;
+                if (ore != null) {
+                    mini.setPixel(px, pz, ore);
+                }
                 continue;
             }
             int[] src = e.getValue();

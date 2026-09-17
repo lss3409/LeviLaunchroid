@@ -359,27 +359,40 @@ public class NbtViewerActivity extends BaseActivity {
         binding.layerSlime.setOnCheckedChangeListener((b, checked) ->
                 binding.worldMapImage.setShowSlimeChunks(checked));
         binding.worldMapImage.setShowSlimeChunks(binding.layerSlime.isChecked());
-        // 忽略光源方块（火把/灯笼等非固体光源俯视渲染成黄色杂点）：
-        // 开启后渲染视为空气穿透——生电建筑周围插满火把时边缘一圈黄色
-        binding.layerIgnoreLight.setOnCheckedChangeListener((b, checked) -> {
-            WorldMapRenderer.ignoreLightBlocks = checked;
-            // 渲染结果变化：清空全部渲染数据（tile/LOD/pending）重渲染；
-            // 渲染代际 +1 并中断烘焙——否则烘焙线程用旧标志渲染的
-            // 数据完成后回填，黄色火把又回来
-            renderGen.incrementAndGet();
-            if (bakeThread != null) {
-                bakeThread.interrupt();
-                bakeThread = null;
+        // v396：忽略光源方块开关已删除（有 bug）——行为固定开启：
+        // 火把/灯笼等非固体光源俯视渲染视为空气穿透（黄色杂点问题）
+        WorldMapRenderer.ignoreLightBlocks = true;
+
+        // 矿物热力图图层：开启后后台烘焙矿物密度数据（chunk 级热力色），
+        // 关闭即清（数据不落盘，按需生成）
+        binding.layerOre.setOnCheckedChangeListener((b, checked) -> {
+            binding.worldMapImage.setShowOreLayer(checked);
+            if (checked && currentMap != null && currentWorldDir != null) {
+                final int oreDim = "nether".equals(mapDimension) ? 1
+                        : "end".equals(mapDimension) ? 2 : 0;
+                final WorldMapRenderer.WorldMap fOre = currentMap;
+                final File fDb = new File(currentWorldDir, "db");
+                WorldMapRenderer.bakeOreLayer(fDb, oreDim, fOre,
+                        batch -> runOnUiThread(() -> {
+                            if (!isFinishing() && !isDestroyed()
+                                    && currentMap == fOre
+                                    && binding.layerOre.isChecked()) {
+                                binding.worldMapImage.onChunksRendered(batch);
+                            }
+                        }),
+                        () -> runOnUiThread(() -> {
+                            if (!isFinishing() && !isDestroyed()
+                                    && currentMap == fOre
+                                    && binding.layerOre.isChecked()) {
+                                binding.worldMapImage.onChunksRendered(
+                                        java.util.Collections.emptySet());
+                            }
+                        }));
+            } else if (!checked && currentMap != null) {
+                currentMap.chunkOreColors = null;
+                binding.worldMapImage.setShowOreLayer(false);
             }
-            if (currentMap != null && currentMap.chunkColors != null) {
-                currentMap.chunkColors.clear();
-                if (currentMap.chunkBiomeColors != null) {
-                    currentMap.chunkBiomeColors.clear();
-                }
-            }
-            binding.worldMapImage.clearChunkData();
         });
-        WorldMapRenderer.ignoreLightBlocks = binding.layerIgnoreLight.isChecked();
 
         // 下界渲染层（y 轴范围）：全部/上部/中部/下部——下界 sub 0-7 每层
         // 都有方块，全量解码是下界渲染慢的主因；选窄范围大幅提速
