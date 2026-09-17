@@ -1824,12 +1824,19 @@ public class NbtViewerActivity extends BaseActivity {
                     && worldMap.chunkSourceDir != null) {
                 startIncrementalUpdate(worldMap.chunkSourceDir, worldMap, 0);
             } else if (worldMap.chunkColors != null && worldMap.chunkSourceDir != null) {
-                // 无缓存（首次打开/导入未烘焙完）：后台逐 chunk 烘焙补全
-                // （v386：替代流式预渲染，内存 O(1) 无 OOM 风险；视口
-                // 按需渲染照常，烘焙渐进填满缓存）
+                // 无缓存（首次打开/导入未烘焙完）：后台多线程烘焙补全。
+                // 共享屏幕 map（targetMap=worldMap）——烘焙的 chunk 直接
+                // 进屏幕显示，复用预渲染的圆形铺开效果（距离排序从原点
+                // 向外 + 每批 50 chunk 通知 UI）
                 final WorldMapRenderer.WorldMap fBake = worldMap;
                 bakeThread = WorldMapRenderer.bakeWorldCache(
-                        worldMap.chunkSourceDir, 0, () -> runOnUiThread(() -> {
+                        worldMap.chunkSourceDir, 0, fBake,
+                        batch -> runOnUiThread(() -> {
+                            if (!isFinishing() && !isDestroyed() && currentMap == fBake) {
+                                binding.worldMapImage.onChunksRendered(batch);
+                            }
+                        }),
+                        () -> runOnUiThread(() -> {
                             if (!isFinishing() && !isDestroyed() && currentMap == fBake) {
                                 binding.worldMapImage.onChunksRendered(
                                         java.util.Collections.emptySet());

@@ -2233,21 +2233,36 @@ public class WorldMapRenderer {
     /** 缓存写入互斥（烘焙线程/退出保存/增量更新可能并发写同一文件）。 */
     private static final Object CACHE_SAVE_LOCK = new Object();
 
+    /** 烘焙进度回调（每批渲染完成的 chunk 集合——UI 渐进显示用）。 */
+    public interface BakeProgress {
+        void onBatch(java.util.Set<Long> chunkKeys);
+    }
+
     /**
      * 后台烘焙：把存档直接转成可视化缓存（用户新思路——不用打开卫星图
      * 跑第一遍，导入世界后/无缓存打开时后台跑）。
      * 逐 chunk 渲染（renderChunkOnDemand），内存 O(1) 无流式渲染的
      * 18 万条目 OOM 风险；每 200 chunk 增量落盘，中断即停（已保存
-     * 部分下次继续）。低优先级线程，不抢 UI。
+     * 部分下次继续）。
+     * targetMap 非 null 时烘焙结果直接 put 进共享 map（屏幕渐进显示，
+     * 与预渲染同款的"以世界为圆心向外刷"效果——渲染顺序按距离从
+     * 原点向外）；null 时内部建 map 只落盘（导入后静默烘焙）。
+     * 多线程并行（烘焙单线程 2.4 万 chunk 要 20-40 分钟，"渲染到
+     * 一半停住"的根因——4 线程低优先级交错取距离排序后的 chunk）。
      */
     public static Thread bakeWorldCache(final File dbDir, final int dimension,
+                                        final WorldMap targetMap,
+                                        final BakeProgress progress,
                                         final Runnable onDone) {
         Thread t = new Thread(() -> {
             try {
-                WorldMap map = loadChunkCache(dbDir, dimension);
-                if (map == null) {
-                    map = buildBoundsOnly(dbDir, dimension);
+                final WorldMap map;
+                WorldMap m = targetMap != null ? targetMap
+                        : loadChunkCache(dbDir, dimension);
+                if (m == null) {
+                    m = buildBoundsOnly(dbDir, dimension);
                 }
+                map = m;
                 if (map == null) {
                     Log.i(TAG, "烘焙失败: 无 bounds (dim=" + dimension + ")");
                     if (onDone != null) {
@@ -2266,6 +2281,7 @@ public class WorldMapRenderer {
                     int[] ck = parseChunkKey(k);
                     return ck != null && ck[2] == dimension && isSubchunkKey(k);
                 });
+                reader.close();
                 java.util.List<Long> ordered = new java.util.ArrayList<>();
                 java.util.Set<Long> seen = new java.util.HashSet<>();
                 for (byte[] k : subKeys) {
@@ -2275,7 +2291,7 @@ public class WorldMapRenderer {
                     }
                 }
                 subKeys = null; // 释放
-                // 距离排序：从世界原点向外烘焙（先出中心区域）
+                // 距离排序：从世界原点向外烘焙（圆形铺开）
                 ordered.sort((a, b) -> {
                     long ax = a >> 32;
                     long az = (int) (long) a;
@@ -2284,35 +2300,78 @@ public class WorldMapRenderer {
                     return Long.compare(ax * ax + az * az, bx * bx + bz * bz);
                 });
                 Log.i(TAG, "烘焙开始: dim=" + dimension + " chunk=" + ordered.size());
-                int done = 0;
-                int rendered = 0;
-                for (Long key : ordered) {
-                    if (Thread.currentThread().isInterrupted()) {
-                        break;
-                    }
-                    int cx = (int) (key >> 32);
-                    int cz = (int) (long) key;
-                    try {
-                        int[][] res = renderChunkOnDemand(reader, cx, cz, dimension);
-                        int[] colors = res != null ? res[0] : null;
-                        if (colors != null) {
-                            map.chunkColors.put(key, colors);
-                            if (res[1] != null) {
-                                map.chunkBiomeColors.put(key, res[1]);
+                // 多线程并行烘焙：原子索引交错取 chunk（保持距离序），
+                // 每线程独立 reader（LevelDBReader 无状态线程安全）
+                final java.util.concurrent.atomic.AtomicInteger nextIdx =
+                        new java.util.concurrent.atomic.AtomicInteger(0);
+                final java.util.concurrent.atomic.AtomicInteger rendered =
+                        new java.util.concurrent.atomic.AtomicInteger(0);
+                final int bakeThreads = 4;
+                java.util.concurrent.ExecutorService pool =
+                        java.util.concurrent.Executors.newFixedThreadPool(bakeThreads, r -> {
+                            Thread bt = new Thread(r, "world-bake-w");
+                            bt.setPriority(Thread.MIN_PRIORITY);
+                            return bt;
+                        });
+                java.util.concurrent.CountDownLatch latch =
+                        new java.util.concurrent.CountDownLatch(bakeThreads);
+                for (int wi = 0; wi < bakeThreads; wi++) {
+                    pool.execute(() -> {
+                        LevelDBReader wReader = new LevelDBReader(dbDir);
+                        java.util.Set<Long> batch = new java.util.HashSet<>();
+                        int sinceSave = 0;
+                        try {
+                            while (true) {
+                                if (Thread.currentThread().isInterrupted()) {
+                                    break;
+                                }
+                                int i = nextIdx.getAndIncrement();
+                                if (i >= ordered.size()) {
+                                    break;
+                                }
+                                long key = ordered.get(i);
+                                int cx = (int) (key >> 32);
+                                int cz = (int) (long) key;
+                                try {
+                                    int[][] res = renderChunkOnDemand(
+                                            wReader, cx, cz, dimension);
+                                    int[] colors = res != null ? res[0] : null;
+                                    if (colors != null) {
+                                        map.chunkColors.put(key, colors);
+                                        if (res[1] != null) {
+                                            map.chunkBiomeColors.put(key, res[1]);
+                                        }
+                                        rendered.incrementAndGet();
+                                        batch.add(key);
+                                    }
+                                } catch (Exception e) {
+                                    Log.w(TAG, "烘焙 chunk(" + cx + "," + cz + ") 失败", e);
+                                }
+                                // 批通知（UI 渐进）+ 增量落盘
+                                if (batch.size() >= 50 && progress != null) {
+                                    java.util.Set<Long> out =
+                                            new java.util.HashSet<>(batch);
+                                    batch.clear();
+                                    progress.onBatch(out);
+                                }
+                                if (++sinceSave % 200 == 0) {
+                                    saveChunkCache(map, dbDir, dimension);
+                                }
                             }
-                            rendered++;
+                        } finally {
+                            if (!batch.isEmpty() && progress != null) {
+                                progress.onBatch(new java.util.HashSet<>(batch));
+                            }
+                            wReader.close();
+                            latch.countDown();
                         }
-                    } catch (Exception e) {
-                        Log.w(TAG, "烘焙 chunk(" + cx + "," + cz + ") 失败", e);
-                    }
-                    if (++done % 200 == 0) {
-                        saveChunkCache(map, dbDir, dimension);
-                    }
+                    });
                 }
-                reader.close();
+                latch.await();
+                pool.shutdown();
                 saveChunkCache(map, dbDir, dimension);
-                Log.i(TAG, "烘焙完成: dim=" + dimension + " 渲染=" + rendered
-                        + "/" + done);
+                Log.i(TAG, "烘焙完成: dim=" + dimension + " 渲染=" + rendered.get()
+                        + "/" + ordered.size());
             } catch (Throwable err) {
                 Log.w(TAG, "烘焙失败 (dim=" + dimension + ")", err);
             } finally {

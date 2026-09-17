@@ -159,7 +159,7 @@ public class WorldManager {
                             org.levimc.launcher.core.content.worldmap.WorldMapRenderer
                                     .initCacheDir(context);
                             org.levimc.launcher.core.content.worldmap.WorldMapRenderer
-                                    .bakeWorldCache(db, 0, null);
+                                    .bakeWorldCache(db, 0, null, null, null);
                         }
                     } catch (Throwable ignored) {
                     }
