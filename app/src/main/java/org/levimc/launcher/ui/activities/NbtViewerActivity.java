@@ -1254,6 +1254,11 @@ public class NbtViewerActivity extends BaseActivity {
                 if (isFinishing() || isDestroyed() || !isCurrentLoad(gen)) return;
                 binding.nbtLoading.setVisibility(View.GONE);
                 if (fMap != null) {
+                    // 恢复 currentMap（loadMapForDimension 开头置 null 清旧图，
+                    // 完成回调此前只 setWorldMap 不恢复——onChunksNeededListener
+                    // 和 startPrerender 检查 currentMap==null 直接 return，
+                    // 切维度后视口按需渲染/预渲染全不工作的根因）
+                    currentMap = fMap;
                     WorldMapRenderer.debugExport(fMap); // 调试导出 map_debug.png
                     binding.worldMapImage.setWorldMap(fMap, fKeepView);
                     // 下界/末地（非 keepView 重载）：整图适配——initialView
@@ -1267,6 +1272,16 @@ public class NbtViewerActivity extends BaseActivity {
                     binding.worldMapImage.setStructureMarkers(fStructures);
                     binding.worldMapPlaceholder.setVisibility(View.GONE);
                     refreshMapBlueprintData();
+                    // 大世界：fit 后视口含全图 chunk（>4096）→ LOD 模式，
+                    // LOD 不收集缺失 chunk，视口按需渲染永不触发 → 全空白。
+                    // 自动启动流式全量渲染（v373 切维度行为）：后台渐进
+                    // 合并（onChunkData 节流通知 → LOD 增量更新），完成后
+                    // 落盘缓存，下次切维度直接读缓存秒开。
+                    // chunkColors 非空 = 磁盘缓存命中，无需再渲染
+                    if (fMap.chunkColors != null && fMap.chunkColors.isEmpty()
+                            && fMap.chunkSourceDir != null) {
+                        startPrerender();
+                    }
                 } else {
                     // 该维度无数据：清空旧地图（避免上一维度地图残留误导）
                     binding.worldMapImage.setWorldMap(null);
