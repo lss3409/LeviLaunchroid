@@ -68,6 +68,33 @@ public class SilentBakeManager {
             queue.put(worldDir.getAbsolutePath(), worldDir);
         }
         ensureWorker();
+        // v403：立即后台扫 bounds 缓存（不入队、并行）——打开卫星图
+        // 时免 readKeys 全扫 5-10 秒（"大地图等半天"的主要延迟）。
+        // buildBoundsOnly 无 bounds 缓存时全扫 subchunk key 并落盘
+        prepBounds(worldDir);
+    }
+
+    /** bounds 缓存未就绪时后台扫描落盘（打开卫星图的等待主要来自
+     *  readKeys 全扫；提前扫好后打开秒出 bounds → 烘焙立即开始）。 */
+    private void prepBounds(final File worldDir) {
+        final File db = new File(worldDir, "db");
+        if (!db.isDirectory()) {
+            return;
+        }
+        Thread t = new Thread(() -> {
+            try {
+                for (int dim = 0; dim <= 2; dim++) {
+                    if (paused) {
+                        return;
+                    }
+                    WorldMapRenderer.buildBoundsOnly(db, dim);
+                }
+            } catch (Throwable err) {
+                Log.w(TAG, "bounds 预扫描失败: " + worldDir.getName(), err);
+            }
+        }, "silent-bounds");
+        t.setPriority(Thread.MIN_PRIORITY);
+        t.start();
     }
 
     /** 扫描世界根目录下所有世界，缓存不完整的入队。

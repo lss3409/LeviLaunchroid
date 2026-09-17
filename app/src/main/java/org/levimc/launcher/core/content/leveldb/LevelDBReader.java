@@ -190,41 +190,66 @@ public class LevelDBReader {
         return entries;
     }
 
-    private void readLogFile(File logFile) throws IOException {
-        Log.d(TAG, "Reading log file: " + logFile.getName() + " size: " + logFile.length());
+    /** v403：log 解析结果静态缓存——烘焙 8 个 worker 各建 reader，
+     *  每个 chunk 渲染都重读重解析 6MB log（"Reading log file" × 8
+     *  + GC 阻塞 = 大地图烘焙慢的根因）。log 文件不变（读地图时
+     *  游戏未运行），按 size+mtime 校验复用解析出的 batch 字节。 */
+    private static final Map<String, CachedLog> LOG_CACHE = new HashMap<>();
+    private static final int LOG_CACHE_MAX = 32;
+    /** entries 全量缓存的大小上限：大 log（如 TK 6MB）全量 value
+     *  解压后 100MB+，烘焙期间叠加 chunkColors 接近 heap 上限 OOM */
+    private static final long LOG_ENTRIES_MAX_SIZE = 2L * 1024 * 1024;
 
+    private static class CachedLog {
+        long size;
+        long mtime;
+        List<byte[]> batches = new ArrayList<>();
+        /** 解析后的全量 entries（key→value，所有 reader/chunk 共享；
+         *  null = 尚未解析）。命中后跳过 parseWriteBatch 重复解析。 */
+        Map<ByteArrayWrapper, byte[]> entries;
+    }
+
+    /** 获取 log 的缓存对象（未缓存则读文件解析 batch 并缓存）。 */
+    private CachedLog getCachedLog(File logFile) throws IOException {
+        CachedLog cached;
+        synchronized (LOG_CACHE) {
+            cached = LOG_CACHE.get(logFile.getAbsolutePath());
+            if (cached != null && (cached.size != logFile.length()
+                    || cached.mtime != logFile.lastModified())) {
+                cached = null;
+            }
+        }
+        if (cached != null) {
+            return cached;
+        }
+        Log.d(TAG, "Reading log file: " + logFile.getName() + " size: " + logFile.length());
+        CachedLog fresh = new CachedLog();
+        fresh.size = logFile.length();
+        fresh.mtime = logFile.lastModified();
         try (FileInputStream fis = new FileInputStream(logFile)) {
             byte[] fileData = readAllBytes(fis, (int) logFile.length());
-
             int pos = 0;
             ByteArrayOutputStream fullRecord = new ByteArrayOutputStream();
-
             while (pos + 7 <= fileData.length) {
                 int blockOffset = pos % LOG_BLOCK_SIZE;
                 int blockRemaining = LOG_BLOCK_SIZE - blockOffset;
-
                 if (blockRemaining < 7) {
                     pos += blockRemaining;
                     continue;
                 }
-
                 int length = readInt16LE(fileData, pos + 4);
                 int type = fileData[pos + 6] & 0xFF;
-
                 pos += 7;
-
                 if (length < 0 || length > LOG_BLOCK_SIZE || pos + length > fileData.length) {
                     break;
                 }
-
                 byte[] recordData = Arrays.copyOfRange(fileData, pos, pos + length);
                 pos += length;
-
                 switch (type) {
                     case 1:
                         fullRecord.reset();
                         fullRecord.write(recordData);
-                        parseWriteBatch(fullRecord.toByteArray());
+                        fresh.batches.add(fullRecord.toByteArray());
                         break;
                     case 2:
                         fullRecord.reset();
@@ -235,11 +260,30 @@ public class LevelDBReader {
                         break;
                     case 4:
                         fullRecord.write(recordData);
-                        parseWriteBatch(fullRecord.toByteArray());
+                        fresh.batches.add(fullRecord.toByteArray());
                         fullRecord.reset();
                         break;
                 }
             }
+        }
+        synchronized (LOG_CACHE) {
+            if (LOG_CACHE.size() >= LOG_CACHE_MAX) {
+                // 简单淘汰一半（烘焙读多个世界时防膨胀）
+                java.util.Iterator<String> it = LOG_CACHE.keySet().iterator();
+                int n = LOG_CACHE.size() / 2;
+                while (it.hasNext() && n-- > 0) {
+                    it.next();
+                    it.remove();
+                }
+            }
+            LOG_CACHE.put(logFile.getAbsolutePath(), fresh);
+        }
+        return fresh;
+    }
+
+    private void readLogFile(File logFile) throws IOException {
+        for (byte[] batch : getCachedLog(logFile).batches) {
+            parseWriteBatch(batch);
         }
     }
 
@@ -1105,9 +1149,35 @@ public class LevelDBReader {
                     }
                     started = true;
                 }
-                ByteBuffer block = readBlock(channel, handles.get(i).offset, (int) handles.get(i).size);
-                if (block == null) {
-                    break;
+                // v405：data block 缓存（跨 reader 共享）——烘焙距离
+                // 排序相邻 chunk 的 key 连续命中同一 block；不缓存则
+                // 每 chunk 渲染重读重解压几十个块（大地图烘焙主瓶颈）
+                String bKey = file.getAbsolutePath() + ":"
+                        + handles.get(i).offset;
+                // v408：get 也加锁——put 淘汰迭代删除与并发 get 同时
+                // 进行 = HashMap 并发修改未定义行为
+                CachedBlock cb = BLOCK_CACHE_ENABLED ? getCachedBlock(bKey) : null;
+                ByteBuffer block;
+                if (cb != null) {
+                    // v409 根因：wrap 默认 BIG_ENDIAN——parseDataBlock
+                    // 用 getInt 读小端数据解析错乱（readBlock 返回的
+                    // buffer 是 LITTLE_ENDIAN）。缓存命中块全解析失败
+                    // = "渲染=23/24844" 假烘焙的根因
+                    block = ByteBuffer.wrap(cb.data)
+                            .order(ByteOrder.LITTLE_ENDIAN);
+                } else {
+                    block = readBlock(channel, handles.get(i).offset,
+                            (int) handles.get(i).size);
+                    if (block == null) {
+                        break;
+                    }
+                    if (BLOCK_CACHE_ENABLED) {
+                        byte[] copy = new byte[block.remaining()];
+                        block.get(copy);
+                        block = ByteBuffer.wrap(copy)
+                                .order(ByteOrder.LITTLE_ENDIAN);
+                        putCachedBlock(bKey, copy);
+                    }
                 }
                 int before = out.size();
                 parseDataBlockFiltered(block, prefix, prefixLen, out, seen);
@@ -1122,6 +1192,37 @@ public class LevelDBReader {
             }
             return found;
         }
+    }
+
+    /** v405：sst data block 缓存（解压后内容，sst 不可变无需校验）。 */
+    private static class CachedBlock {
+        final byte[] data;
+
+        CachedBlock(byte[] data) {
+            this.data = data;
+        }
+    }
+
+    private static final Map<String, CachedBlock> BLOCK_CACHE = new HashMap<>();
+    private static final int BLOCK_CACHE_MAX = 1024;
+    /** v409 诊断开关：true=启用 data block 缓存（暂禁用定位渲染全失败根因） */
+    private static final boolean BLOCK_CACHE_ENABLED = true;
+
+    private static synchronized CachedBlock getCachedBlock(String key) {
+        return BLOCK_CACHE.get(key);
+    }
+
+    private static synchronized void putCachedBlock(String key, byte[] data) {
+        if (BLOCK_CACHE.size() >= BLOCK_CACHE_MAX) {
+            // 淘汰一半（跨世界烘焙防膨胀）
+            java.util.Iterator<String> it = BLOCK_CACHE.keySet().iterator();
+            int n = BLOCK_CACHE.size() / 2;
+            while (it.hasNext() && n-- > 0) {
+                it.next();
+                it.remove();
+            }
+        }
+        BLOCK_CACHE.put(key, new CachedBlock(data));
     }
 
     /**
@@ -1312,19 +1413,51 @@ public class LevelDBReader {
         if (logFile.length() == 0) {
             return;
         }
-        // 日志可能含目标前缀的最新写入：全读但只保留前缀匹配
-        EntryFilter old = filter;
-        filter = k -> k != null && k.length >= prefixLen && prefixMatches(k, prefix, prefixLen);
-        try {
-            readLogFile(logFile);
-            for (Map.Entry<ByteArrayWrapper, byte[]> e : allData.entrySet()) {
-                if (e.getValue() != null && seen.add(e.getKey())) {
-                    out.add(new LevelDBEntry(e.getKey().data, e.getValue()));
+        CachedLog cached = getCachedLog(logFile);
+        if (cached.entries == null && logFile.length() <= LOG_ENTRIES_MAX_SIZE) {
+            // v404：首次全量解析一次（不过滤）存进缓存——之后所有
+            // reader/chunk 直接查 map 过滤，跳过 parseWriteBatch
+            // 数千条 batch 的重复解析（烘焙每 chunk 渲染的 GC 风暴）
+            EntryFilter old = filter;
+            filter = null;
+            try {
+                allData.clear();
+                for (byte[] b : cached.batches) {
+                    parseWriteBatch(b);
+                }
+                cached.entries = new HashMap<>(allData);
+            } finally {
+                allData.clear();
+                filter = old;
+            }
+        }
+        if (cached.entries != null) {
+            for (Map.Entry<ByteArrayWrapper, byte[]> e : cached.entries.entrySet()) {
+                byte[] k = e.getKey().data;
+                if (e.getValue() != null && k.length >= prefixLen
+                        && prefixMatches(k, prefix, prefixLen) && seen.add(e.getKey())) {
+                    out.add(new LevelDBEntry(k, e.getValue()));
                 }
             }
-            allData.clear();
-        } finally {
-            filter = old;
+        } else {
+            // 大 log（entries 全量缓存会吃 100MB+ heap——烘焙期间
+            // 接近 512MB 上限 OOM 杀死 worker 的根因）：每次过滤解析
+            EntryFilter old = filter;
+            filter = k -> k != null && k.length >= prefixLen
+                    && prefixMatches(k, prefix, prefixLen);
+            try {
+                for (byte[] b : cached.batches) {
+                    parseWriteBatch(b);
+                }
+                for (Map.Entry<ByteArrayWrapper, byte[]> e : allData.entrySet()) {
+                    if (e.getValue() != null && seen.add(e.getKey())) {
+                        out.add(new LevelDBEntry(e.getKey().data, e.getValue()));
+                    }
+                }
+                allData.clear();
+            } finally {
+                filter = old;
+            }
         }
     }
 

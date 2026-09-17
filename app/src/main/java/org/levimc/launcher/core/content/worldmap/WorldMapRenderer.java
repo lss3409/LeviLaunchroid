@@ -2535,6 +2535,10 @@ public class WorldMapRenderer {
     /** 烘焙进度回调（每批渲染完成的 chunk 集合——UI 渐进显示用）。 */
     public interface BakeProgress {
         void onBatch(java.util.Set<Long> chunkKeys);
+
+        /** 烘焙开始（v403 进度 HUD 用）：total = 待烘 chunk 总数。 */
+        default void onStart(int total) {
+        }
     }
 
     /** 烘焙视口优先队列：视口变化时外部（NbtViewerActivity）把视口
@@ -2894,60 +2898,83 @@ public class WorldMapRenderer {
                 if (map.chunkBiomeColors == null) {
                     map.chunkBiomeColors = new java.util.concurrent.ConcurrentHashMap<>();
                 }
-                LevelDBReader reader = new LevelDBReader(dbDir);
-                List<byte[]> subKeys = reader.readKeys(k -> {
-                    int[] ck = parseChunkKey(k);
-                    return ck != null && ck[2] == dimension && isSubchunkKey(k);
-                });
-                reader.close();
-                java.util.List<Long> ordered = new java.util.ArrayList<>();
-                java.util.Set<Long> seen = new java.util.HashSet<>();
-                int alreadyCached = 0;
-                for (byte[] k : subKeys) {
-                    int[] ck = parseChunkKey(k);
-                    if (ck != null && seen.add(pack(ck[0], ck[1]))) {
-                        long key = pack(ck[0], ck[1]);
-                        // 缺啥补啥：缓存已有（且非全透明占位）的 chunk
-                        // 跳过不重渲染——缓存 90% 时只烘缺失的 10%
-                        // （force 模式全部重烘，不跳过）
-                        int[] cached = map.chunkColors.get(key);
-                        if (!forceRebake && cached != null && hasOpaque(cached)) {
-                            alreadyCached++;
-                            continue;
-                        }
-                        ordered.add(key);
-                    }
-                }
-                subKeys = null; // 释放
-                // 距离排序：从地图中心向外烘焙（圆形铺开）。
-                // 曾用世界原点 (0,0)——主世界 (0,0) 在整图左下角，
-                // 铺开圆只有一角在屏幕内，视觉呈长条状（用户反馈）
+                // v403：subKeys 全扫（大世界 18 万 key 要 5-10 秒）移到
+                // 后台并行——打开卫星图时视口队列 chunk 立即渲染（1-2
+                // 秒出图），不等全扫（"大地图等半天"的主要延迟之一）
+                final java.util.List<Long> ordered = new java.util.ArrayList<>();
+                final boolean[] keysReady = {false};
+                final int[] alreadyCachedHolder = {0};
                 final long centerX = map.minBlockX / 16L + map.width / 32L;
                 final long centerZ = map.minBlockZ / 16L + map.height / 32L;
-                ordered.sort((a, b) -> {
-                    long ax = (a >> 32) - centerX;
-                    long az = (int) (long) a - centerZ;
-                    long bx = (b >> 32) - centerX;
-                    long bz = (int) (long) b - centerZ;
-                    return Long.compare(ax * ax + az * az, bx * bx + bz * bz);
-                });
-                Log.i(TAG, "烘焙开始: dim=" + dimension + " 缺失=" + ordered.size()
-                        + " 已有=" + alreadyCached + " 中心=(" + centerX + "," + centerZ + ")");
+                Thread scanThread = new Thread(() -> {
+                    try {
+                        LevelDBReader scanReader = new LevelDBReader(dbDir);
+                        List<byte[]> subKeys = scanReader.readKeys(k -> {
+                            int[] ck = parseChunkKey(k);
+                            return ck != null && ck[2] == dimension && isSubchunkKey(k);
+                        });
+                        scanReader.close();
+                        java.util.Set<Long> seen = new java.util.HashSet<>();
+                        int alreadyCached = 0;
+                        synchronized (ordered) {
+                            for (byte[] k : subKeys) {
+                                int[] ck = parseChunkKey(k);
+                                if (ck != null && seen.add(pack(ck[0], ck[1]))) {
+                                    long key = pack(ck[0], ck[1]);
+                                    // 缺啥补啥：缓存已有（且非全透明占位）
+                                    // 的 chunk 跳过不重渲染——缓存 90% 时
+                                    // 只烘缺失的 10%（force 模式全部重烘）
+                                    int[] cached = map.chunkColors.get(key);
+                                    if (!forceRebake && cached != null
+                                            && hasOpaque(cached)) {
+                                        alreadyCached++;
+                                        continue;
+                                    }
+                                    ordered.add(key);
+                                }
+                            }
+                            // 距离排序：从地图中心向外烘焙（圆形铺开）。
+                            // 曾用世界原点 (0,0)——主世界 (0,0) 在整图
+                            // 左下角，铺开圆只有一角在屏幕内，视觉呈长条状
+                            ordered.sort((a, b) -> {
+                                long ax = (a >> 32) - centerX;
+                                long az = (int) (long) a - centerZ;
+                                long bx = (b >> 32) - centerX;
+                                long bz = (int) (long) b - centerZ;
+                                return Long.compare(ax * ax + az * az,
+                                        bx * bx + bz * bz);
+                            });
+                            alreadyCachedHolder[0] = alreadyCached;
+                            keysReady[0] = true;
+                            ordered.notifyAll();
+                        }
+                        Log.i(TAG, "烘焙开始: dim=" + dimension + " 缺失="
+                                + ordered.size() + " 已有=" + alreadyCached
+                                + " 中心=(" + centerX + "," + centerZ + ")");
+                        if (progress != null) {
+                            progress.onStart(ordered.size());
+                        }
+                    } catch (Throwable err) {
+                        Log.w(TAG, "烘焙 key 扫描失败 (dim=" + dimension + ")", err);
+                        synchronized (ordered) {
+                            keysReady[0] = true; // 失败也放行（空列表直接结束）
+                            ordered.notifyAll();
+                        }
+                    }
+                }, "world-bake-scan");
+                scanThread.setPriority(silent ? Thread.MIN_PRIORITY
+                        : Thread.NORM_PRIORITY);
+                scanThread.start();
                 // 多线程并行烘焙：原子索引交错取 chunk（保持距离序），
                 // 每线程独立 reader（LevelDBReader 无状态线程安全）
                 final java.util.concurrent.atomic.AtomicInteger nextIdx =
                         new java.util.concurrent.atomic.AtomicInteger(0);
                 final java.util.concurrent.atomic.AtomicInteger rendered =
                         new java.util.concurrent.atomic.AtomicInteger(0);
-                // 线程数按 chunk 量自适应（v393 提速：视口渲染已删，
-                // 烘焙是唯一渲染源——放开到核数上限，静默生成更快）
+                // 线程数（v403：ordered 在后台扫描中，大小未知——
+                // 直接按核数上限建；SILENT 2 线程慢速不抢前台）
                 int cpus = Runtime.getRuntime().availableProcessors();
-                // SILENT：2 线程慢速（后台静默，不抢前台 IO/CPU）；
-                // ACTIVE：按 chunk 量放开到核数上限 + 高优先级
-                final int bakeThreads = silent ? 2
-                        : ordered.size() > 6000
-                            ? Math.min(8, Math.max(6, cpus))
-                            : Math.min(6, Math.max(4, cpus));
+                final int bakeThreads = silent ? 2 : Math.min(8, Math.max(6, cpus));
                 poolRef[0] =
                         java.util.concurrent.Executors.newFixedThreadPool(bakeThreads, r -> {
                             Thread bt = new Thread(r, "world-bake-w");
@@ -2963,10 +2990,14 @@ public class WorldMapRenderer {
                 java.util.concurrent.CountDownLatch latch =
                         new java.util.concurrent.CountDownLatch(bakeThreads);
                 for (int wi = 0; wi < bakeThreads; wi++) {
+                    // ACTIVE：只给前 bigCoreCount 个 worker 绑大核，其余
+                    // 由系统调度到小核——8 线程全绑 4 个大核互相挤兑
+                    // （大小核全部用上，v293 教训）
+                    final boolean bindBig = !silent
+                            && wi < org.levimc.launcher.core.CpuScheduler.bigCoreCount;
                     poolRef[0].execute(() -> {
-                        // ACTIVE：大核绑定（卫星图内全速烘焙——
-                        // CpuScheduler 反射 sched_setaffinity，失败静默）
-                        if (!silent) {
+                        if (bindBig) {
+                            // CpuScheduler 反射 sched_setaffinity，失败静默
                             org.levimc.launcher.core.CpuScheduler
                                     .pinCurrentThreadToBigCores();
                         }
@@ -2977,6 +3008,7 @@ public class WorldMapRenderer {
                         try {
                             while (true) {
                                 if (Thread.currentThread().isInterrupted()) {
+                                    Log.i(TAG, "烘焙 worker 中断退出");
                                     break;
                                 }
                                 // 视口优先（v392）：先消费视口优先队列——
@@ -2992,8 +3024,28 @@ public class WorldMapRenderer {
                                     }
                                     key = vpKey;
                                 } else {
+                                    // v403：key 列表后台扫描中——等扫描
+                                    // 完成再按距离序消费（视口队列已空）
+                                    synchronized (ordered) {
+                                        while (!keysReady[0]
+                                                && !Thread.currentThread().isInterrupted()) {
+                                            try {
+                                                ordered.wait(100);
+                                            } catch (InterruptedException e) {
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (!keysReady[0] || Thread.currentThread().isInterrupted()) {
+                                        Log.i(TAG, "烘焙 worker 等待退出: ready="
+                                                + keysReady[0] + " 中断="
+                                                + Thread.currentThread().isInterrupted());
+                                        break;
+                                    }
                                     int i = nextIdx.getAndIncrement();
                                     if (i >= ordered.size()) {
+                                        Log.i(TAG, "烘焙 worker 队列耗尽: " + i
+                                                + "/" + ordered.size());
                                         break;
                                     }
                                     key = ordered.get(i);
@@ -3015,7 +3067,10 @@ public class WorldMapRenderer {
                                         rendered.incrementAndGet();
                                         batch.add(key);
                                     }
-                                } catch (Exception e) {
+                                } catch (Throwable e) {
+                                    // v406：catch Throwable——OOM 等 Error
+                                    // 杀死 worker 线程会导致 latch 提前释放
+                                    // "烘焙完成 渲染=23/24844" 假完成
                                     Log.w(TAG, "烘焙 chunk(" + cx + "," + cz + ") 失败", e);
                                 }
                                 // 批通知（UI 渐进）+ 增量落盘
@@ -3375,6 +3430,28 @@ public class WorldMapRenderer {
                     maxCz = Math.max(maxCz, ck[1]);
                 }
                 if (minCx == Integer.MAX_VALUE) {
+                    // v403 诊断："地图不可用"的根因——记录 db 内容
+                    // （无 subchunk key = 空世界/未游玩/非 LevelDB/损坏）
+                    File[] files = dbDir != null ? dbDir.listFiles() : null;
+                    int n = files != null ? files.length : -1;
+                    StringBuilder names = new StringBuilder();
+                    if (files != null) {
+                        int shown = 0;
+                        for (File f : files) {
+                            if (shown++ >= 8) {
+                                names.append("…");
+                                break;
+                            }
+                            if (f.isFile()) {
+                                names.append(f.getName()).append('(')
+                                        .append(f.length()).append(") ");
+                            } else {
+                                names.append(f.getName()).append("/ ");
+                            }
+                        }
+                    }
+                    Log.w(TAG, "bounds 扫描无 chunk key: dim=" + dimension
+                            + " db=" + dbDir + " 文件数=" + n + " [" + names + "]");
                     return null;
                 }
                 try (java.io.DataOutputStream dos = new java.io.DataOutputStream(

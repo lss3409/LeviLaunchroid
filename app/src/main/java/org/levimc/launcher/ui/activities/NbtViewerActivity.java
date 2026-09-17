@@ -555,6 +555,80 @@ public class NbtViewerActivity extends BaseActivity {
     /** 后台烘焙线程（v386：无缓存时逐 chunk 补全缓存，低优先级）。 */
     private volatile Thread bakeThread;
 
+    // v403 烘焙进度 HUD：坐标 HUD 上方显示"烘焙中 N/M 区块"
+    private final java.util.concurrent.atomic.AtomicInteger bakeDoneCount =
+            new java.util.concurrent.atomic.AtomicInteger();
+    private volatile int bakeTotalCount = -1;
+
+    /** 烘焙开始：记录总数并显示进度 HUD。 */
+    private void showBakeProgress(int total) {
+        if (total <= 0) {
+            return;
+        }
+        bakeTotalCount = total;
+        bakeDoneCount.set(0);
+        updateBakeProgressHud();
+    }
+
+    /** 烘焙批次完成：累计进度。 */
+    private void onBakeBatch(java.util.Set<Long> batch) {
+        if (bakeTotalCount > 0 && batch != null && !batch.isEmpty()) {
+            bakeDoneCount.addAndGet(batch.size());
+            updateBakeProgressHud();
+        }
+    }
+
+    /** 烘焙结束：隐藏进度 HUD。 */
+    private void hideBakeProgress() {
+        bakeTotalCount = -1;
+        if (!isFinishing() && !isDestroyed()) {
+            binding.bakeProgress.setVisibility(View.GONE);
+        }
+    }
+
+    private void updateBakeProgressHud() {
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
+        int done = bakeDoneCount.get();
+        int total = bakeTotalCount;
+        if (total <= 0) {
+            return;
+        }
+        binding.bakeProgress.setVisibility(View.VISIBLE);
+        binding.bakeProgress.setText("烘焙中 " + done + "/" + total + " 区块"
+                + (done >= total ? " · 落盘中…" : ""));
+    }
+
+    /** v403：构造烘焙进度回调——onStart 显示进度 HUD，onBatch 累计
+     *  并通知地图渐进渲染（notifyRender=false 时只计数不刷新视图）。 */
+    private WorldMapRenderer.BakeProgress bakeProgressFor(
+            final WorldMapRenderer.WorldMap target, final boolean notifyRender) {
+        return new WorldMapRenderer.BakeProgress() {
+            @Override
+            public void onStart(int total) {
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed() && currentMap == target) {
+                        showBakeProgress(total);
+                    }
+                });
+            }
+
+            @Override
+            public void onBatch(java.util.Set<Long> chunkKeys) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed() || currentMap != target) {
+                        return;
+                    }
+                    onBakeBatch(chunkKeys);
+                    if (notifyRender) {
+                        binding.worldMapImage.onChunksRendered(chunkKeys);
+                    }
+                });
+            }
+        };
+    }
+
     /** v397：渲染参数变化（阴影开关等）——中断烘焙 + 强制重烘焙当前
      *  维度（渲染结果变了缓存作废）。
      *  v398 修复"每次打开都重新渲染"：不再清空内存缓存——旧渲染继续
@@ -575,12 +649,9 @@ public class NbtViewerActivity extends BaseActivity {
                     : "end".equals(mapDimension) ? 2 : 0;
             bakeThread = WorldMapRenderer.bakeWorldCache(
                     currentMap.chunkSourceDir, bakeDim, fBake,
-                    batch -> runOnUiThread(() -> {
-                        if (!isFinishing() && !isDestroyed() && currentMap == fBake) {
-                            binding.worldMapImage.onChunksRendered(batch);
-                        }
-                    }),
+                    bakeProgressFor(fBake, true),
                     () -> runOnUiThread(() -> {
+                        hideBakeProgress();
                         if (!isFinishing() && !isDestroyed() && currentMap == fBake) {
                             binding.worldMapImage.onChunksRendered(
                                     java.util.Collections.emptySet());
@@ -864,9 +935,12 @@ public class NbtViewerActivity extends BaseActivity {
 
             @Override
             public void onMapTap(int blockX, int blockZ) {
-                // 单击显示该处坐标（十字标记在地图上，HUD 同步显示）
+                // 单击显示该处坐标（十字标记在地图上，HUD 同步显示；
+                // v403 恢复缩放倍率显示）
                 binding.mapHud.setText("X: " + blockX + "  Z: " + blockZ
-                        + "  ·  " + dimName(mapDimension));
+                        + "  ·  " + dimName(mapDimension)
+                        + "  ·  ×" + String.format(java.util.Locale.getDefault(),
+                        "%.2f", binding.worldMapImage.getPixelsPerBlock()));
             }
         });
     }
@@ -974,6 +1048,8 @@ public class NbtViewerActivity extends BaseActivity {
         binding.worldMapImage.setEntityData(new ArrayList<>());
         binding.worldMapImage.setStructureMarkers(new ArrayList<>());
         binding.worldMapPlaceholder.setVisibility(View.VISIBLE);
+        // v403：旧维度烘焙进度 HUD 重置
+        hideBakeProgress();
         // 渲染代际 + 线程池换新：旧维度延迟实体/结构解析任务作废
         renderGen.incrementAndGet();
         // 烘焙线程换维度时中断（新维度有自己的烘焙）
@@ -1143,6 +1219,10 @@ public class NbtViewerActivity extends BaseActivity {
                     // 和 startPrerender 检查 currentMap==null 直接 return，
                     // 切维度后视口按需渲染/预渲染全不工作的根因）
                     currentMap = fMap;
+                    // v403：主世界打开 fit 全图（"大的缩放比例"），
+                    // 下界/末地保持放大起步（v380 教训：fit 进 LOD 黑屏）
+                    binding.worldMapImage.initialFitAll =
+                            "overworld".equals(mapDimension);
                     binding.worldMapImage.setWorldMap(fMap, fKeepView);
                     // 不 fitToView：fit 后下界 ×0.44 缩放太小（视口 chunk
                     // >4096 进 LOD、网格不画），进图一片黑像没渲染（v380
@@ -1189,20 +1269,38 @@ public class NbtViewerActivity extends BaseActivity {
                                     final boolean[] switched = {false};
                                     bakeThread = WorldMapRenderer.bakeWorldCache(
                                             fMap.chunkSourceDir, bakeDim, fBakeMap,
-                                            batch -> runOnUiThread(() -> {
-                                                if (isFinishing() || isDestroyed()
-                                                        || renderGen.get() != gen) {
-                                                    return;
+                                            new WorldMapRenderer.BakeProgress() {
+                                                @Override
+                                                public void onStart(int total) {
+                                                    runOnUiThread(() -> {
+                                                        if (isFinishing() || isDestroyed()
+                                                                || renderGen.get() != gen) {
+                                                            return;
+                                                        }
+                                                        showBakeProgress(total);
+                                                    });
                                                 }
-                                                if (!switched[0]) {
-                                                    // 第一批数据就绪：切到新段视图
-                                                    switched[0] = true;
-                                                    currentMap = fBakeMap;
-                                                    binding.worldMapImage.setWorldMap(fBakeMap);
+
+                                                @Override
+                                                public void onBatch(java.util.Set<Long> batch) {
+                                                    runOnUiThread(() -> {
+                                                        if (isFinishing() || isDestroyed()
+                                                                || renderGen.get() != gen) {
+                                                            return;
+                                                        }
+                                                        onBakeBatch(batch);
+                                                        if (!switched[0]) {
+                                                            // 第一批数据就绪：切到新段视图
+                                                            switched[0] = true;
+                                                            currentMap = fBakeMap;
+                                                            binding.worldMapImage.setWorldMap(fBakeMap);
+                                                        }
+                                                        binding.worldMapImage.onChunksRendered(batch);
+                                                    });
                                                 }
-                                                binding.worldMapImage.onChunksRendered(batch);
-                                            }),
+                                            },
                                             () -> runOnUiThread(() -> {
+                                                hideBakeProgress();
                                                 if (isFinishing() || isDestroyed()
                                                         || renderGen.get() != gen) {
                                                     return;
@@ -1217,13 +1315,9 @@ public class NbtViewerActivity extends BaseActivity {
                                 final WorldMapRenderer.WorldMap fBake = fMap;
                                 bakeThread = WorldMapRenderer.bakeWorldCache(
                                         fMap.chunkSourceDir, bakeDim, fBake,
-                                        batch -> runOnUiThread(() -> {
-                                            if (!isFinishing() && !isDestroyed()
-                                                    && currentMap == fBake) {
-                                                binding.worldMapImage.onChunksRendered(batch);
-                                            }
-                                        }),
+                                        bakeProgressFor(fBake, true),
                                         () -> runOnUiThread(() -> {
+                                            hideBakeProgress();
                                             if (!isFinishing() && !isDestroyed()
                                                     && currentMap == fBake) {
                                                 binding.worldMapImage.onChunksRendered(
@@ -1718,6 +1812,9 @@ public class NbtViewerActivity extends BaseActivity {
 
         // 世界地图：占满全屏（PRD 布局），缩放/平移时按比例重采样方块颜色
         if (worldMap != null) {
+            // v403：主世界打开 fit 全图（用户反馈"大地图不显示大的
+            // 缩放比例"——原来 max(fit,26) 只看到放大的一小块）
+            binding.worldMapImage.initialFitAll = true;
                         binding.worldMapImage.setWorldMap(worldMap);
             binding.worldMapPlaceholder.setVisibility(View.GONE);
             // 主世界打开不自动预渲染：流式渲染 18 万条目（subchunk value
@@ -1734,18 +1831,15 @@ public class NbtViewerActivity extends BaseActivity {
                     && !cacheLacking && worldMap.chunkSourceDir != null) {
                 startIncrementalUpdate(worldMap.chunkSourceDir, worldMap, 0);
             } else if (worldMap.chunkColors != null && worldMap.chunkSourceDir != null) {
-                // 无缓存或缓存不足 60%（烘焙曾中断/只烘了一半）：后台
+                // 无缓存或缓存不足（烘焙曾中断/只烘了一半）：后台
                 // 多线程烘焙补全。共享屏幕 map——烘焙的 chunk 直接进屏幕，
                 // 圆形铺开效果（距离排序从原点向外 + 每批 50 chunk 通知 UI）
                 final WorldMapRenderer.WorldMap fBake = worldMap;
                 bakeThread = WorldMapRenderer.bakeWorldCache(
                         worldMap.chunkSourceDir, 0, fBake,
-                        batch -> runOnUiThread(() -> {
-                            if (!isFinishing() && !isDestroyed() && currentMap == fBake) {
-                                binding.worldMapImage.onChunksRendered(batch);
-                            }
-                        }),
+                        bakeProgressFor(fBake, true),
                         () -> runOnUiThread(() -> {
+                            hideBakeProgress();
                             if (!isFinishing() && !isDestroyed() && currentMap == fBake) {
                                 binding.worldMapImage.onChunksRendered(
                                         java.util.Collections.emptySet());

@@ -93,6 +93,12 @@ public class WorldMapView extends View {
     private OnMapInteractListener listener;
     private OnViewChangedListener viewChangedListener;
 
+    /** v403：打开时整图适配（fit 全图显示"大的缩放比例"）——
+     *  主世界大地图用（用户反馈打开只看到放大 26 倍的一小块，
+     *  要缩很多次才看到全貌）；下界/末地保持放大起步（v380
+     *  教训：fit 后 ×0.44 太小进 LOD 黑屏）。setWorldMap 前设置。 */
+    public boolean initialFitAll = false;
+
     /** 地图交互回调（长按添加标点 / 点击标点弹详情 / 单击显示坐标）。 */
     public interface OnMapInteractListener {
         void onLongPress(int blockX, int blockZ);
@@ -389,7 +395,9 @@ public class WorldMapView extends View {
             return;
         }
 
-        pixelsPerBlock = clampPixelsPerBlock(Math.max(fit, 26f));
+        pixelsPerBlock = initialFitAll
+                ? clampPixelsPerBlock(fit)
+                : clampPixelsPerBlock(Math.max(fit, 26f));
         // 目标点：出生点 > 玩家（打开地图停在出生点，用户要求）；
         // 若该处未生成（透明），螺旋找最近的有数据位置
         int targetX = map.spawnBlockX >= 0 ? map.spawnBlockX
