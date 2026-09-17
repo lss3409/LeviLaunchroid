@@ -112,39 +112,14 @@ public class WorldMapView extends View {
         return pixelsPerBlock;
     }
 
-    /** 视口按需渲染回调（BTR 式）：视口内缺失的 chunk 由外部渲染后填回 chunkColors。 */
-    public interface OnChunksNeededListener {
-        void onChunksNeeded(java.util.Set<Long> chunkKeys);
-    }
-
-    private OnChunksNeededListener chunksNeededListener;
-    /** 已请求未渲染的 chunk（去重，防重复提交）。 */
-    private final java.util.Set<Long> pendingChunks = new java.util.HashSet<>();
-    /** 缺失 chunk 报告节流：onDraw 每帧都收集缺失并报告，而报告会清空
-     *  渲染队列——拖动时每帧打断刚排队的任务，"渲染永远被作废"死循环
-     *  （主世界区块卡住不动的根因）。节流 300ms：期间 missing 不入
-     *  pending，下帧继续收集不丢失。 */
-    private long lastChunkReportAt = 0;
-
-    public void setOnChunksNeededListener(OnChunksNeededListener l) {
-        this.chunksNeededListener = l;
-    }
-
-    /** 取消 pending 标记（渲染批次作废时调用——否则被作废的 chunk
-     *  永远留在 pending 里，onDraw 收集被拦截永不重报）。 */
-    public void cancelPendingChunks(java.util.Set<Long> keys) {
-        pendingChunks.removeAll(keys);
-    }
-
     /** 清空全部 chunk 渲染数据（渲染参数变化时调用——如忽略光源开关）：
-     *  只清 chunkColors 不够——旧 tile/LOD/pending 会残留旧渲染结果
-     *  （"开了忽略光源还是显示黄色"的根因）。清完视口按需重新渲染。 */
+     *  只清 chunkColors 不够——旧 tile/LOD 会残留旧渲染结果
+     *  （"开了忽略光源还是显示黄色"的根因）。 */
     public void clearChunkData() {
         for (Bitmap b : chunkTiles.values()) {
             b.recycle();
         }
         chunkTiles.clear();
-        pendingChunks.clear();
         chunkDataCache.clear();
         if (lodMini != null) {
             lodMini.recycle();
@@ -153,9 +128,8 @@ public class WorldMapView extends View {
         invalidate();
     }
 
-    /** 外部按需渲染完成后调用：清除 pending 标记并重绘。 */
+    /** 烘焙/增量更新渲染完成后调用：LOD 增量更新并重绘。 */
     public void onChunksRendered(java.util.Set<Long> chunkKeys) {
-        pendingChunks.removeAll(chunkKeys);
         // 新 chunk 已渲染：LOD 缩略图增量更新对应像素（此前置空全量重建
         // ——2.5 万 chunk × 256 像素众数统计每秒触发一次，0.3 倍率缩小
         // 视图卡死的根因。增量只重算几个 chunk、各 setPixel 一个点）
@@ -627,8 +601,6 @@ public class WorldMapView extends View {
         int lastCx = Math.min(maxCx, Math.floorDiv((int) Math.ceil(rightWorld), 16));
         int lastCz = Math.min(maxCz, Math.floorDiv((int) Math.ceil(bottomWorld), 16));
         int visibleChunks = (lastCx - firstCx + 1) * (lastCz - firstCz + 1);
-        final java.util.Set<Long> missing = chunksNeededListener != null && !scaling
-                ? new java.util.HashSet<>() : null;
         // LOD 单阈值 + 缩放中不切换：缩放结束后按当前视口重判定——
         // 迟滞区间(3500-5000)会卡在 LOD 模式导致放大回来不渲染
         // （"缩放到一定比例停止渲染"的根因）
@@ -662,34 +634,14 @@ public class WorldMapView extends View {
                 if (tile == null) {
                     tile = ensureChunkTile(ck);
                     if (tile == null) {
-                        // 视口按需渲染：收集缺失 chunk（限一次，避免每帧重复报告）
-                        if (missing != null && missing.size() < 2048
-                                && !pendingChunks.contains(ck)) {
-                            missing.add(ck);
-                        }
+                        // v392：视口按需渲染已删除——缺失 chunk 由烘焙
+                        // 补全（视口优先队列保证拖动时屏幕区域先烘）
                         continue;
                     }
                 }
                 dst.set(worldToScreenX(cx * 16f), top,
                         worldToScreenX(cx * 16f + 16f), top + 16f * ppb);
                 canvas.drawBitmap(tile, null, dst, tilePaint);
-            }
-        }
-        // 视口按需渲染：报告缺失 chunk（外部后台渲染后 onChunksRendered 重绘）。
-        // 节流：报告会清空渲染队列（拖动时优先渲染新视口），每帧报告 =
-        // 每帧作废刚排队的任务——渲染永远被打断（"区块卡住不动"根因）
-        if (missing != null && !missing.isEmpty()) {
-            long now = android.os.SystemClock.uptimeMillis();
-            if (now - lastChunkReportAt < 300) {
-                return; // 节流：missing 未入 pending，下帧重新收集不丢
-            }
-            lastChunkReportAt = now;
-            pendingChunks.addAll(missing);
-            java.util.Set<Long> report = new java.util.HashSet<>(missing);
-            missing.clear();
-            OnChunksNeededListener l = chunksNeededListener;
-            if (l != null) {
-                l.onChunksNeeded(report);
             }
         }
     }

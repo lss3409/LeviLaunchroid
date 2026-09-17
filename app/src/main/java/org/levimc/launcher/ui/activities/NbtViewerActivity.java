@@ -86,49 +86,20 @@ public class NbtViewerActivity extends BaseActivity {
      *  （游戏式全核调度，类似终末地 Job System 的做法）。
      *  切维度时整池换新（shutdownNow 旧池清队列）——否则旧维度任务排队，
      *  新维度 chunk 全部等旧队列跑完（下界/末地切换 60 秒的根因）。 */
+    /** 延迟解析线程池（实体/结构解析，切维度换新清队列）。 */
     private volatile ExecutorService renderPool = newRenderPool();
     /** 渲染代际：切维度 +1；任务执行时比对，代际不符直接放弃（旧维度残留任务）。 */
     private final java.util.concurrent.atomic.AtomicInteger renderGen =
             new java.util.concurrent.atomic.AtomicInteger();
-    /** 当前批次渲染队列：拖动时清空（旧区域任务作废），执行时检查。 */
-    /** 渲染排队集合：主线程（报告/清空）与渲染线程（v385 任务完成
-     *  移除）并发访问——synchronizedSet 单操作安全但迭代（new
-     *  HashSet<>(renderQueue)）不持锁，渲染线程 remove 时主线程
-     *  迭代抛 ConcurrentModificationException（v386 崩溃根因）。
-     *  ConcurrentHashMap keySet 弱一致迭代不抛 CME。 */
-    private final java.util.Set<Long> renderQueue =
-            java.util.concurrent.ConcurrentHashMap.newKeySet();
-    /** 渲染线程复用的 LevelDBReader（每 chunk 新建 reader 要重开全部 sst
-     *  文件——大世界几百个 sst，是拖动跟不上渲染的主因；reader 实例无状态
-     *  线程安全，按 dbDir 校验失效换新）。 */
-    private final ThreadLocal<Object[]> renderReaderTl = new ThreadLocal<>();
-
-    private org.levimc.launcher.core.content.leveldb.LevelDBReader getRenderReader(File dbDir) {
-        Object[] cur = renderReaderTl.get();
-        if (cur != null && cur[0].equals(dbDir)) {
-            return (org.levimc.launcher.core.content.leveldb.LevelDBReader) cur[1];
-        }
-        if (cur != null) {
-            ((org.levimc.launcher.core.content.leveldb.LevelDBReader) cur[1]).close();
-        }
-        org.levimc.launcher.core.content.leveldb.LevelDBReader r =
-                new org.levimc.launcher.core.content.leveldb.LevelDBReader(dbDir);
-        renderReaderTl.set(new Object[]{dbDir, r});
-        return r;
-    }
 
     private static ExecutorService newRenderPool() {
-        // 6 线程（v378 试过核数线程=8：视口渲染+后台任务抢 CPU，小地图
-        // 打开时卡顿——回滚固定 6，IO 瓶颈下线程数不是关键）
-        return Executors.newFixedThreadPool(6, r -> {
-            Thread t = new Thread(r, "chunk-render");
+        // v392 视口渲染已删：此池只跑延迟实体/结构解析（大核绑定）
+        return Executors.newFixedThreadPool(4, r -> {
+            Thread t = new Thread(r, "parse-pool");
             t.setPriority(Thread.MAX_PRIORITY);
             return t;
         });
     }
-    /** 渲染任务序号：< 大核数的任务绑大核，其余自由调度（小核也参与）。 */
-    private final java.util.concurrent.atomic.AtomicInteger renderTaskSeq =
-            new java.util.concurrent.atomic.AtomicInteger();
     /** 结构标点详情弹窗：坐标 / NBT 数据 / 附近实体。 */
     private void showStructureDetail(WorldMapRenderer.StructureMarker m) {
         StringBuilder sb = new StringBuilder();
@@ -195,34 +166,8 @@ public class NbtViewerActivity extends BaseActivity {
      * 需在 flushRenderedChunks 字段之前声明（初始化块前向引用限制）。 */
     private final List<WorldMapRenderer.StructureMarker> currentStructures = new ArrayList<>();
 
-    /** 渲染完成 chunk 的批量重绘缓冲：80ms 窗口合并，一次局部重绘处理多个 chunk。 */
-    private final java.util.Set<Long> renderedChunkBuffer = new java.util.HashSet<>();
     private final android.os.Handler flushHandler = new android.os.Handler(
             android.os.Looper.getMainLooper());
-    private boolean flushScheduled = false;
-    private final Runnable flushRenderedChunks = () -> {
-        flushScheduled = false;
-        java.util.Set<Long> batch;
-        synchronized (renderedChunkBuffer) {
-            if (renderedChunkBuffer.isEmpty()) {
-                return;
-            }
-            batch = new java.util.HashSet<>(renderedChunkBuffer);
-            renderedChunkBuffer.clear();
-        }
-        if (isFinishing() || isDestroyed()) {
-            return;
-        }
-        // 渲染新 chunk 可能检测到新结构（沙漠神殿/前哨站），及时并入结构图层
-        synchronized (currentStructures) {
-            int before = currentStructures.size();
-            mergeOnDemandStructures();
-            if (currentStructures.size() > before) {
-                binding.worldMapImage.setStructureMarkers(currentStructures);
-            }
-        }
-        binding.worldMapImage.onChunksRendered(batch);
-    };
 
     /**
      * 启动后台任务：取消上一个未完成的加载再新建线程池。
@@ -336,122 +281,18 @@ public class NbtViewerActivity extends BaseActivity {
         setupMapTools(worldDir, worldName);
         setupPrdOverlays();
 
-        // BTR 式视口按需渲染：滑动到未渲染区域时后台逐 chunk 渲染。
-        // 中心优先（玩家/出生点附近的 chunk 先渲染）+ 多线程并行 +
-        // 每批完成即重绘（渐进显示，不用等整个视口渲染完）。
-        binding.worldMapImage.setOnChunksNeededListener(chunkKeys -> {
-            if (chunkKeys.isEmpty() || currentWorldDir == null || currentMap == null) {
-                return;
-            }
-            final File dbDir = new File(currentWorldDir, "db");
-            final int dim = "nether".equals(mapDimension) ? 1 : "end".equals(mapDimension) ? 2 : 0;
-            final WorldMapRenderer.WorldMap fMap = currentMap;
-            // 视口中心优先排序：平移/缩放后新视口的 chunk 先渲染——
-            // 固定用玩家/出生点排序时，滑远的视口 chunk 排在积压队尾，
-            // "摄像机视角下不渲染/迟迟不出来"的根因
-            java.util.List<Long> keys = new java.util.ArrayList<>(chunkKeys);
-            int vCx = viewCenterX.get();
-            int vCz = viewCenterZ.get();
-            int centerCx = vCx != Integer.MIN_VALUE ? Math.floorDiv(vCx, 16)
-                    : fMap.playerBlockX >= 0 ? Math.floorDiv(fMap.playerBlockX, 16)
-                    : fMap.spawnBlockX >= 0 ? Math.floorDiv(fMap.spawnBlockX, 16)
-                    : fMap.minBlockX / 16 + fMap.width / 32;
-            int centerCz = vCz != Integer.MIN_VALUE ? Math.floorDiv(vCz, 16)
-                    : fMap.playerBlockZ >= 0 ? Math.floorDiv(fMap.playerBlockZ, 16)
-                    : fMap.spawnBlockZ >= 0 ? Math.floorDiv(fMap.spawnBlockZ, 16)
-                    : fMap.minBlockZ / 16 + fMap.height / 32;
-            final int cCx = centerCx;
-            final int cCz = centerCz;
-            keys.sort((a, b) -> {
-                long dxa = ((a >> 32) - cCx);
-                long dza = ((int) (long) a - cCz);
-                long dxb = ((b >> 32) - cCx);
-                long dzb = ((int) (long) b - cCz);
-                return Long.compare(dxa * dxa + dza * dza, dxb * dxb + dzb * dzb);
-            });
-            final java.util.concurrent.atomic.AtomicInteger remaining =
-                    new java.util.concurrent.atomic.AtomicInteger(keys.size());
-            final java.util.Set<Long> inFlight = java.util.Collections.synchronizedSet(
-                    new java.util.HashSet<>());
-            // 清空旧批次：拖动时上一批（已滑走区域）的排队任务作废——
-            // 跨批次积压让当前视口 chunk 排旧队列后面（"拖动跟不上"的根因）。
-            // 同时清 WorldMapView 的 pendingChunks——否则被作废的 chunk 永远
-            // 留在 pending 里，onDraw 收集被拦截永不重报（空白区域根因）
-            java.util.Set<Long> oldBatch = new java.util.HashSet<>(renderQueue);
-            if (renderPool instanceof java.util.concurrent.ThreadPoolExecutor) {
-                ((java.util.concurrent.ThreadPoolExecutor) renderPool).getQueue().clear();
-            }
-            renderQueue.clear();
-            if (!oldBatch.isEmpty()) {
-                binding.worldMapImage.cancelPendingChunks(oldBatch);
-            }
-            final int myGen = renderGen.get();
-            for (Long key : keys) {
-                // 已完成或正在渲染的跳过（onDraw 每帧重报缺失，防重复提交）
-                if (fMap.chunkColors.containsKey(key) || !inFlight.add(key)) {
-                    remaining.decrementAndGet();
-                    continue;
-                }
-                renderQueue.add(key);
-                renderPool.execute(() -> {
-                    // 批次作废（拖动后新报告清空了队列）或代际不符：直接放弃
-                    if (!renderQueue.contains(key) || renderGen.get() != myGen) {
-                        inFlight.remove(key);
-                        remaining.decrementAndGet();
-                        return;
-                    }
-                    // 全核调度：前几个并发任务绑大核，其余自由调度到其它核
-                    // （大小核全部参与渲染——发热不严重说明核心没跑满）
-                    if (renderTaskSeq.getAndIncrement() < CpuScheduler.bigCoreCount) {
-                        CpuScheduler.pinCurrentThreadToBigCores();
-                    }
-                    try {
-                        int cx = (int) (key >> 32);
-                        int cz = (int) (long) key;
-                        int[][] res = WorldMapRenderer.renderChunkOnDemand(
-                                getRenderReader(dbDir), cx, cz, dim);
-                        // 未生成 chunk 也放 EMPTY 占位，防重复请求
-                        int[] colors = res != null ? res[0] : null;
-                        fMap.chunkColors.put(key, colors != null ? colors : EMPTY_CHUNK_COLORS);
-                        // biome 图层色（有 biome 数据时生成，供图层切换使用）
-                        if (res != null && res[1] != null && fMap.chunkBiomeColors != null) {
-                            fMap.chunkBiomeColors.put(key, res[1]);
-                        }
-                    } catch (Throwable ignored) {
-                        // 渲染失败（如切维度 shutdownNow 中断读文件，FileChannel
-                        // 已关闭）：ThreadLocal 里复用同一个坏 reader 会让后续
-                        // 全部失败（"切下界后一直空白"的另一根因）——丢弃重建
-                        renderReaderTl.remove();
-                    } finally {
-                        inFlight.remove(key);
-                        // 任务结束移出 renderQueue——否则只增不减，
-                        // oldBatch 越滚越大把已渲染 chunk 的 pending
-                        // 反复取消（渲染队列管理混乱的帮凶）
-                        renderQueue.remove(key);
-                        remaining.decrementAndGet();
-                        // 批量节流重绘：80ms 窗口内的完成 chunk 合并成一次
-                        // 局部重绘（同一 chunk 行的重叠行区间只采样一次）
-                        runOnUiThread(() -> {
-                            synchronized (renderedChunkBuffer) {
-                                renderedChunkBuffer.add(key);
-                                if (flushScheduled) {
-                                    return;
-                                }
-                                flushScheduled = true;
-                            }
-                            flushHandler.postDelayed(flushRenderedChunks, 80);
-                        });
-                    }
-                });
-            }
+        // v392：视口按需渲染已删除（弹窗确认"删除+烘焙视口优先"）——
+        // 缺失区域由烘焙统一补全，视口变化通过 OnViewChangedListener
+        // 更新烘焙优先队列（拖动时烘焙跟着渲染屏幕区域）
+        binding.worldMapImage.setOnViewChangedListener((cx, cz) -> {
+            viewCenterX.set(cx);
+            viewCenterZ.set(cz);
+            WorldMapRenderer.bumpBakeViewport(cx, cz);
         });
 
         selectTab(TAB_LEVEL);
         loadData(worldDir, worldName);
     }
-
-    /** 空 chunk 占位（未生成区域，全透明；避免反复按需读取无数据 chunk）。 */
-    private static final int[] EMPTY_CHUNK_COLORS = new int[256];
 
     /** PRD 悬浮层交互：顶栏展开、左栏抽屉 Tab、图层开关、数据面板、坐标 HUD。 */
     private void setupPrdOverlays() {
@@ -1037,10 +878,8 @@ public class NbtViewerActivity extends BaseActivity {
         binding.worldMapImage.setEntityData(new ArrayList<>());
         binding.worldMapImage.setStructureMarkers(new ArrayList<>());
         binding.worldMapPlaceholder.setVisibility(View.VISIBLE);
-        // 渲染代际 + 线程池换新：旧维度排队任务立即作废，
-        // 新维度 chunk 不再等旧队列（下界/末地切换慢的根因）
+        // 渲染代际 + 线程池换新：旧维度延迟实体/结构解析任务作废
         renderGen.incrementAndGet();
-        renderQueue.clear();
         // 烘焙线程换维度时中断（新维度有自己的烘焙）
         if (bakeThread != null) {
             bakeThread.interrupt();
@@ -1552,9 +1391,11 @@ public class NbtViewerActivity extends BaseActivity {
 
             if (!largeWorld) {
                 // 小世界优先读磁盘缓存（v390：第二次打开秒开，不再每次
-                // 全量渲染 8-20 秒）；miss 才全量渲染并存缓存
+                // 全量渲染 8-20 秒）。db 变化（玩家玩过一局）时先显示
+                // 旧图（v393），后台重渲染后替换——不再每次都卡
+                // "地图渲染中"
                 try {
-                    worldMap = WorldMapRenderer.loadSmallMapCache(dbDir, 0);
+                    worldMap = WorldMapRenderer.loadSmallMapCache(dbDir, 0, true);
                 } catch (Exception ignored) {
                     worldMap = null;
                 }
@@ -1572,6 +1413,31 @@ public class NbtViewerActivity extends BaseActivity {
                     if (worldMap != null) {
                         WorldMapRenderer.saveSmallMapCache(worldMap, dbDir, 0);
                     }
+                } else if (worldMap.cacheStale) {
+                    // 旧图已加载（立即显示）：后台全量重渲染 + 保存 + 替换
+                    final File fDbDir = dbDir;
+                    final List<LevelDBEntry> fEntries = entries;
+                    final WorldMapRenderer.WorldMap fOld = worldMap;
+                    executor.execute(() -> {
+                        try {
+                            WorldMapRenderer.WorldMap fresh =
+                                    WorldMapRenderer.buildSatelliteMap(fEntries);
+                            if (fresh != null) {
+                                WorldMapRenderer.saveSmallMapCache(fresh, fDbDir, 0);
+                                runOnUiThread(() -> {
+                                    if (!isFinishing() && !isDestroyed()
+                                            && currentMap == fOld) {
+                                        currentMap = fresh;
+                                        binding.worldMapImage.setWorldMap(fresh);
+                                        Log.i(TAG, "小世界旧图已刷新: "
+                                                + fresh.width + "x" + fresh.height);
+                                    }
+                                });
+                            }
+                        } catch (Exception e) {
+                            Log.w(TAG, "小世界后台重渲染失败", e);
+                        }
+                    });
                 }
 
                 // 原生库可能漏读 13/14B key（下界/末地），失败时回退纯 Java 重读

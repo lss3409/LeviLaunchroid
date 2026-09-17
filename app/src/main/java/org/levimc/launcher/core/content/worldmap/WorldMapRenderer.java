@@ -1115,6 +1115,9 @@ public class WorldMapRenderer {
          *  增量更新：打开时对比找出新文件，只重渲染这些文件覆盖的 chunk。
          *  LevelDB sst 文件不可变，存档更新只会新增文件/追加 log。 */
         public java.util.List<String> dbFileFingerprints;
+        /** 小世界缓存 db 已变化（allowStale 加载的旧图）——调用方
+         *  先显示旧图、后台重渲染替换。 */
+        public boolean cacheStale = false;
         /** 出生点位置（block 坐标，-1 = 无） */
         public int spawnBlockX = -1;
         public int spawnBlockZ = -1;
@@ -2164,8 +2167,14 @@ public class WorldMapRenderer {
         return pixels;
     }
 
-    /** 加载小世界全图缓存；db 变化或格式不符返回 null。 */
+    /** 加载小世界全图缓存；db 变化或格式不符返回 null。
+     *  allowStale=true 时 db 变化也返回旧图（调用方先显示旧图，
+     *  后台重渲染后替换——玩家玩过一局后打开不用等 8-20 秒渲染）。 */
     public static WorldMap loadSmallMapCache(File dbDir, int dimension) {
+        return loadSmallMapCache(dbDir, dimension, false);
+    }
+
+    public static WorldMap loadSmallMapCache(File dbDir, int dimension, boolean allowStale) {
         File in = smallCacheFile(dbDir, dimension);
         if (!in.isFile()) {
             return null;
@@ -2185,9 +2194,13 @@ public class WorldMapRenderer {
             long dbSize = dis.readLong();
             long dbMtime = dis.readLong();
             long[] fp = dbFingerprint(dbDir);
-            if (fp[0] != dbSize || fp[1] != dbMtime) {
-                Log.i(TAG, "小世界缓存失效（db 已变化）");
-                return null;
+            boolean stale = fp[0] != dbSize || fp[1] != dbMtime;
+            if (stale) {
+                Log.i(TAG, "小世界缓存失效（db 已变化）"
+                        + (allowStale ? "——先显示旧图" : ""));
+                if (!allowStale) {
+                    return null;
+                }
             }
             int[] colors = readLargePalette(dis, w * h);
             int[] biome = null;
@@ -2195,7 +2208,9 @@ public class WorldMapRenderer {
                 biome = readLargePalette(dis, w * h);
             }
             WorldMap map = new WorldMap(minX, minZ, w, h, colors, biome);
-            Log.i(TAG, "小世界缓存已加载: " + w + "x" + h + " (dim=" + dimension + ")");
+            map.cacheStale = stale;
+            Log.i(TAG, "小世界缓存已加载: " + w + "x" + h + " (dim=" + dimension
+                    + (stale ? ", 旧图待刷新" : "") + ")");
             return map;
         } catch (Exception e) {
             Log.w(TAG, "小世界缓存加载失败", e);
@@ -2397,6 +2412,37 @@ public class WorldMapRenderer {
         void onBatch(java.util.Set<Long> chunkKeys);
     }
 
+    /** 烘焙视口优先队列：视口变化时外部（NbtViewerActivity）把视口
+     *  附近的缺失 chunk 加入——烘焙线程先消费此队列（拖动时烘焙
+     *  跟着渲染屏幕区域，替代已删除的视口按需渲染）。 */
+    private static final java.util.concurrent.ConcurrentLinkedQueue<Long>
+            bakeViewportQueue = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    private static final java.util.Set<Long> bakeViewportSeen =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static volatile long bakeViewportCx = Long.MIN_VALUE;
+    private static volatile long bakeViewportCz = Long.MIN_VALUE;
+
+    /** 视口变化上报：把视口中心 ±20 chunk 内的坐标存入优先队列。 */
+    public static void bumpBakeViewport(int blockX, int blockZ) {
+        bakeViewportCx = Math.floorDiv(blockX, 16);
+        bakeViewportCz = Math.floorDiv(blockZ, 16);
+        long ccx = bakeViewportCx;
+        long ccz = bakeViewportCz;
+        for (int dz = -20; dz <= 20; dz++) {
+            for (int dx = -20; dx <= 20; dx++) {
+                long key = ((ccx + dx) << 32) | ((ccz + dz) & 0xFFFFFFFFL);
+                if (bakeViewportSeen.add(key)) {
+                    bakeViewportQueue.add(key);
+                }
+            }
+        }
+        // 队列防膨胀：超过 2 万时清掉最旧的（视口快速移动时旧位置作废）
+        while (bakeViewportQueue.size() > 20000) {
+            bakeViewportQueue.poll();
+            // 不清理 seen——重复 add 无害（烘焙端会检查已渲染跳过）
+        }
+    }
+
     /** chunk 色数据里是否有非透明像素（全透明 = 未生成/占位，不算已缓存）。 */
     private static boolean hasOpaque(int[] cc) {
         if (cc == null) {
@@ -2492,10 +2538,12 @@ public class WorldMapRenderer {
                         new java.util.concurrent.atomic.AtomicInteger(0);
                 final java.util.concurrent.atomic.AtomicInteger rendered =
                         new java.util.concurrent.atomic.AtomicInteger(0);
-                // 线程数按 chunk 量自适应：下界/末地 chunk 解码重（8 层
-                // subchunk 大 palette），4 线程 10 秒才 400 chunk；大世界
-                // 6 线程低优先级不抢视口渲染（视口用大核，烘焙自由调度）
-                final int bakeThreads = ordered.size() > 6000 ? 6 : 4;
+                // 线程数按 chunk 量自适应（v393 提速：视口渲染已删，
+                // 烘焙是唯一渲染源——放开到核数上限，静默生成更快）
+                int cpus = Runtime.getRuntime().availableProcessors();
+                final int bakeThreads = ordered.size() > 6000
+                        ? Math.min(8, Math.max(6, cpus))
+                        : Math.min(6, Math.max(4, cpus));
                 java.util.concurrent.ExecutorService pool =
                         java.util.concurrent.Executors.newFixedThreadPool(bakeThreads, r -> {
                             Thread bt = new Thread(r, "world-bake-w");
@@ -2515,11 +2563,23 @@ public class WorldMapRenderer {
                                 if (Thread.currentThread().isInterrupted()) {
                                     break;
                                 }
-                                int i = nextIdx.getAndIncrement();
-                                if (i >= ordered.size()) {
-                                    break;
+                                // 视口优先（v392）：先消费视口优先队列——
+                                // 拖动时烘焙跟着渲染屏幕区域（替代已删除
+                                // 的视口按需渲染），已渲染的跳过
+                                long key;
+                                Long vpKey = bakeViewportQueue.poll();
+                                if (vpKey != null) {
+                                    if (map.chunkColors.containsKey(vpKey)) {
+                                        continue;
+                                    }
+                                    key = vpKey;
+                                } else {
+                                    int i = nextIdx.getAndIncrement();
+                                    if (i >= ordered.size()) {
+                                        break;
+                                    }
+                                    key = ordered.get(i);
                                 }
-                                long key = ordered.get(i);
                                 int cx = (int) (key >> 32);
                                 int cz = (int) (long) key;
                                 try {
