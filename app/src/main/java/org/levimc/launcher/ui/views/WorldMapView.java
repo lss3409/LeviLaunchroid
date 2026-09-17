@@ -131,6 +131,23 @@ public class WorldMapView extends View {
         pendingChunks.removeAll(keys);
     }
 
+    /** 清空全部 chunk 渲染数据（渲染参数变化时调用——如忽略光源开关）：
+     *  只清 chunkColors 不够——旧 tile/LOD/pending 会残留旧渲染结果
+     *  （"开了忽略光源还是显示黄色"的根因）。清完视口按需重新渲染。 */
+    public void clearChunkData() {
+        for (Bitmap b : chunkTiles.values()) {
+            b.recycle();
+        }
+        chunkTiles.clear();
+        pendingChunks.clear();
+        chunkDataCache.clear();
+        if (lodMini != null) {
+            lodMini.recycle();
+            lodMini = null;
+        }
+        invalidate();
+    }
+
     /** 外部按需渲染完成后调用：清除 pending 标记并重绘。 */
     public void onChunksRendered(java.util.Set<Long> chunkKeys) {
         pendingChunks.removeAll(chunkKeys);

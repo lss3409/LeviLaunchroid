@@ -515,16 +515,21 @@ public class NbtViewerActivity extends BaseActivity {
         // 开启后渲染视为空气穿透——生电建筑周围插满火把时边缘一圈黄色
         binding.layerIgnoreLight.setOnCheckedChangeListener((b, checked) -> {
             WorldMapRenderer.ignoreLightBlocks = checked;
-            // 渲染结果变化：当前内存数据已按旧设置渲染，需要重新渲染
-            // （简单起见：失效当前视图数据，视口按需重渲染）
+            // 渲染结果变化：清空全部渲染数据（tile/LOD/pending）重渲染；
+            // 渲染代际 +1 并中断预渲染——否则预渲染线程用旧标志渲染的
+            // 数据完成后 putIfAbsent 回填，黄色火把又回来
+            renderGen.incrementAndGet();
+            if (prerenderThread != null) {
+                prerenderThread.interrupt();
+                prerenderThread = null;
+            }
             if (currentMap != null && currentMap.chunkColors != null) {
                 currentMap.chunkColors.clear();
                 if (currentMap.chunkBiomeColors != null) {
                     currentMap.chunkBiomeColors.clear();
                 }
             }
-            binding.worldMapImage.cancelPendingChunks(java.util.Collections.emptySet());
-            binding.worldMapImage.invalidate();
+            binding.worldMapImage.clearChunkData();
         });
         WorldMapRenderer.ignoreLightBlocks = binding.layerIgnoreLight.isChecked();
 
