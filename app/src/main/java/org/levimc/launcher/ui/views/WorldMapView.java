@@ -120,6 +120,11 @@ public class WorldMapView extends View {
     private OnChunksNeededListener chunksNeededListener;
     /** 已请求未渲染的 chunk（去重，防重复提交）。 */
     private final java.util.Set<Long> pendingChunks = new java.util.HashSet<>();
+    /** 缺失 chunk 报告节流：onDraw 每帧都收集缺失并报告，而报告会清空
+     *  渲染队列——拖动时每帧打断刚排队的任务，"渲染永远被作废"死循环
+     *  （主世界区块卡住不动的根因）。节流 300ms：期间 missing 不入
+     *  pending，下帧继续收集不丢失。 */
+    private long lastChunkReportAt = 0;
 
     public void setOnChunksNeededListener(OnChunksNeededListener l) {
         this.chunksNeededListener = l;
@@ -773,8 +778,15 @@ public class WorldMapView extends View {
                 canvas.drawBitmap(tile, null, dst, tilePaint);
             }
         }
-        // 视口按需渲染：报告缺失 chunk（外部后台渲染后 onChunksRendered 重绘）
+        // 视口按需渲染：报告缺失 chunk（外部后台渲染后 onChunksRendered 重绘）。
+        // 节流：报告会清空渲染队列（拖动时优先渲染新视口），每帧报告 =
+        // 每帧作废刚排队的任务——渲染永远被打断（"区块卡住不动"根因）
         if (missing != null && !missing.isEmpty()) {
+            long now = android.os.SystemClock.uptimeMillis();
+            if (now - lastChunkReportAt < 300) {
+                return; // 节流：missing 未入 pending，下帧重新收集不丢
+            }
+            lastChunkReportAt = now;
             pendingChunks.addAll(missing);
             java.util.Set<Long> report = new java.util.HashSet<>(missing);
             missing.clear();

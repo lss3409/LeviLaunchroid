@@ -419,6 +419,10 @@ public class NbtViewerActivity extends BaseActivity {
                         renderReaderTl.remove();
                     } finally {
                         inFlight.remove(key);
+                        // 任务结束移出 renderQueue——否则只增不减，
+                        // oldBatch 越滚越大把已渲染 chunk 的 pending
+                        // 反复取消（渲染队列管理混乱的帮凶）
+                        renderQueue.remove(key);
                         remaining.decrementAndGet();
                         // 批量节流重绘：80ms 窗口内的完成 chunk 合并成一次
                         // 局部重绘（同一 chunk 行的重叠行区间只采样一次）
@@ -1320,7 +1324,10 @@ public class NbtViewerActivity extends BaseActivity {
                     // 和 startPrerender 检查 currentMap==null 直接 return，
                     // 切维度后视口按需渲染/预渲染全不工作的根因）
                     currentMap = fMap;
-                    WorldMapRenderer.debugExport(fMap); // 调试导出 map_debug.png
+                    // 调试导出移到后台：大世界 mini 位图 928×1089 创建 +
+                    // PNG 压缩在主线程几百 ms（切维度时每秒 Jank 的帮凶）
+                    final WorldMapRenderer.WorldMap fDbgMap = fMap;
+                    executor.execute(() -> WorldMapRenderer.debugExport(fDbgMap));
                     binding.worldMapImage.setWorldMap(fMap, fKeepView);
                     // 不 fitToView：fit 后下界 ×0.44 缩放太小（视口 chunk
                     // >4096 进 LOD、网格不画），进图一片黑像没渲染（v380
@@ -1789,7 +1796,9 @@ public class NbtViewerActivity extends BaseActivity {
 
         // 世界地图：占满全屏（PRD 布局），缩放/平移时按比例重采样方块颜色
         if (worldMap != null) {
-            WorldMapRenderer.debugExport(worldMap); // 调试导出 map_debug.png
+            // 调试导出移到后台（大世界位图创建+PNG 压缩主线程几百 ms）
+            final WorldMapRenderer.WorldMap fDbgMap = worldMap;
+            executor.execute(() -> WorldMapRenderer.debugExport(fDbgMap));
                         binding.worldMapImage.setWorldMap(worldMap);
             binding.worldMapPlaceholder.setVisibility(View.GONE);
             // 主世界打开不自动预渲染：流式渲染 18 万条目（subchunk value
