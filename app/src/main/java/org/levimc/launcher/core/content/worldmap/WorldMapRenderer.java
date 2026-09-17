@@ -1549,9 +1549,12 @@ public class WorldMapRenderer {
                             return false;
                         }
                     } else {
-                        // 窗口内 subchunk（maxSub±2）
+                        // 窗口内 subchunk：下界 maxSub-6（v372 渲染窗口
+                        // fMin=surfaceSub-4，filter 只读到 maxSub-2 会把
+                        // 地表层以下数据丢掉——预渲染合并后主世界错乱根因。
+                        // 放宽到 maxSub-6 覆盖树冠与地表高度差 + 河谷）
                         Integer maxSub = maxSubRef.get(pack(ck[0], ck[1]));
-                        if (maxSub == null || ck[3] < maxSub - 2 || ck[3] > maxSub + 2) {
+                        if (maxSub == null || ck[3] < maxSub - 6 || ck[3] > maxSub + 2) {
                             filterDiag[3]++;
                             return false;
                         }
@@ -1874,7 +1877,8 @@ public class WorldMapRenderer {
     // v12：忽略光源方块开关（火把等光源方块渲染结果变化须失效）
     // v13：渲染窗口下界 -2 → -4（悬空建筑下方列不再回退群系黄）
     // v14：切维度保存缓存维度错乱（主世界图写进下界缓存文件）须失效
-    private static final int MAP_CACHE_VERSION = 14;
+    // v15：流式 filter 窗口下界 maxSub-6（v14 缓存缺失深层数据须失效）
+    private static final int MAP_CACHE_VERSION = 15;
 
     /** 缓存根目录（应用私有，卸载即清——缓存可再生）。null 时回退旧路径。 */
     private static java.io.File sCacheBase;

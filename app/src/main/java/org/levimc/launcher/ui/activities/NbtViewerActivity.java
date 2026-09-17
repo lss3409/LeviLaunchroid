@@ -2494,7 +2494,10 @@ public class NbtViewerActivity extends BaseActivity {
     @Override
     protected void onDestroy() {
         // 大世界按需渲染：把本次会话渲染过的 chunk 增量写入磁盘缓存
+        // （v378 小世界全量回填后 currentMap 是 colors 数组路径 map，
+        // 其 chunkColors 为 null——判空保护，否则 onDestroy NPE 崩溃）
         if (currentMap != null && currentMap.chunkSourceDir != null
+                && currentMap.chunkColors != null
                 && !currentMap.chunkColors.isEmpty()) {
             WorldMapRenderer.saveChunkCache(currentMap, currentMap.chunkSourceDir,
                     currentMap.chunkSourceDim);
