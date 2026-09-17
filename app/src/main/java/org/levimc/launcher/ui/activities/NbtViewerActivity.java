@@ -522,21 +522,17 @@ public class NbtViewerActivity extends BaseActivity {
         binding.layerSlime.setOnCheckedChangeListener((b, checked) ->
                 binding.worldMapImage.setShowSlimeChunks(checked));
         binding.worldMapImage.setShowSlimeChunks(binding.layerSlime.isChecked());
-        // 内存优化（BTR 式离屏卸载）：滑到哪渲染到哪，视口外的 chunk 直接回收
-        binding.layerMemory.setOnCheckedChangeListener((b, checked) ->
-                binding.worldMapImage.setMemoryOptimized(checked));
-        binding.worldMapImage.setMemoryOptimized(binding.layerMemory.isChecked());
         // 忽略光源方块（火把/灯笼等非固体光源俯视渲染成黄色杂点）：
         // 开启后渲染视为空气穿透——生电建筑周围插满火把时边缘一圈黄色
         binding.layerIgnoreLight.setOnCheckedChangeListener((b, checked) -> {
             WorldMapRenderer.ignoreLightBlocks = checked;
             // 渲染结果变化：清空全部渲染数据（tile/LOD/pending）重渲染；
-            // 渲染代际 +1 并中断预渲染——否则预渲染线程用旧标志渲染的
-            // 数据完成后 putIfAbsent 回填，黄色火把又回来
+            // 渲染代际 +1 并中断烘焙——否则烘焙线程用旧标志渲染的
+            // 数据完成后回填，黄色火把又回来
             renderGen.incrementAndGet();
-            if (prerenderThread != null) {
-                prerenderThread.interrupt();
-                prerenderThread = null;
+            if (bakeThread != null) {
+                bakeThread.interrupt();
+                bakeThread = null;
             }
             if (currentMap != null && currentMap.chunkColors != null) {
                 currentMap.chunkColors.clear();
@@ -547,17 +543,6 @@ public class NbtViewerActivity extends BaseActivity {
             binding.worldMapImage.clearChunkData();
         });
         WorldMapRenderer.ignoreLightBlocks = binding.layerIgnoreLight.isChecked();
-
-        // 预渲染全部区块（后台独立线程逐 chunk 渲染，与视口按需互不冲突：
-        // 双方都检查 chunkColors 已渲染跳过；拖动时视口报告照常优先）
-        binding.prerenderAll.setOnCheckedChangeListener((b, checked) -> {
-            if (checked && currentMap != null && currentWorldDir != null) {
-                startPrerender();
-            } else if (!checked && prerenderThread != null) {
-                prerenderThread.interrupt();
-                prerenderThread = null;
-            }
-        });
 
         // 下界渲染层（y 轴范围）：全部/上部/中部/下部——下界 sub 0-7 每层
         // 都有方块，全量解码是下界渲染慢的主因；选窄范围大幅提速
@@ -674,141 +659,8 @@ public class NbtViewerActivity extends BaseActivity {
                 .show();
     }
 
-    /** 预渲染后台线程（设置开关打开后逐 chunk 渲染全图）。 */
-    private volatile Thread prerenderThread;
     /** 后台烘焙线程（v386：无缓存时逐 chunk 补全缓存，低优先级）。 */
     private volatile Thread bakeThread;
-
-    /** 启动预渲染：从地图中心螺旋向外逐 chunk 渲染（跳过已有数据）。 */
-    /**
-     * 预渲染（开关打开）：复用成熟的全量流式渲染
-     * buildSatelliteMapStreaming（旧版"渲染完所有方块再进地图"同款），
-     * 后台低优先级线程跑完 → 缓存落盘 → 合并进当前视图。
-     * 与视口按需并行：流式渲染期间视口渲染照常（各自 reader 互不干扰），
-     * 完成后 putAll 合并（同 key 数据一致无害）。
-     */
-    private void startPrerender() {
-        final WorldMapRenderer.WorldMap fMap = currentMap;
-        if (fMap == null || currentWorldDir == null) {
-            return;
-        }
-        final File dbDir = new File(currentWorldDir, "db");
-        final int dim = "nether".equals(mapDimension) ? 1 : "end".equals(mapDimension) ? 2 : 0;
-        final int myGen = renderGen.get();
-        if (prerenderThread != null) {
-            prerenderThread.interrupt();
-        }
-        prerenderThread = new Thread(() -> {
-            try {
-                // 渐进动画：每 20 chunk 增量合并进当前视图并通知 UI，
-                // 从世界中心环形向外铺开（用户要求的"以世界为圆心向外刷"）。
-                // UI 通知节流 200ms（2.5 万 chunk = 1242 批回调，每批一条
-                // UI 消息会刷爆主线程——v293 per-chunk 消息风暴 ANR 教训）
-                final boolean merge = !binding.worldMapImage.isMemoryOptimized();
-                final java.util.concurrent.atomic.AtomicLong lastUiNotify =
-                        new java.util.concurrent.atomic.AtomicLong(0);
-                final java.util.Set<Long> pendingUiKeys = new java.util.HashSet<>();
-                WorldMapRenderer.WorldMap full =
-                        WorldMapRenderer.buildSatelliteMapStreaming(dbDir, dim,
-                                new WorldMapRenderer.StreamProgress() {
-                                    @Override
-                                    public void onProgress(int done, int total) {
-                                    }
-
-                                    @Override
-                                    public void onChunkData(
-                                            java.util.Map<Long, int[]> colors,
-                                            java.util.Map<Long, int[]> biomes,
-                                            java.util.List<Long> newKeys) {
-                                        if (renderGen.get() != myGen
-                                                || Thread.currentThread().isInterrupted()) {
-                                            return;
-                                        }
-                                        if (!merge) {
-                                            // 内存优化开启：预渲染只落盘不驻留
-                                            return;
-                                        }
-                                        java.util.Set<Long> keys = new java.util.HashSet<>();
-                                        for (Long k : newKeys) {
-                                            // 渲染全透明（hasAny=false）的 chunk 不 put
-                                            // 进 colors——get 为 null 直接 putIfAbsent
-                                            // 会 NPE 把整个流式渲染打崩（末地"只渲染
-                                            // 主岛"的根因：第一个全透明 chunk 出现即崩）
-                                            int[] cc = colors.get(k);
-                                            if (cc == null) {
-                                                continue;
-                                            }
-                                            if (fMap.chunkColors.putIfAbsent(k, cc) == null) {
-                                                keys.add(k);
-                                            }
-                                        }
-                                        if (fMap.chunkBiomeColors != null && biomes != null) {
-                                            for (Long k : newKeys) {
-                                                int[] bc = biomes.get(k);
-                                                if (bc != null) {
-                                                    fMap.chunkBiomeColors.putIfAbsent(k, bc);
-                                                }
-                                            }
-                                        }
-                                        if (!keys.isEmpty()) {
-                                            long now = android.os.SystemClock.uptimeMillis();
-                                            if (now - lastUiNotify.get() < 200) {
-                                                pendingUiKeys.addAll(keys);
-                                                return;
-                                            }
-                                            lastUiNotify.set(now);
-                                            final java.util.Set<Long> notify =
-                                                    new java.util.HashSet<>(pendingUiKeys);
-                                            notify.addAll(keys);
-                                            pendingUiKeys.clear();
-                                            runOnUiThread(() -> {
-                                                if (renderGen.get() == myGen) {
-                                                    binding.worldMapImage.onChunksRendered(notify);
-                                                }
-                                            });
-                                        }
-                                    }
-                                });
-                if (full == null || renderGen.get() != myGen
-                        || Thread.currentThread().isInterrupted()) {
-                    return;
-                }
-                // 渲染参数后缀定格（保存用 map 后缀而非当前全局参数——
-                // 预渲染期间用户可能已切段/切维度）
-                full.chunkCacheSuffix = WorldMapRenderer.cacheSuffixFor(dim);
-                WorldMapRenderer.saveChunkCache(full, dbDir, dim);
-                if (renderGen.get() != myGen) {
-                    return;
-                }
-                if (merge) {
-                    // 合并进当前视图：putIfAbsent——视口按需已渲染的 chunk 是
-                    // 地表窗口版（正确），流式版窗口可能不同（树冠层），
-                    // 覆盖会让结构附近颜色回退/异常
-                    for (java.util.Map.Entry<Long, int[]> e : full.chunkColors.entrySet()) {
-                        fMap.chunkColors.putIfAbsent(e.getKey(), e.getValue());
-                    }
-                    if (full.chunkBiomeColors != null && fMap.chunkBiomeColors != null) {
-                        for (java.util.Map.Entry<Long, int[]> e
-                                : full.chunkBiomeColors.entrySet()) {
-                            fMap.chunkBiomeColors.putIfAbsent(e.getKey(), e.getValue());
-                        }
-                    }
-                }
-                Log.i(TAG, "预渲染完成: " + full.chunkColors.size() + " chunk (dim=" + dim
-                        + ", merge=" + merge + ")");
-                runOnUiThread(() -> {
-                    if (renderGen.get() == myGen) {
-                        binding.worldMapImage.onChunksRendered(
-                                java.util.Collections.emptySet());
-                    }
-                });
-            } catch (Throwable t) {
-                Log.w(TAG, "预渲染失败", t);
-            }
-        }, "prerender");
-        prerenderThread.setPriority(Thread.MIN_PRIORITY);
-        prerenderThread.start();
-    }
 
     /**
      * 增量更新（v384 用户新思路"专门存地图数据的地方"）：缓存命中秒开后，
@@ -1193,11 +1045,7 @@ public class NbtViewerActivity extends BaseActivity {
         // 新维度 chunk 不再等旧队列（下界/末地切换慢的根因）
         renderGen.incrementAndGet();
         renderQueue.clear();
-        if (prerenderThread != null) {
-            prerenderThread.interrupt();
-            prerenderThread = null;
-        }
-        // 烘焙线程换维度时也中断（新维度有自己的烘焙/预渲染）
+        // 烘焙线程换维度时中断（新维度有自己的烘焙）
         if (bakeThread != null) {
             bakeThread.interrupt();
             bakeThread = null;
@@ -1358,12 +1206,31 @@ public class NbtViewerActivity extends BaseActivity {
                     // 实体解析并行，512MB heap 必 OOM（v382 实测崩溃，
                     // tombstone OutOfMemoryError）——主世界走视口按需+LOD
                     if (!"overworld".equals(mapDimension)) {
+                        // 下界/末地切维度：缓存不足时自动烘焙（v388 起与
+                        // 主世界统一机制——替代已删除的流式预渲染；共享
+                        // fMap 圆形铺开 + 落盘缓存）
                         long expectChunks = (long) (fMap.width / 16) * (fMap.height / 16);
                         boolean cacheInsufficient = fMap.chunkColors != null
                                 && fMap.chunkColors.size() * 10L < expectChunks * 6L;
                         if (fMap.chunkColors != null && fMap.chunkSourceDir != null
                                 && (fMap.chunkColors.isEmpty() || cacheInsufficient)) {
-                            startPrerender();
+                            final int bakeDim = "nether".equals(mapDimension) ? 1 : 2;
+                            final WorldMapRenderer.WorldMap fBake = fMap;
+                            bakeThread = WorldMapRenderer.bakeWorldCache(
+                                    fMap.chunkSourceDir, bakeDim, fBake,
+                                    batch -> runOnUiThread(() -> {
+                                        if (!isFinishing() && !isDestroyed()
+                                                && currentMap == fBake) {
+                                            binding.worldMapImage.onChunksRendered(batch);
+                                        }
+                                    }),
+                                    () -> runOnUiThread(() -> {
+                                        if (!isFinishing() && !isDestroyed()
+                                                && currentMap == fBake) {
+                                            binding.worldMapImage.onChunksRendered(
+                                                    java.util.Collections.emptySet());
+                                        }
+                                    }));
                         } else if (fMap.chunkColors != null && !fMap.chunkColors.isEmpty()
                                 && fMap.chunkSourceDir != null) {
                             // 缓存命中：增量更新（存档玩过后只重渲染变化 chunk）
@@ -1818,16 +1685,18 @@ public class NbtViewerActivity extends BaseActivity {
             // （v382 实测"预渲染失败 OutOfMemoryError"）。主世界视口按需
             // 渲染 + LOD 已覆盖；全图预渲染只用于切维度自动（下界/末地
             // 数据量小）
-            // 缓存命中（chunkColors 非空）：后台增量更新——存档玩过之后
-            // 只重渲染变化文件覆盖的 chunk
+            // 缓存完整命中：后台增量更新——存档玩过之后只重渲染变化文件
+            // 覆盖的 chunk
+            long expectOw = (long) (worldMap.width / 16) * (worldMap.height / 16);
+            boolean cacheLacking = worldMap.chunkColors != null
+                    && worldMap.chunkColors.size() * 10L < expectOw * 6L;
             if (worldMap.chunkColors != null && !worldMap.chunkColors.isEmpty()
-                    && worldMap.chunkSourceDir != null) {
+                    && !cacheLacking && worldMap.chunkSourceDir != null) {
                 startIncrementalUpdate(worldMap.chunkSourceDir, worldMap, 0);
             } else if (worldMap.chunkColors != null && worldMap.chunkSourceDir != null) {
-                // 无缓存（首次打开/导入未烘焙完）：后台多线程烘焙补全。
-                // 共享屏幕 map（targetMap=worldMap）——烘焙的 chunk 直接
-                // 进屏幕显示，复用预渲染的圆形铺开效果（距离排序从原点
-                // 向外 + 每批 50 chunk 通知 UI）
+                // 无缓存或缓存不足 60%（烘焙曾中断/只烘了一半）：后台
+                // 多线程烘焙补全。共享屏幕 map——烘焙的 chunk 直接进屏幕，
+                // 圆形铺开效果（距离排序从原点向外 + 每批 50 chunk 通知 UI）
                 final WorldMapRenderer.WorldMap fBake = worldMap;
                 bakeThread = WorldMapRenderer.bakeWorldCache(
                         worldMap.chunkSourceDir, 0, fBake,

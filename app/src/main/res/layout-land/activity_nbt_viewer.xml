@@ -470,17 +470,6 @@
                         android:textStyle="bold" />
 
                     <CheckBox
-                        android:id="@+id/layer_memory"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:checked="false"
-                        android:fontFamily="@font/misans"
-                        android:text="@string/layer_memory"
-                        android:textColor="@color/on_surface"
-                        android:textSize="12sp" />
-
-                    <CheckBox
                         android:id="@+id/layer_ignore_light"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -488,17 +477,6 @@
                         android:checked="false"
                         android:fontFamily="@font/misans"
                         android:text="@string/layer_ignore_light"
-                        android:textColor="@color/on_surface"
-                        android:textSize="12sp" />
-
-                    <CheckBox
-                        android:id="@+id/prerender_all"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:checked="false"
-                        android:fontFamily="@font/misans"
-                        android:text="@string/prerender_all"
                         android:textColor="@color/on_surface"
                         android:textSize="12sp" />
 

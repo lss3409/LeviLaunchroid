@@ -164,99 +164,6 @@ public class WorldMapView extends View {
         invalidate();
     }
 
-    /**
-     * 内存优化（BTR 式离屏卸载）：开启后视口（含 1 屏缓冲）外的 chunk
-     * 数据与 tile 直接回收，滑到哪渲染到哪——平板 3840×2560 高分辨率
-     * 下渲染压力大，长时间滑动会累积几千 chunk（每 chunk 1KB 色表 +
-     * 1KB tile），卸载后内存恒定在视口规模。
-     */
-    private boolean memoryOptimized = false;
-    private long lastEvictTime = 0;
-
-    public void setMemoryOptimized(boolean on) {
-        memoryOptimized = on;
-        if (on) {
-            evictOffScreen();
-        }
-    }
-
-    /** 内存优化是否开启（预渲染合并时查询——开启时预渲染只落盘不驻留）。 */
-    public boolean isMemoryOptimized() {
-        return memoryOptimized;
-    }
-
-    /** 卸载视口外（1 屏缓冲）的 chunk 数据与 tile；滑回时重新按需渲染。 */
-    private void evictOffScreen() {
-        if (map == null || map.chunkColors == null || map.chunkColors.isEmpty()) {
-            return;
-        }
-        int viewW = getWidth();
-        int viewH = getHeight();
-        if (viewW <= 0 || viewH <= 0) {
-            return;
-        }
-        float invPpb = 1f / pixelsPerBlock;
-        double leftWorld = (0 - (double) offsetX - viewW) * invPpb + map.minBlockX;
-        double rightWorld = (viewW - (double) offsetX + viewW) * invPpb + map.minBlockX;
-        double topWorld = (0 - (double) offsetY - viewH) * invPpb + map.minBlockZ;
-        double bottomWorld = (viewH - (double) offsetY + viewH) * invPpb + map.minBlockZ;
-        int minCx = Math.floorDiv((int) Math.floor(leftWorld), 16);
-        int maxCx = Math.floorDiv((int) Math.ceil(rightWorld), 16);
-        int minCz = Math.floorDiv((int) Math.floor(topWorld), 16);
-        int maxCz = Math.floorDiv((int) Math.ceil(bottomWorld), 16);
-        java.util.Iterator<java.util.Map.Entry<Long, Bitmap>> it = chunkTiles.entrySet().iterator();
-        java.util.Set<Long> removedKeys = new java.util.HashSet<>();
-        while (it.hasNext()) {
-            java.util.Map.Entry<Long, Bitmap> e = it.next();
-            int cx = (int) (e.getKey() >> 32);
-            int cz = (int) (long) e.getKey();
-            if (cx < minCx || cx > maxCx || cz < minCz || cz > maxCz) {
-                e.getValue().recycle();
-                it.remove();
-                removedKeys.add(e.getKey());
-            }
-        }
-        map.chunkColors.keySet().removeIf(k -> {
-            int cx = (int) (k >> 32);
-            int cz = (int) (long) k;
-            boolean out = cx < minCx || cx > maxCx || cz < minCz || cz > maxCz;
-            if (out) {
-                removedKeys.add(k);
-            }
-            return out;
-        });
-        // 被卸载的 chunk 必须同时移出 pendingChunks——否则 onDraw 收集缺失时
-        // 被 pending 拦截，滑回去永远不再请求渲染（内存优化开启后滑动出现
-        // 成片空白的根因）
-        if (!pendingChunks.isEmpty()) {
-            pendingChunks.removeIf(k -> {
-                int cx = (int) (k >> 32);
-                int cz = (int) (long) k;
-                return cx < minCx || cx > maxCx || cz < minCz || cz > maxCz;
-            });
-        }
-        chunkDataCache.clear();
-        // LOD 缩略图不置空重建（置空后下一帧全量重建 2.5 万 chunk 采样众数
-        // = 每秒卡一下，"缩小卡"的另一来源）：被卸载 chunk 对应像素直接
-        // 置透明——LOD 只显示内存中还存在的区域，与"离开的区块立刻清理"
-        // 语义一致（缩小后看到浏览过区域、未浏览区域空白，而非整图残留）
-        if (lodMini != null && !removedKeys.isEmpty()) {
-            int lodMinCx = Math.floorDiv(map.minBlockX, 16);
-            int lodMinCz = Math.floorDiv(map.minBlockZ, 16);
-            for (Long k : removedKeys) {
-                int cx = (int) (k >> 32);
-                int cz = (int) (long) k;
-                int px = cx - lodMinCx;
-                int pz = cz - lodMinCz;
-                if (px >= 0 && px < lodMini.getWidth()
-                        && pz >= 0 && pz < lodMini.getHeight()) {
-                    lodMini.setPixel(px, pz, 0);
-                }
-            }
-        }
-        invalidate();
-    }
-
     /** 通知视图变化（供 HUD 更新），在缩放/平移/跳转后调用。 */
     private void notifyViewChanged() {
         if (viewChangedListener != null && map != null && getWidth() > 0) {
@@ -608,16 +515,6 @@ public class WorldMapView extends View {
             // 大世界：chunk tile 平铺（BTR 同款）——零重采样、零 39MB 大位图，
             // 每帧只 drawBitmap 视口内 chunk 的小 tile（GPU 加速）
             drawChunkLayer(canvas);
-            // 内存优化：节流 250ms 卸载一次视口外 chunk（滑到哪渲染到哪，
-            // "离开的区块立刻清理"——1 秒节流时快速拖动/缩小瞬间大量
-            // 离屏 chunk 残留，用户以为没删）
-            if (memoryOptimized) {
-                long now = android.os.SystemClock.uptimeMillis();
-                if (now - lastEvictTime > 250) {
-                    lastEvictTime = now;
-                    evictOffScreen();
-                }
-            }
         } else {
             // 小世界整图路径：缓存位图三分支
             // 1) 纯平移 → 直接平移缓存位图，零重采样（拖动流畅）；
@@ -1824,11 +1721,6 @@ public class WorldMapView extends View {
             // （onDraw 下一帧收集当前视口真实缺失，只渲染需要的 chunk）
             scalePreviewActive = false;
             scaling = false;
-            // 内存优化：缩放结束立即卸载视口外 chunk（"猛的缩小"后
-            // 离屏数据不残留——缩小视口变大属正常保留，扩大前离屏的必须清）
-            if (memoryOptimized) {
-                evictOffScreen();
-            }
             invalidate();
             notifyViewChanged();
         }
