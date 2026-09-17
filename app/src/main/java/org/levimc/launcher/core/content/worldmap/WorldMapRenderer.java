@@ -2262,8 +2262,18 @@ public class WorldMapRenderer {
         // 保存用 map 创建时定格的渲染参数后缀（切段后全局参数已变，
         // 用全局参数会把旧段数据写进新段文件名）
         File out = chunkCacheFileFor(dbDir, dimension, map.chunkCacheSuffix);
-        // 并发写互斥：烘焙线程（每 200 chunk 落盘）/退出保存/切维度
-        // 保存可能同时写同一文件 → 文件损坏
+        // 并发写互斥：烘焙线程（增量落盘）/退出保存/切维度保存可能
+        // 同时写同一文件 → 文件损坏。
+        // 同时先拷快照再写：保存遍历 chunkColors 期间烘焙/视口线程
+        // 仍在 put 新 chunk——直接迭代 ConcurrentHashMap 会写出
+        // chunk 数与数据不一致的损坏文件 → 下次 loadChunkCache 读
+        // 失败 → 重新渲染 → 再保存损坏（"每次点进去都重新渲染"
+        // 死循环的根因）
+        Map<Long, int[]> snapshot = new HashMap<>(map.chunkColors);
+        Map<Long, int[]> biomeSnapshot = null;
+        if (map.chunkBiomeColors != null && !map.chunkBiomeColors.isEmpty()) {
+            biomeSnapshot = new HashMap<>(map.chunkBiomeColors);
+        }
         synchronized (CACHE_SAVE_LOCK) {
             try (java.io.DataOutputStream dos = new java.io.DataOutputStream(
                     new java.io.BufferedOutputStream(new java.io.FileOutputStream(out)))) {
@@ -2274,7 +2284,7 @@ public class WorldMapRenderer {
             int maxCz = minCz + map.height / 16 - 1;
             dos.writeInt(MAP_CACHE_MAGIC);
             dos.writeInt(MAP_CACHE_VERSION);
-            dos.writeInt(map.chunkColors.size());
+            dos.writeInt(snapshot.size());
             dos.writeInt(minCx);
             dos.writeInt(minCz);
             dos.writeInt(maxCx);
@@ -2291,14 +2301,15 @@ public class WorldMapRenderer {
                 dos.writeShort(fb.length);
                 dos.write(fb);
             }
-            boolean hasBiome = map.chunkBiomeColors != null && !map.chunkBiomeColors.isEmpty();
+            boolean hasBiome = biomeSnapshot != null;
             dos.writeBoolean(hasBiome);
-            for (Map.Entry<Long, int[]> e : map.chunkColors.entrySet()) {
+            // 写快照（保存期间 map 并发 put 不影响文件一致性）
+            for (Map.Entry<Long, int[]> e : snapshot.entrySet()) {
                 dos.writeInt(unpackX(e.getKey()));
                 dos.writeInt(unpackZ(e.getKey()));
                 writePaletteChunk(dos, e.getValue());
                 if (hasBiome) {
-                    int[] bc = map.chunkBiomeColors.get(e.getKey());
+                    int[] bc = biomeSnapshot.get(e.getKey());
                     writePaletteChunk(dos, bc != null ? bc : EMPTY_CHUNK_COLORS);
                 }
             }
@@ -2498,6 +2509,7 @@ public class WorldMapRenderer {
                         LevelDBReader wReader = new LevelDBReader(dbDir);
                         java.util.Set<Long> batch = new java.util.HashSet<>();
                         int sinceSave = 0;
+                        final long[] lastSaveAt = {System.currentTimeMillis()};
                         try {
                             while (true) {
                                 if (Thread.currentThread().isInterrupted()) {
@@ -2532,7 +2544,14 @@ public class WorldMapRenderer {
                                     batch.clear();
                                     progress.onBatch(out);
                                 }
-                                if (++sinceSave % 200 == 0) {
+                                // 落盘节流：每 200 chunk 全量写 25MB 文件 =
+                                // 6 线程轮流写+互相等锁的 IO 风暴（"卡"
+                                // 的根源）——改每 2000 chunk 或 20 秒一次
+                                long nowMs = System.currentTimeMillis();
+                                if (++sinceSave >= 2000
+                                        || nowMs - lastSaveAt[0] > 20000) {
+                                    sinceSave = 0;
+                                    lastSaveAt[0] = nowMs;
                                     saveChunkCache(map, dbDir, dimension);
                                 }
                             }
