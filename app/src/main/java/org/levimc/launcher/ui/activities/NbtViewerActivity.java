@@ -448,14 +448,17 @@ public class NbtViewerActivity extends BaseActivity {
                     .setMessage("方块: " + m.name
                             + "\n坐标: X " + m.blockX + "  Z " + m.blockZ
                             + "（区块 " + m.chunkX + "," + m.chunkZ + "）"
-                            + "\n该区块数量: " + m.count
-                            + "\n\n提示: 矿石分布在地下，此标点代表"
-                            + "所在区块该矿种的位置")
+                            + (m.count > 0 ? "\n该区块数量: " + m.count : "")
+                            + "\n\n提示: 矿石分布在地下，标点定位到"
+                            + "所在区块中心（精度 ±8 方块）")
                     .setNegativeButton(getString(R.string.nbt_edit_cancel), null)
                     .show();
         });
-        // v413：实体点击 → 详情弹窗（实体名/坐标）
-        binding.worldMapImage.setOnEntityClickListener(ep ->
+        // v413/v417：实体点击 → 附近实体列表（密堆时弹列表；
+        // 单个直接详情）
+        binding.worldMapImage.setOnEntityClickListener(near -> {
+            if (near.size() == 1) {
+                WorldMapRenderer.EntityPos ep = near.get(0);
                 new CustomAlertDialog(this)
                         .setTitleText(WorldMapView.entityLabel(ep.name))
                         .setMessage("实体: " + ep.name
@@ -463,7 +466,23 @@ public class NbtViewerActivity extends BaseActivity {
                                 + "  Y " + Math.round(ep.y)
                                 + "  Z " + Math.round(ep.z))
                         .setNegativeButton(getString(R.string.nbt_edit_cancel), null)
-                        .show());
+                        .show();
+                return;
+            }
+            // 密堆：列出附近实体（名称 + 坐标）
+            StringBuilder sb = new StringBuilder();
+            for (WorldMapRenderer.EntityPos ep : near) {
+                sb.append("· ").append(WorldMapView.entityLabel(ep.name))
+                        .append("（X ").append(Math.round(ep.x))
+                        .append(", Z ").append(Math.round(ep.z))
+                        .append("）\n");
+            }
+            new CustomAlertDialog(this)
+                    .setTitleText("附近实体（" + near.size() + "）")
+                    .setMessage(sb.toString().trim())
+                    .setNegativeButton(getString(R.string.nbt_edit_cancel), null)
+                    .show();
+        });
 
         // 下界渲染层（y 轴范围）：全部/上部/中部/下部——下界 sub 0-7 每层
         // 都有方块，全量解码是下界渲染慢的主因；选窄范围大幅提速

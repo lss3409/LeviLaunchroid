@@ -3791,10 +3791,11 @@ public class WorldMapRenderer {
         }
     }
 
-    /** v413：统计 chunk 内矿石（每矿种一个标点，位置取首个发现
-     *  坐标）。主世界只扫地下层（sub ≤ 4，y<80——钻石/金/铁/煤
-     *  都在此范围；每 chunk 2 万次 getIndex，烘焙全图可接受）；
-     *  下界扫全部层（下界金/石英）。 */
+    /** v417：统计 chunk 内矿石（每矿种一个标点）。扫**调色板**
+     * 而非逐方块 getIndex——调色板是去重名字列表（每 chunk 50
+     * 个内），逐方块扫描 2 万次 getIndex × 2.5 万 chunk 把烘焙
+     * 拖慢一倍（"烘焙停在 0 四五秒/预烘焙停住"的元凶之一）。
+     * 位置取 chunk 中心（精度 ±8，数量统计省略）。 */
     private static void collectChunkOres(Map<Integer, SubChunk> subs, int cx,
                                          int cz, int dimension,
                                          java.util.List<OreMarker> sink) {
@@ -3802,7 +3803,7 @@ public class WorldMapRenderer {
             return;
         }
         int maxSub = dimension == DIM_NETHER ? 15 : 4;
-        java.util.Map<String, int[]> found = new java.util.HashMap<>();
+        java.util.Set<String> found = new java.util.HashSet<>();
         for (Map.Entry<Integer, SubChunk> e : subs.entrySet()) {
             if (e.getKey() > maxSub) {
                 continue;
@@ -3811,34 +3812,21 @@ public class WorldMapRenderer {
             if (sub == null || sub.palette == null) {
                 continue;
             }
-            for (int x = 0; x < 16; x++) {
-                for (int z = 0; z < 16; z++) {
-                    for (int y = 0; y < 16; y++) {
-                        int idx = sub.getIndex(x, y, z);
-                        String name = idx >= 0 && idx < sub.palette.length
-                                ? sub.palette[idx] : null;
-                        if (name == null) {
-                            continue;
-                        }
-                        // palette 名带 minecraft: 前缀（色表 key 不带）
-                        String shortName = name.startsWith("minecraft:")
-                                ? name.substring(10) : name;
-                        if (!ORE_COLORS.containsKey(shortName)) {
-                            continue;
-                        }
-                        int[] acc = found.get(shortName);
-                        if (acc == null) {
-                            found.put(shortName, new int[]{1, cx * 16 + x, cz * 16 + z});
-                        } else {
-                            acc[0]++;
-                        }
-                    }
+            for (String name : sub.palette) {
+                if (name == null) {
+                    continue;
+                }
+                // palette 名带 minecraft: 前缀（色表 key 不带）
+                String shortName = name.startsWith("minecraft:")
+                        ? name.substring(10) : name;
+                if (ORE_COLORS.containsKey(shortName)) {
+                    found.add(shortName);
                 }
             }
         }
-        for (Map.Entry<String, int[]> e : found.entrySet()) {
-            int[] v = e.getValue();
-            sink.add(new OreMarker(e.getKey(), cx, cz, v[1], v[2], v[0]));
+        for (String name : found) {
+            sink.add(new OreMarker(name, cx, cz,
+                    cx * 16 + 8, cz * 16 + 8, 0));
         }
     }
 

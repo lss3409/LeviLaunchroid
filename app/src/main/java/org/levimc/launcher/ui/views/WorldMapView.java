@@ -92,6 +92,8 @@ public class WorldMapView extends View {
 
     private OnMapInteractListener listener;
     private OnViewChangedListener viewChangedListener;
+    /** v417：上次通知 HUD 时的缩放倍率（onDraw 变化检测兜底）。 */
+    private float lastNotifiedPpb = -1f;
 
     /** v403：打开时整图适配（fit 全图显示"大的缩放比例"）——
      *  主世界大地图用（用户反馈打开只看到放大 26 倍的一小块，
@@ -509,6 +511,13 @@ public class WorldMapView extends View {
         // 必须放行 chunk 路径——否则首屏空白且视口按需渲染永不触发
         if (map == null || (map.colors == null && map.chunkColors == null)) {
             return;
+        }
+        // v417：缩放倍率 HUD 兜底实时更新——任何路径改了 ppb
+        // （捏合/双击/程序化）onDraw 检测到变化就通知（用户反馈
+        // "缩放后要点屏幕才更新倍率"）
+        if (Float.compare(pixelsPerBlock, lastNotifiedPpb) != 0) {
+            lastNotifiedPpb = pixelsPerBlock;
+            notifyViewChanged();
         }
         int viewW = getWidth();
         int viewH = getHeight();
@@ -1693,9 +1702,10 @@ public class WorldMapView extends View {
         this.oreClickListener = l;
     }
 
-    /** v413：实体点击回调（详情弹窗：实体名/坐标）。 */
+    /** v413/v417：实体点击回调——v417 改为传递点击点附近的实体
+     *  列表（实体密堆时弹列表选择，而不是只命中一个）。 */
     public interface OnEntityClickListener {
-        void onEntityClick(WorldMapRenderer.EntityPos entity);
+        void onEntityClick(java.util.List<WorldMapRenderer.EntityPos> entities);
     }
 
     private OnEntityClickListener entityClickListener;
@@ -1720,23 +1730,30 @@ public class WorldMapView extends View {
         return null;
     }
 
-    /** v413：实体命中检测。 */
-    private WorldMapRenderer.EntityPos hitTestEntity(float sx, float sy) {
+    /** v417：点击点附近实体收集——检测半径加大（32px，小屏幕
+     *  点击困难），密堆时返回半径内全部实体（最多 20 个）。 */
+    private java.util.List<WorldMapRenderer.EntityPos> collectEntitiesNear(
+            float sx, float sy) {
         if (entities == null || entities.isEmpty()) {
             return null;
         }
+        java.util.List<WorldMapRenderer.EntityPos> near =
+                new java.util.ArrayList<>();
         for (WorldMapRenderer.EntityPos ep : entities) {
+            if (near.size() >= 20) {
+                break;
+            }
             if (!chunkRendered(Math.floorDiv((int) ep.x, 16),
                     Math.floorDiv((int) ep.z, 16))) {
                 continue;
             }
             float px = worldToScreenX(ep.x);
             float py = worldToScreenY(ep.z);
-            if (Math.abs(sx - px) <= 18f && Math.abs(sy - py) <= 18f) {
-                return ep;
+            if (Math.abs(sx - px) <= 32f && Math.abs(sy - py) <= 32f) {
+                near.add(ep);
             }
         }
-        return null;
+        return near.isEmpty() ? null : near;
     }
 
     /** 结构标记命中检测（半径 max(24px, ppb×1.4)）。 */
@@ -1747,7 +1764,8 @@ public class WorldMapView extends View {
             }
             float px = worldToScreenX(m.x + 0.5f);
             float py = worldToScreenY(m.z + 0.5f);
-            float r = Math.max(24f, pixelsPerBlock * 1.4f);
+            // v417：检测范围加大（小屏幕点击困难）
+            float r = Math.max(38f, pixelsPerBlock * 2f);
             if (Math.abs(sx - px) <= r && Math.abs(sy - py) <= r) {
                 return m;
             }
@@ -1855,11 +1873,12 @@ public class WorldMapView extends View {
                     return true;
                 }
             }
-            // v413：单击实体 → 详情回调
+            // v413/v417：单击实体 → 附近实体列表回调（密堆弹列表）
             if (entityClickListener != null) {
-                WorldMapRenderer.EntityPos ep = hitTestEntity(e.getX(), e.getY());
-                if (ep != null) {
-                    entityClickListener.onEntityClick(ep);
+                java.util.List<WorldMapRenderer.EntityPos> near =
+                        collectEntitiesNear(e.getX(), e.getY());
+                if (near != null) {
+                    entityClickListener.onEntityClick(near);
                     return true;
                 }
             }
