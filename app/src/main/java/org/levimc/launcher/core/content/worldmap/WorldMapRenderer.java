@@ -2944,8 +2944,17 @@ public class WorldMapRenderer {
                     }
                 }
                 subKeys = null;
-                final long centerX = map.minBlockX / 16L + map.width / 32L;
-                final long centerZ = map.minBlockZ / 16L + map.height / 32L;
+                // v420：画圆中心 = 玩家位置（24 倍视图在玩家处）→ 出生点 → bounds 中心
+                final long centerX = map.playerBlockX >= 0
+                        ? Math.floorDiv(map.playerBlockX, 16)
+                        : map.spawnBlockX >= 0
+                            ? Math.floorDiv(map.spawnBlockX, 16)
+                            : map.minBlockX / 16L + map.width / 32L;
+                final long centerZ = map.playerBlockZ >= 0
+                        ? Math.floorDiv(map.playerBlockZ, 16)
+                        : map.spawnBlockZ >= 0
+                            ? Math.floorDiv(map.spawnBlockZ, 16)
+                            : map.minBlockZ / 16L + map.height / 32L;
                 ordered.sort((a, b) -> {
                     long ax = (a >> 32) - centerX;
                     long az = (int) (long) a - centerZ;
@@ -3110,8 +3119,17 @@ public class WorldMapRenderer {
                 final java.util.List<Long> ordered = new java.util.ArrayList<>();
                 final boolean[] keysReady = {false};
                 final int[] alreadyCachedHolder = {0};
-                final long centerX = map.minBlockX / 16L + map.width / 32L;
-                final long centerZ = map.minBlockZ / 16L + map.height / 32L;
+                // v420：画圆中心 = 玩家位置（24 倍视图在玩家处）→ 出生点 → bounds 中心
+                final long centerX = map.playerBlockX >= 0
+                        ? Math.floorDiv(map.playerBlockX, 16)
+                        : map.spawnBlockX >= 0
+                            ? Math.floorDiv(map.spawnBlockX, 16)
+                            : map.minBlockX / 16L + map.width / 32L;
+                final long centerZ = map.playerBlockZ >= 0
+                        ? Math.floorDiv(map.playerBlockZ, 16)
+                        : map.spawnBlockZ >= 0
+                            ? Math.floorDiv(map.spawnBlockZ, 16)
+                            : map.minBlockZ / 16L + map.height / 32L;
                 Thread scanThread = new Thread(() -> {
                     try {
                         LevelDBReader scanReader = new LevelDBReader(dbDir);
@@ -3807,9 +3825,29 @@ public class WorldMapRenderer {
             // ——树/建筑让 maxSub 偏离地表，地表层被裁掉，海洋/平原 chunk
             // 回退 biome 色显示成大片水蓝（"y 轴高度错乱"根因）
             if (dimension == DIM_NETHER) {
-                // 下界：默认全量（sub 0-7 每层都有方块，窗口裁剪会漏熔岩海/洞穴）；
-                // 设置页可选 y 范围加速
-                applyNetherWindow(subs);
+                // v420：有高度图的下界 chunk 用表面窗口（渲染提速——
+                // 手机下界"烘焙延迟/不显示"的优化；surfaceColor 从顶
+                // 向下找表面，深层只在表面全空时才需要）。无高度图
+                // （1.26 大量 chunk）保持全量供 synthesizeHeightMap
+                if (hmap != null) {
+                    int maxH = 0;
+                    for (int h : hmap) {
+                        if (h > maxH) {
+                            maxH = h;
+                        }
+                    }
+                    int surfaceSub = Math.floorDiv(maxH - 1, 16);
+                    int maxSub = Integer.MIN_VALUE;
+                    for (int s : subs.keySet()) {
+                        maxSub = Math.max(maxSub, s);
+                    }
+                    final int nMin = Math.max(0, surfaceSub - 4);
+                    final int nMax = Math.max(surfaceSub + 2, maxSub);
+                    subs.keySet().removeIf(s -> s < nMin || s > nMax);
+                } else {
+                    // 下界：默认全量（设置页可选 y 范围加速）
+                    applyNetherWindow(subs);
+                }
             } else if (!subs.isEmpty()) {
                 int maxH = 0;
                 for (int h : hmap) {

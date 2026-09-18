@@ -426,6 +426,11 @@ public class NbtViewerActivity extends BaseActivity {
 
         // v397：坡度阴影开关（渲染管线参数——v413 起阴影进缓存后缀
         // _ns，切换 = 换缓存直接读，不再重烘焙）
+        // v420：先同步 UI 到全局静态状态——此前 XML 默认 true 而
+        // 静态变量被上个存档切过 false，"开关没效果/跨存档没阴影"
+        // 的根因（setChecked 若值变化会触发 reload，此时 currentWorldDir
+        // 尚未设置，reload 内部守卫直接返回，无害）
+        binding.layerShading.setChecked(WorldMapRenderer.enableShading);
         binding.layerShading.setOnCheckedChangeListener((b, checked) -> {
             WorldMapRenderer.enableShading = checked;
             // 重新加载当前维度（读新后缀缓存秒生效；miss 则烘焙）
@@ -663,6 +668,15 @@ public class NbtViewerActivity extends BaseActivity {
         }
     }
 
+    private final Runnable bakeHudCheck = () -> {
+        // v420：心跳检查——烘焙线程已死但 onDone 未到（中断/异常）
+        // 时进度 HUD 卡住不消失的兜底
+        Thread bt = bakeThread;
+        if (bt == null || !bt.isAlive()) {
+            hideBakeProgress();
+        }
+    };
+
     private void updateBakeProgressHud() {
         if (isFinishing() || isDestroyed()) {
             return;
@@ -675,6 +689,9 @@ public class NbtViewerActivity extends BaseActivity {
         binding.bakeProgress.setVisibility(View.VISIBLE);
         binding.bakeProgress.setText("烘焙中 " + done + "/" + total + " 区块"
                 + (done >= total ? " · 落盘中…" : ""));
+        // 心跳：1.5 秒后检查烘焙线程存活（有 batch 时会重置）
+        binding.bakeProgress.removeCallbacks(bakeHudCheck);
+        binding.bakeProgress.postDelayed(bakeHudCheck, 1500);
     }
 
     /** v403：构造烘焙进度回调——onStart 显示进度 HUD，onBatch 累计
@@ -1675,6 +1692,17 @@ public class NbtViewerActivity extends BaseActivity {
                 WorldMapRenderer.WorldMap skeleton =
                         WorldMapRenderer.buildBoundsOnly(dbDir, 0);
                 if (skeleton != null) {
+                    // v420：骨架带出生点（level.dat 顶层）——打开
+                    // 初始视图直接定位出生点，不再停在空洞/未生成
+                    // 区块（"TK 打开默认到没渲染的区块"的根因）
+                    if (root != null) {
+                        NbtTag sx = root.getTag("SpawnX");
+                        NbtTag sz = root.getTag("SpawnZ");
+                        if (sx != null && sz != null) {
+                            skeleton.spawnBlockX = sx.getInt();
+                            skeleton.spawnBlockZ = sz.getInt();
+                        }
+                    }
                     final WorldMapRenderer.WorldMap fSkeleton = skeleton;
                     runOnUiThread(() -> {
                         if (isFinishing() || isDestroyed()
