@@ -176,11 +176,9 @@ public final class HardcoreBackupManager {
 
     /** 返回 null 表示需要备份；否则返回跳过原因。 */
     private String shouldBackup(WorldItem world, long intervalMs) {
-        long lastModified = world.getFile() != null ? world.getFile().lastModified() : 0L;
-
         SharedPreferences p = prefs(context);
         long lastBackupAt = p.getLong("last_backup_at_" + world.getWorldId(), 0L);
-        long lastBackupModified = p.getLong("last_backup_modified_" + world.getWorldId(), 0L);
+        long lastBackupPlayed = p.getLong("last_backup_played_" + world.getWorldId(), 0L);
 
         if (lastBackupAt == 0L) {
             return null; // 从未备份过，直接备份
@@ -191,9 +189,12 @@ public final class HardcoreBackupManager {
             return "未到设定的备份间隔";
         }
 
-        // 最近没有游玩（目录未变化）→ 跳过，避免重复备份
-        if (lastModified == lastBackupModified) {
-            return "最近未游玩，无需重复备份";
+        // v416：存档有变化才备份——依据 level.dat 的 LastPlayed
+        // （游戏进入世界时更新，启动器自身操作不改它；比目录 mtime
+        // 可靠——游戏一启动 lock 文件就改目录时间造成"永远有变化"）
+        long played = world.getLevelLastPlayed();
+        if (played != 0L && played == lastBackupPlayed) {
+            return "存档无变化，无需重复备份";
         }
 
         return null;
@@ -268,10 +269,12 @@ public final class HardcoreBackupManager {
             zipDirectory(worldFile, "", zos, totalBytes, written, progress, lastPercent);
         }
 
-        // 记录上次备份状态
+        // 记录上次备份状态（v416：记录 level.dat LastPlayed 作为
+        // 变化依据——下次备份前比较）
         prefs(context).edit()
                 .putLong("last_backup_at_" + world.getWorldId(), System.currentTimeMillis())
                 .putLong("last_backup_modified_" + world.getWorldId(), worldFile.lastModified())
+                .putLong("last_backup_played_" + world.getWorldId(), world.getLevelLastPlayed())
                 .apply();
 
         return backupFile.getAbsolutePath();

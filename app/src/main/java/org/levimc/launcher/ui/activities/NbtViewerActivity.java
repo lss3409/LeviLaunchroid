@@ -3065,19 +3065,39 @@ public class NbtViewerActivity extends BaseActivity {
         }
     }
 
+    /** v416：导出防重入——导出中重复点击直接忽略（此前用户多点
+     *  几下后积压的完成弹窗一股脑弹出）。 */
+    private volatile boolean htmlExporting = false;
+
     private void exportWorldHtmlAsync() {
         if (currentMap == null || currentWorldDir == null) {
             Toast.makeText(this, "地图尚未加载", Toast.LENGTH_SHORT).show();
             return;
         }
+        if (htmlExporting) {
+            Toast.makeText(this, "正在导出中，请稍候…", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        htmlExporting = true;
         final WorldMapRenderer.WorldMap fMap = currentMap;
         final File worldDir = currentWorldDir;
         // 导出当前显示维度（切到哪个维度点导出就导出哪个维度的图）
         final int exportDim = "nether".equals(mapDimension) ? 1
                 : "end".equals(mapDimension) ? 2 : 0;
         final String dimName = exportDim == 1 ? "nether" : exportDim == 2 ? "end" : "overworld";
-        final java.util.List<WorldMapRenderer.EntityPos> fEntities =
+        // v416：实体列表为空时现场解析（大世界实体延迟 6 秒解析——
+        // 打开地图马上导出会拿到空列表，"刷铁机区域没实体"的根因）
+        java.util.List<WorldMapRenderer.EntityPos> ents =
                 binding.worldMapImage.getEntities();
+        if ((ents == null || ents.isEmpty()) && currentWorldDir != null) {
+            try {
+                ents = WorldMapRenderer.parseEntitiesStreaming(
+                        new File(currentWorldDir, "db"), exportDim);
+            } catch (Throwable ignored) {
+                ents = new java.util.ArrayList<>();
+            }
+        }
+        final java.util.List<WorldMapRenderer.EntityPos> fEntities = ents;
         final String fVersion = readLevelVersion();
         final long fSeed = getWorldSeed();
         binding.nbtLoading.setVisibility(View.VISIBLE);
@@ -3143,6 +3163,7 @@ public class NbtViewerActivity extends BaseActivity {
                         px, pz, sx, sz, pts, lks, sts, fEntities);
                 final File fOut = out;
                 runOnUiThread(() -> {
+                    htmlExporting = false;
                     binding.nbtLoading.setVisibility(View.GONE);
                     showExportNotification(100, fOut.getName());
                     Toast.makeText(this, "已导出: " + fOut.getAbsolutePath(),
@@ -3151,6 +3172,7 @@ public class NbtViewerActivity extends BaseActivity {
             } catch (Throwable e) {
                 Log.w(TAG, "导出 HTML 失败", e);
                 runOnUiThread(() -> {
+                    htmlExporting = false;
                     binding.nbtLoading.setVisibility(View.GONE);
                     showExportNotification(-1, String.valueOf(e.getMessage()));
                     Toast.makeText(this, "导出失败: " + e.getMessage(), Toast.LENGTH_LONG).show();

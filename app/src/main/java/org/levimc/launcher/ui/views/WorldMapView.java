@@ -395,9 +395,9 @@ public class WorldMapView extends View {
             return;
         }
 
-        pixelsPerBlock = initialFitAll
-                ? clampPixelsPerBlock(fit)
-                : clampPixelsPerBlock(Math.max(fit, 26f));
+        // v416：无论大小地图，打开默认最大倍率 24（用户要求——打开
+        // 只渲染视口一两个区块，秒显示不黑屏）
+        pixelsPerBlock = MAX_PIXELS_PER_BLOCK;
         // 目标点：出生点 > 玩家（打开地图停在出生点，用户要求）；
         // 若该处未生成（透明），螺旋找最近的有数据位置
         int targetX = map.spawnBlockX >= 0 ? map.spawnBlockX

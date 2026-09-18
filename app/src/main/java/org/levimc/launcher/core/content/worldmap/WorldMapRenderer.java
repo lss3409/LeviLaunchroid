@@ -5776,22 +5776,25 @@ public class WorldMapRenderer {
                 .append("<div id=\"hint\">长按地图 = 添加标点；点击标点气泡内可删除</div></div>")
                 .append("<script>")
                 .append("var map=L.map('map',{crs:L.CRS.Simple,minZoom:-5,maxZoom:3});")
-                // Leaflet bounds = [[south, west], [north, east]]——此前 X 写反
-                // （west=maxX > east=minX，bounds 无效 → imageOverlay 不渲染，
-                // 大世界导出后地图不显示的根因）
-                .append("var BOUNDS=[[").append(minZ).append(',').append(minX).append("],[")
-                .append(maxZ).append(',').append(maxX).append("]];")
+                // Leaflet bounds = [[south, west], [north, east]]。v416：
+                // CRS.Simple 的 lat 轴向上、PNG 像素 z 轴向下——两者
+                // 方向相反，标记 z 不取反会上下偏移 2×|z-中心|（用户
+                // "出生点/玩家位置向下偏移很多"的根因）。统一 lat=-z
+                .append("var BOUNDS=[[-").append(maxZ).append(',').append(minX).append("],[-")
+                .append(minZ).append(',').append(maxX).append("]];")
                 .append("L.imageOverlay('data:image/png;base64,").append(b64)
                 .append("',BOUNDS).addTo(map);")
                 .append("var FZ=map.getBoundsZoom(BOUNDS);")
                 // v413：mkCircle 的 radius 在 CRS.Simple 投影下换算不稳
                 // （标点/结构"显示异常"的根因）——改 divIcon 像素级标记，
                 // 尺寸不随投影缩放
+                // v416：lat=-z（CRS.Simple lat 轴与 PNG z 轴方向相反——
+                // 所有标记统一取反，位置与图片对齐）
                 .append("function mkCircle(z,x,opts){var px=opts.px||8;var col=opts.color||'#ffd54f';")
                 .append("var d=document.createElement('div');")
                 .append("d.style.cssText='width:'+px+'px;height:'+px+'px;border-radius:50%;")
                 .append("background:'+col+';border:2px solid rgba(0,0,0,.4);box-sizing:border-box';")
-                .append("return L.marker([z,x],{icon:L.divIcon({className:'',html:d.outerHTML,")
+                .append("return L.marker([-z,x],{icon:L.divIcon({className:'',html:d.outerHTML,")
                 .append("iconSize:[px,px],iconAnchor:[px/2,px/2]})});}")
                 .append("var groups={p:L.layerGroup(),l:L.layerGroup(),s:L.layerGroup(),")
                 .append("e:L.layerGroup(),sl:L.layerGroup()};")
@@ -5906,8 +5909,9 @@ public class WorldMapRenderer {
         }
         sl.append(']');
         html.append("var sls=").append(sl);
+        // v416：rectangle 的 lat 同样取反（z 轴方向）
         html.append(";sls.forEach(function(s){groups.sl.addLayer(L.rectangle(")
-                .append("[[s[0]*16,s[1]*16],[s[0]*16+16,s[1]*16+16]],")
+                .append("[[-(s[0]*16+16),s[1]*16],[-(s[0]*16),s[1]*16+16]],")
                 .append("{color:'#4ade80',weight:1,fillOpacity:.18}));});");
         // 玩家/出生点
         if (playerX != Integer.MIN_VALUE) {
