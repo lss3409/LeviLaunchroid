@@ -533,6 +533,16 @@
                         android:textSize="12sp" />
 
 
+                    <CheckBox
+                        android:id="@+id/layer_btr_engine"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:fontFamily="@font/misans"
+                        android:text="@string/layer_btr_engine"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+
 
 
                     <!-- 下界专属设置（仅下界维度显示）：

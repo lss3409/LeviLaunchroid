@@ -800,6 +800,12 @@ import okhttp3.OkHttpClient;
             } catch (Throwable ignored) {
             }
         }, 3000);
+        // v412：帧监控注册（主线程）——静默烘焙按掉帧率动态调速
+        try {
+            org.levimc.launcher.core.content.worldmap.SilentBakeManager
+                    .registerFrameMonitor();
+        } catch (Throwable ignored) {
+        }
     }
 
     /** 游戏退出回到启动器时，扫描版本的 xal 目录，

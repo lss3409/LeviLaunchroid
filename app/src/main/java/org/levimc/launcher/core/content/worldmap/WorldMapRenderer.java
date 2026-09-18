@@ -2165,6 +2165,11 @@ public class WorldMapRenderer {
             }
             suffix = sb.toString();
         }
+        // v412：渲染引擎进缓存后缀——切换引擎后旧缓存自动作废
+        // （不同引擎渲染结果不同，复用会显示错风格）
+        if (renderEngine == ENGINE_BTR) {
+            suffix += "_btr";
+        }
         return suffix;
     }
 
@@ -2182,12 +2187,14 @@ public class WorldMapRenderer {
     private static final int SMALL_CACHE_MAGIC = 0x4D437653; // "MCvs"
     private static final int SMALL_CACHE_VERSION = 1;
 
-    /** 小世界全图缓存文件（v395 新结构：<世界>/<维度>/small.bin）。 */
+    /** 小世界全图缓存文件（v395 新结构：<世界>/<维度>/small.bin）。
+     *  v412：渲染引擎进文件名——切换引擎后小世界缓存也作废。 */
     private static File smallCacheFile(File dbDir, int dimension) {
+        String eng = renderEngine == ENGINE_BTR ? "_btr" : "";
         if (sCacheBase != null) {
-            return new File(dimCacheDir(dbDir, dimension), "small.bin");
+            return new File(dimCacheDir(dbDir, dimension), "small" + eng + ".bin");
         }
-        return new File(dbDir.getParentFile(), "map_small_" + dimension + ".bin");
+        return new File(dbDir.getParentFile(), "map_small_" + dimension + eng + ".bin");
     }
 
     /** 保存小世界全图缓存（colors 数组调色板压缩——打开秒开的依据）。 */
@@ -2984,9 +2991,11 @@ public class WorldMapRenderer {
                 final java.util.concurrent.atomic.AtomicInteger rendered =
                         new java.util.concurrent.atomic.AtomicInteger(0);
                 // 线程数（v403：ordered 在后台扫描中，大小未知——
-                // 直接按核数上限建；SILENT 2 线程慢速不抢前台）
+                // 直接按核数上限建；SILENT 按核数 2-3 线程——v412
+                // "静默快一点"：设备核多给 3 线程）
                 int cpus = Runtime.getRuntime().availableProcessors();
-                final int bakeThreads = silent ? 2 : Math.min(8, Math.max(6, cpus));
+                final int bakeThreads = silent ? (cpus >= 8 ? 3 : 2)
+                        : Math.min(8, Math.max(6, cpus));
                 poolRef[0] =
                         java.util.concurrent.Executors.newFixedThreadPool(bakeThreads, r -> {
                             Thread bt = new Thread(r, "world-bake-w");
@@ -3084,6 +3093,25 @@ public class WorldMapRenderer {
                                     // 杀死 worker 线程会导致 latch 提前释放
                                     // "烘焙完成 渲染=23/24844" 假完成
                                     Log.w(TAG, "烘焙 chunk(" + cx + "," + cz + ") 失败", e);
+                                }
+                                // v412：静默烘焙按 UI 帧率动态调速——
+                                // 掉帧多就限速（sleep），流畅就全速。
+                                // 每 8 个 chunk 查一次掉帧率（查询廉价）
+                                if (silent && (rendered.get() & 7) == 0) {
+                                    float jr = SilentBakeManager.jankRatio();
+                                    if (jr > 0.4f) {
+                                        try {
+                                            Thread.sleep(60);
+                                        } catch (InterruptedException e) {
+                                            break;
+                                        }
+                                    } else if (jr > 0.15f) {
+                                        try {
+                                            Thread.sleep(15);
+                                        } catch (InterruptedException e) {
+                                            break;
+                                        }
+                                    }
                                 }
                                 // 批通知（UI 渐进）+ 增量落盘
                                 if (batch.size() >= 50 && progress != null) {
@@ -4801,7 +4829,18 @@ public class WorldMapRenderer {
      * 子串匹配保证 short_grass（119,119,119 灰模板）等 equals 列表漏掉的
      * 新方块也能乘上色调（MC 着色器机制）；查不到色调时用 bedrock-level 默认色。
      */
+    /** 渲染引擎（v412 设置可切换）：
+     *  0 = bedrockmap（默认，群系色调混合——草/水随群系变色）；
+     *  1 = BTR（blocktopograph 原色——方块本色，不混群系色调）。 */
+    public static final int ENGINE_BEDROCKMAP = 0;
+    public static final int ENGINE_BTR = 1;
+    public static volatile int renderEngine = ENGINE_BEDROCKMAP;
+
     private static int tintColor(String name, int color, int biomeId) {
+        // BTR 引擎：原色（不混群系色调）
+        if (renderEngine == ENGINE_BTR) {
+            return color;
+        }
         // 只对"灰度模板"乘群系色调（原版 MC 着色器机制：贴图是灰度模板才被
         // 群系色调染色）。成品色方块（seagrass 50,126,8 / kelp 86,130,42 /
         // grass_path 148,121,65 等色表里已带真实色）乘 tint 会变暗发黑——

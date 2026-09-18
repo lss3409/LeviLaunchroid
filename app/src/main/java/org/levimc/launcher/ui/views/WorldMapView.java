@@ -444,10 +444,14 @@ public class WorldMapView extends View {
     }
 
     private float clampPixelsPerBlock(float v) {
-        return Math.max(MIN_PIXELS_PER_BLOCK, Math.min(MAX_PIXELS_PER_BLOCK, v));
+        // v412：最小缩放 = 整图适配（fit 全图）——"缩放到刚好看到
+        // 全部地图就行"，不能再缩出地图外（fitScale 未就绪时用常量）
+        float min = Math.max(MIN_PIXELS_PER_BLOCK, fitScale());
+        return Math.max(min, Math.min(MAX_PIXELS_PER_BLOCK, v));
     }
 
-    /** 修正平移边界：地图边缘不脱离视图（小于视图时居中）。 */
+    /** 修正平移边界：v412 拖拽范围放宽——地图可拖出视口 40%
+     *  （用户要求"拖拽范围大一点"；小于视图时仍居中）。 */
     private void clampTranslation() {
         if (map == null || getWidth() <= 0) {
             return;
@@ -457,12 +461,16 @@ public class WorldMapView extends View {
         if (mapW <= getWidth()) {
             offsetX = (getWidth() - mapW) / 2f;
         } else {
-            offsetX = Math.min(0f, Math.max(getWidth() - mapW, offsetX));
+            float slackX = getWidth() * 0.4f;
+            offsetX = Math.min(slackX,
+                    Math.max(getWidth() - mapW - slackX, offsetX));
         }
         if (mapH <= getHeight()) {
             offsetY = (getHeight() - mapH) / 2f;
         } else {
-            offsetY = Math.min(0f, Math.max(getHeight() - mapH, offsetY));
+            float slackY = getHeight() * 0.4f;
+            offsetY = Math.min(slackY,
+                    Math.max(getHeight() - mapH - slackY, offsetY));
         }
     }
 

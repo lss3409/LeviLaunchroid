@@ -38,6 +38,60 @@ public class SilentBakeManager {
         return instance;
     }
 
+    // v412 动态调节：主线程掉帧监控（Choreographer 帧间隔 >30ms 计
+    // 掉帧，最近 60 帧比例）——静默烘焙据此调速：UI 流畅就快、
+    // 掉帧就限速（帧率反馈闭环）
+    private static final java.util.concurrent.atomic.AtomicInteger FRAME_TOTAL =
+            new java.util.concurrent.atomic.AtomicInteger(60);
+    private static final java.util.concurrent.atomic.AtomicInteger FRAME_JANK =
+            new java.util.concurrent.atomic.AtomicInteger(0);
+    private static volatile boolean frameMonitorRegistered;
+    private static volatile long lastFrameNanos;
+
+    /** 主线程调用：注册帧监控（幂等）。 */
+    public static void registerFrameMonitor() {
+        if (frameMonitorRegistered) {
+            return;
+        }
+        frameMonitorRegistered = true;
+        try {
+            android.view.Choreographer.getInstance().postFrameCallback(
+                    new android.view.Choreographer.FrameCallback() {
+                        @Override
+                        public void doFrame(long frameTimeNanos) {
+                            long prev = lastFrameNanos;
+                            lastFrameNanos = frameTimeNanos;
+                            if (prev > 0) {
+                                long gapMs = (frameTimeNanos - prev) / 1_000_000;
+                                if (gapMs > 30) {
+                                    FRAME_JANK.incrementAndGet();
+                                }
+                                FRAME_TOTAL.incrementAndGet();
+                                // 只保留最近 ~120 帧窗口
+                                if (FRAME_TOTAL.get() > 120) {
+                                    FRAME_TOTAL.set(60);
+                                    FRAME_JANK.set(FRAME_JANK.get() / 2);
+                                }
+                            }
+                            if (frameMonitorRegistered) {
+                                android.view.Choreographer.getInstance()
+                                        .postFrameCallback(this);
+                            }
+                        }
+                    });
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** 最近窗口掉帧比例（0=流畅，1=全掉帧）。烘焙 worker 查此调速。 */
+    public static float jankRatio() {
+        int total = FRAME_TOTAL.get();
+        if (total <= 0) {
+            return 0f;
+        }
+        return FRAME_JANK.get() / (float) total;
+    }
+
     private volatile boolean cacheDirReady;
 
     /** 确保缓存目录初始化（进程重启后 WorldMapRenderer.sCacheBase

@@ -22,6 +22,27 @@ class LauncherApplication : Application() {
         LogcatOverlayManager.init(this)
 
         preferences = PreferenceManager.getDefaultSharedPreferences(this)
+
+        // v412：前后台检测——静默烘焙只在启动器前台运行
+        // （后台/游戏运行时暂停：不抢 IO、不耗电）
+        registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
+            private var started = 0
+            override fun onActivityStarted(activity: android.app.Activity) {
+                if (started++ == 0) {
+                    org.levimc.launcher.core.content.worldmap.SilentBakeManager.get().resume()
+                }
+            }
+            override fun onActivityStopped(activity: android.app.Activity) {
+                if (--started == 0) {
+                    org.levimc.launcher.core.content.worldmap.SilentBakeManager.get().pause()
+                }
+            }
+            override fun onActivityCreated(activity: android.app.Activity, state: android.os.Bundle?) {}
+            override fun onActivityResumed(activity: android.app.Activity) {}
+            override fun onActivityPaused(activity: android.app.Activity) {}
+            override fun onActivitySaveInstanceState(activity: android.app.Activity, state: android.os.Bundle) {}
+            override fun onActivityDestroyed(activity: android.app.Activity) {}
+        })
     }
 
     companion object {

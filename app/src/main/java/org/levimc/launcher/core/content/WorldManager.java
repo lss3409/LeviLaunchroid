@@ -374,16 +374,58 @@ public class WorldManager {
                 } else {
                     ZipEntry entry = new ZipEntry(entryPath);
                     zos.putNextEntry(entry);
-                    
-                    try (FileInputStream fis = new FileInputStream(file)) {
-                        byte[] buffer = new byte[BUFFER_SIZE];
-                        int len;
-                        while ((len = fis.read(buffer)) > 0) {
-                            zos.write(buffer, 0, len);
+
+                    if (file.getName().equals("level.dat")) {
+                        // v412：打包时注入存档唯一标识 leviWorldId
+                        // （TAG_String UUID；本体文件不改，游戏兼容零风险）
+                        byte[] data = injectWorldId(file);
+                        zos.write(data, 0, data.length);
+                    } else {
+                        try (FileInputStream fis = new FileInputStream(file)) {
+                            byte[] buffer = new byte[BUFFER_SIZE];
+                            int len;
+                            while ((len = fis.read(buffer)) > 0) {
+                                zos.write(buffer, 0, len);
+                            }
                         }
                     }
                     zos.closeEntry();
                 }
+            }
+        }
+    }
+
+    /** v412：读 level.dat，无 leviWorldId 时生成 UUID 注入（TAG_String）
+     *  并返回注入后的字节；已有标识则原样返回。NBT 解析失败时不阻断
+     *  导出（原字节打包）。 */
+    private byte[] injectWorldId(File levelDat) {
+        try {
+            byte[] original = java.nio.file.Files.readAllBytes(levelDat.toPath());
+            org.levimc.launcher.core.content.nbt.NbtTag root =
+                    new org.levimc.launcher.core.content.nbt.BedrockNbtReader()
+                            .readFile(levelDat);
+            if (root == null || root.getTag("leviWorldId") != null) {
+                return original;
+            }
+            String uuid = java.util.UUID.randomUUID().toString();
+            root.putTag("leviWorldId", new org.levimc.launcher.core.content.nbt.NbtTag(
+                    org.levimc.launcher.core.content.nbt.NbtTag.TAG_STRING,
+                    "leviWorldId", uuid));
+            org.levimc.launcher.core.content.nbt.BedrockNbtWriter writer =
+                    new org.levimc.launcher.core.content.nbt.BedrockNbtWriter();
+            writer.setHeaderVersion(10);
+            byte[] out = writer.writeToBytes(root);
+            if (out != null && out.length > 8) {
+                Log.i(TAG, "导出注入存档唯一标识: " + uuid);
+                return out;
+            }
+            return original;
+        } catch (Throwable e) {
+            Log.w(TAG, "注入世界标识失败，原样打包", e);
+            try {
+                return java.nio.file.Files.readAllBytes(levelDat.toPath());
+            } catch (IOException ignored) {
+                return new byte[0];
             }
         }
     }

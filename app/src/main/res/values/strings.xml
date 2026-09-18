@@ -1396,6 +1396,7 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="layer_shading">Slope shading (3D feel)</string>
     <string name="layer_struct_detect">Structure detection (may false-positive)</string>
     <string name="btn_clear_cache">Clear world cache (re-bake)</string>
+    <string name="layer_btr_engine">BTR original colors (default: bedrockmap biome tint)</string>
     <string name="layer_entity">Entities</string>
     <string name="layer_structure">Structures</string>
     <string name="layer_slime">Slime Chunks</string>

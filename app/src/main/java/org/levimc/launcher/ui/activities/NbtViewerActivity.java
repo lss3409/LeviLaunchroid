@@ -372,6 +372,17 @@ public class NbtViewerActivity extends BaseActivity {
             invalidateRenderCacheAndBake();
         });
 
+        // v412：渲染引擎切换（BTR 原色 / bedrockmap 群系色调）——
+        // 缓存后缀含引擎（_btr），切换后旧缓存自动作废重烘焙
+        binding.layerBtrEngine.setOnCheckedChangeListener((b, checked) -> {
+            WorldMapRenderer.renderEngine = checked
+                    ? WorldMapRenderer.ENGINE_BTR
+                    : WorldMapRenderer.ENGINE_BEDROCKMAP;
+            invalidateRenderCacheAndBake();
+        });
+        binding.layerBtrEngine.setChecked(
+                WorldMapRenderer.renderEngine == WorldMapRenderer.ENGINE_BTR);
+
         // v397：结构特征检测开关（palette 猜结构可能误报）
         binding.layerStructDetect.setOnCheckedChangeListener((b, checked) -> {
             WorldMapRenderer.enableStructureDetection = checked;
