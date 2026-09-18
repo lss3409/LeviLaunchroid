@@ -378,8 +378,38 @@ public class NbtViewerActivity extends BaseActivity {
         binding.layerGrid.setOnCheckedChangeListener((b, checked) ->
                 binding.worldMapImage.setShowGrid(checked));
         binding.worldMapImage.setShowGrid(binding.layerGrid.isChecked());
-        binding.layerBiome.setOnCheckedChangeListener((b, checked) ->
-                binding.worldMapImage.setShowBiomeLayer(checked));
+        binding.layerBiome.setOnCheckedChangeListener((b, checked) -> {
+            binding.worldMapImage.setShowBiomeLayer(checked);
+            // v418：biome 数据延迟读（v20 拆分文件）——开启图层且
+            // 内存无数据时后台读 biome 缓存
+            if (checked && currentMap != null && currentWorldDir != null
+                    && currentMap.chunkBiomeColors == null
+                    && currentMap.cacheHasBiome) {
+                final WorldMapRenderer.WorldMap fBio = currentMap;
+                final File bioDb = new File(currentWorldDir, "db");
+                final int bioDim = "nether".equals(mapDimension) ? 1
+                        : "end".equals(mapDimension) ? 2 : 0;
+                final String bioSuffix = fBio.chunkCacheSuffix != null
+                        ? fBio.chunkCacheSuffix
+                        : WorldMapRenderer.cacheSuffixFor(bioDim);
+                executor.execute(() -> {
+                    java.util.Map<Long, int[]> bm =
+                            WorldMapRenderer.loadChunkBiomeCache(
+                                    bioDb, bioDim, bioSuffix);
+                    if (bm == null) {
+                        return;
+                    }
+                    runOnUiThread(() -> {
+                        if (!isFinishing() && !isDestroyed()
+                                && currentMap == fBio) {
+                            fBio.chunkBiomeColors = bm;
+                            binding.worldMapImage.clearChunkData();
+                            binding.worldMapImage.invalidate();
+                        }
+                    });
+                });
+            }
+        });
         binding.worldMapImage.setShowBiomeLayer(binding.layerBiome.isChecked());
         binding.layerEntity.setOnCheckedChangeListener((b, checked) ->
                 binding.worldMapImage.setShowEntities(checked));
@@ -1568,6 +1598,7 @@ public class NbtViewerActivity extends BaseActivity {
 
     private void loadData(File worldDir, String worldName) {
         currentWorldDir = worldDir;
+        skeletonShown = false;
         binding.nbtLoading.setVisibility(View.VISIBLE);
         startBackgroundTask();
         final int gen = loadGeneration;
@@ -1580,10 +1611,17 @@ public class NbtViewerActivity extends BaseActivity {
             boolean levelDatMissing = false;
             boolean dbMissing = false;
 
-            try {
-                worldItem = new WorldItem(worldName != null ? worldName : worldDir.getName(), worldDir);
-            } catch (Exception ignored) {
-            }
+            // v418：WorldItem 构造并行（读 level.dat + db 玩家状态
+            // ~200-300ms——不阻塞地图首屏；onDataLoaded 前 join）
+            final WorldItem[] wiRef = new WorldItem[1];
+            Thread wiThread = new Thread(() -> {
+                try {
+                    wiRef[0] = new WorldItem(worldName != null ? worldName
+                            : worldDir.getName(), worldDir);
+                } catch (Throwable ignored) {
+                }
+            }, "world-item-load");
+            wiThread.start();
 
             File levelDat = new File(worldDir, "level.dat");
             if (levelDat.isFile()) {
@@ -1631,11 +1669,29 @@ public class NbtViewerActivity extends BaseActivity {
                 }
             }
             if (dbDir.isDirectory() && largeWorld) {
-                // 大世界：先快速进入（磁盘缓存 / 只扫范围）
-                // ——路径在上一分支判断，这里统一初始化
+                // 大世界：v418 两阶段打开——阶段 1 先显 bounds 骨架
+                // （16 字节缓存秒读 + 关 loading，用户要求"进去 0.8 秒
+                // 内要显示"）；阶段 2 完整缓存解码后替换（保留视图）
+                WorldMapRenderer.WorldMap skeleton =
+                        WorldMapRenderer.buildBoundsOnly(dbDir, 0);
+                if (skeleton != null) {
+                    final WorldMapRenderer.WorldMap fSkeleton = skeleton;
+                    runOnUiThread(() -> {
+                        if (isFinishing() || isDestroyed()
+                                || !isCurrentLoad(gen)) {
+                            return;
+                        }
+                        skeletonShown = true;
+                        binding.nbtLoading.setVisibility(View.GONE);
+                        binding.worldMapPlaceholder.setVisibility(View.GONE);
+                        binding.worldMapImage.initialFitAll = false;
+                        binding.worldMapImage.setWorldMap(fSkeleton);
+                    });
+                }
+                // 阶段 2：完整缓存解码（1-2 秒，完成后 onDataLoaded 替换）
                 worldMap = WorldMapRenderer.loadChunkCache(dbDir, 0);
                 if (worldMap == null) {
-                    worldMap = WorldMapRenderer.buildBoundsOnly(dbDir, 0);
+                    worldMap = skeleton;
                 }
                 if (worldMap != null) {
                     worldMap.chunkSourceDir = dbDir;
@@ -1865,6 +1921,12 @@ public class NbtViewerActivity extends BaseActivity {
                 }
             }
 
+            // v418：等并行构造的 WorldItem（此时地图已加载完，最多再等 800ms）
+            try {
+                wiThread.join(800);
+            } catch (InterruptedException ignored) {
+            }
+            worldItem = wiRef[0];
             final WorldItem fWorld = worldItem;
             final NbtTag fRoot = root;
             final List<LevelDBEntry> fEntries = entries;
@@ -1891,10 +1953,9 @@ public class NbtViewerActivity extends BaseActivity {
 
         // 世界地图：占满全屏（PRD 布局），缩放/平移时按比例重采样方块颜色
         if (worldMap != null) {
-            // v403：主世界打开 fit 全图（用户反馈"大地图不显示大的
-            // 缩放比例"——原来 max(fit,26) 只看到放大的一小块）
-            binding.worldMapImage.initialFitAll = true;
-                        binding.worldMapImage.setWorldMap(worldMap);
+            // v418：骨架已显示则保留视图（不跳不闪）
+            binding.worldMapImage.initialFitAll = false;
+            binding.worldMapImage.setWorldMap(worldMap, skeletonShown);
             binding.worldMapPlaceholder.setVisibility(View.GONE);
             // 主世界打开不自动预渲染：流式渲染 18 万条目（subchunk value
             // ~300MB）叠加视口按需渲染+实体解析，536MB heap 直接 OOM
@@ -3087,6 +3148,9 @@ public class NbtViewerActivity extends BaseActivity {
     /** v416：导出防重入——导出中重复点击直接忽略（此前用户多点
      *  几下后积压的完成弹窗一股脑弹出）。 */
     private volatile boolean htmlExporting = false;
+    /** v418：两阶段打开——bounds 骨架已显示（onDataLoaded 替换
+     *  完整图时保留视图不跳）。 */
+    private volatile boolean skeletonShown = false;
 
     private void exportWorldHtmlAsync() {
         if (currentMap == null || currentWorldDir == null) {

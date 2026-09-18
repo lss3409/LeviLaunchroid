@@ -1133,6 +1133,8 @@ public class WorldMapRenderer {
          *  （TK 实际 24844 chunk 只占 bounds 面积 2.5%）永远"不足"，
          *  静默烘焙每次启动空转。 */
         public boolean cacheComplete = false;
+        /** v20：缓存文件是否含 biome 数据（biome 独立文件延迟读用）。 */
+        public boolean cacheHasBiome = false;
         /** v413：矿石标点列表（chunk 渲染时收集，随烘焙全图铺开；
          *  独立落盘 ore.bin——缓存 chunk 不重渲染也能读到）。 */
         public java.util.List<OreMarker> oreMarkers;
@@ -2031,7 +2033,7 @@ public class WorldMapRenderer {
     //      结果（末地 122 chunk 坏缓存）须失效
     // v18：缓存头加 db 文件指纹列表（"name:size:mtime"）——增量更新：
     //      打开时 diff 找出新文件只重渲染变化 chunk，db 变化不再全量失效
-    private static final int MAP_CACHE_VERSION = 19;
+    private static final int MAP_CACHE_VERSION = 20;
 
     /** 缓存根目录（应用私有，卸载即清——缓存可再生）。null 时回退旧路径。 */
     private static java.io.File sCacheBase;
@@ -2477,15 +2479,13 @@ public class WorldMapRenderer {
             dos.writeBoolean(complete);
             boolean hasBiome = biomeSnapshot != null;
             dos.writeBoolean(hasBiome);
-            // 写快照（保存期间 map 并发 put 不影响文件一致性）
+            // v20：colors 写 chunks.bin（打开秒读的关键数据）；
+            // biome 拆到 chunks_biome.bin（打开不读——图层开启才读，
+            // 打开提速 ~40%）
             for (Map.Entry<Long, int[]> e : snapshot.entrySet()) {
                 dos.writeInt(unpackX(e.getKey()));
                 dos.writeInt(unpackZ(e.getKey()));
                 writePaletteChunk(dos, e.getValue());
-                if (hasBiome) {
-                    int[] bc = biomeSnapshot.get(e.getKey());
-                    writePaletteChunk(dos, bc != null ? bc : EMPTY_CHUNK_COLORS);
-                }
             }
                 if (!tmp.renameTo(out)) {
                     Log.w(TAG, "chunk 缓存 rename 失败: " + out.getName());
@@ -2493,10 +2493,44 @@ public class WorldMapRenderer {
                 }
                 Log.i(TAG, "chunk 缓存已保存: " + out.getName() + " "
                         + (out.length() / 1024 / 1024) + "MB 文件指纹=" + fps.size());
-                return true;
             } catch (Exception e) {
                 Log.w(TAG, "chunk 缓存保存失败", e);
                 return false;
+            }
+            // v20：biome 独立文件（同样原子写；打开时延迟读）
+            if (biomeSnapshot != null) {
+                try {
+                    saveChunkBiomeCacheInternal(out, biomeSnapshot);
+                } catch (Exception e) {
+                    Log.w(TAG, "biome 缓存保存失败", e);
+                }
+            }
+        }
+        return true;
+    }
+
+    /** v20：biome 独立缓存文件（与 chunks.bin 同目录同后缀）。 */
+    private static File chunkBiomeCacheFile(File chunksFile) {
+        String n = chunksFile.getName();
+        int dot = n.lastIndexOf('.');
+        return new File(chunksFile.getParentFile(),
+                (dot > 0 ? n.substring(0, dot) : n) + "_biome.bin");
+    }
+
+    private static void saveChunkBiomeCacheInternal(File chunksFile,
+                                                    Map<Long, int[]> biomeSnapshot)
+            throws java.io.IOException {
+        File out = chunkBiomeCacheFile(chunksFile);
+        File tmp = new File(out.getParentFile(), out.getName() + ".tmp");
+        try (java.io.DataOutputStream dos = new java.io.DataOutputStream(
+                new java.io.BufferedOutputStream(new java.io.FileOutputStream(tmp)))) {
+            for (Map.Entry<Long, int[]> e : biomeSnapshot.entrySet()) {
+                dos.writeInt(unpackX(e.getKey()));
+                dos.writeInt(unpackZ(e.getKey()));
+                writePaletteChunk(dos, e.getValue());
+            }
+            if (!tmp.renameTo(out)) {
+                throw new java.io.IOException("rename 失败: " + out.getName());
             }
         }
     }
@@ -2508,6 +2542,35 @@ public class WorldMapRenderer {
             return new File(dimCacheDir(dbDir, dimension), "ore.bin");
         }
         return new File(dbDir.getParentFile(), "map_ore_" + dimension + ".bin");
+    }
+
+    /** v20：按需读 biome 独立缓存（biome 图层打开时调用；
+     *  无文件/损坏返回 null）。 */
+    public static Map<Long, int[]> loadChunkBiomeCache(File dbDir,
+                                                       int dimension,
+                                                       String suffix) {
+        File in = chunkBiomeCacheFile(chunkCacheFileFor(dbDir, dimension, suffix));
+        if (in == null || !in.isFile()) {
+            return null;
+        }
+        try (java.io.DataInputStream dis = new java.io.DataInputStream(
+                new java.io.BufferedInputStream(new java.io.FileInputStream(in)))) {
+            Map<Long, int[]> out = new java.util.concurrent.ConcurrentHashMap<>();
+            while (true) {
+                try {
+                    int cx = dis.readInt();
+                    int cz = dis.readInt();
+                    int[] bc = readPaletteChunk(dis);
+                    out.put(pack(cx, cz), bc);
+                } catch (java.io.EOFException eof) {
+                    break;
+                }
+            }
+            return out.isEmpty() ? null : out;
+        } catch (Exception e) {
+            Log.w(TAG, "biome 缓存加载失败", e);
+            return null;
+        }
     }
 
     /** v413：矿石标点落盘（烘焙完成/退出时保存）。 */
@@ -3454,22 +3517,19 @@ public class WorldMapRenderer {
             } catch (Exception e) {
                 hasBiome = false; // 兼容异常情况
             }
-            Map<Long, int[]> chunkBiomeColors = hasBiome
-                    ? new java.util.concurrent.ConcurrentHashMap<>(count * 2) : null;
+            // v20：colors 只读——biome 拆在独立文件 chunks_biome.bin
+            // （biome 图层开启时按需读，打开提速 ~40%）
             for (int i = 0; i < count; i++) {
                 int cx = dis.readInt();
                 int cz = dis.readInt();
                 int[] cc = readPaletteChunk(dis);
                 chunkColors.put(pack(cx, cz), cc);
-                if (chunkBiomeColors != null) {
-                    int[] bc = readPaletteChunk(dis);
-                    chunkBiomeColors.put(pack(cx, cz), bc);
-                }
             }
             WorldMap map = new WorldMap(minCx * 16, minCz * 16,
                     (maxCx - minCx + 1) * 16, (maxCz - minCz + 1) * 16, null, null);
             map.chunkColors = chunkColors;
-            map.chunkBiomeColors = chunkBiomeColors;
+            map.chunkBiomeColors = null; // biome 延迟加载
+            map.cacheHasBiome = hasBiome;
             map.blockScale = 1;
             map.dbFileFingerprints = fps;
             map.cacheComplete = complete;
