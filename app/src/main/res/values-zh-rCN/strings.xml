@@ -1342,11 +1342,10 @@
     <string name="nether_exclude_default">默认：基岩 + 下界岩</string>
     <string name="layer_grid">区块网格</string>
     <string name="layer_biome">生物群系</string>
-    <string name="layer_ore">矿物热力图（找矿）</string>
+    <string name="layer_ore">矿石标点（找矿）</string>
     <string name="layer_shading">坡度阴影（立体感）</string>
     <string name="layer_struct_detect">结构特征检测（可能误报）</string>
     <string name="btn_clear_cache">清空世界缓存（重新烘焙）</string>
-    <string name="layer_btr_engine">BTR 原色渲染（默认 bedrockmap 群系色调）</string>
     <string name="layer_entity">实体</string>
     <string name="layer_structure">结构</string>
     <string name="layer_slime">史莱姆区块</string>

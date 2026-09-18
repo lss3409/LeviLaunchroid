@@ -435,7 +435,7 @@ public final class HardcoreBackupManager {
     /** 列出所有极限世界备份记录（按时间倒序，最新在前）。 */
     public List<BackupRecord> listBackups(WorldItem world) {
         List<BackupRecord> records = new ArrayList<>();
-        File worldBackupDir = new File(new File(LauncherStorage.getHardcoreBackupsDir(context), getVersionLabel()), backupDirName(world.getWorldName(), world.getSeed()));
+        File worldBackupDir = new File(new File(LauncherStorage.getHardcoreBackupsDir(context), getVersionLabel()), backupDirName(world));
         if (!worldBackupDir.exists()) return records;
         File[] files = worldBackupDir.listFiles();
         if (files == null) return records;
@@ -471,9 +471,20 @@ public final class HardcoreBackupManager {
 
     /** 该世界极限备份目录（按 版本号/世界名_seed种子 分类，同名不同种子的世界互不混淆）。 */
     public File getWorldBackupDir(WorldItem world) {
-        File dir = new File(new File(LauncherStorage.getHardcoreBackupsDir(context), getVersionLabel()), backupDirName(world.getWorldName(), world.getSeed()));
+        File dir = new File(new File(LauncherStorage.getHardcoreBackupsDir(context), getVersionLabel()), backupDirName(world));
         if (!dir.exists()) dir.mkdirs();
         return dir;
+    }
+
+    /** 备份目录名：v413 起优先存档唯一标识（leviWorldId），
+     *  无标识（老存档）回退 世界名_seed种子。 */
+    public static String backupDirName(org.levimc.launcher.core.content.WorldItem world) {
+        String id = world != null ? world.getLeviWorldId() : null;
+        if (id != null && !id.isEmpty()) {
+            return "id_" + sanitize(id);
+        }
+        return sanitize(world != null ? world.getWorldName() : "world")
+                + "_seed" + (world != null ? world.getSeed() : 0L);
     }
 
     /** 备份目录名：世界名_seed种子。 */

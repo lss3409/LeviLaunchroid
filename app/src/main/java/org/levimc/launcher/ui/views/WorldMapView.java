@@ -568,11 +568,51 @@ public class WorldMapView extends View {
         drawSlimeChunks(canvas);
         drawLinks(canvas);
         drawPoints(canvas);
+        drawOreMarkers(canvas); // v413：矿石标点（色块菱形）
         drawEntities(canvas);
         drawStructures(canvas);
         drawTapMarker(canvas);
         drawMarkers(canvas); // 玩家/出生点标记画在最上层（不被实体贴图遮挡）
         drawVoxelSelection(canvas); // 3D 区域选择矩形（最上层）
+    }
+
+    /** v413：矿石标点图层——每矿种一个色块菱形标记（视口内才画，
+     * 大地图 2 万+ 标点全画会卡）。 */
+    private void drawOreMarkers(android.graphics.Canvas canvas) {
+        if (!showOreLayer || map == null || map.oreMarkers == null
+                || map.oreMarkers.isEmpty()) {
+            return;
+        }
+        float r = Math.max(3.5f, pixelsPerBlock * 0.9f);
+        android.graphics.Path p = new android.graphics.Path();
+        for (WorldMapRenderer.OreMarker m : map.oreMarkers) {
+            float sx = offsetX + (m.blockX - map.minBlockX + 0.5f) * pixelsPerBlock;
+            float sy = offsetY + (m.blockZ - map.minBlockZ + 0.5f) * pixelsPerBlock;
+            if (sx < -16 || sx > getWidth() + 16 || sy < -16 || sy > getHeight() + 16) {
+                continue;
+            }
+            p.reset();
+            p.moveTo(sx, sy - r);
+            p.lineTo(sx + r, sy);
+            p.lineTo(sx, sy + r);
+            p.lineTo(sx - r, sy);
+            p.close();
+            canvas.drawPath(p, oreFillPaint(m.color()));
+        }
+    }
+
+    private final java.util.Map<Integer, android.graphics.Paint> oreFillPaints =
+            new java.util.HashMap<>();
+
+    private android.graphics.Paint oreFillPaint(int color) {
+        android.graphics.Paint p = oreFillPaints.get(color);
+        if (p == null) {
+            p = new android.graphics.Paint();
+            p.setStyle(android.graphics.Paint.Style.FILL);
+            p.setColor(color);
+            oreFillPaints.put(color, p);
+        }
+        return p;
     }
 
     /** 3D 区域选择矩形（半透明填充 + 主题色边框）。 */
@@ -680,20 +720,6 @@ public class WorldMapView extends View {
 
     /** 惰性生成 chunk tile（chunkColors 有数据但 tile 未建时）。 */
     private Bitmap ensureChunkTile(long ck) {
-        // v396 矿物热力图：chunk 级单色 tile
-        if (showOreLayer) {
-            Integer oreColor = map.chunkOreColors != null
-                    ? map.chunkOreColors.get(ck) : null;
-            if (oreColor == null) {
-                return null;
-            }
-            int[] oc = new int[256];
-            java.util.Arrays.fill(oc, oreColor);
-            Bitmap tile = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888);
-            tile.setPixels(oc, 0, 16, 0, 0, 16, 16);
-            chunkTiles.put(ck, tile);
-            return tile;
-        }
         int[] cc = map.chunkColors != null ? map.chunkColors.get(ck) : null;
         if (cc == null) {
             return null;
@@ -733,15 +759,6 @@ public class WorldMapView extends View {
             int px = cx - minCx;
             int pz = cz - minCz;
             if (px < 0 || px >= cw || pz < 0 || pz >= ch) {
-                continue;
-            }
-            // v396 矿物热力图：chunk 级单色直接填
-            if (showOreLayer) {
-                Integer ore = map.chunkOreColors != null
-                        ? map.chunkOreColors.get(e.getKey()) : null;
-                if (ore != null) {
-                    mini.setPixel(px, pz, ore);
-                }
                 continue;
             }
             int[] src = e.getValue();
@@ -1665,6 +1682,63 @@ public class WorldMapView extends View {
         this.structureClickListener = l;
     }
 
+    /** v413：矿石标点点击回调（详情弹窗：矿石名/坐标/数量）。 */
+    public interface OnOreClickListener {
+        void onOreClick(WorldMapRenderer.OreMarker marker);
+    }
+
+    private OnOreClickListener oreClickListener;
+
+    public void setOnOreClickListener(OnOreClickListener l) {
+        this.oreClickListener = l;
+    }
+
+    /** v413：实体点击回调（详情弹窗：实体名/坐标）。 */
+    public interface OnEntityClickListener {
+        void onEntityClick(WorldMapRenderer.EntityPos entity);
+    }
+
+    private OnEntityClickListener entityClickListener;
+
+    public void setOnEntityClickListener(OnEntityClickListener l) {
+        this.entityClickListener = l;
+    }
+
+    /** v413：矿石标点命中检测。 */
+    private WorldMapRenderer.OreMarker hitTestOre(float sx, float sy) {
+        if (map == null || map.oreMarkers == null) {
+            return null;
+        }
+        float r = Math.max(20f, pixelsPerBlock * 1.6f);
+        for (WorldMapRenderer.OreMarker m : map.oreMarkers) {
+            float px = offsetX + (m.blockX - map.minBlockX + 0.5f) * pixelsPerBlock;
+            float py = offsetY + (m.blockZ - map.minBlockZ + 0.5f) * pixelsPerBlock;
+            if (Math.abs(sx - px) <= r && Math.abs(sy - py) <= r) {
+                return m;
+            }
+        }
+        return null;
+    }
+
+    /** v413：实体命中检测。 */
+    private WorldMapRenderer.EntityPos hitTestEntity(float sx, float sy) {
+        if (entities == null || entities.isEmpty()) {
+            return null;
+        }
+        for (WorldMapRenderer.EntityPos ep : entities) {
+            if (!chunkRendered(Math.floorDiv((int) ep.x, 16),
+                    Math.floorDiv((int) ep.z, 16))) {
+                continue;
+            }
+            float px = worldToScreenX(ep.x);
+            float py = worldToScreenY(ep.z);
+            if (Math.abs(sx - px) <= 18f && Math.abs(sy - py) <= 18f) {
+                return ep;
+            }
+        }
+        return null;
+    }
+
     /** 结构标记命中检测（半径 max(24px, ppb×1.4)）。 */
     private WorldMapRenderer.StructureMarker hitTestStructure(float sx, float sy) {
         for (WorldMapRenderer.StructureMarker m : structures) {
@@ -1770,6 +1844,22 @@ public class WorldMapView extends View {
                 WorldMapRenderer.StructureMarker sm = hitTestStructure(e.getX(), e.getY());
                 if (sm != null) {
                     structureClickListener.onStructureClick(sm);
+                    return true;
+                }
+            }
+            // v413：单击矿石标点 → 详情回调（矿石名/坐标/数量）
+            if (showOreLayer && oreClickListener != null) {
+                WorldMapRenderer.OreMarker om = hitTestOre(e.getX(), e.getY());
+                if (om != null) {
+                    oreClickListener.onOreClick(om);
+                    return true;
+                }
+            }
+            // v413：单击实体 → 详情回调
+            if (entityClickListener != null) {
+                WorldMapRenderer.EntityPos ep = hitTestEntity(e.getX(), e.getY());
+                if (ep != null) {
+                    entityClickListener.onEntityClick(ep);
                     return true;
                 }
             }

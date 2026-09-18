@@ -441,7 +441,7 @@ public class WorldManager {
         String versionLabel = currentVersionLabel();
         File backupDir = new File(
                 new File(LauncherStorage.getWorldBackupsDir(context), versionLabel),
-                HardcoreBackupManager.backupDirName(world.getWorldName(), world.getSeed()));
+                HardcoreBackupManager.backupDirName(world));
         if (!backupDir.exists() && !backupDir.mkdirs()) {
             throw new IOException("无法创建备份目录: " + backupDir.getAbsolutePath());
         }

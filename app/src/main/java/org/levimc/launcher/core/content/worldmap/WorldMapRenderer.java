@@ -1133,6 +1133,9 @@ public class WorldMapRenderer {
          *  （TK 实际 24844 chunk 只占 bounds 面积 2.5%）永远"不足"，
          *  静默烘焙每次启动空转。 */
         public boolean cacheComplete = false;
+        /** v413：矿石标点列表（chunk 渲染时收集，随烘焙全图铺开；
+         *  独立落盘 ore.bin——缓存 chunk 不重渲染也能读到）。 */
+        public java.util.List<OreMarker> oreMarkers;
         /** 出生点位置（block 坐标，-1 = 无） */
         public int spawnBlockX = -1;
         public int spawnBlockZ = -1;
@@ -1431,9 +1434,13 @@ public class WorldMapRenderer {
                 // 窗口围绕「实际最高 subchunk」（实测：高度图是生成器预测值 127~201，
                 // 实际方块只生成到 sub 3~4，围绕预测值会全跳过）
                 Integer maxSub = maxSubByChunk.get(key);
-                if (maxSub == null || sub < maxSub - 2 || sub > maxSub + 2) {
+                // v413：地下矿石层（sub ≤ 4）也解码——卫星图渲染不用
+                // 但矿石标点检测需要（钻石/金/铁都在 y<80）
+                boolean oreLayer = sub <= 4;
+                if (maxSub == null || (sub < maxSub - 2 && !oreLayer)
+                        || sub > maxSub + 2) {
                     skipped++;
-                    continue; // 无 subchunk 数据或地下/高空层：卫星图不需要
+                    continue; // 无 subchunk 数据或深层非矿石层：卫星图不需要
                 }
             }
             try {
@@ -1552,11 +1559,22 @@ public class WorldMapRenderer {
         for (Map<Integer, SubChunk> m : subChunks.values()) {
             subCount += m.size();
         }
+        // v413：小世界路径也收集矿石标点
+        java.util.List<OreMarker> oreMarkers = new java.util.ArrayList<>();
+        for (Map.Entry<Long, Map<Integer, SubChunk>> e : subChunks.entrySet()) {
+            collectChunkOres(e.getValue(), unpackX(e.getKey()), unpackZ(e.getKey()),
+                    dimension, oreMarkers);
+        }
         Log.i(TAG, "卫星模式完成: " + width + "x" + height
                 + " blocks, chunk 范围=(" + minX + "," + minZ + ")-(" + maxX + "," + maxZ + ")"
                 + ", biome 数据=" + biomeMaps.size() + " chunk / " + biomeNonZero + " 非透明像素"
-                + ", 解码 subchunk=" + subCount + " (含表面层=" + subChunks.size() + " chunk)");
-        return new WorldMap(minBlockX, minBlockZ, width, height, colors, biomeColors);
+                + ", 解码 subchunk=" + subCount + " (含表面层=" + subChunks.size() + " chunk)"
+                + ", 矿石标点=" + oreMarkers.size());
+        WorldMap wm = new WorldMap(minBlockX, minBlockZ, width, height, colors, biomeColors);
+        if (!oreMarkers.isEmpty()) {
+            wm.oreMarkers = oreMarkers;
+        }
+        return wm;
     }
 
     /**
@@ -2148,7 +2166,7 @@ public class WorldMapRenderer {
         if (!in.isFile()) {
             return null;
         }
-        return loadChunkCacheFile(in, dbDir);
+        return loadChunkCacheFile(in, dbDir, dimension);
     }
 
     /** 按给定渲染参数算后缀（map.chunkCacheSuffix 的取值来源）。 */
@@ -2165,10 +2183,11 @@ public class WorldMapRenderer {
             }
             suffix = sb.toString();
         }
-        // v412：渲染引擎进缓存后缀——切换引擎后旧缓存自动作废
-        // （不同引擎渲染结果不同，复用会显示错风格）
-        if (renderEngine == ENGINE_BTR) {
-            suffix += "_btr";
+        // v413：坡度阴影进缓存后缀——开关切换后旧缓存自动作废，
+        // 直接换缓存读秒生效（此前开关"无效"的根因：旧阴影渲染的
+        // 缓存 chunk 没重烘，屏幕显示的还是旧数据）
+        if (!enableShading) {
+            suffix += "_ns";
         }
         return suffix;
     }
@@ -2188,13 +2207,13 @@ public class WorldMapRenderer {
     private static final int SMALL_CACHE_VERSION = 1;
 
     /** 小世界全图缓存文件（v395 新结构：<世界>/<维度>/small.bin）。
-     *  v412：渲染引擎进文件名——切换引擎后小世界缓存也作废。 */
+     *  v413：阴影开关进文件名——切换后小世界缓存也作废。 */
     private static File smallCacheFile(File dbDir, int dimension) {
-        String eng = renderEngine == ENGINE_BTR ? "_btr" : "";
+        String ns = enableShading ? "" : "_ns";
         if (sCacheBase != null) {
-            return new File(dimCacheDir(dbDir, dimension), "small" + eng + ".bin");
+            return new File(dimCacheDir(dbDir, dimension), "small" + ns + ".bin");
         }
-        return new File(dbDir.getParentFile(), "map_small_" + dimension + eng + ".bin");
+        return new File(dbDir.getParentFile(), "map_small_" + dimension + ns + ".bin");
     }
 
     /** 保存小世界全图缓存（colors 数组调色板压缩——打开秒开的依据）。 */
@@ -2482,6 +2501,84 @@ public class WorldMapRenderer {
         }
     }
 
+    /** 矿石标点缓存文件（v413：独立于 chunk 缓存——矿石检测与
+     *  渲染参数无关，不随后缀；烘焙完整时一起落盘）。 */
+    private static File oreMarkersFile(File dbDir, int dimension) {
+        if (sCacheBase != null) {
+            return new File(dimCacheDir(dbDir, dimension), "ore.bin");
+        }
+        return new File(dbDir.getParentFile(), "map_ore_" + dimension + ".bin");
+    }
+
+    /** v413：矿石标点落盘（烘焙完成/退出时保存）。 */
+    public static void saveOreMarkers(WorldMap map, File dbDir, int dimension) {
+        if (map == null || map.oreMarkers == null || map.oreMarkers.isEmpty()
+                || dbDir == null) {
+            return;
+        }
+        File out = oreMarkersFile(dbDir, dimension);
+        synchronized (CACHE_SAVE_LOCK) {
+            File tmp = new File(out.getParentFile(), out.getName() + ".tmp");
+            try (java.io.DataOutputStream dos = new java.io.DataOutputStream(
+                    new java.io.BufferedOutputStream(new java.io.FileOutputStream(tmp)))) {
+                java.util.List<OreMarker> snapshot;
+                synchronized (map) {
+                    snapshot = new java.util.ArrayList<>(map.oreMarkers);
+                }
+                dos.writeInt(0x4F524531); // "ORE1"
+                dos.writeInt(snapshot.size());
+                for (OreMarker m : snapshot) {
+                    byte[] nb = m.name.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    dos.writeShort(nb.length);
+                    dos.write(nb);
+                    dos.writeInt(m.chunkX);
+                    dos.writeInt(m.chunkZ);
+                    dos.writeInt(m.blockX);
+                    dos.writeInt(m.blockZ);
+                    dos.writeInt(m.count);
+                }
+                if (!tmp.renameTo(out)) {
+                    Log.w(TAG, "矿石标点 rename 失败: " + out.getName());
+                    return;
+                }
+                Log.i(TAG, "矿石标点已保存: " + snapshot.size() + " 个");
+            } catch (Exception e) {
+                Log.w(TAG, "矿石标点保存失败", e);
+            }
+        }
+    }
+
+    /** v413：读矿石标点缓存（无/损坏返回 null）。 */
+    public static java.util.List<OreMarker> loadOreMarkers(File dbDir, int dimension) {
+        File in = oreMarkersFile(dbDir, dimension);
+        if (in == null || !in.isFile()) {
+            return null;
+        }
+        try (java.io.DataInputStream dis = new java.io.DataInputStream(
+                new java.io.BufferedInputStream(new java.io.FileInputStream(in)))) {
+            if (dis.readInt() != 0x4F524531) {
+                return null;
+            }
+            int count = dis.readInt();
+            if (count < 0 || count > 5_000_000) {
+                return null;
+            }
+            java.util.List<OreMarker> out = new java.util.ArrayList<>(count);
+            for (int i = 0; i < count; i++) {
+                int len = dis.readUnsignedShort();
+                byte[] nb = new byte[len];
+                dis.readFully(nb);
+                String name = new String(nb, java.nio.charset.StandardCharsets.UTF_8);
+                out.add(new OreMarker(name, dis.readInt(), dis.readInt(),
+                        dis.readInt(), dis.readInt(), dis.readInt()));
+            }
+            return out;
+        } catch (Exception e) {
+            Log.w(TAG, "矿石标点加载失败", e);
+            return null;
+        }
+    }
+
     /** db 文件指纹列表（"name:size:mtime"，名字排序稳定）。 */
     private static java.util.List<String> dbFileFingerprintList(File dbDir) {
         java.util.List<String> out = new java.util.ArrayList<>();
@@ -2607,6 +2704,33 @@ public class WorldMapRenderer {
     // ---------------------------------------------------------------- 矿物热力图
 
     /** 矿物方块 → 热力色（矿石分布图层）。 */
+    /** v413：矿石标点（图层显示为色块标记，可点击看详情）。
+     *  blockX/blockZ 为该矿种在 chunk 内的首个位置（-1 = chunk 中心）。 */
+    public static class OreMarker {
+        public final String name;   // 方块名（minecraft:xxx 或短名）
+        public final int chunkX;
+        public final int chunkZ;
+        public final int blockX;
+        public final int blockZ;
+        public final int count;
+
+        public OreMarker(String name, int chunkX, int chunkZ,
+                         int blockX, int blockZ, int count) {
+            this.name = name;
+            this.chunkX = chunkX;
+            this.chunkZ = chunkZ;
+            this.blockX = blockX;
+            this.blockZ = blockZ;
+            this.count = count;
+        }
+
+        /** 标记色（ORE_COLORS 查表，未知洋红）。 */
+        public int color() {
+            Integer c = ORE_COLORS.get(name);
+            return c != null ? c : 0xFFFF00FF;
+        }
+    }
+
     private static final java.util.Map<String, Integer> ORE_COLORS = new HashMap<>();
     static {
         ORE_COLORS.put("diamond_ore", 0xFF4AE8FF);      // 钻石：亮青
@@ -3077,8 +3201,21 @@ public class WorldMapRenderer {
                                 int cx = (int) (key >> 32);
                                 int cz = (int) (long) key;
                                 try {
+                                    // v413：烘焙顺带收集矿石标点（每 chunk
+                                    // 一次地下层扫描），完成后落盘 ore.bin
+                                    java.util.List<OreMarker> ores =
+                                            new java.util.ArrayList<>(2);
                                     int[][] res = renderChunkOnDemand(
-                                            wReader, cx, cz, dimension);
+                                            wReader, cx, cz, dimension, ores);
+                                    if (!ores.isEmpty()) {
+                                        synchronized (map) {
+                                            if (map.oreMarkers == null) {
+                                                map.oreMarkers =
+                                                        new java.util.ArrayList<>();
+                                            }
+                                            map.oreMarkers.addAll(ores);
+                                        }
+                                    }
                                     int[] colors = res != null ? res[0] : null;
                                     if (colors != null) {
                                         map.chunkColors.put(key, colors);
@@ -3147,6 +3284,8 @@ public class WorldMapRenderer {
                 // 打开补烘判定的依据）
                 map.cacheComplete = true;
                 saveChunkCache(map, dbDir, dimension, true);
+                // v413：矿石标点一起落盘（烘焙全图时收集全）
+                saveOreMarkers(map, dbDir, dimension);
                 Log.i(TAG, "烘焙完成: dim=" + dimension + " 渲染=" + rendered.get()
                         + "/" + ordered.size());
             } catch (InterruptedException ie) {
@@ -3261,11 +3400,11 @@ public class WorldMapRenderer {
         if (!in.isFile()) {
             return null;
         }
-        return loadChunkCacheFile(in, dbDir);
+        return loadChunkCacheFile(in, dbDir, dimension);
     }
 
     /** 从指定缓存文件加载（loadChunkCache 与切段 fallback 共用）。 */
-    private static WorldMap loadChunkCacheFile(File in, File dbDir) {
+    private static WorldMap loadChunkCacheFile(File in, File dbDir, int dimension) {
         try (java.io.DataInputStream dis = new java.io.DataInputStream(
                 new java.io.BufferedInputStream(new java.io.FileInputStream(in)))) {
             if (dis.readInt() != MAP_CACHE_MAGIC || dis.readInt() != MAP_CACHE_VERSION) {
@@ -3334,6 +3473,8 @@ public class WorldMapRenderer {
             map.blockScale = 1;
             map.dbFileFingerprints = fps;
             map.cacheComplete = complete;
+            // v413：矿石标点独立缓存（与 chunk 缓存同目录）
+            map.oreMarkers = loadOreMarkers(dbDir, dimension);
             Log.i(TAG, "chunk 缓存已加载: " + count + " chunk (biome=" + hasBiome
                     + ", 文件指纹=" + fps.size() + ", 完整=" + complete + ")");
             return map;
@@ -3538,6 +3679,13 @@ public class WorldMapRenderer {
      *  要重开全部 sst 文件，是拖动跟不上渲染的主因）。 */
     public static int[][] renderChunkOnDemand(LevelDBReader reader, int cx, int cz,
                                               int dimension) {
+        return renderChunkOnDemand(reader, cx, cz, dimension, null);
+    }
+
+    /** v413：oreSink 非空时把本 chunk 检测到的矿石标点加入。 */
+    public static int[][] renderChunkOnDemand(LevelDBReader reader, int cx, int cz,
+                                              int dimension,
+                                              java.util.List<OreMarker> oreSink) {
         try {
             List<LevelDBEntry> entries = reader.readChunk(cx, cz);
             int[] hmap = null;
@@ -3629,12 +3777,68 @@ public class WorldMapRenderer {
                     biomeCols[i] = biomeGrassColor(biomes[i] & 0xFF);
                 }
             }
+            // v413：矿石标点收集（窗口裁剪前扫描全部 subs——
+            // 矿石在地下深处，地表窗口会裁掉）
+            if (oreSink != null) {
+                collectChunkOres(subs, cx, cz, dimension, oreSink);
+            }
             // [0]=卫星色 [1]=biome 图层色（大世界按需渲染此前不生成
             // biome 数据——biome 图层打开后无内容显示的根因）
             return new int[][]{colors, biomeCols};
         } catch (Exception e) {
             Log.w(TAG, "按需渲染 chunk(" + cx + "," + cz + ") 失败", e);
             return null;
+        }
+    }
+
+    /** v413：统计 chunk 内矿石（每矿种一个标点，位置取首个发现
+     *  坐标）。主世界只扫地下层（sub ≤ 4，y<80——钻石/金/铁/煤
+     *  都在此范围；每 chunk 2 万次 getIndex，烘焙全图可接受）；
+     *  下界扫全部层（下界金/石英）。 */
+    private static void collectChunkOres(Map<Integer, SubChunk> subs, int cx,
+                                         int cz, int dimension,
+                                         java.util.List<OreMarker> sink) {
+        if (subs == null || subs.isEmpty() || sink == null) {
+            return;
+        }
+        int maxSub = dimension == DIM_NETHER ? 15 : 4;
+        java.util.Map<String, int[]> found = new java.util.HashMap<>();
+        for (Map.Entry<Integer, SubChunk> e : subs.entrySet()) {
+            if (e.getKey() > maxSub) {
+                continue;
+            }
+            SubChunk sub = e.getValue();
+            if (sub == null || sub.palette == null) {
+                continue;
+            }
+            for (int x = 0; x < 16; x++) {
+                for (int z = 0; z < 16; z++) {
+                    for (int y = 0; y < 16; y++) {
+                        int idx = sub.getIndex(x, y, z);
+                        String name = idx >= 0 && idx < sub.palette.length
+                                ? sub.palette[idx] : null;
+                        if (name == null) {
+                            continue;
+                        }
+                        // palette 名带 minecraft: 前缀（色表 key 不带）
+                        String shortName = name.startsWith("minecraft:")
+                                ? name.substring(10) : name;
+                        if (!ORE_COLORS.containsKey(shortName)) {
+                            continue;
+                        }
+                        int[] acc = found.get(shortName);
+                        if (acc == null) {
+                            found.put(shortName, new int[]{1, cx * 16 + x, cz * 16 + z});
+                        } else {
+                            acc[0]++;
+                        }
+                    }
+                }
+            }
+        }
+        for (Map.Entry<String, int[]> e : found.entrySet()) {
+            int[] v = e.getValue();
+            sink.add(new OreMarker(e.getKey(), cx, cz, v[1], v[2], v[0]));
         }
     }
 
@@ -4829,18 +5033,7 @@ public class WorldMapRenderer {
      * 子串匹配保证 short_grass（119,119,119 灰模板）等 equals 列表漏掉的
      * 新方块也能乘上色调（MC 着色器机制）；查不到色调时用 bedrock-level 默认色。
      */
-    /** 渲染引擎（v412 设置可切换）：
-     *  0 = bedrockmap（默认，群系色调混合——草/水随群系变色）；
-     *  1 = BTR（blocktopograph 原色——方块本色，不混群系色调）。 */
-    public static final int ENGINE_BEDROCKMAP = 0;
-    public static final int ENGINE_BTR = 1;
-    public static volatile int renderEngine = ENGINE_BEDROCKMAP;
-
     private static int tintColor(String name, int color, int biomeId) {
-        // BTR 引擎：原色（不混群系色调）
-        if (renderEngine == ENGINE_BTR) {
-            return color;
-        }
         // 只对"灰度模板"乘群系色调（原版 MC 着色器机制：贴图是灰度模板才被
         // 群系色调染色）。成品色方块（seagrass 50,126,8 / kelp 86,130,42 /
         // grass_path 148,121,65 等色表里已带真实色）乘 tint 会变暗发黑——
@@ -5591,11 +5784,15 @@ public class WorldMapRenderer {
                 .append("L.imageOverlay('data:image/png;base64,").append(b64)
                 .append("',BOUNDS).addTo(map);")
                 .append("var FZ=map.getBoundsZoom(BOUNDS);")
-                .append("function mkCircle(z,x,opts){var px=opts.px||8;delete opts.px;")
-                .append("var c=L.circle([z,x],L.extend({radius:1},opts));")
-                .append("var up=function(){var s=Math.min(px,Math.max(3,px*Math.pow(2,map.getZoom()-FZ)));")
-                .append("c.setRadius(s/Math.pow(2,map.getZoom()));};")
-                .append("map.on('zoomend',up);up();return c;}")
+                // v413：mkCircle 的 radius 在 CRS.Simple 投影下换算不稳
+                // （标点/结构"显示异常"的根因）——改 divIcon 像素级标记，
+                // 尺寸不随投影缩放
+                .append("function mkCircle(z,x,opts){var px=opts.px||8;var col=opts.color||'#ffd54f';")
+                .append("var d=document.createElement('div');")
+                .append("d.style.cssText='width:'+px+'px;height:'+px+'px;border-radius:50%;")
+                .append("background:'+col+';border:2px solid rgba(0,0,0,.4);box-sizing:border-box';")
+                .append("return L.marker([z,x],{icon:L.divIcon({className:'',html:d.outerHTML,")
+                .append("iconSize:[px,px],iconAnchor:[px/2,px/2]})});}")
                 .append("var groups={p:L.layerGroup(),l:L.layerGroup(),s:L.layerGroup(),")
                 .append("e:L.layerGroup(),sl:L.layerGroup()};")
                 .append("function tg(k){if(document.getElementById('ck-'+k).checked){groups[k].addTo(map);}")

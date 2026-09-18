@@ -18,6 +18,9 @@ public class WorldItem extends ContentItem {
     private static final String TAG = "WorldItem";
 
     private String worldName;
+    /** v413：存档唯一标识（导出 .mcworld 注入的 leviWorldId；
+     *  老存档无则 null，备份分类回退世界名_seed）。 */
+    private String leviWorldId;
     private String gameMode;
     private long lastPlayed;
     private long seed;
@@ -65,6 +68,11 @@ public class WorldItem extends ContentItem {
             if (icon.isFile()) return icon;
         }
         return null;
+    }
+
+    /** v413：存档唯一标识（无则 null）。 */
+    public String getLeviWorldId() {
+        return leviWorldId;
     }
 
     public long getSeed() {
@@ -187,6 +195,12 @@ public class WorldItem extends ContentItem {
                 NbtTag seedTag = compound.get("RandomSeed");
                 if (seedTag != null) {
                     seed = seedTag.getLong();
+                }
+
+                // v413：存档唯一标识（导出的 .mcworld 注入的 leviWorldId）
+                NbtTag idTag = compound.get("leviWorldId");
+                if (idTag != null) {
+                    leviWorldId = idTag.getString();
                 }
 
                 NbtTag hardcoreTag = compound.get("IsHardcore");

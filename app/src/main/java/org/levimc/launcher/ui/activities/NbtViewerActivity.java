@@ -127,6 +127,34 @@ public class NbtViewerActivity extends BaseActivity {
                 .show();
     }
 
+    /** v413：矿石中文名（标点详情弹窗标题）。 */
+    private String oreLabelZh(String name) {
+        String base = name != null && name.startsWith("minecraft:")
+                ? name.substring(10) : name != null ? name : "";
+        switch (base) {
+            case "diamond_ore":
+            case "deepslate_diamond_ore": return "钻石矿石";
+            case "emerald_ore":
+            case "deepslate_emerald_ore": return "绿宝石矿石";
+            case "gold_ore":
+            case "deepslate_gold_ore": return "金矿石";
+            case "nether_gold_ore": return "下界金矿石";
+            case "iron_ore":
+            case "deepslate_iron_ore": return "铁矿石";
+            case "coal_ore":
+            case "deepslate_coal_ore": return "煤矿石";
+            case "copper_ore":
+            case "deepslate_copper_ore": return "铜矿石";
+            case "lapis_ore":
+            case "deepslate_lapis_ore": return "青金石矿石";
+            case "redstone_ore":
+            case "deepslate_redstone_ore": return "红石矿石";
+            case "nether_quartz_ore": return "下界石英矿石";
+            case "ancient_debris": return "远古残骸";
+            default: return base;
+        }
+    }
+
     private String structureLabelZh(String type) {
         switch (type != null ? type : "") {
             case "village": return "村庄";
@@ -366,22 +394,13 @@ public class NbtViewerActivity extends BaseActivity {
         // 火把/灯笼等非固体光源俯视渲染视为空气穿透（黄色杂点问题）
         WorldMapRenderer.ignoreLightBlocks = true;
 
-        // v397：坡度阴影开关（渲染管线参数——变化后缓存作废重烘焙）
+        // v397：坡度阴影开关（渲染管线参数——v413 起阴影进缓存后缀
+        // _ns，切换 = 换缓存直接读，不再重烘焙）
         binding.layerShading.setOnCheckedChangeListener((b, checked) -> {
             WorldMapRenderer.enableShading = checked;
-            invalidateRenderCacheAndBake();
+            // 重新加载当前维度（读新后缀缓存秒生效；miss 则烘焙）
+            reloadMapForCurrentDimension();
         });
-
-        // v412：渲染引擎切换（BTR 原色 / bedrockmap 群系色调）——
-        // 缓存后缀含引擎（_btr），切换后旧缓存自动作废重烘焙
-        binding.layerBtrEngine.setOnCheckedChangeListener((b, checked) -> {
-            WorldMapRenderer.renderEngine = checked
-                    ? WorldMapRenderer.ENGINE_BTR
-                    : WorldMapRenderer.ENGINE_BEDROCKMAP;
-            invalidateRenderCacheAndBake();
-        });
-        binding.layerBtrEngine.setChecked(
-                WorldMapRenderer.renderEngine == WorldMapRenderer.ENGINE_BTR);
 
         // v397：结构特征检测开关（palette 猜结构可能误报）
         binding.layerStructDetect.setOnCheckedChangeListener((b, checked) -> {
@@ -417,36 +436,34 @@ public class NbtViewerActivity extends BaseActivity {
                     .show();
         });
 
-        // 矿物热力图图层：开启后后台烘焙矿物密度数据（chunk 级热力色），
-        // 关闭即清（数据不落盘，按需生成）
-        binding.layerOre.setOnCheckedChangeListener((b, checked) -> {
-            binding.worldMapImage.setShowOreLayer(checked);
-            if (checked && currentMap != null && currentWorldDir != null) {
-                final int oreDim = "nether".equals(mapDimension) ? 1
-                        : "end".equals(mapDimension) ? 2 : 0;
-                final WorldMapRenderer.WorldMap fOre = currentMap;
-                final File fDb = new File(currentWorldDir, "db");
-                WorldMapRenderer.bakeOreLayer(fDb, oreDim, fOre,
-                        batch -> runOnUiThread(() -> {
-                            if (!isFinishing() && !isDestroyed()
-                                    && currentMap == fOre
-                                    && binding.layerOre.isChecked()) {
-                                binding.worldMapImage.onChunksRendered(batch);
-                            }
-                        }),
-                        () -> runOnUiThread(() -> {
-                            if (!isFinishing() && !isDestroyed()
-                                    && currentMap == fOre
-                                    && binding.layerOre.isChecked()) {
-                                binding.worldMapImage.onChunksRendered(
-                                        java.util.Collections.emptySet());
-                            }
-                        }));
-            } else if (!checked && currentMap != null) {
-                currentMap.chunkOreColors = null;
-                binding.worldMapImage.setShowOreLayer(false);
-            }
+        // v413：矿石标点图层（烘焙/渲染 chunk 时收集矿石标记，
+        // 独立落盘 ore.bin；开启显示色块标点，点击看详情）
+        binding.layerOre.setOnCheckedChangeListener((b, checked) ->
+                binding.worldMapImage.setShowOreLayer(checked));
+        // v413：矿石标点点击 → 详情弹窗（矿石名/坐标/数量）
+        binding.worldMapImage.setOnOreClickListener(m -> {
+            String label = oreLabelZh(m.name);
+            new CustomAlertDialog(this)
+                    .setTitleText(label)
+                    .setMessage("方块: " + m.name
+                            + "\n坐标: X " + m.blockX + "  Z " + m.blockZ
+                            + "（区块 " + m.chunkX + "," + m.chunkZ + "）"
+                            + "\n该区块数量: " + m.count
+                            + "\n\n提示: 矿石分布在地下，此标点代表"
+                            + "所在区块该矿种的位置")
+                    .setNegativeButton(getString(R.string.nbt_edit_cancel), null)
+                    .show();
         });
+        // v413：实体点击 → 详情弹窗（实体名/坐标）
+        binding.worldMapImage.setOnEntityClickListener(ep ->
+                new CustomAlertDialog(this)
+                        .setTitleText(WorldMapView.entityLabel(ep.name))
+                        .setMessage("实体: " + ep.name
+                                + "\n坐标: X " + Math.round(ep.x)
+                                + "  Y " + Math.round(ep.y)
+                                + "  Z " + Math.round(ep.z))
+                        .setNegativeButton(getString(R.string.nbt_edit_cancel), null)
+                        .show());
 
         // 下界渲染层（y 轴范围）：全部/上部/中部/下部——下界 sub 0-7 每层
         // 都有方块，全量解码是下界渲染慢的主因；选窄范围大幅提速
@@ -1009,6 +1026,17 @@ public class NbtViewerActivity extends BaseActivity {
         }
         binding.worldMapImage.setDimension(dim);
         loadMapForDimension(dim);
+    }
+
+    /** v413：阴影开关等渲染参数变化后重载当前维度（缓存后缀变了
+     *  → 换缓存直接读秒生效；miss 则烘焙。比 force 重烘焙快得多，
+     *  且旧阴影渲染立即消失）。 */
+    private void reloadMapForCurrentDimension() {
+        if (currentWorldDir == null || mapDimension == null) {
+            return;
+        }
+        // 保留当前视图（缩放/位置不跳）
+        loadMapForDimension(mapDimension, true);
     }
 
     /** 切换维度后重新渲染地图（下界/末地无数据时提示）+ 解析实体/结构图层数据。 */
@@ -2597,6 +2625,9 @@ public class NbtViewerActivity extends BaseActivity {
             // v19：保持 map 的完整性标志（完整缓存退出后再存仍是完整）
             WorldMapRenderer.saveChunkCache(currentMap, currentMap.chunkSourceDir,
                     currentMap.chunkSourceDim, currentMap.cacheComplete);
+            // v413：矿石标点一起落盘（烘焙未跑完时保留已收集部分）
+            WorldMapRenderer.saveOreMarkers(currentMap,
+                    currentMap.chunkSourceDir, currentMap.chunkSourceDim);
         }
         if (bakeThread != null) {
             bakeThread.interrupt();
