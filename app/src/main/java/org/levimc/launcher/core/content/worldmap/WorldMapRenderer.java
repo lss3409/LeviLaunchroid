@@ -3954,7 +3954,7 @@ public class WorldMapRenderer {
         }
         for (Map.Entry<String, int[]> e : found.entrySet()) {
             int[] v = e.getValue();
-            sink.add(new OreMarker(e.getKey(), cx, cz, v[1], v[3], v[2], v[0]));
+            sink.add(new OreMarker(e.getKey(), cx, cz, v[1], v[2], v[3], v[0]));
         }
     }
 
