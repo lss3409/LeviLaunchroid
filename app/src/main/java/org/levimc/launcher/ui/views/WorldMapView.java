@@ -95,6 +95,14 @@ public class WorldMapView extends View {
     /** v417：上次通知 HUD 时的缩放倍率（onDraw 变化检测兜底）。 */
     private float lastNotifiedPpb = -1f;
 
+    /** v424：缩放倍率写入统一入口——任何路径改倍率立即通知 HUD
+     *  （"力大砖飞"：无条件直接通知，不做差异判断——v363 实时显示
+     *  的体验回归，此前条件检测在部分缩放路径漏通知）。 */
+    private void setPpb(float v) {
+        pixelsPerBlock = v;
+        notifyViewChanged();
+    }
+
     /** v403：打开时整图适配（fit 全图显示"大的缩放比例"）——
      *  主世界大地图用（用户反馈打开只看到放大 26 倍的一小块，
      *  要缩很多次才看到全貌）；下界/末地保持放大起步（v380
@@ -369,7 +377,7 @@ public class WorldMapView extends View {
         scalePreviewActive = true;
         anim.addUpdateListener(a -> {
             float t = (float) a.getAnimatedValue();
-            pixelsPerBlock = startPpb + dPpb * t;
+            setPpb(startPpb + dPpb * t);
             offsetX = startOffsetX + dOffsetX * t;
             offsetY = startOffsetY + dOffsetY * t;
             clampTranslation();
@@ -391,7 +399,7 @@ public class WorldMapView extends View {
     private void initialView() {
         float fit = fitScale();
         if (fit <= 0f) {
-            pixelsPerBlock = 1f;
+            setPpb(1f);
             offsetX = 0f;
             offsetY = 0f;
             return;
@@ -399,7 +407,7 @@ public class WorldMapView extends View {
 
         // v416：无论大小地图，打开默认最大倍率 24（用户要求——打开
         // 只渲染视口一两个区块，秒显示不黑屏）
-        pixelsPerBlock = MAX_PIXELS_PER_BLOCK;
+        setPpb(MAX_PIXELS_PER_BLOCK);
         // 目标点：出生点 > 玩家（打开地图停在出生点，用户要求）；
         // 若该处未生成（透明），螺旋找最近的有数据位置
         int targetX = map.spawnBlockX >= 0 ? map.spawnBlockX
@@ -427,12 +435,12 @@ public class WorldMapView extends View {
     public void fitToView() {
         float fit = fitScale();
         if (fit <= 0f) {
-            pixelsPerBlock = 1f;
+            setPpb(1f);
             offsetX = 0f;
             offsetY = 0f;
             return;
         }
-        pixelsPerBlock = clampPixelsPerBlock(fit);
+        setPpb(clampPixelsPerBlock(fit));
         offsetX = (getWidth() - map.width * pixelsPerBlock) / 2f;
         offsetY = (getHeight() - map.height * pixelsPerBlock) / 2f;
     }
@@ -1799,7 +1807,7 @@ public class WorldMapView extends View {
             // 以捏合焦点为锚点缩放
             offsetX = detector.getFocusX() - (detector.getFocusX() - offsetX) * applied;
             offsetY = detector.getFocusY() - (detector.getFocusY() - offsetY) * applied;
-            pixelsPerBlock = newPpb;
+            setPpb(newPpb);
             // 缩放期间用缓存位图做预览（不重采样，保证捏合流畅），结束全量重绘
             scaleFocusX = detector.getFocusX();
             scaleFocusY = detector.getFocusY();
@@ -1927,7 +1935,7 @@ public class WorldMapView extends View {
                 float applied = target / pixelsPerBlock;
                 offsetX = e.getX() - (e.getX() - offsetX) * applied;
                 offsetY = e.getY() - (e.getY() - offsetY) * applied;
-                pixelsPerBlock = target;
+                setPpb(target);
                 clampTranslation();
             }
             invalidate();
