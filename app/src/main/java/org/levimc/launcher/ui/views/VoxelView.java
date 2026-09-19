@@ -241,7 +241,7 @@ public class VoxelView extends View {
                     sideH = Math.min(10f, Math.max(0f, gap));
                 }
                 drawBlock(canvas, px, py, col.colors[i], (y - baseY) * 0.6f,
-                        cosA, sinA, 8f, sideH, col.names[i]);
+                        cosA, sinA, 8f, sideH, col.names[i], y - baseY);
             }
         }
         return bmp;
@@ -370,13 +370,17 @@ public class VoxelView extends View {
         return dx * sinA + dz * cosA;
     }
 
-    /** 画一个等距方块（顶面 MC 原版纹理/纯色 + 两个侧面明暗）。 */
+    /** 画一个等距方块（顶面 MC 原版纹理/纯色 + 两个侧面明暗）。
+     *  v421：高度着色（bedrockmap 3D 同款——相对高度越高越亮，
+     *  地形起伏更立体；±24 亮度差封顶）。 */
     private void drawBlock(Canvas canvas, float cx, float topY, int color, float shade,
-                           float cosA, float sinA, float u, float h, String blockName) {
+                           float cosA, float sinA, float u, float h, String blockName,
+                           int relY) {
         int base = color;
-        int r = Math.max(0, Math.min(255, ((base >> 16) & 0xFF) + (int) shade));
-        int g = Math.max(0, Math.min(255, ((base >> 8) & 0xFF) + (int) shade));
-        int b = Math.max(0, Math.min(255, (base & 0xFF) + (int) shade));
+        float hb = Math.max(-24f, Math.min(24f, relY * 0.5f));
+        int r = Math.max(0, Math.min(255, ((base >> 16) & 0xFF) + (int) shade + (int) hb));
+        int g = Math.max(0, Math.min(255, ((base >> 8) & 0xFF) + (int) shade + (int) hb));
+        int b = Math.max(0, Math.min(255, (base & 0xFF) + (int) shade + (int) hb));
         int lit = 0xFF000000 | (r << 16) | (g << 8) | b;
         // 两个侧面明暗随观察方向交替（等距视觉立体感）
         float side = Math.abs(sinA);

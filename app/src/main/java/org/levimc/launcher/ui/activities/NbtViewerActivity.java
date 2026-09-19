@@ -481,11 +481,13 @@ public class NbtViewerActivity extends BaseActivity {
             new CustomAlertDialog(this)
                     .setTitleText(label)
                     .setMessage("方块: " + m.name
-                            + "\n坐标: X " + m.blockX + "  Z " + m.blockZ
+                            + "\n坐标: X " + m.blockX
+                            + (m.blockY >= 0 ? "  Y " + m.blockY : "")
+                            + "  Z " + m.blockZ
                             + "（区块 " + m.chunkX + "," + m.chunkZ + "）"
                             + (m.count > 0 ? "\n该区块数量: " + m.count : "")
-                            + "\n\n提示: 矿石分布在地下，标点定位到"
-                            + "所在区块中心（精度 ±8 方块）")
+                            + "\n\n提示: 坐标为该矿种在区块内的首个"
+                            + "位置，矿石分布在地下")
                     .setNegativeButton(getString(R.string.nbt_edit_cancel), null)
                     .show();
         });
@@ -1841,7 +1843,11 @@ public class NbtViewerActivity extends BaseActivity {
                                     if (!isFinishing() && !isDestroyed()
                                             && currentMap == fOld) {
                                         currentMap = fresh;
-                                        binding.worldMapImage.setWorldMap(fresh);
+                                        // v421：keepView——后台刷新替换
+                                        // 保留当前视图（此前不带 keepView
+                                        // → initialView 重置跳回出生点，
+                                        // "缩放滑到别处一松手就跳屏"的根因）
+                                        binding.worldMapImage.setWorldMap(fresh, true);
                                         Log.i(TAG, "小世界旧图已刷新: "
                                                 + fresh.width + "x" + fresh.height);
                                     }

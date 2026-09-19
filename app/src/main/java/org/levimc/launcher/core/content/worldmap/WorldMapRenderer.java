@@ -2588,7 +2588,7 @@ public class WorldMapRenderer {
                 synchronized (map) {
                     snapshot = new java.util.ArrayList<>(map.oreMarkers);
                 }
-                dos.writeInt(0x4F524531); // "ORE1"
+                dos.writeInt(0x4F524532); // "ORE2"（v421：含 Y 轴）
                 dos.writeInt(snapshot.size());
                 for (OreMarker m : snapshot) {
                     byte[] nb = m.name.getBytes(java.nio.charset.StandardCharsets.UTF_8);
@@ -2597,6 +2597,7 @@ public class WorldMapRenderer {
                     dos.writeInt(m.chunkX);
                     dos.writeInt(m.chunkZ);
                     dos.writeInt(m.blockX);
+                    dos.writeInt(m.blockY);
                     dos.writeInt(m.blockZ);
                     dos.writeInt(m.count);
                 }
@@ -2619,9 +2620,11 @@ public class WorldMapRenderer {
         }
         try (java.io.DataInputStream dis = new java.io.DataInputStream(
                 new java.io.BufferedInputStream(new java.io.FileInputStream(in)))) {
-            if (dis.readInt() != 0x4F524531) {
+            int magic = dis.readInt();
+            if (magic != 0x4F524531 && magic != 0x4F524532) {
                 return null;
             }
+            boolean hasY = magic == 0x4F524532;
             int count = dis.readInt();
             if (count < 0 || count > 5_000_000) {
                 return null;
@@ -2632,8 +2635,13 @@ public class WorldMapRenderer {
                 byte[] nb = new byte[len];
                 dis.readFully(nb);
                 String name = new String(nb, java.nio.charset.StandardCharsets.UTF_8);
-                out.add(new OreMarker(name, dis.readInt(), dis.readInt(),
-                        dis.readInt(), dis.readInt(), dis.readInt()));
+                int cx = dis.readInt();
+                int cz = dis.readInt();
+                int bx = dis.readInt();
+                int by = hasY ? dis.readInt() : -1;
+                int bz = dis.readInt();
+                int cnt = dis.readInt();
+                out.add(new OreMarker(name, cx, cz, bx, by, bz, cnt));
             }
             return out;
         } catch (Exception e) {
@@ -2768,21 +2776,29 @@ public class WorldMapRenderer {
 
     /** 矿物方块 → 热力色（矿石分布图层）。 */
     /** v413：矿石标点（图层显示为色块标记，可点击看详情）。
-     *  blockX/blockZ 为该矿种在 chunk 内的首个位置（-1 = chunk 中心）。 */
+     *  blockX/blockY/blockZ 为该矿种在 chunk 内的首个位置（v421
+     *  起含 Y 轴）。 */
     public static class OreMarker {
-        public final String name;   // 方块名（minecraft:xxx 或短名）
+        public final String name;   // 方块名（短名）
         public final int chunkX;
         public final int chunkZ;
         public final int blockX;
+        public final int blockY;
         public final int blockZ;
         public final int count;
 
         public OreMarker(String name, int chunkX, int chunkZ,
                          int blockX, int blockZ, int count) {
+            this(name, chunkX, chunkZ, blockX, -1, blockZ, count);
+        }
+
+        public OreMarker(String name, int chunkX, int chunkZ,
+                         int blockX, int blockY, int blockZ, int count) {
             this.name = name;
             this.chunkX = chunkX;
             this.chunkZ = chunkZ;
             this.blockX = blockX;
+            this.blockY = blockY;
             this.blockZ = blockZ;
             this.count = count;
         }
@@ -3889,11 +3905,10 @@ public class WorldMapRenderer {
         }
     }
 
-    /** v417：统计 chunk 内矿石（每矿种一个标点）。扫**调色板**
-     * 而非逐方块 getIndex——调色板是去重名字列表（每 chunk 50
-     * 个内），逐方块扫描 2 万次 getIndex × 2.5 万 chunk 把烘焙
-     * 拖慢一倍（"烘焙停在 0 四五秒/预烘焙停住"的元凶之一）。
-     * 位置取 chunk 中心（精度 ±8，数量统计省略）。 */
+    /** v421：统计 chunk 内矿石（每矿种一个标点，精确位置 + 数量）。
+     *  逐方块扫描恢复（v417 调色板扫描导致同区块多矿种标点位置
+     *  重叠只见一个）——只扫矿石层（主世界 sub ≤ 4，下界全层），
+     *  每 chunk 2 万次 getIndex 约 0.4ms，8 线程烘焙影响 <1%。 */
     private static void collectChunkOres(Map<Integer, SubChunk> subs, int cx,
                                          int cz, int dimension,
                                          java.util.List<OreMarker> sink) {
@@ -3901,7 +3916,7 @@ public class WorldMapRenderer {
             return;
         }
         int maxSub = dimension == DIM_NETHER ? 15 : 4;
-        java.util.Set<String> found = new java.util.HashSet<>();
+        java.util.Map<String, int[]> found = new java.util.HashMap<>();
         for (Map.Entry<Integer, SubChunk> e : subs.entrySet()) {
             if (e.getKey() > maxSub) {
                 continue;
@@ -3910,21 +3925,36 @@ public class WorldMapRenderer {
             if (sub == null || sub.palette == null) {
                 continue;
             }
-            for (String name : sub.palette) {
-                if (name == null) {
-                    continue;
-                }
-                // palette 名带 minecraft: 前缀（色表 key 不带）
-                String shortName = name.startsWith("minecraft:")
-                        ? name.substring(10) : name;
-                if (ORE_COLORS.containsKey(shortName)) {
-                    found.add(shortName);
+            for (int x = 0; x < 16; x++) {
+                for (int z = 0; z < 16; z++) {
+                    for (int y = 0; y < 16; y++) {
+                        int idx = sub.getIndex(x, y, z);
+                        String name = idx >= 0 && idx < sub.palette.length
+                                ? sub.palette[idx] : null;
+                        if (name == null) {
+                            continue;
+                        }
+                        // palette 名带 minecraft: 前缀（色表 key 不带）
+                        String shortName = name.startsWith("minecraft:")
+                                ? name.substring(10) : name;
+                        if (!ORE_COLORS.containsKey(shortName)) {
+                            continue;
+                        }
+                        int[] acc = found.get(shortName);
+                        if (acc == null) {
+                            found.put(shortName, new int[]{1,
+                                    cx * 16 + x, e.getKey() * 16 + y,
+                                    cz * 16 + z});
+                        } else {
+                            acc[0]++;
+                        }
+                    }
                 }
             }
         }
-        for (String name : found) {
-            sink.add(new OreMarker(name, cx, cz,
-                    cx * 16 + 8, cz * 16 + 8, 0));
+        for (Map.Entry<String, int[]> e : found.entrySet()) {
+            int[] v = e.getValue();
+            sink.add(new OreMarker(e.getKey(), cx, cz, v[1], v[3], v[2], v[0]));
         }
     }
 
@@ -5788,11 +5818,30 @@ public class WorldMapRenderer {
             throw new IllegalStateException("无地图数据");
         }
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        pngBmp.compress(Bitmap.CompressFormat.PNG, 90, bos);
-        pngBmp.recycle();
-        String b64 = android.util.Base64.encodeToString(bos.toByteArray(),
+        // v421：PNG 超过 ~2MB 时降采样（HTML 查看器 WebView 的
+        // data: URL 有大小限制——浏览器能看、MT 等查看器打不开
+        // 的根因）。降采样 2×（4 像素取 1）后体积 ~1/4
+        android.graphics.Bitmap forPng = pngBmp;
+        java.io.ByteArrayOutputStream testBos = new java.io.ByteArrayOutputStream();
+        forPng.compress(Bitmap.CompressFormat.PNG, 75, testBos);
+        if (testBos.size() > 2 * 1024 * 1024) {
+            int sw = Math.max(1, forPng.getWidth() / 2);
+            int sh = Math.max(1, forPng.getHeight() / 2);
+            android.graphics.Bitmap down = android.graphics.Bitmap.createScaledBitmap(
+                    forPng, sw, sh, true);
+            if (down != forPng && forPng != pngBmp) {
+                forPng.recycle();
+            }
+            forPng = down;
+            testBos.reset();
+            forPng.compress(Bitmap.CompressFormat.PNG, 75, testBos);
+            Log.i(TAG, "导出 PNG 降采样: " + pngBmp.getWidth() + "x"
+                    + pngBmp.getHeight() + " → " + sw + "x" + sh);
+        }
+        String b64 = android.util.Base64.encodeToString(testBos.toByteArray(),
                 android.util.Base64.NO_WRAP);
-        bos.close();
+        testBos.close();
+        forPng.recycle();
 
         // 2) 世界范围（[Z,X] 顺序：lat=Z、lng=X）
         int minX = map.minBlockX;
