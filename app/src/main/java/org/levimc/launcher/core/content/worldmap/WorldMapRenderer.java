@@ -2588,7 +2588,7 @@ public class WorldMapRenderer {
                 synchronized (map) {
                     snapshot = new java.util.ArrayList<>(map.oreMarkers);
                 }
-                dos.writeInt(0x4F524532); // "ORE2"（v421：含 Y 轴）
+                dos.writeInt(0x4F524533); // "ORE3"（v423：强制失效 v421 错位数据——Y/Z 参数反了存过错误坐标）
                 dos.writeInt(snapshot.size());
                 for (OreMarker m : snapshot) {
                     byte[] nb = m.name.getBytes(java.nio.charset.StandardCharsets.UTF_8);
@@ -2621,10 +2621,10 @@ public class WorldMapRenderer {
         try (java.io.DataInputStream dis = new java.io.DataInputStream(
                 new java.io.BufferedInputStream(new java.io.FileInputStream(in)))) {
             int magic = dis.readInt();
-            if (magic != 0x4F524531 && magic != 0x4F524532) {
+            if (magic != 0x4F524531 && magic != 0x4F524532 && magic != 0x4F524533) {
                 return null;
             }
-            boolean hasY = magic == 0x4F524532;
+            boolean hasY = magic == 0x4F524532 || magic == 0x4F524533;
             int count = dis.readInt();
             if (count < 0 || count > 5_000_000) {
                 return null;
