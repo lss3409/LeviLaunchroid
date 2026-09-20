@@ -240,16 +240,17 @@ import okhttp3.OkHttpClient;
          getOnBackPressedDispatcher().addCallback(this, onBackPressedCallback);
      }
 
-    /** v437：模组/内容管理/其他三卡响应式——窄屏（手机竖屏 <600dp）
-     *  三卡纵向堆叠全宽（此前横排每张 ~110dp 文字挤换行、卡片显得
-     *  "太长"）；宽屏（平板横屏）保持三栏但加高（300dp 在平板上
-     *  显得"太小"）。 */
+    /** v456：三卡响应式——照官方 LeviLaunchroid：三卡区高度填满
+     *  剩余空间（weight=1 同款效果，不固定 dp）；窄屏（手机）
+     *  纵向堆叠、三卡均分剩余高度（一屏内看全不滚动，内容多
+     *  卡片内部滚动）；宽屏（平板）横向三栏填剩余。 */
     private void applyResponsiveCardsLayout() {
         try {
             android.view.View row = findViewById(org.levimc.launcher.R.id.cards_row);
             android.view.View modCard = findViewById(org.levimc.launcher.R.id.mod_card);
             android.view.View contentCard = findViewById(org.levimc.launcher.R.id.content_mgmt_card);
             android.view.View miscCard = findViewById(org.levimc.launcher.R.id.misc_card);
+            android.view.View mainCard = findViewById(org.levimc.launcher.R.id.main_card);
             if (row == null || modCard == null || contentCard == null || miscCard == null) {
                 return;
             }
@@ -257,37 +258,49 @@ import okhttp3.OkHttpClient;
             if (!(row instanceof android.widget.LinearLayout)) {
                 return;
             }
-            android.widget.LinearLayout rowLl = (android.widget.LinearLayout) row;
-            float d = getResources().getDisplayMetrics().density;
-            int cardWidth = narrow
-                    ? android.view.ViewGroup.LayoutParams.MATCH_PARENT
-                    : 0;
-            if (narrow) {
-                // v451：手机竖屏纵向堆叠，每卡 150dp（240dp 三卡合计
-                // 720dp+ 一屏半太长——用户反馈"太长"；150dp 装下
-                // 3-5 行内容，三卡合计 ~480dp 一屏内），根可滚动
-                rowLl.setOrientation(android.widget.LinearLayout.VERTICAL);
-                android.view.ViewGroup.LayoutParams rlp = rowLl.getLayoutParams();
-                rlp.height = android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
-                rowLl.setLayoutParams(rlp);
-                android.view.View[] cards = {modCard, contentCard, miscCard};
-                for (int i = 0; i < cards.length; i++) {
-                    android.view.View c = cards[i];
-                    android.widget.LinearLayout.LayoutParams clp =
-                            (android.widget.LinearLayout.LayoutParams) c.getLayoutParams();
-                    clp.width = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
-                    clp.height = (int) (150 * d);
-                    clp.weight = 0f;
-                    clp.setMargins(0, i == 0 ? 0 : (int) (10 * d), 0, 0);
-                    c.setLayoutParams(clp);
+            final android.widget.LinearLayout rowLl = (android.widget.LinearLayout) row;
+            final float d = getResources().getDisplayMetrics().density;
+            final android.view.View fMod = modCard;
+            final android.view.View fContent = contentCard;
+            final android.view.View fMisc = miscCard;
+            // layout 完成后测量剩余空间（主卡高度已知）
+            row.post(() -> {
+                try {
+                    int screenH = getResources().getDisplayMetrics().heightPixels;
+                    int mainH = mainCard != null && mainCard.getHeight() > 0
+                            ? mainCard.getHeight() : (int) (150 * d);
+                    int available = screenH - mainH - (int) (130 * d);
+                    if (available < (int) (300 * d)) {
+                        available = (int) (300 * d);
+                    }
+                    android.view.ViewGroup.LayoutParams rlp = rowLl.getLayoutParams();
+                    if (narrow) {
+                        // 手机：纵向堆叠，三卡均分剩余（一屏内）
+                        rowLl.setOrientation(android.widget.LinearLayout.VERTICAL);
+                        rlp.height = android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+                        rowLl.setLayoutParams(rlp);
+                        int each = Math.max((int) (110 * d),
+                                (available - (int) (20 * d)) / 3);
+                        android.view.View[] cards = {fMod, fContent, fMisc};
+                        for (int i = 0; i < cards.length; i++) {
+                            android.view.View c = cards[i];
+                            android.widget.LinearLayout.LayoutParams clp =
+                                    (android.widget.LinearLayout.LayoutParams) c.getLayoutParams();
+                            clp.width = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
+                            clp.height = each;
+                            clp.weight = 0f;
+                            clp.setMargins(0, i == 0 ? 0 : (int) (10 * d), 0, 0);
+                            c.setLayoutParams(clp);
+                        }
+                    } else {
+                        // 平板：横向三栏填剩余空间（官方 weight 同款）
+                        rlp.height = available;
+                        rowLl.setLayoutParams(rlp);
+                    }
+                } catch (Throwable t) {
+                    android.util.Log.w("MainActivity", "响应式卡片布局失败", t);
                 }
-            } else {
-                // 平板横屏：横向三栏加高（300dp → 460dp），卡片内容
-                // 空间充足不再"太小"
-                android.view.ViewGroup.LayoutParams rlp = rowLl.getLayoutParams();
-                rlp.height = (int) (460 * d);
-                rowLl.setLayoutParams(rlp);
-            }
+            });
         } catch (Throwable t) {
             android.util.Log.w("MainActivity", "响应式卡片布局失败", t);
         }
