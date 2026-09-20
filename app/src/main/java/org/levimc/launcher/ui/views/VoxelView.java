@@ -118,6 +118,18 @@ public class VoxelView extends View {
     private GestureDetector gestureDetector;
     private ScaleGestureDetector scaleDetector;
     private float lastScrollX;
+    /** v427：双指旋转手势的上次两指连线角度（NaN = 未激活）。 */
+    private float lastTwoFingerDeg = Float.NaN;
+
+    /** 两指连线与水平轴夹角（度，-180~180）。 */
+    private float twoFingerDeg(MotionEvent e) {
+        if (e.getPointerCount() < 2) {
+            return Float.NaN;
+        }
+        float dx = e.getX(1) - e.getX(0);
+        float dy = e.getY(1) - e.getY(0);
+        return (float) Math.toDegrees(Math.atan2(dy, dx));
+    }
 
     public VoxelView(Context context) {
         super(context);
@@ -150,6 +162,12 @@ public class VoxelView extends View {
                         // 单指滑动只旋转（缩放交给双指捏合——混绑会让单指旋转
                         // 时误触缩放）；灵敏度可调（设置页），默认 0.012/像素，
                         // 一屏 ≈ 0.7 圈，连续拖支持 720°
+                        // v427：双指时 onScroll 也会触发（GestureDetector 收到
+                        // 全部事件）——与双指旋转手势叠加会双重旋转/抖动，
+                        // 双指交给两指连线角度手势
+                        if (e2.getPointerCount() > 1) {
+                            return true;
+                        }
                         angle -= distanceX * scrollSensitivity;
                         invalidate();
                         return true;
@@ -261,6 +279,33 @@ public class VoxelView extends View {
     public boolean onTouchEvent(MotionEvent event) {
         scaleDetector.onTouchEvent(event);
         gestureDetector.onTouchEvent(event);
+        // v427：双指旋转手势（720° 任意角度——与捏合缩放并存，
+        // 旋转看两指连线角度、缩放看两指距离，互不干扰）
+        if (event.getPointerCount() == 2) {
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_POINTER_DOWN
+                    || action == MotionEvent.ACTION_DOWN) {
+                lastTwoFingerDeg = twoFingerDeg(event);
+            } else if (action == MotionEvent.ACTION_MOVE
+                    && !Float.isNaN(lastTwoFingerDeg)) {
+                float deg = twoFingerDeg(event);
+                float delta = deg - lastTwoFingerDeg;
+                // 跨 ±180° 归一化（atan2 跳变）
+                if (delta > 180f) {
+                    delta -= 360f;
+                } else if (delta < -180f) {
+                    delta += 360f;
+                }
+                if (Math.abs(delta) > 0.1f) {
+                    angle += Math.toRadians(delta);
+                    lastTwoFingerDeg = deg;
+                    invalidate();
+                }
+                return true;
+            }
+        } else {
+            lastTwoFingerDeg = Float.NaN;
+        }
         return true;
     }
 
@@ -372,7 +417,10 @@ public class VoxelView extends View {
 
     /** 画一个等距方块（顶面 MC 原版纹理/纯色 + 两个侧面明暗）。
      *  v421：高度着色（bedrockmap 3D 同款——相对高度越高越亮，
-     *  地形起伏更立体；±24 亮度差封顶）。 */
+     *  地形起伏更立体；±24 亮度差封顶）。
+     *  v427：菱形顶点改用传入的 cosA/sinA（快照角度）——此前走 px()/py()
+     *  用的是视图字段 angle，快照在 15°/30°…渲染时网格按快照角度摆、
+     *  方块却按视图当前角度画，贴图与方块错位重叠（"贴图对不上"根因）。 */
     private void drawBlock(Canvas canvas, float cx, float topY, int color, float shade,
                            float cosA, float sinA, float u, float h, String blockName,
                            int relY) {
@@ -400,9 +448,9 @@ public class VoxelView extends View {
             android.graphics.Matrix m = new android.graphics.Matrix();
             float[] src = {0f, 0f, tex.getWidth(), 0f, 0f, tex.getHeight()};
             float[] dst = {
-                    px(cx, topY, 0, -1, u), py(cx, topY, 0, -1, u),
-                    px(cx, topY, 1, 0, u), py(cx, topY, 1, 0, u),
-                    px(cx, topY, -1, 0, u), py(cx, topY, -1, 0, u)};
+                    px(cx, topY, 0, -1, u, cosA, sinA), py(cx, topY, 0, -1, u, cosA, sinA),
+                    px(cx, topY, 1, 0, u, cosA, sinA), py(cx, topY, 1, 0, u, cosA, sinA),
+                    px(cx, topY, -1, 0, u, cosA, sinA), py(cx, topY, -1, 0, u, cosA, sinA)};
             m.setPolyToPoly(src, 0, dst, 0, 3);
             canvas.save();
             canvas.concat(m);
@@ -410,10 +458,10 @@ public class VoxelView extends View {
             canvas.restore();
         } else {
             Path top = new Path();
-            top.moveTo(px(cx, topY, 1, 0, u), py(cx, topY, 1, 0, u));
-            top.lineTo(px(cx, topY, 0, 1, u), py(cx, topY, 0, 1, u));
-            top.lineTo(px(cx, topY, -1, 0, u), py(cx, topY, -1, 0, u));
-            top.lineTo(px(cx, topY, 0, -1, u), py(cx, topY, 0, -1, u));
+            top.moveTo(px(cx, topY, 1, 0, u, cosA, sinA), py(cx, topY, 1, 0, u, cosA, sinA));
+            top.lineTo(px(cx, topY, 0, 1, u, cosA, sinA), py(cx, topY, 0, 1, u, cosA, sinA));
+            top.lineTo(px(cx, topY, -1, 0, u, cosA, sinA), py(cx, topY, -1, 0, u, cosA, sinA));
+            top.lineTo(px(cx, topY, 0, -1, u, cosA, sinA), py(cx, topY, 0, -1, u, cosA, sinA));
             top.close();
             fillPaint.setColor(lit);
             canvas.drawPath(top, fillPaint);
@@ -422,10 +470,10 @@ public class VoxelView extends View {
 
         // 侧面 1（左前：-X 与 -Z 边）
         Path side1 = new Path();
-        side1.moveTo(px(cx, topY, 0, -1, u), py(cx, topY, 0, -1, u));
-        side1.lineTo(px(cx, topY, -1, 0, u), py(cx, topY, -1, 0, u));
-        side1.lineTo(px(cx, topY + h, -1, 0, u), py(cx, topY + h, -1, 0, u));
-        side1.lineTo(px(cx, topY + h, 0, -1, u), py(cx, topY + h, 0, -1, u));
+        side1.moveTo(px(cx, topY, 0, -1, u, cosA, sinA), py(cx, topY, 0, -1, u, cosA, sinA));
+        side1.lineTo(px(cx, topY, -1, 0, u, cosA, sinA), py(cx, topY, -1, 0, u, cosA, sinA));
+        side1.lineTo(px(cx, topY + h, -1, 0, u, cosA, sinA), py(cx, topY + h, -1, 0, u, cosA, sinA));
+        side1.lineTo(px(cx, topY + h, 0, -1, u, cosA, sinA), py(cx, topY + h, 0, -1, u, cosA, sinA));
         side1.close();
         fillPaint.setColor(leftC);
         canvas.drawPath(side1, fillPaint);
@@ -433,23 +481,24 @@ public class VoxelView extends View {
 
         // 侧面 2（右前：+X 与 -Z 边）
         Path side2 = new Path();
-        side2.moveTo(px(cx, topY, 0, -1, u), py(cx, topY, 0, -1, u));
-        side2.lineTo(px(cx, topY, 1, 0, u), py(cx, topY, 1, 0, u));
-        side2.lineTo(px(cx, topY + h, 1, 0, u), py(cx, topY + h, 1, 0, u));
-        side2.lineTo(px(cx, topY + h, 0, -1, u), py(cx, topY + h, 0, -1, u));
+        side2.moveTo(px(cx, topY, 0, -1, u, cosA, sinA), py(cx, topY, 0, -1, u, cosA, sinA));
+        side2.lineTo(px(cx, topY, 1, 0, u, cosA, sinA), py(cx, topY, 1, 0, u, cosA, sinA));
+        side2.lineTo(px(cx, topY + h, 1, 0, u, cosA, sinA), py(cx, topY + h, 1, 0, u, cosA, sinA));
+        side2.lineTo(px(cx, topY + h, 0, -1, u, cosA, sinA), py(cx, topY + h, 0, -1, u, cosA, sinA));
         side2.close();
         fillPaint.setColor(rightC);
         canvas.drawPath(side2, fillPaint);
         canvas.drawPath(side2, strokePaint);
     }
 
-    /** 单位菱形顶点投影（x,y 为逻辑角，u 为半宽）。 */
-    private float px(float cx, float topY, float lx, float ly, float u) {
-        return cx + (lx * (float) Math.cos(angle) - ly * (float) Math.sin(angle)) * u;
+    /** 单位菱形顶点投影（lx,ly 为逻辑角，u 为半宽；cosA/sinA 为
+     *  快照渲染角度——必须与网格摆放角度一致，否则贴图与方块错位）。 */
+    private float px(float cx, float topY, float lx, float ly, float u, float cosA, float sinA) {
+        return cx + (lx * cosA - ly * sinA) * u;
     }
 
-    private float py(float cx, float topY, float lx, float ly, float u) {
-        return topY + (lx * (float) Math.sin(angle) + ly * (float) Math.cos(angle)) * u * 0.5f;
+    private float py(float cx, float topY, float lx, float ly, float u, float cosA, float sinA) {
+        return topY + (lx * sinA + ly * cosA) * u * 0.5f;
     }
 
     /** 左上角 XYZ 三色坐标轴（X 红 / Y 绿 / Z 蓝）。 */

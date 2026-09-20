@@ -297,7 +297,10 @@ public class WorldMapView extends View {
 
     /** 结构图层开关 + 数据。 */
     public void setStructureMarkers(List<WorldMapRenderer.StructureMarker> structures) {
-        this.structures = structures != null ? structures : new ArrayList<>();
+        // v427：拷贝隔离——调用方持有活动列表，直接引用会被外部
+        // removeIf 静默修改（结构开关"关掉不显示"的帮凶）
+        this.structures = structures != null
+                ? new ArrayList<>(structures) : new ArrayList<>();
         invalidate();
     }
 

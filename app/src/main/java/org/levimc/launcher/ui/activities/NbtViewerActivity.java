@@ -193,6 +193,9 @@ public class NbtViewerActivity extends BaseActivity {
     /** 当前结构标记列表（按需渲染检测到的结构标记动态合并进来）。
      * 需在 flushRenderedChunks 字段之前声明（初始化块前向引用限制）。 */
     private final List<WorldMapRenderer.StructureMarker> currentStructures = new ArrayList<>();
+    /** v427：结构特征检测关闭时的完整列表备份（打开时恢复）。 */
+    private final List<WorldMapRenderer.StructureMarker> allStructuresBackup =
+            new ArrayList<>();
 
     private final android.os.Handler flushHandler = new android.os.Handler(
             android.os.Looper.getMainLooper());
@@ -438,16 +441,31 @@ public class NbtViewerActivity extends BaseActivity {
         });
 
         // v397：结构特征检测开关（palette 猜结构可能误报）
+        // v427 修复：此前关闭时 removeIf 永久删除结构、再打开不恢复
+        // （"关掉再打开就不显示了"的根因）；setStructureMarkers 传
+        // 活动列表引用（无拷贝），删除直接作用到视图数据
         binding.layerStructDetect.setOnCheckedChangeListener((b, checked) -> {
             WorldMapRenderer.enableStructureDetection = checked;
-            if (!checked) {
-                // 清掉 palette 特征检测类结构标记（沙漠神殿/前哨站）
-                synchronized (currentStructures) {
+            synchronized (currentStructures) {
+                if (!checked) {
+                    // 备份完整列表 + 过滤 palette 特征检测类结构
+                    // （沙漠神殿/前哨站）
+                    allStructuresBackup.clear();
+                    allStructuresBackup.addAll(currentStructures);
                     currentStructures.removeIf(m -> "desert_temple".equals(m.type)
                             || "outpost".equals(m.type));
+                } else if (!allStructuresBackup.isEmpty()) {
+                    // 恢复备份中有、当前缺失的结构（增量检测的
+                    // 新结构保留不覆盖）
+                    for (WorldMapRenderer.StructureMarker m : allStructuresBackup) {
+                        if (!currentStructures.contains(m)) {
+                            currentStructures.add(m);
+                        }
+                    }
                 }
-                binding.worldMapImage.setStructureMarkers(currentStructures);
             }
+            binding.worldMapImage.setStructureMarkers(
+                    new java.util.ArrayList<>(currentStructures));
         });
 
         // v397：清空世界缓存（确认弹窗 → 删缓存 → 重烘焙）
@@ -3457,9 +3475,17 @@ public class NbtViewerActivity extends BaseActivity {
         for (int i = 0; i < labels.length; i++) {
             TextView btn = new TextView(this);
             btn.setText(labels[i]);
-            btn.setTextColor(ContextCompat.getColor(this, R.color.on_surface));
             btn.setTextSize(13);
-            btn.setBackgroundResource(R.drawable.bg_rounded_card);
+            // v427：按钮现代化——primary 色填充圆角胶囊（启动器
+            // 主按钮风格；bg_rounded_card 与背景同色看起来"没背景"）
+            android.graphics.drawable.GradientDrawable gd =
+                    new android.graphics.drawable.GradientDrawable();
+            gd.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+            gd.setColor(accentColor != 0 ? accentColor
+                    : ContextCompat.getColor(this, R.color.primary));
+            gd.setCornerRadius(18 * d);
+            btn.setBackground(gd);
+            btn.setTextColor(ContextCompat.getColor(this, R.color.on_primary));
             btn.setPadding((int) (16 * d), (int) (8 * d), (int) (16 * d), (int) (8 * d));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
