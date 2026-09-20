@@ -37,12 +37,23 @@
             android:background="@color/outline"
             android:alpha="0.35" />
 
-        <LinearLayout
-            android:id="@+id/action_menu_items"
+        <!-- v455：items 区可滚动——小屏弹窗高度受限时内部滚动，
+             不再超出屏幕 -->
+        <ScrollView
+            android:id="@+id/action_menu_scroll"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingTop="5dp" />
+            android:fillViewport="false"
+            android:overScrollMode="never"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/action_menu_items"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingTop="5dp" />
+        </ScrollView>
 
     </LinearLayout>
 

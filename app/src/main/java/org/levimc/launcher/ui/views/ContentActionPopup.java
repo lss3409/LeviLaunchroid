@@ -46,17 +46,23 @@ public final class ContentActionPopup {
         LinearLayout items = content.findViewById(R.id.action_menu_items);
         titleView.setText(title);
 
-        PopupWindow popup = new PopupWindow(content, dp(context, 220), ViewGroup.LayoutParams.WRAP_CONTENT, true);
-        popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        popup.setOutsideTouchable(true);
-        popup.setClippingEnabled(true);
-        popup.setElevation(dp(context, 10));
+        View root = anchor.getRootView();
+        int[] rootLocation = new int[2];
+        root.getLocationOnScreen(rootLocation);
+        int screenTop = rootLocation[1];
+        int screenBottom = rootLocation[1] + root.getHeight();
+        // v455：弹窗高度上限 = 可用屏幕高度 - 上下各 48dp 安全边距；
+        // 超出时窗口定高、items 区内部滚动（小屏/横屏不再超出屏幕）
+        int maxPopupHeight = Math.max(dp(context, 160),
+                (screenBottom - screenTop) - dp(context, 96));
+        int popupHeight = ViewGroup.LayoutParams.WRAP_CONTENT;
 
         // v454：按屏幕短边判断紧凑模式（v452 用 widthDp——手机横屏
         // widthDp≈800 被当平板走大行高，350dp 弹窗在横屏手机
         // ~360dp 高度里必然超出）——短边 <600dp = 手机任何方向
         android.content.res.Configuration cfg = context.getResources().getConfiguration();
         boolean compact = Math.min(cfg.screenWidthDp, cfg.screenHeightDp) < 600;
+        final PopupWindow[] popupRef = new PopupWindow[1];
         for (Action action : actions) {
             View row = inflater.inflate(R.layout.item_content_action, items, false);
             ImageView icon = row.findViewById(R.id.action_icon);
@@ -76,7 +82,9 @@ public final class ContentActionPopup {
                 label.setTextSize(12);
             }
             row.setOnClickListener(v -> {
-                popup.dismiss();
+                if (popupRef[0] != null) {
+                    popupRef[0].dismiss();
+                }
                 action.callback.run();
             });
             items.addView(row);
@@ -86,14 +94,20 @@ public final class ContentActionPopup {
                 View.MeasureSpec.makeMeasureSpec(dp(context, 220), View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         );
-        int popupHeight = content.getMeasuredHeight();
+        int measuredHeight = content.getMeasuredHeight();
+        if (measuredHeight > maxPopupHeight) {
+            popupHeight = maxPopupHeight;
+        } else {
+            popupHeight = measuredHeight;
+        }
+        PopupWindow popup = new PopupWindow(content, dp(context, 220), popupHeight, true);
+        popupRef[0] = popup;
+        popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        popup.setOutsideTouchable(true);
+        popup.setClippingEnabled(true);
+        popup.setElevation(dp(context, 10));
         int[] location = new int[2];
         anchor.getLocationOnScreen(location);
-        View root = anchor.getRootView();
-        int[] rootLocation = new int[2];
-        root.getLocationOnScreen(rootLocation);
-        int screenBottom = rootLocation[1] + root.getHeight();
-        int screenTop = rootLocation[1];
         int xOffset = anchor.getWidth() - dp(context, 220);
         int yOffset = dp(context, 4);
         if (location[1] + anchor.getHeight() + popupHeight + yOffset > screenBottom) {
