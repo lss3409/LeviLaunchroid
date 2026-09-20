@@ -420,7 +420,18 @@ public class ContentListActivity extends BaseActivity {
                             public boolean onMove(@NonNull androidx.recyclerview.widget.RecyclerView rv,
                                                   @NonNull androidx.recyclerview.widget.RecyclerView.ViewHolder vh,
                                                   @NonNull androidx.recyclerview.widget.RecyclerView.ViewHolder target) {
-                                worldsAdapter.moveItem(vh.getAdapterPosition(), target.getAdapterPosition());
+                                int from = vh.getAdapterPosition();
+                                int to = target.getAdapterPosition();
+                                // v445：跨组禁止——置顶的不能拖到未置顶下面，
+                                // 未置顶的不能拖到置顶上面
+                                WorldItem fromWorld = worldsAdapter.getWorldAt(from);
+                                WorldItem toWorld = worldsAdapter.getWorldAt(to);
+                                if (fromWorld != null && toWorld != null
+                                        && worldsAdapter.isPinned(fromWorld)
+                                        != worldsAdapter.isPinned(toWorld)) {
+                                    return false;
+                                }
+                                worldsAdapter.moveItem(from, to);
                                 return true;
                             }
 

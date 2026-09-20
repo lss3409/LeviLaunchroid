@@ -110,6 +110,14 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
         notifyItemMoved(from, to);
     }
 
+    /** v445：位置对应世界（onMove 跨组判定用）。 */
+    public WorldItem getWorldAt(int pos) {
+        if (pos < 0 || pos >= worlds.size()) {
+            return null;
+        }
+        return worlds.get(pos);
+    }
+
     private int compareWorlds(WorldItem a, WorldItem b) {
         String pa = pathOf(a);
         String pb = pathOf(b);
@@ -282,13 +290,18 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
         holder.overflowButton.setOnClickListener(v -> showOverflow(holder.overflowButton, world));
 
         PersonalizationManager pm = new PersonalizationManager(holder.itemView.getContext());
-        pm.applyGlassToView(holder.itemView);
-        pm.applyAccentToView(holder.itemView, holder.itemView.getContext());
-        // v445：置顶卡片背景更深（与普通卡片区分）
+        // v445：置顶卡片背景更深（与普通卡片区分）；非置顶恢复
+        // 默认卡片背景——View 复用后置顶背景会残留（applyGlassToView
+        // 不改 surface_high 色，取消置顶深色不变回的根因）
         if (isPinned(world)) {
             holder.itemView.setBackground(holder.itemView.getContext().getDrawable(
                     R.drawable.bg_world_card_pinned));
+        } else {
+            holder.itemView.setBackground(holder.itemView.getContext().getDrawable(
+                    R.drawable.bg_content_item));
         }
+        pm.applyGlassToView(holder.itemView);
+        pm.applyAccentToView(holder.itemView, holder.itemView.getContext());
     }
 
     private void showOverflow(View anchor, WorldItem world) {
