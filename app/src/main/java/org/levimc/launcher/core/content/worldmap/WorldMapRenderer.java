@@ -3872,6 +3872,14 @@ public class WorldMapRenderer {
             // 结构特征检测（视口按需渲染路径同样要做——主世界大世界
             // 不走流式渲染，沙漠神殿/前哨站没有专门 key 只能靠 palette）
             detectOnDemandStructure(cx, cz, subs, dimension);
+            // v435：矿石收集必须在窗口裁剪之前——此前 collectChunkOres
+            // 在 removeIf 之后执行，地下矿石层（sub≤4）已被裁掉（山地
+            // chunk nMin=surfaceSub-4>4），烘焙收集的矿石标记全丢——
+            // "矿石热力图层延迟显示/不显示"的根因（注释原意"窗口裁剪
+            // 前扫描"但代码顺序与注释矛盾）
+            if (oreSink != null) {
+                collectChunkOres(subs, cx, cz, dimension, oreSink);
+            }
             // 窗口裁剪（下界全留）：以高度图推算的地表层为中心，向下 2 层
             // （河床/海底）到实际最高 sub（树冠/建筑）。之前用「实际最高 sub ±2」
             // ——树/建筑让 maxSub 偏离地表，地表层被裁掉，海洋/平原 chunk
@@ -3927,11 +3935,7 @@ public class WorldMapRenderer {
                     biomeCols[i] = biomeGrassColor(biomes[i] & 0xFF);
                 }
             }
-            // v413：矿石标点收集（窗口裁剪前扫描全部 subs——
-            // 矿石在地下深处，地表窗口会裁掉）
-            if (oreSink != null) {
-                collectChunkOres(subs, cx, cz, dimension, oreSink);
-            }
+            // v435：矿石收集已移到窗口裁剪前（见上）——此位置删除
             // [0]=卫星色 [1]=biome 图层色（大世界按需渲染此前不生成
             // biome 数据——biome 图层打开后无内容显示的根因）
             return new int[][]{colors, biomeCols};
