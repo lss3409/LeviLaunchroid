@@ -276,13 +276,8 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
             // v444：▶ 按钮 = 立即游玩该存档
             if (onWorldActionListener != null) onWorldActionListener.onWorldPlay(world);
         });
-        // v445：▶ 背景跟随个性化 accent 色（XML 默认 primary；
-        // applyAccentToView 不覆盖背景 tint，需手动同步）
-        int accent = new PersonalizationManager(holder.itemView.getContext()).getAccentColor();
-        if (accent != 0) {
-            holder.playButton.setBackgroundTintList(
-                    android.content.res.ColorStateList.valueOf(accent));
-        }
+        // v446：▶ 按钮改描边图标样式（与地图/更多按钮统一），
+        // 不再需要 accent 背景同步
         holder.editButton.setOnClickListener(v -> {
             // 地图按钮：直接打开世界数据/地图查看（NBT 查看器）
             if (onWorldActionListener != null) onWorldActionListener.onWorldViewMap(world);
