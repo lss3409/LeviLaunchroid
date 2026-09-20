@@ -1199,6 +1199,8 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="ui_scale_reset">Reset</string>
     <string name="world_view_map">View world map &amp; data</string>
     <string name="world_play">Play</string>
+    <string name="pin_world">Pin to top</string>
+    <string name="unpin_world">Unpin</string>
     <string name="select_image">Select Image</string>
     <string name="clear">Clear</string>
 

@@ -121,12 +121,8 @@ public class QuickLaunchActivity extends BaseActivity {
                 QuickLaunchAdapter.ActionType.REALM_INVITE
         ));
 
-        items.add(new QuickLaunchAdapter.QuickLaunchItem(
-                getString(R.string.quick_launch_load_world),
-                getString(R.string.quick_launch_load_world_desc),
-                QuickLaunchAdapter.ActionType.LOAD_WORLD
-        ));
-
+        // v445：删除"加载世界"项——内容管理世界卡片已支持
+        // 直接游玩（v444），此入口冗余
         items.add(new QuickLaunchAdapter.QuickLaunchItem(
                 getString(R.string.quick_launch_command),
                 getString(R.string.quick_launch_command_desc),
@@ -171,9 +167,6 @@ public class QuickLaunchActivity extends BaseActivity {
                 break;
             case REALM_INVITE:
                 showRealmInviteDialog();
-                break;
-            case LOAD_WORLD:
-                startActivity(new Intent(this, WorldPickerActivity.class));
                 break;
             case SLASH_COMMAND:
                 showCommandDialog();

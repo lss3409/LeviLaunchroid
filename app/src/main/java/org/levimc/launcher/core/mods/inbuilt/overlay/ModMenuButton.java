@@ -218,16 +218,18 @@ public class ModMenuButton {
 
     /** v442：吸附到最近左右边缘（窗口位置保持屏内——负 x 出屏会
      *  被 ROM 钳制），Y 钳制在屏幕内，250ms decelerate 动画；
-     *  落定后半隐藏 + 位置持久化。 */
+     *  落定后半隐藏 + 位置持久化。
+     *  v445：屏幕尺寸改用 DisplayMetrics（getCurrentWindowMetrics
+     *  的 bounds 与 WM 坐标系统可能不一致——手机实测"到不了
+     *  屏幕边缘"）；动画结束再做一次精确校正（消除插值舍入）。 */
     private void snapToEdge() {
         if (windowManager == null || buttonView == null || wmParams == null) {
             return;
         }
         try {
-            android.graphics.Rect bounds = windowManager.getCurrentWindowMetrics()
-                    .getBounds();
-            int screenW = bounds.width();
-            int screenH = bounds.height();
+            android.util.DisplayMetrics dm = activity.getResources().getDisplayMetrics();
+            int screenW = dm.widthPixels;
+            int screenH = dm.heightPixels;
             int size = buttonView.getWidth();
             if (size <= 0) {
                 size = wmParams.width;
@@ -255,6 +257,14 @@ public class ModMenuButton {
             snapAnimator.addListener(new android.animation.AnimatorListenerAdapter() {
                 @Override
                 public void onAnimationEnd(android.animation.Animator animation) {
+                    // v445：精确校正——动画 int 插值可能停在距边缘
+                    // 1-2px 处，直接设置目标值
+                    wmParams.x = targetX;
+                    wmParams.y = targetY;
+                    try {
+                        windowManager.updateViewLayout(buttonView, wmParams);
+                    } catch (Exception ignored) {
+                    }
                     saveBallPosition(targetX, targetY);
                     hideToEdge();
                 }

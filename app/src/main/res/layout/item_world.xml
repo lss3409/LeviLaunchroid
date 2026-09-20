@@ -55,9 +55,8 @@
 
             <TextView
                 android:id="@+id/world_name"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
                 android:ellipsize="end"
                 android:fontFamily="@font/misans"
                 android:maxLines="1"
@@ -80,6 +79,14 @@
                 android:textSize="10sp"
                 android:textStyle="bold"
                 android:visibility="gone" />
+
+            <!-- v445：剩余空间吃掉——名称/标识紧贴左侧排列
+            （此前名称 weight=1 把标识推到卡片最右端，名称短时
+            中间一大段空白，视觉上标识不挨名称） -->
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
         </LinearLayout>
 
         <TextView
@@ -121,6 +128,7 @@
         android:layout_width="40dp"
         android:layout_height="40dp"
         android:layout_marginBottom="6dp"
+        android:layout_marginEnd="4dp"
         android:background="@drawable/bg_circle"
         android:backgroundTint="@color/primary"
         android:contentDescription="@string/world_play"

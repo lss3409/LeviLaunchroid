@@ -33,6 +33,9 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
 
     private final List<WorldItem> worlds = new ArrayList<>();
     private final Set<String> selectedPaths = new LinkedHashSet<>();
+    /** v445：置顶集合 + 手动顺序快照（SharedPreferences 持久化）。 */
+    private final Set<String> pinnedPaths = new LinkedHashSet<>();
+    private final List<String> orderSnapshot = new ArrayList<>();
     private OnWorldActionListener onWorldActionListener;
     private OnSelectionChangedListener onSelectionChangedListener;
     private boolean selectionMode;
@@ -48,6 +51,8 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
         void onWorldLocate(WorldItem world);
         /** v444：游玩（卡片 ▶ 按钮 / 卡片主体点击）。 */
         void onWorldPlay(WorldItem world);
+        /** v445：置顶/取消置顶。 */
+        void onWorldTogglePin(WorldItem world);
     }
 
     public interface OnSelectionChangedListener {
@@ -65,7 +70,64 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
     public void updateWorlds(List<WorldItem> updatedWorlds) {
         worlds.clear();
         if (updatedWorlds != null) worlds.addAll(updatedWorlds);
+        // v445：排序——置顶组在前（组内按顺序快照/时间），非置顶
+        // 按最后修改时间降序（最新游玩在前）
+        worlds.sort(this::compareWorlds);
         notifyDataSetChanged();
+    }
+
+    /** v445：置顶集合（外部读 SharedPreferences 注入）。 */
+    public void setPinnedPaths(Set<String> pinned) {
+        pinnedPaths.clear();
+        if (pinned != null) pinnedPaths.addAll(pinned);
+    }
+
+    /** v445：手动排序快照（拖动后保存，外部注入）。 */
+    public void setOrderSnapshot(List<String> order) {
+        orderSnapshot.clear();
+        if (order != null) orderSnapshot.addAll(order);
+    }
+
+    /** v445：当前列表顺序快照（拖动结束后外部取走保存）。 */
+    public List<String> currentOrderSnapshot() {
+        List<String> out = new ArrayList<>();
+        for (WorldItem world : worlds) out.add(pathOf(world));
+        return out;
+    }
+
+    /** v445：是否置顶（卡片背景深浅区分用）。 */
+    public boolean isPinned(WorldItem world) {
+        return pinnedPaths.contains(pathOf(world));
+    }
+
+    /** v445：拖动换位（ItemTouchHelper onMove）。 */
+    public void moveItem(int from, int to) {
+        if (from < 0 || to < 0 || from >= worlds.size() || to >= worlds.size()) {
+            return;
+        }
+        WorldItem item = worlds.remove(from);
+        worlds.add(to, item);
+        notifyItemMoved(from, to);
+    }
+
+    private int compareWorlds(WorldItem a, WorldItem b) {
+        String pa = pathOf(a);
+        String pb = pathOf(b);
+        boolean ia = pinnedPaths.contains(pa);
+        boolean ib = pinnedPaths.contains(pb);
+        if (ia != ib) {
+            return ia ? -1 : 1;
+        }
+        if (ia) {
+            int oa = orderSnapshot.indexOf(pa);
+            int ob = orderSnapshot.indexOf(pb);
+            if (oa >= 0 && ob >= 0 && oa != ob) {
+                return oa - ob;
+            }
+        }
+        long ta = a.getFile() != null ? a.getFile().lastModified() : 0;
+        long tb = b.getFile() != null ? b.getFile().lastModified() : 0;
+        return Long.compare(tb, ta); // 最新游玩在前
     }
 
     public void setSelectionMode(boolean enabled) {
@@ -194,15 +256,25 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
                 if (onWorldActionListener != null) onWorldActionListener.onWorldPlay(world);
             }
         });
+        // v445：长按交给 ItemTouchHelper 拖动排序（多选模式关闭时）；
+        // 多选模式长按仍切选中。多选入口 = 顶栏"选择"按钮
         holder.itemView.setOnLongClickListener(v -> {
-            selectionMode = true;
-            toggleSelection(world);
-            return true;
+            if (selectionMode) {
+                toggleSelection(world);
+            }
+            return false; // 不消费——ItemTouchHelper 接管长按拖动
         });
         holder.playButton.setOnClickListener(v -> {
             // v444：▶ 按钮 = 立即游玩该存档
             if (onWorldActionListener != null) onWorldActionListener.onWorldPlay(world);
         });
+        // v445：▶ 背景跟随个性化 accent 色（XML 默认 primary；
+        // applyAccentToView 不覆盖背景 tint，需手动同步）
+        int accent = new PersonalizationManager(holder.itemView.getContext()).getAccentColor();
+        if (accent != 0) {
+            holder.playButton.setBackgroundTintList(
+                    android.content.res.ColorStateList.valueOf(accent));
+        }
         holder.editButton.setOnClickListener(v -> {
             // 地图按钮：直接打开世界数据/地图查看（NBT 查看器）
             if (onWorldActionListener != null) onWorldActionListener.onWorldViewMap(world);
@@ -212,12 +284,25 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
         PersonalizationManager pm = new PersonalizationManager(holder.itemView.getContext());
         pm.applyGlassToView(holder.itemView);
         pm.applyAccentToView(holder.itemView, holder.itemView.getContext());
+        // v445：置顶卡片背景更深（与普通卡片区分）
+        if (isPinned(world)) {
+            holder.itemView.setBackground(holder.itemView.getContext().getDrawable(
+                    R.drawable.bg_world_card_pinned));
+        }
     }
 
     private void showOverflow(View anchor, WorldItem world) {
+        // v445：置顶项（状态文案随当前置顶状态切换）
+        boolean pinned = pinnedPaths.contains(pathOf(world));
         ContentActionPopup.show(anchor, world.getWorldName(), Arrays.asList(
                 new ContentActionPopup.Action(R.drawable.ic_edit, R.string.edit, false, () -> {
                     if (onWorldActionListener != null) onWorldActionListener.onWorldEdit(world);
+                }),
+                new ContentActionPopup.Action(R.drawable.ic_export, R.string.export, false, () -> {
+                    if (onWorldActionListener != null) onWorldActionListener.onWorldExport(world);
+                }),
+                new ContentActionPopup.Action(R.drawable.ic_pin, pinned ? R.string.unpin_world : R.string.pin_world, false, () -> {
+                    if (onWorldActionListener != null) onWorldActionListener.onWorldTogglePin(world);
                 }),
                 new ContentActionPopup.Action(R.drawable.ic_export, R.string.export, false, () -> {
                     if (onWorldActionListener != null) onWorldActionListener.onWorldExport(world);

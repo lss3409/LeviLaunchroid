@@ -400,7 +400,48 @@ public class ContentListActivity extends BaseActivity {
             public void onWorldPlay(WorldItem world) {
                 launchWorldDirect(world);
             }
+
+            @Override
+            public void onWorldTogglePin(WorldItem world) {
+                togglePinWorld(world);
+            }
         });
+        // v445：置顶集合与顺序快照（SharedPreferences 持久化）
+        worldsAdapter.setPinnedPaths(loadPinnedWorlds());
+        worldsAdapter.setOrderSnapshot(loadWorldOrder());
+        // v445：拖动排序（长按拖动；松手保存顺序快照）
+        androidx.recyclerview.widget.ItemTouchHelper touchHelper =
+                new androidx.recyclerview.widget.ItemTouchHelper(
+                        new androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(
+                                androidx.recyclerview.widget.ItemTouchHelper.UP
+                                        | androidx.recyclerview.widget.ItemTouchHelper.DOWN,
+                                0) {
+                            @Override
+                            public boolean onMove(@NonNull androidx.recyclerview.widget.RecyclerView rv,
+                                                  @NonNull androidx.recyclerview.widget.RecyclerView.ViewHolder vh,
+                                                  @NonNull androidx.recyclerview.widget.RecyclerView.ViewHolder target) {
+                                worldsAdapter.moveItem(vh.getAdapterPosition(), target.getAdapterPosition());
+                                return true;
+                            }
+
+                            @Override
+                            public void onSwiped(@NonNull androidx.recyclerview.widget.RecyclerView.ViewHolder vh, int direction) {
+                            }
+
+                            @Override
+                            public boolean isLongPressDragEnabled() {
+                                // 长按拖动与长按多选冲突——仅多选模式关闭时允许拖动
+                                return !worldsAdapter.isSelectionMode();
+                            }
+
+                            @Override
+                            public void clearView(@NonNull androidx.recyclerview.widget.RecyclerView rv,
+                                                  @NonNull androidx.recyclerview.widget.RecyclerView.ViewHolder vh) {
+                                super.clearView(rv, vh);
+                                saveWorldOrder(worldsAdapter.currentOrderSnapshot());
+                            }
+                        });
+        touchHelper.attachToRecyclerView(binding.contentRecyclerView);
         worldsAdapter.setOnSelectionChangedListener(count -> updateSelectionToolbar());
 
         binding.contentRecyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -419,6 +460,61 @@ public class ContentListActivity extends BaseActivity {
         intent.putExtra(WorldEditorActivity.EXTRA_WORLD_PATH, worldFile.getAbsolutePath());
         intent.putExtra(WorldEditorActivity.EXTRA_WORLD_NAME, world.getWorldName());
         startActivity(intent);
+    }
+
+    // ---------------------------------------------------------------- v445 置顶/排序持久化
+
+    private android.content.SharedPreferences worldListPrefs() {
+        return getSharedPreferences("world_list_prefs", MODE_PRIVATE);
+    }
+
+    private Set<String> loadPinnedWorlds() {
+        return new HashSet<>(worldListPrefs().getStringSet("pinned", new HashSet<>()));
+    }
+
+    private List<String> loadWorldOrder() {
+        String raw = worldListPrefs().getString("order", "");
+        List<String> out = new ArrayList<>();
+        if (!raw.isEmpty()) {
+            for (String s : raw.split(",")) {
+                if (!s.isEmpty()) {
+                    out.add(s);
+                }
+            }
+        }
+        return out;
+    }
+
+    private void saveWorldOrder(List<String> order) {
+        worldListPrefs().edit().putString("order", String.join(",", order)).apply();
+    }
+
+    /** v445：置顶/取消置顶——持久化后重排显示。 */
+    private void togglePinWorld(WorldItem world) {
+        File f = world != null ? world.getFile() : null;
+        if (f == null) {
+            return;
+        }
+        String path;
+        try {
+            path = f.getCanonicalPath();
+        } catch (Exception e) {
+            path = f.getAbsolutePath();
+        }
+        Set<String> pinned = loadPinnedWorlds();
+        boolean nowPinned;
+        if (pinned.contains(path)) {
+            pinned.remove(path);
+            nowPinned = false;
+        } else {
+            pinned.add(path);
+            nowPinned = true;
+        }
+        worldListPrefs().edit().putStringSet("pinned", pinned).apply();
+        worldsAdapter.setPinnedPaths(pinned);
+        filterContent(binding.searchEditText.getText().toString());
+        Toast.makeText(this, nowPinned ? R.string.pin_world : R.string.unpin_world,
+                Toast.LENGTH_SHORT).show();
     }
 
     /** v444：立即游玩——WorldPicker 同款链路（URI 协议直启该存档，

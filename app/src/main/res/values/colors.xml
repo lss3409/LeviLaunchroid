@@ -20,6 +20,8 @@
 
     <color name="background">#F8FFF0</color>
     <color name="surface">#F1F8E9</color>
+    <!-- v445：置顶卡片背景（比 surface 深一级） -->
+    <color name="surface_high">#E2EDD9</color>
     <color name="surface_variant">#E8F5E9</color>
     <color name="on_background">#212121</color>
     <color name="on_surface">#212121</color>
