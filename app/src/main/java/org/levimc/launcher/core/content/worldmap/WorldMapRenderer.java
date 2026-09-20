@@ -5112,11 +5112,10 @@ public class WorldMapRenderer {
                 }
                 if (waterY >= 0) {
                     // 水覆盖：河床色 + 水面色（maptile.cpp applyWaterOverlay）
-                    // v433：曲线加基础不透明度——旧曲线水深 1 方块只有
-                    // 15% 水色，海边浅滩几乎纯沙（"沙滩显示水里的沙子"）；
-                    // 新曲线水深 1→0.45 / 2→0.65 / 3+→0.85 封顶——
-                    // 浅滩更"水"且保留水深层次（深海仍透 15% 河床）
-                    float opacity = Math.min(0.2f * (waterY - y) + 0.25f, 0.85f);
+                    // v434：用户要求水色再调高——水深 1→0.55 / 2→0.75 /
+                    // 2.75+→0.9 封顶（v433 是 0.45/0.65/0.85；v426 原始
+                    // 0.15/0.3/0.85）。用户确认满意后此曲线定死不再改
+                    float opacity = Math.min(0.2f * (waterY - y) + 0.35f, 0.9f);
                     return blendColors(waterColor, color, opacity);
                 }
                 // 半透明方块（玻璃/冰，bedrockmap 色表 alpha<255）：不直接
