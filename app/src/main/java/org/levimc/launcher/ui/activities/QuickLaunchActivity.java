@@ -65,6 +65,44 @@ public class QuickLaunchActivity extends BaseActivity {
     private void loadQuickActions() {
         List<QuickLaunchAdapter.QuickLaunchItem> items = new ArrayList<>();
 
+        // v437：补齐官方启动器的全部快速启动项（此前缺 6 项——
+        // URI builder 与 ActionType 枚举早已就位，只差列表注册）
+        items.add(new QuickLaunchAdapter.QuickLaunchItem(
+                getString(R.string.quick_launch_how_to_play),
+                getString(R.string.quick_launch_how_to_play_desc),
+                QuickLaunchAdapter.ActionType.HOW_TO_PLAY
+        ));
+
+        items.add(new QuickLaunchAdapter.QuickLaunchItem(
+                getString(R.string.quick_launch_servers_tab),
+                getString(R.string.quick_launch_servers_tab_desc),
+                QuickLaunchAdapter.ActionType.SERVERS_TAB
+        ));
+
+        items.add(new QuickLaunchAdapter.QuickLaunchItem(
+                getString(R.string.quick_launch_profile),
+                getString(R.string.quick_launch_profile_desc),
+                QuickLaunchAdapter.ActionType.PROFILE_SCREEN
+        ));
+
+        items.add(new QuickLaunchAdapter.QuickLaunchItem(
+                getString(R.string.quick_launch_store_home),
+                getString(R.string.quick_launch_store_home_desc),
+                QuickLaunchAdapter.ActionType.STORE_HOME
+        ));
+
+        items.add(new QuickLaunchAdapter.QuickLaunchItem(
+                getString(R.string.quick_launch_minecoins),
+                getString(R.string.quick_launch_minecoins_desc),
+                QuickLaunchAdapter.ActionType.MINECOIN_OFFERS
+        ));
+
+        items.add(new QuickLaunchAdapter.QuickLaunchItem(
+                getString(R.string.quick_launch_marketplace_pass),
+                getString(R.string.quick_launch_marketplace_pass_desc),
+                QuickLaunchAdapter.ActionType.MARKETPLACE_PASS
+        ));
+
         items.add(new QuickLaunchAdapter.QuickLaunchItem(
                 getString(R.string.quick_launch_connect_server),
                 getString(R.string.quick_launch_connect_server_desc),
@@ -106,6 +144,25 @@ public class QuickLaunchActivity extends BaseActivity {
 
     private void handleQuickAction(QuickLaunchAdapter.ActionType actionType) {
         switch (actionType) {
+            // v437：官方 6 项——直接 URI 启动（无输入）
+            case HOW_TO_PLAY:
+                launchWithUri(MinecraftUriHandler.buildShowHowToPlay());
+                break;
+            case SERVERS_TAB:
+                launchWithUri(MinecraftUriHandler.buildOpenServersTab());
+                break;
+            case PROFILE_SCREEN:
+                launchWithUri(MinecraftUriHandler.buildShowProfileScreen());
+                break;
+            case STORE_HOME:
+                launchWithUri(MinecraftUriHandler.buildOpenStore());
+                break;
+            case MINECOIN_OFFERS:
+                launchWithUri(MinecraftUriHandler.buildShowMinecoinOffers());
+                break;
+            case MARKETPLACE_PASS:
+                showMarketplacePassDialog();
+                break;
             case CONNECT_SERVER:
                 showConnectServerDialog();
                 break;

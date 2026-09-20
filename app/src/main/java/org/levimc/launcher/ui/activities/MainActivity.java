@@ -138,6 +138,7 @@ import okhttp3.OkHttpClient;
         setupNavBar();
         setupManagersAndHandlers();
         setupOnBackPressedCallback();
+        applyResponsiveCardsLayout();
 
         accountLoginLauncher = registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(), result -> {
             if (result.getResultCode() == RESULT_OK && result.getData() != null
@@ -238,6 +239,58 @@ import okhttp3.OkHttpClient;
 
          getOnBackPressedDispatcher().addCallback(this, onBackPressedCallback);
      }
+
+    /** v437：模组/内容管理/其他三卡响应式——窄屏（手机竖屏 <600dp）
+     *  三卡纵向堆叠全宽（此前横排每张 ~110dp 文字挤换行、卡片显得
+     *  "太长"）；宽屏（平板横屏）保持三栏但加高（300dp 在平板上
+     *  显得"太小"）。 */
+    private void applyResponsiveCardsLayout() {
+        try {
+            android.view.View row = findViewById(org.levimc.launcher.R.id.cards_row);
+            android.view.View modCard = findViewById(org.levimc.launcher.R.id.mod_card);
+            android.view.View contentCard = findViewById(org.levimc.launcher.R.id.content_mgmt_card);
+            android.view.View miscCard = findViewById(org.levimc.launcher.R.id.misc_card);
+            if (row == null || modCard == null || contentCard == null || miscCard == null) {
+                return;
+            }
+            boolean narrow = getResources().getConfiguration().screenWidthDp < 600;
+            if (!(row instanceof android.widget.LinearLayout)) {
+                return;
+            }
+            android.widget.LinearLayout rowLl = (android.widget.LinearLayout) row;
+            float d = getResources().getDisplayMetrics().density;
+            int cardWidth = narrow
+                    ? android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                    : 0;
+            if (narrow) {
+                // 手机竖屏：纵向堆叠，每卡自然高度（内容多高卡多高，
+                // 不再 300dp 挤压换行），根 ScrollView 可滚动
+                rowLl.setOrientation(android.widget.LinearLayout.VERTICAL);
+                android.view.ViewGroup.LayoutParams rlp = rowLl.getLayoutParams();
+                rlp.height = android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+                rowLl.setLayoutParams(rlp);
+                android.view.View[] cards = {modCard, contentCard, miscCard};
+                for (int i = 0; i < cards.length; i++) {
+                    android.view.View c = cards[i];
+                    android.widget.LinearLayout.LayoutParams clp =
+                            (android.widget.LinearLayout.LayoutParams) c.getLayoutParams();
+                    clp.width = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
+                    clp.height = (int) (240 * d);
+                    clp.weight = 0f;
+                    clp.setMargins(0, i == 0 ? 0 : (int) (10 * d), 0, 0);
+                    c.setLayoutParams(clp);
+                }
+            } else {
+                // 平板横屏：横向三栏加高（300dp → 460dp），卡片内容
+                // 空间充足不再"太小"
+                android.view.ViewGroup.LayoutParams rlp = rowLl.getLayoutParams();
+                rlp.height = (int) (460 * d);
+                rowLl.setLayoutParams(rlp);
+            }
+        } catch (Throwable t) {
+            android.util.Log.w("MainActivity", "响应式卡片布局失败", t);
+        }
+    }
 
     private void refreshAccountHeaderUI() {
         // 登录入口一直显示（不再受设置开关控制）
