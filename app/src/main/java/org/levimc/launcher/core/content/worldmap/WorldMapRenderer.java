@@ -5927,17 +5927,15 @@ public class WorldMapRenderer {
                 .append("L.imageOverlay('data:image/png;base64,").append(b64)
                 .append("',BOUNDS).addTo(map);")
                 .append("var FZ=map.getBoundsZoom(BOUNDS);")
-                // v413：mkCircle 的 radius 在 CRS.Simple 投影下换算不稳
-                // （标点/结构"显示异常"的根因）——改 divIcon 像素级标记，
-                // 尺寸不随投影缩放
-                // v416：lat=-z（CRS.Simple lat 轴与 PNG z 轴方向相反——
-                // 所有标记统一取反，位置与图片对齐）
-                .append("function mkCircle(z,x,opts){var px=opts.px||8;var col=opts.color||'#ffd54f';")
-                .append("var d=document.createElement('div');")
-                .append("d.style.cssText='width:'+px+'px;height:'+px+'px;border-radius:50%;")
-                .append("background:'+col+';border:2px solid rgba(0,0,0,.4);box-sizing:border-box';")
-                .append("return L.marker([-z,x],{icon:L.divIcon({className:'',html:d.outerHTML,")
-                .append("iconSize:[px,px],iconAnchor:[px/2,px/2]})});}")
+                // v425：恢复 L.circle（用户提供参考 HTML 同款写法——
+                // v413 的 divIcon 在部分 HTML 查看器 WebView 不兼容
+                // "打不开"的根因）。radius 随 zoom 换算保持像素观感；
+                // lat=-z（v416 坐标对齐）
+                .append("function mkCircle(z,x,opts){var px=opts.px||8;delete opts.px;")
+                .append("var c=L.circle([-z,x],L.extend({radius:1},opts));")
+                .append("var up=function(){var s=Math.min(px,Math.max(3,px*Math.pow(2,map.getZoom()-FZ)));")
+                .append("c.setRadius(s/Math.pow(2,map.getZoom()));};")
+                .append("map.on('zoomend',up);up();return c;}")
                 .append("var groups={p:L.layerGroup(),l:L.layerGroup(),s:L.layerGroup(),")
                 .append("e:L.layerGroup(),sl:L.layerGroup()};")
                 .append("function tg(k){if(document.getElementById('ck-'+k).checked){groups[k].addTo(map);}")
