@@ -258,11 +258,11 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
                 .into(holder.worldIcon);
 
         holder.itemView.setOnClickListener(v -> {
+            // v453：卡片主体点击不再打开游戏（用户反馈"按钮左边
+            // 所有区域都能打开游戏"）——游玩只走 ▶ 按钮；多选模式
+            // 下主体点击仍切选中
             if (selectionMode) {
                 toggleSelection(world);
-            } else {
-                // v444：卡片主体点击 = 游玩（原版世界列表同款语义）
-                if (onWorldActionListener != null) onWorldActionListener.onWorldPlay(world);
             }
         });
         // v445：长按交给 ItemTouchHelper 拖动排序（多选模式关闭时）；
