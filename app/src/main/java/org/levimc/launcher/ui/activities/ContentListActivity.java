@@ -497,7 +497,15 @@ public class ContentListActivity extends BaseActivity {
     }
 
     private void saveWorldOrder(List<String> order) {
-        worldListPrefs().edit().putString("order", String.join(",", order)).apply();
+        // v450：合并旧快照中不在当前列表的路径（搜索过滤时拖动
+        // 只覆盖可见项，直接覆盖会把隐藏世界的顺序记录弄丢）
+        List<String> merged = new ArrayList<>(order);
+        for (String old : loadWorldOrder()) {
+            if (!merged.contains(old)) {
+                merged.add(old);
+            }
+        }
+        worldListPrefs().edit().putString("order", String.join(",", merged)).apply();
     }
 
     /** v445：置顶/取消置顶——持久化后重排显示。 */

@@ -9,9 +9,9 @@ public class FeatureSettings {
     private boolean launcherManagedMcLoginEnabled = true;
     private boolean msLoginEnabled = false;
     private boolean logcatOverlayEnabled = false;
-    private boolean foregroundServiceEnabled = false;
+    /** v450：前台服务恒开（设置页开关已隐藏）。 */
+    private boolean foregroundServiceEnabled = true;
     private boolean autoCloseGameOnLaunchNew = false;
-    private boolean memoryMonitorOverlay = false;
     private Boolean crashUploadEnabled = true;
 
     public enum StorageType {
@@ -55,16 +55,16 @@ public class FeatureSettings {
     public boolean isLogcatOverlayEnabled() { return logcatOverlayEnabled; }
     public void setLogcatOverlayEnabled(boolean enabled) { this.logcatOverlayEnabled = enabled; autoSave(); }
 
-    public boolean isForegroundServiceEnabled() { return foregroundServiceEnabled; }
+    /** v450：前台服务恒开（老用户 prefs 里可能是 false——直接返回
+     *  true 覆盖，设置页开关已隐藏）。 */
+    public boolean isForegroundServiceEnabled() { return true; }
     public void setForegroundServiceEnabled(boolean enabled) { this.foregroundServiceEnabled = enabled; autoSave(); }
 
     public boolean isAutoCloseGameOnLaunchNew() { return autoCloseGameOnLaunchNew; }
     public void setAutoCloseGameOnLaunchNew(boolean enabled) { this.autoCloseGameOnLaunchNew = enabled; autoSave(); }
 
-    public boolean isMemoryMonitorOverlayEnabled() { return memoryMonitorOverlay; }
     public boolean isCrashUploadEnabled() { return crashUploadEnabled == null || crashUploadEnabled; }
     public void setCrashUploadEnabled(boolean enabled) { this.crashUploadEnabled = enabled; autoSave(); }
-    public void setMemoryMonitorOverlayEnabled(boolean enabled) { this.memoryMonitorOverlay = enabled; autoSave(); }
 
 
     private void autoSave() {

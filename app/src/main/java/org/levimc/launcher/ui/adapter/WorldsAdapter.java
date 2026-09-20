@@ -126,12 +126,13 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
         if (ia != ib) {
             return ia ? -1 : 1;
         }
-        if (ia) {
-            int oa = orderSnapshot.indexOf(pa);
-            int ob = orderSnapshot.indexOf(pb);
-            if (oa >= 0 && ob >= 0 && oa != ob) {
-                return oa - ob;
-            }
+        // v450：快照顺序对置顶组与普通组都生效（此前非置顶组永远
+        // 按时间——拖动排序重启后复原的根因）；快照中没有的（新
+        // 世界）回退时间降序（最新游玩在前）
+        int oa = orderSnapshot.indexOf(pa);
+        int ob = orderSnapshot.indexOf(pb);
+        if (oa >= 0 && ob >= 0 && oa != ob) {
+            return oa - ob;
         }
         long ta = a.getFile() != null ? a.getFile().lastModified() : 0;
         long tb = b.getFile() != null ? b.getFile().lastModified() : 0;

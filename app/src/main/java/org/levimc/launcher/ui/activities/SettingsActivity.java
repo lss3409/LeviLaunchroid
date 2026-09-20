@@ -300,15 +300,8 @@ public class SettingsActivity extends BaseActivity {
             } catch (Throwable ignored) {}
         });
 
-        SwitchMaterial switchMemoryMonitor = findViewById(R.id.switch_memory_monitor);
-        if (switchMemoryMonitor != null) {
-            switchMemoryMonitor.setChecked(fs.isMemoryMonitorOverlayEnabled());
-            switchMemoryMonitor.setOnCheckedChangeListener((btn, checked) -> fs.setMemoryMonitorOverlayEnabled(checked));
-        }
-
-        SwitchMaterial switchForegroundService = findViewById(R.id.switch_foreground_service);
-        switchForegroundService.setChecked(fs.isForegroundServiceEnabled());
-        switchForegroundService.setOnCheckedChangeListener((btn, checked) -> fs.setForegroundServiceEnabled(checked));
+        // v450：性能监控悬浮窗开关已删除（功能整体移除）；
+        // 前台服务恒开（开关隐藏，见 activity_settings.xml）
 
         // 登录入口开关已移除：登录按钮一直显示
 
@@ -753,22 +746,8 @@ public class SettingsActivity extends BaseActivity {
             switchLogcat.setTrackTintList(new ColorStateList(states, new int[]{trackChecked, 0xFF555555}));
         }
 
-        SwitchMaterial switchMemoryMonitor = findViewById(R.id.switch_memory_monitor);
-        if (switchMemoryMonitor != null && accent != 0) {
-            int[][] states = {{android.R.attr.state_checked}, {}};
-            switchMemoryMonitor.setThumbTintList(new ColorStateList(states, new int[]{accent, 0xFFAAAAAA}));
-            int trackChecked = Color.argb(100, Color.red(accent), Color.green(accent), Color.blue(accent));
-            switchMemoryMonitor.setTrackTintList(new ColorStateList(states, new int[]{trackChecked, 0xFF555555}));
-        }
+        // v450：性能监控/前台服务开关相关 tint 逻辑已随开关移除
 
-        SwitchMaterial switchForegroundService = findViewById(R.id.switch_foreground_service);
-        if (switchForegroundService != null && accent != 0) {
-            int[][] states = {{android.R.attr.state_checked}, {}};
-            switchForegroundService.setThumbTintList(new ColorStateList(states, new int[]{accent, 0xFFAAAAAA}));
-            int trackChecked = Color.argb(100, Color.red(accent), Color.green(accent), Color.blue(accent));
-            switchForegroundService.setTrackTintList(new ColorStateList(states, new int[]{trackChecked, 0xFF555555}));
-        }
-        
         Button btnApplyStorage = findViewById(R.id.btn_apply_custom_storage_path);
         if (btnApplyStorage != null && accent != 0) {
             btnApplyStorage.setBackgroundTintList(ColorStateList.valueOf(accent));
