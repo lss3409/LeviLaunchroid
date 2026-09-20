@@ -32,6 +32,9 @@ public class ModMenuButton {
     private long touchDownTime = 0;
     private static final long TAP_TIMEOUT = 200;
     private static final float DRAG_THRESHOLD = 10f;
+    /** v442：边缘半隐藏比例——贴边时 45% 藏在屏外（露出 55%）。 */
+    private static final float EDGE_HIDE_RATIO = 0.45f;
+    private android.animation.ValueAnimator snapAnimator;
     
     private ModMenuOverlay menuOverlay;
     
@@ -47,14 +50,14 @@ public class ModMenuButton {
     
     private void showInternal(int startX, int startY) {
         if (isShowing || activity.isFinishing() || activity.isDestroyed()) return;
-        
+
         try {
             buttonView = LayoutInflater.from(activity).inflate(R.layout.overlay_mod_menu_button, null);
             ImageButton btn = buttonView.findViewById(R.id.mod_menu_fab);
-            
+
             float density = activity.getResources().getDisplayMetrics().density;
             int buttonSize = (int) (53 * density);
-            
+
             wmParams = new WindowManager.LayoutParams(
                 buttonSize,
                 buttonSize,
@@ -65,8 +68,10 @@ public class ModMenuButton {
                 PixelFormat.TRANSLUCENT
             );
             wmParams.gravity = Gravity.TOP | Gravity.START;
-            wmParams.x = startX;
-            wmParams.y = startY;
+            // v442：恢复上次吸附的位置（重启/重进后球还在老地方）
+            int[] saved = loadBallPosition();
+            wmParams.x = saved != null ? saved[0] : startX;
+            wmParams.y = saved != null ? saved[1] : startY;
             wmParams.token = activity.getWindow().getDecorView().getWindowToken();
             
             btn.setOnTouchListener(this::handleTouch);
@@ -115,6 +120,10 @@ public class ModMenuButton {
     private boolean handleTouch(View v, MotionEvent event) {
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
+                // 按下取消进行中的吸附动画（贴边后再次拖动立即跟手）
+                if (snapAnimator != null && snapAnimator.isRunning()) {
+                    snapAnimator.cancel();
+                }
                 initialX = wmParams.x;
                 initialY = wmParams.y;
                 initialTouchX = event.getRawX();
@@ -138,6 +147,9 @@ public class ModMenuButton {
                 long elapsed = SystemClock.uptimeMillis() - touchDownTime;
                 if (!isDragging && elapsed < TAP_TIMEOUT) {
                     handler.post(this::onButtonClick);
+                } else if (isDragging) {
+                    // v442：松手吸附到最近屏幕边缘 + 半隐藏
+                    snapToEdge();
                 }
                 isDragging = false;
                 return true;
@@ -146,6 +158,75 @@ public class ModMenuButton {
                 return true;
         }
         return false;
+    }
+
+    /** v442：吸附到最近左右边缘（45% 藏屏外），Y 钳制在屏幕内，
+     *  250ms decelerate 动画；落定后位置持久化（重启恢复）。 */
+    private void snapToEdge() {
+        if (windowManager == null || buttonView == null || wmParams == null) {
+            return;
+        }
+        try {
+            android.graphics.Rect bounds = windowManager.getCurrentWindowMetrics()
+                    .getBounds();
+            int screenW = bounds.width();
+            int screenH = bounds.height();
+            int size = buttonView.getWidth();
+            if (size <= 0) {
+                size = wmParams.width;
+            }
+            int fromX = wmParams.x;
+            int fromY = wmParams.y;
+            // 球心判断左右：球心在屏幕左半 → 吸左边缘
+            float centerX = wmParams.x + size / 2f;
+            boolean snapLeft = centerX < screenW / 2f;
+            int targetX = snapLeft
+                    ? (int) (-size * EDGE_HIDE_RATIO)
+                    : (int) (screenW - size * (1 - EDGE_HIDE_RATIO));
+            int targetY = Math.max(0, Math.min(wmParams.y, screenH - size));
+            snapAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f);
+            snapAnimator.setDuration(250);
+            snapAnimator.setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f));
+            snapAnimator.addUpdateListener(a -> {
+                float t = (float) a.getAnimatedValue();
+                wmParams.x = (int) (fromX + (targetX - fromX) * t);
+                wmParams.y = (int) (fromY + (targetY - fromY) * t);
+                try {
+                    windowManager.updateViewLayout(buttonView, wmParams);
+                } catch (Exception ignored) {
+                }
+            });
+            snapAnimator.addListener(new android.animation.AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(android.animation.Animator animation) {
+                    saveBallPosition(targetX, targetY);
+                }
+            });
+            snapAnimator.start();
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** v442：位置持久化（吸附落定后保存；show 时恢复）。 */
+    private void saveBallPosition(int x, int y) {
+        try {
+            activity.getSharedPreferences("mod_menu_ball", android.content.Context.MODE_PRIVATE)
+                    .edit().putInt("x", x).putInt("y", y).apply();
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** v442：读保存位置（无则 null 用默认初始位置）。 */
+    private int[] loadBallPosition() {
+        try {
+            android.content.SharedPreferences sp = activity
+                    .getSharedPreferences("mod_menu_ball", android.content.Context.MODE_PRIVATE);
+            if (sp.contains("x") && sp.contains("y")) {
+                return new int[]{sp.getInt("x", 0), sp.getInt("y", 0)};
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
     }
     
     private boolean handleTouchFallback(View v, MotionEvent event) {
@@ -175,6 +256,9 @@ public class ModMenuButton {
                 long elapsed = SystemClock.uptimeMillis() - touchDownTime;
                 if (!isDragging && elapsed < TAP_TIMEOUT) {
                     handler.post(this::onButtonClick);
+                } else if (isDragging) {
+                    // v442：fallback 路径同样吸附边缘+半隐藏
+                    snapToEdgeFallback();
                 }
                 isDragging = false;
                 return true;
@@ -184,7 +268,53 @@ public class ModMenuButton {
         }
         return false;
     }
-    
+
+    /** v442：fallback（FrameLayout）路径的边缘吸附。 */
+    private void snapToEdgeFallback() {
+        if (buttonView == null) {
+            return;
+        }
+        try {
+            FrameLayout.LayoutParams params =
+                    (FrameLayout.LayoutParams) buttonView.getLayoutParams();
+            android.graphics.Rect bounds = windowManager != null
+                    ? windowManager.getCurrentWindowMetrics().getBounds()
+                    : new android.graphics.Rect(0, 0,
+                            activity.getResources().getDisplayMetrics().widthPixels,
+                            activity.getResources().getDisplayMetrics().heightPixels);
+            int screenW = bounds.width();
+            int screenH = bounds.height();
+            int size = buttonView.getWidth();
+            if (size <= 0) {
+                size = params.width;
+            }
+            int fromX = params.leftMargin;
+            int fromY = params.topMargin;
+            boolean snapLeft = params.leftMargin + size / 2f < screenW / 2f;
+            int targetX = snapLeft
+                    ? (int) (-size * EDGE_HIDE_RATIO)
+                    : (int) (screenW - size * (1 - EDGE_HIDE_RATIO));
+            int targetY = Math.max(0, Math.min(params.topMargin, screenH - size));
+            snapAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f);
+            snapAnimator.setDuration(250);
+            snapAnimator.setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f));
+            snapAnimator.addUpdateListener(a -> {
+                float t = (float) a.getAnimatedValue();
+                params.leftMargin = (int) (fromX + (targetX - fromX) * t);
+                params.topMargin = (int) (fromY + (targetY - fromY) * t);
+                buttonView.setLayoutParams(params);
+            });
+            snapAnimator.addListener(new android.animation.AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(android.animation.Animator animation) {
+                    saveBallPosition(targetX, targetY);
+                }
+            });
+            snapAnimator.start();
+        } catch (Throwable ignored) {
+        }
+    }
+
     private void onButtonClick() {
         // 悬浮球：打开模组菜单
         if (menuOverlay == null) {
