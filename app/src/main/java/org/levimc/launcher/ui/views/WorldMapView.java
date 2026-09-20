@@ -97,10 +97,26 @@ public class WorldMapView extends View {
 
     /** v424：缩放倍率写入统一入口——任何路径改倍率立即通知 HUD
      *  （"力大砖飞"：无条件直接通知，不做差异判断——v363 实时显示
-     *  的体验回归，此前条件检测在部分缩放路径漏通知）。 */
+     *  的体验回归，此前条件检测在部分缩放路径漏通知）。
+     *  v425：独立 zoomListener 链路——与 viewChangedListener（坐标
+     *  HUD）完全隔离，杜绝烘焙 HUD 等其它 setText 干扰。 */
     private void setPpb(float v) {
         pixelsPerBlock = v;
+        if (zoomListener != null) {
+            zoomListener.onZoomChanged(v);
+        }
         notifyViewChanged();
+    }
+
+    /** v425：缩放倍率变化回调（HUD 倍率实时显示专用链路）。 */
+    public interface OnZoomChangedListener {
+        void onZoomChanged(float pixelsPerBlock);
+    }
+
+    private OnZoomChangedListener zoomListener;
+
+    public void setOnZoomChangedListener(OnZoomChangedListener l) {
+        this.zoomListener = l;
     }
 
     /** v403：打开时整图适配（fit 全图显示"大的缩放比例"）——
@@ -593,8 +609,9 @@ public class WorldMapView extends View {
         drawVoxelSelection(canvas); // 3D 区域选择矩形（最上层）
     }
 
-    /** v413：矿石标点图层——每矿种一个色块菱形标记（视口内才画，
-     * 大地图 2 万+ 标点全画会卡）。 */
+    /** v413：矿石标点图层——v425 起优先用 MC 原版贴图
+     *  （assets/ore_textures/<短名>.png，如 diamond_ore.png），
+     *  无贴图回退色块菱形（视口内才画，大地图 2 万+ 标点全画会卡）。 */
     private void drawOreMarkers(android.graphics.Canvas canvas) {
         if (!showOreLayer || map == null || map.oreMarkers == null
                 || map.oreMarkers.isEmpty()) {
@@ -602,10 +619,20 @@ public class WorldMapView extends View {
         }
         float r = Math.max(3.5f, pixelsPerBlock * 0.9f);
         android.graphics.Path p = new android.graphics.Path();
+        android.graphics.Paint texPaint = new android.graphics.Paint(
+                android.graphics.Paint.FILTER_BITMAP_FLAG);
         for (WorldMapRenderer.OreMarker m : map.oreMarkers) {
             float sx = offsetX + (m.blockX - map.minBlockX + 0.5f) * pixelsPerBlock;
             float sy = offsetY + (m.blockZ - map.minBlockZ + 0.5f) * pixelsPerBlock;
-            if (sx < -16 || sx > getWidth() + 16 || sy < -16 || sy > getHeight() + 16) {
+            if (sx < -20 || sx > getWidth() + 20 || sy < -20 || sy > getHeight() + 20) {
+                continue;
+            }
+            android.graphics.Bitmap tex = oreTexture(m.name);
+            if (tex != null) {
+                float ts = Math.max(r * 2.2f, pixelsPerBlock * 1.5f);
+                canvas.drawBitmap(tex, null,
+                        new android.graphics.RectF(sx - ts / 2f, sy - ts / 2f,
+                                sx + ts / 2f, sy + ts / 2f), texPaint);
                 continue;
             }
             p.reset();
@@ -616,6 +643,26 @@ public class WorldMapView extends View {
             p.close();
             canvas.drawPath(p, oreFillPaint(m.color()));
         }
+    }
+
+    /** v425：矿石贴图缓存（null 也缓存防反复 IO）。 */
+    private static final java.util.Map<String, android.graphics.Bitmap> ORE_TEX_CACHE =
+            new java.util.HashMap<>();
+
+    private android.graphics.Bitmap oreTexture(String shortName) {
+        android.graphics.Bitmap b = ORE_TEX_CACHE.get(shortName);
+        if (b == null && !ORE_TEX_CACHE.containsKey(shortName)) {
+            try {
+                java.io.InputStream is = getContext().getAssets()
+                        .open("ore_textures/" + shortName + ".png");
+                b = android.graphics.BitmapFactory.decodeStream(is);
+                is.close();
+            } catch (Exception e) {
+                b = null;
+            }
+            ORE_TEX_CACHE.put(shortName, b);
+        }
+        return b;
     }
 
     private final java.util.Map<Integer, android.graphics.Paint> oreFillPaints =

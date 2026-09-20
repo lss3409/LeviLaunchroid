@@ -994,6 +994,15 @@ public class NbtViewerActivity extends BaseActivity {
                     + "  ·  ×" + String.format(java.util.Locale.getDefault(),
                     "%.2f", binding.worldMapImage.getPixelsPerBlock()));
         });
+        // v425：缩放倍率实时显示独立链路——与坐标 HUD/烘焙进度 HUD
+        // 完全隔离，倍率每次变化直接刷新（此前混在坐标回调里，
+        // 其它 setText 时序干扰导致"不能实时显示"）
+        binding.worldMapImage.setOnZoomChangedListener(ppb ->
+                binding.mapHud.setText("X: " + viewCenterX.get()
+                        + "  Z: " + viewCenterZ.get()
+                        + "  ·  " + dimName(mapDimension)
+                        + "  ·  ×" + String.format(java.util.Locale.getDefault(),
+                        "%.2f", ppb)));
 
         // 结构标记点击 → 详情弹窗（NBT 数据/附近实体/坐标）
         binding.worldMapImage.setOnStructureClickListener(this::showStructureDetail);

@@ -5817,30 +5817,37 @@ public class WorldMapRenderer {
         } else {
             throw new IllegalStateException("无地图数据");
         }
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        // v421：PNG 超过 ~2MB 时降采样（HTML 查看器 WebView 的
-        // data: URL 有大小限制——浏览器能看、MT 等查看器打不开
-        // 的根因）。降采样 2×（4 像素取 1）后体积 ~1/4
+        // v425：PNG 超过 ~2MB 时降采样（HTML 查看器 WebView 的
+        // data: URL 有大小限制）。修复 v421 隐患：createScaledBitmap
+        // OOM 返回 null 导致 NPE 导出失败；recycle 逻辑统一在最后
         android.graphics.Bitmap forPng = pngBmp;
-        java.io.ByteArrayOutputStream testBos = new java.io.ByteArrayOutputStream();
-        forPng.compress(Bitmap.CompressFormat.PNG, 75, testBos);
-        if (testBos.size() > 2 * 1024 * 1024) {
-            int sw = Math.max(1, forPng.getWidth() / 2);
-            int sh = Math.max(1, forPng.getHeight() / 2);
-            android.graphics.Bitmap down = android.graphics.Bitmap.createScaledBitmap(
-                    forPng, sw, sh, true);
-            if (down != forPng && forPng != pngBmp) {
-                forPng.recycle();
+        boolean downsampled = false;
+        java.io.ByteArrayOutputStream outBos = new java.io.ByteArrayOutputStream();
+        try {
+            forPng.compress(Bitmap.CompressFormat.PNG, 75, outBos);
+            if (outBos.size() > 2 * 1024 * 1024) {
+                int sw = Math.max(1, forPng.getWidth() / 2);
+                int sh = Math.max(1, forPng.getHeight() / 2);
+                android.graphics.Bitmap down =
+                        android.graphics.Bitmap.createScaledBitmap(forPng, sw, sh, true);
+                if (down != null) {
+                    forPng = down;
+                    downsampled = true;
+                    outBos.reset();
+                    forPng.compress(Bitmap.CompressFormat.PNG, 75, outBos);
+                    Log.i(TAG, "导出 PNG 降采样: " + pngBmp.getWidth() + "x"
+                            + pngBmp.getHeight() + " → " + sw + "x" + sh);
+                }
             }
-            forPng = down;
-            testBos.reset();
-            forPng.compress(Bitmap.CompressFormat.PNG, 75, testBos);
-            Log.i(TAG, "导出 PNG 降采样: " + pngBmp.getWidth() + "x"
-                    + pngBmp.getHeight() + " → " + sw + "x" + sh);
+        } finally {
+            if (downsampled) {
+                pngBmp.recycle(); // 降采样后原图不再使用
+            }
         }
-        String b64 = android.util.Base64.encodeToString(testBos.toByteArray(),
+        String b64 = android.util.Base64.encodeToString(outBos.toByteArray(),
                 android.util.Base64.NO_WRAP);
-        testBos.close();
+        outBos.close();
+        // 编码完成位图不再需要（未降采样时 forPng 即 pngBmp）
         forPng.recycle();
 
         // 2) 世界范围（[Z,X] 顺序：lat=Z、lng=X）
@@ -5979,19 +5986,28 @@ public class WorldMapRenderer {
         if (entities != null && !entities.isEmpty()) {
             int n = Math.min(entities.size(), 6000);
             StringBuilder eb = new StringBuilder("[");
+            boolean firstE = true;
             for (int i = 0; i < n; i++) {
                 EntityPos ep = entities.get(i);
-                if (i > 0) {
+                // v425：过滤地图范围外实体（"实体标点跑出地图外"的
+                // 根因——实体数据含未生成区域/死亡残留的坐标）
+                int ex = Math.round(ep.x);
+                int ez = Math.round(ep.z);
+                if (ex < minX || ex > maxX || ez < minZ || ez > maxZ) {
+                    continue;
+                }
+                if (!firstE) {
                     eb.append(',');
                 }
+                firstE = false;
                 eb.append("{n:'").append(escapeHtml(entityLabelZh(ep.name))).append("',x:")
-                        .append(Math.round(ep.x)).append(",z:")
-                        .append(Math.round(ep.z)).append('}');
+                        .append(ex).append(",z:").append(ez).append('}');
             }
             eb.append(']');
             html.append("var ents=").append(eb);
+            // v425：标点缩小（6px→4px，实体密堆更易区分）
             html.append(";ents.forEach(function(e){groups.e.addLayer(mkCircle(e.z,e.x,")
-                    .append("{px:6,color:'#ff7043',weight:1,fillOpacity:.7})")
+                    .append("{px:4,color:'#ff7043',weight:1,fillOpacity:.7})")
                     .append(".bindPopup('<b>'+e.n+'</b><br>X:'+e.x+' Z:'+e.z));});");
         }
         // 史莱姆区块（只列有地形数据的 chunk：大世界查 chunkColors key，
@@ -6003,6 +6019,13 @@ public class WorldMapRenderer {
             for (Long key : map.chunkColors.keySet()) {
                 int cx = (int) (key >> 32);
                 int cz = (int) (long) key;
+                // v425：跳过 EMPTY 占位/全透明 chunk——史莱姆框不再
+                // 画在"没有地图的空白区域"（占位 chunk 是视口渲染的
+                // 未生成标记，不是地形）
+                int[] cc = map.chunkColors.get(key);
+                if (cc == null || !hasOpaque(cc)) {
+                    continue;
+                }
                 if (isSlimeChunk(cx, cz)) {
                     if (!first) {
                         sl.append(',');
