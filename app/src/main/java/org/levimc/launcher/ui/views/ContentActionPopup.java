@@ -52,9 +52,11 @@ public final class ContentActionPopup {
         popup.setClippingEnabled(true);
         popup.setElevation(dp(context, 10));
 
-        // v452：手机（<600dp）紧凑模式——行高压缩（icon 20dp/行距
-        // 收紧），7 个操作项弹窗总高能放下；平板保持现状
-        boolean compact = context.getResources().getConfiguration().screenWidthDp < 600;
+        // v454：按屏幕短边判断紧凑模式（v452 用 widthDp——手机横屏
+        // widthDp≈800 被当平板走大行高，350dp 弹窗在横屏手机
+        // ~360dp 高度里必然超出）——短边 <600dp = 手机任何方向
+        android.content.res.Configuration cfg = context.getResources().getConfiguration();
+        boolean compact = Math.min(cfg.screenWidthDp, cfg.screenHeightDp) < 600;
         for (Action action : actions) {
             View row = inflater.inflate(R.layout.item_content_action, items, false);
             ImageView icon = row.findViewById(R.id.action_icon);
