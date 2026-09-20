@@ -46,6 +46,8 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
         void onWorldExtractStructures(WorldItem world);
         void onWorldTransfer(WorldItem world);
         void onWorldLocate(WorldItem world);
+        /** v444：游玩（卡片 ▶ 按钮 / 卡片主体点击）。 */
+        void onWorldPlay(WorldItem world);
     }
 
     public interface OnSelectionChangedListener {
@@ -172,6 +174,7 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
         });
 
         holder.itemView.setActivated(selected);
+        holder.playButton.setVisibility(selectionMode ? View.GONE : View.VISIBLE);
         holder.editButton.setVisibility(selectionMode ? View.GONE : View.VISIBLE);
         holder.overflowButton.setVisibility(selectionMode ? View.GONE : View.VISIBLE);
         holder.selectionIndicator.setVisibility(selectionMode ? View.VISIBLE : View.GONE);
@@ -184,12 +187,21 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
                 .into(holder.worldIcon);
 
         holder.itemView.setOnClickListener(v -> {
-            if (selectionMode) toggleSelection(world);
+            if (selectionMode) {
+                toggleSelection(world);
+            } else {
+                // v444：卡片主体点击 = 游玩（原版世界列表同款语义）
+                if (onWorldActionListener != null) onWorldActionListener.onWorldPlay(world);
+            }
         });
         holder.itemView.setOnLongClickListener(v -> {
             selectionMode = true;
             toggleSelection(world);
             return true;
+        });
+        holder.playButton.setOnClickListener(v -> {
+            // v444：▶ 按钮 = 立即游玩该存档
+            if (onWorldActionListener != null) onWorldActionListener.onWorldPlay(world);
         });
         holder.editButton.setOnClickListener(v -> {
             // 地图按钮：直接打开世界数据/地图查看（NBT 查看器）
@@ -261,6 +273,7 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
         final TextView worldDescription;
         final TextView worldSeed;
         final TextView hardcoreTag;
+        final ImageButton playButton;
         final ImageButton editButton;
         final ImageButton overflowButton;
         final ImageView selectionIndicator;
@@ -274,6 +287,7 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
             worldDescription = itemView.findViewById(R.id.world_description);
             worldSeed = itemView.findViewById(R.id.world_seed);
             hardcoreTag = itemView.findViewById(R.id.world_hardcore_tag);
+            playButton = itemView.findViewById(R.id.world_play_button);
             editButton = itemView.findViewById(R.id.world_edit_button);
             overflowButton = itemView.findViewById(R.id.world_overflow_button);
             selectionIndicator = itemView.findViewById(R.id.world_selection_indicator);

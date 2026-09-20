@@ -395,6 +395,11 @@ public class ContentListActivity extends BaseActivity {
             public void onWorldLocate(WorldItem world) {
                 openFileManager(world.getFile());
             }
+
+            @Override
+            public void onWorldPlay(WorldItem world) {
+                launchWorldDirect(world);
+            }
         });
         worldsAdapter.setOnSelectionChangedListener(count -> updateSelectionToolbar());
 
@@ -414,6 +419,24 @@ public class ContentListActivity extends BaseActivity {
         intent.putExtra(WorldEditorActivity.EXTRA_WORLD_PATH, worldFile.getAbsolutePath());
         intent.putExtra(WorldEditorActivity.EXTRA_WORLD_NAME, world.getWorldName());
         startActivity(intent);
+    }
+
+    /** v444：立即游玩——WorldPicker 同款链路（URI 协议直启该存档，
+     *  当前实例已选中无需再选版本）。 */
+    private void launchWorldDirect(WorldItem world) {
+        if (world == null || world.getWorldId() == null) {
+            return;
+        }
+        android.net.Uri uri = org.levimc.launcher.util.MinecraftUriHandler
+                .buildConnectLocalWorld(world.getWorldId());
+        Intent intent = new Intent(this, IntentHandler.class);
+        intent.setAction(Intent.ACTION_VIEW);
+        intent.setData(uri);
+        try {
+            startActivity(intent);
+        } catch (Exception e) {
+            Toast.makeText(this, R.string.world_picker_launch_failed, Toast.LENGTH_SHORT).show();
+        }
     }
 
     /** 地图按钮：直接打开世界数据/地图查看（NBT 查看器）。 */

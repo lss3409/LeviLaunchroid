@@ -1186,6 +1186,7 @@
     <string name="ui_scale_realtime_hint">松开后立即生效（不影响游戏内界面）。</string>
     <string name="ui_scale_reset">恢复默认</string>
     <string name="world_view_map">查看世界地图与数据</string>
+    <string name="world_play">游玩</string>
     <string name="select_image">选择图片</string>
     <string name="clear">清除</string>
 

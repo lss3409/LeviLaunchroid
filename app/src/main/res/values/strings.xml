@@ -1198,6 +1198,7 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="ui_scale_realtime_hint">Applies immediately after release (does not affect in-game UI).</string>
     <string name="ui_scale_reset">Reset</string>
     <string name="world_view_map">View world map &amp; data</string>
+    <string name="world_play">Play</string>
     <string name="select_image">Select Image</string>
     <string name="clear">Clear</string>
 
