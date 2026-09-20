@@ -2696,6 +2696,12 @@ public class WorldMapRenderer {
         if (map == null || dbDir == null || !dbDir.isDirectory()) {
             return null;
         }
+        // v440：大世界不补扫——readAllEntries 全量读 183MB db 是
+        // 内存/IO/CPU 洪峰（与视口渲染抢线程，卫星图加载变慢的
+        // 根因）；大世界矿石由烘焙 worker 收集落盘
+        if (dbFingerprint(dbDir)[0] > 20L * 1024 * 1024) {
+            return null;
+        }
         synchronized (map) {
             if (map.oreMarkers != null && !map.oreMarkers.isEmpty()) {
                 return map.oreMarkers;
