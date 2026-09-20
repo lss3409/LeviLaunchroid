@@ -1289,6 +1289,11 @@
     <string name="tool_point_list">标点列表</string>
     <string name="tool_blueprint">导出世界为 HTML</string>
     <string name="tool_voxel">3D 视图</string>
+    <string name="tool_goto">跳到坐标</string>
+    <string name="goto_dialog_title">跳到坐标</string>
+    <string name="goto_x_hint">X</string>
+    <string name="goto_z_hint">Z</string>
+    <string name="goto_invalid">请输入有效的 X/Z 数字</string>
     <string name="voxel_size">选择区域大小（以视口中心渲染）</string>
     <string name="voxel_select_hint">拖动地图选择 3D 区域，松手生成</string>
     <string name="point_add_title">添加标点</string>

@@ -1002,6 +1002,56 @@ public class NbtViewerActivity extends BaseActivity {
             closeToolMenu();
             showVoxelDialog();
         });
+        // v438：跳到坐标（细节#9）——输入 X/Z 直接 flyTo 定位，
+        // 不用手拖（animateTo 平滑飞+自动放大到 4px/block）
+        binding.toolGoto.setOnClickListener(v -> {
+            closeToolMenu();
+            if (currentMap == null) {
+                return;
+            }
+            android.widget.LinearLayout box = new android.widget.LinearLayout(this);
+            box.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+            float d = getResources().getDisplayMetrics().density;
+            box.setPadding((int) (4 * d), 0, (int) (4 * d), 0);
+            final android.widget.EditText xEdit = new android.widget.EditText(this);
+            final android.widget.EditText zEdit = new android.widget.EditText(this);
+            xEdit.setHint(R.string.goto_x_hint);
+            zEdit.setHint(R.string.goto_z_hint);
+            xEdit.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
+                    | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
+            zEdit.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
+                    | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
+            xEdit.setSingleLine(true);
+            zEdit.setSingleLine(true);
+            xEdit.setTextSize(14);
+            zEdit.setTextSize(14);
+            android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(
+                    0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            lp.setMargins(0, 0, (int) (8 * d), 0);
+            xEdit.setLayoutParams(lp);
+            android.widget.LinearLayout.LayoutParams lp2 = new android.widget.LinearLayout.LayoutParams(
+                    0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            zEdit.setLayoutParams(lp2);
+            box.addView(xEdit);
+            box.addView(zEdit);
+            new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this)
+                    .setTitleText(getString(R.string.goto_dialog_title))
+                    .setCustomView(box)
+                    .setPositiveButton(getString(R.string.confirm), v2 -> {
+                        String xs = xEdit.getText().toString().trim();
+                        String zs = zEdit.getText().toString().trim();
+                        try {
+                            int x = Integer.parseInt(xs);
+                            int z = Integer.parseInt(zs);
+                            binding.worldMapImage.animateTo(x, z);
+                        } catch (NumberFormatException e) {
+                            Toast.makeText(this, R.string.goto_invalid,
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                    })
+                    .setNegativeButton(getString(R.string.nbt_edit_cancel), null)
+                    .show();
+        });
 
         // 维度切换
         setupDimensionSwitch();
