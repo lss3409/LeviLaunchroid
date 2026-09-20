@@ -3951,7 +3951,13 @@ public class WorldMapRenderer {
         if (subs == null || subs.isEmpty() || sink == null) {
             return;
         }
-        int maxSub = dimension == DIM_NETHER ? 15 : 4;
+        // v433（模拟发现）：末地无矿石——白扫 5068 层（TK 实测）；
+        // 下界矿石全在浅层（石英 y 10-117 / 金 y≤29 / 远古残骸
+        // y 8-22 → sub≤7）——15 层全扫减半
+        if (dimension == DIM_END) {
+            return;
+        }
+        int maxSub = dimension == DIM_NETHER ? 7 : 4;
         java.util.Map<String, int[]> found = new java.util.HashMap<>();
         for (Map.Entry<Integer, SubChunk> e : subs.entrySet()) {
             if (e.getKey() > maxSub) {
@@ -5106,7 +5112,11 @@ public class WorldMapRenderer {
                 }
                 if (waterY >= 0) {
                     // 水覆盖：河床色 + 水面色（maptile.cpp applyWaterOverlay）
-                    float opacity = Math.min(0.15f * (waterY - y), 0.85f);
+                    // v433：曲线加基础不透明度——旧曲线水深 1 方块只有
+                    // 15% 水色，海边浅滩几乎纯沙（"沙滩显示水里的沙子"）；
+                    // 新曲线水深 1→0.45 / 2→0.65 / 3+→0.85 封顶——
+                    // 浅滩更"水"且保留水深层次（深海仍透 15% 河床）
+                    float opacity = Math.min(0.2f * (waterY - y) + 0.25f, 0.85f);
                     return blendColors(waterColor, color, opacity);
                 }
                 // 半透明方块（玻璃/冰，bedrockmap 色表 alpha<255）：不直接
