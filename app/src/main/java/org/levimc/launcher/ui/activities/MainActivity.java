@@ -263,8 +263,9 @@ import okhttp3.OkHttpClient;
                     ? android.view.ViewGroup.LayoutParams.MATCH_PARENT
                     : 0;
             if (narrow) {
-                // 手机竖屏：纵向堆叠，每卡自然高度（内容多高卡多高，
-                // 不再 300dp 挤压换行），根 ScrollView 可滚动
+                // v451：手机竖屏纵向堆叠，每卡 150dp（240dp 三卡合计
+                // 720dp+ 一屏半太长——用户反馈"太长"；150dp 装下
+                // 3-5 行内容，三卡合计 ~480dp 一屏内），根可滚动
                 rowLl.setOrientation(android.widget.LinearLayout.VERTICAL);
                 android.view.ViewGroup.LayoutParams rlp = rowLl.getLayoutParams();
                 rlp.height = android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
@@ -275,7 +276,7 @@ import okhttp3.OkHttpClient;
                     android.widget.LinearLayout.LayoutParams clp =
                             (android.widget.LinearLayout.LayoutParams) c.getLayoutParams();
                     clp.width = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
-                    clp.height = (int) (240 * d);
+                    clp.height = (int) (150 * d);
                     clp.weight = 0f;
                     clp.setMargins(0, i == 0 ? 0 : (int) (10 * d), 0, 0);
                     c.setLayoutParams(clp);
