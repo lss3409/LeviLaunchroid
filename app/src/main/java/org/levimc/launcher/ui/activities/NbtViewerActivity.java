@@ -196,6 +196,12 @@ public class NbtViewerActivity extends BaseActivity {
     /** v427：结构特征检测关闭时的完整列表备份（打开时恢复）。 */
     private final List<WorldMapRenderer.StructureMarker> allStructuresBackup =
             new ArrayList<>();
+    /** v441：切维度实体/结构解析结果内存缓存（dimId → 列表）——
+     *  此前每次切维度都全量重解析各 4-5 秒，切回来又重解析一遍。 */
+    private final java.util.Map<Integer, List<WorldMapRenderer.EntityPos>>
+            entityParseCache = new java.util.HashMap<>();
+    private final java.util.Map<Integer, List<WorldMapRenderer.StructureMarker>>
+            structureParseCache = new java.util.HashMap<>();
 
     private final android.os.Handler flushHandler = new android.os.Handler(
             android.os.Looper.getMainLooper());
@@ -754,6 +760,14 @@ public class NbtViewerActivity extends BaseActivity {
      *  → 下次打开缓存不足 60% 又触发补缺烘焙 = 死循环。 */
     private void invalidateRenderCacheAndBake() {
         renderGen.incrementAndGet();
+        // v441：清渲染缓存同时清实体/结构解析内存缓存（重烘焙后
+        // 数据可能变化，旧解析结果作废）
+        synchronized (entityParseCache) {
+            entityParseCache.clear();
+        }
+        synchronized (structureParseCache) {
+            structureParseCache.clear();
+        }
         if (bakeThread != null) {
             bakeThread.interrupt();
             bakeThread = null;
@@ -1388,6 +1402,13 @@ public class NbtViewerActivity extends BaseActivity {
                             }
                             entities = WorldMapRenderer.parseEntities(entries, dimId);
                             structures = WorldMapRenderer.parseStructureMarkers(entries, dimId);
+                            // v441：解析结果入内存缓存（切维度回来秒回填）
+                            synchronized (entityParseCache) {
+                                entityParseCache.put(dimId, entities);
+                            }
+                            synchronized (structureParseCache) {
+                                structureParseCache.put(dimId, structures);
+                            }
                         }
                     } else {
                         // v436：小世界切维度缓存命中——实体/结构/矿石
@@ -1397,37 +1418,77 @@ public class NbtViewerActivity extends BaseActivity {
                         structures = new java.util.ArrayList<>();
                         final WorldMapRenderer.WorldMap fMapC = worldMap;
                         final int fDimC = dimId;
+                        // v441：先查内存缓存（切维度回来不用再全量
+                        // 重解析各 4-5 秒）——命中立即回填不等 6 秒
+                        java.util.List<WorldMapRenderer.EntityPos> cachedEnts;
+                        java.util.List<WorldMapRenderer.StructureMarker> cachedStrs;
+                        synchronized (entityParseCache) {
+                            cachedEnts = entityParseCache.get(fDimC);
+                        }
+                        synchronized (structureParseCache) {
+                            cachedStrs = structureParseCache.get(fDimC);
+                        }
+                        if (cachedEnts != null && cachedStrs != null) {
+                            final java.util.List<WorldMapRenderer.EntityPos> fE = cachedEnts;
+                            final java.util.List<WorldMapRenderer.StructureMarker> fS = cachedStrs;
+                            runOnUiThread(() -> {
+                                if (isFinishing() || isDestroyed()
+                                        || !isCurrentLoad(gen) || currentMap != fMapC) {
+                                    return;
+                                }
+                                binding.worldMapImage.setEntityData(fE);
+                                synchronized (currentStructures) {
+                                    currentStructures.clear();
+                                    currentStructures.addAll(fS);
+                                    mergeOnDemandStructures();
+                                }
+                                binding.worldMapImage.setStructureMarkers(currentStructures);
+                                refreshDataPanelExtras(fS, null);
+                            });
+                        } else {
+                            flushHandler.postDelayed(() -> {
+                                if (fMapC == null || currentMap != fMapC) {
+                                    return;
+                                }
+                                renderPool.execute(() -> {
+                                    CpuScheduler.pinCurrentThreadToBigCores();
+                                    java.util.List<WorldMapRenderer.EntityPos> ents =
+                                            WorldMapRenderer.parseEntitiesStreaming(dbDir, fDimC);
+                                    java.util.List<WorldMapRenderer.StructureMarker> strs =
+                                            WorldMapRenderer.parseStructureMarkersStreaming(dbDir, fDimC);
+                                    synchronized (entityParseCache) {
+                                        entityParseCache.put(fDimC, ents);
+                                    }
+                                    synchronized (structureParseCache) {
+                                        structureParseCache.put(fDimC, strs);
+                                    }
+                                    runOnUiThread(() -> {
+                                        if (isFinishing() || isDestroyed()
+                                                || !isCurrentLoad(gen) || currentMap != fMapC) {
+                                            return;
+                                        }
+                                        binding.worldMapImage.setEntityData(
+                                                ents != null ? ents : new java.util.ArrayList<>());
+                                        synchronized (currentStructures) {
+                                            currentStructures.clear();
+                                            currentStructures.addAll(strs != null ? strs
+                                                    : new java.util.ArrayList<>());
+                                            mergeOnDemandStructures();
+                                        }
+                                        binding.worldMapImage.setStructureMarkers(currentStructures);
+                                        refreshDataPanelExtras(
+                                                strs != null ? strs : new java.util.ArrayList<>(),
+                                                null);
+                                    });
+                                });
+                            }, 6000);
+                        }
+                        // 矿石补扫（读 ORE 缓存/流式扫矿石层——
+                        // ensureOreMarkers 同步回填 map.oreMarkers）
                         flushHandler.postDelayed(() -> {
                             if (fMapC == null || currentMap != fMapC) {
                                 return;
                             }
-                            renderPool.execute(() -> {
-                                CpuScheduler.pinCurrentThreadToBigCores();
-                                java.util.List<WorldMapRenderer.EntityPos> ents =
-                                        WorldMapRenderer.parseEntitiesStreaming(dbDir, fDimC);
-                                java.util.List<WorldMapRenderer.StructureMarker> strs =
-                                        WorldMapRenderer.parseStructureMarkersStreaming(dbDir, fDimC);
-                                runOnUiThread(() -> {
-                                    if (isFinishing() || isDestroyed()
-                                            || !isCurrentLoad(gen) || currentMap != fMapC) {
-                                        return;
-                                    }
-                                    binding.worldMapImage.setEntityData(
-                                            ents != null ? ents : new java.util.ArrayList<>());
-                                    synchronized (currentStructures) {
-                                        currentStructures.clear();
-                                        currentStructures.addAll(strs != null ? strs
-                                                : new java.util.ArrayList<>());
-                                        mergeOnDemandStructures();
-                                    }
-                                    binding.worldMapImage.setStructureMarkers(currentStructures);
-                                    refreshDataPanelExtras(
-                                            strs != null ? strs : new java.util.ArrayList<>(),
-                                            null);
-                                });
-                            });
-                            // 矿石补扫（读 ORE 缓存/流式扫矿石层——
-                            // ensureOreMarkers 同步回填 map.oreMarkers）
                             renderPool.execute(() -> {
                                 java.util.List<WorldMapRenderer.OreMarker> ores =
                                         WorldMapRenderer.ensureOreMarkers(fMapC, dbDir, fDimC);
