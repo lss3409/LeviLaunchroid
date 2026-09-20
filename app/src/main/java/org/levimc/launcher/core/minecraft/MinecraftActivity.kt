@@ -120,6 +120,11 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             trace.mark("Prepared runtime consumed")
         } catch (throwable: Throwable) {
             trace.error("MinecraftActivity prepare failed", formatLaunchFailure(throwable))
+            // v432：必须先调 super.onCreate() 再 return——Android 要求
+            // 每个 onCreate 都调 super，否则抛 SuperNotCalledException
+            // 崩溃（官方代码固有 bug；1.20.30 prepare 失败实测触发）
+            gameRuntimeStarted = true
+            super.onCreate(null)
             returnToLauncherAfterLaunchFailure()
             return
         }

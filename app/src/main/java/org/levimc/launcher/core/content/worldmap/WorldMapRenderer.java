@@ -1414,6 +1414,11 @@ public class WorldMapRenderer {
         int subKeys = 0;
         int skipped = 0;
         int decoded = 0;
+        int oreStreamed = 0;
+        // v432：窗口外矿石层的流式扫描结果（解码→扫→丢，不常驻内存——
+        // 手机 536MB heap OOM 根因：全部矿石层 20137 个 SubChunk
+        // 常驻 ~400MB 直接爆堆）
+        java.util.List<OreMarker> streamOres = new java.util.ArrayList<>();
         for (LevelDBEntry entry : entries) {
             byte[] rawKey = entry.getKey().getRawKey();
             int[] chunkKey = parseChunkKey(rawKey);
@@ -1444,6 +1449,26 @@ public class WorldMapRenderer {
                     skipped++;
                     continue; // 无 subchunk 数据或深层非矿石层：卫星图不需要
                 }
+                // v432：窗口外矿石层流式扫描（解码后只留矿石标记，
+                // SubChunk 立即丢弃——内存峰值 -50%）
+                if (oreLayer && sub < maxSub - 2) {
+                    try {
+                        SubChunk sc = decodeSubChunk(entry.getValue());
+                        if (sc != null) {
+                            java.util.Map<Integer, SubChunk> tmp =
+                                    new java.util.HashMap<>();
+                            tmp.put(sub, sc);
+                            collectChunkOres(tmp, chunkKey[0], chunkKey[1],
+                                    dimension, streamOres);
+                            decoded++;
+                            oreStreamed++;
+                        }
+                    } catch (Exception e) {
+                        Log.w(TAG, "Failed to decode ore subchunk at "
+                                + chunkKey[0] + "," + chunkKey[1], e);
+                    }
+                    continue;
+                }
             }
             try {
                 SubChunk subChunk = decodeSubChunk(entry.getValue());
@@ -1457,16 +1482,20 @@ public class WorldMapRenderer {
             }
         }
         Log.i(TAG, "第二遍 subchunk: 命中=" + subKeys + " 跳过=" + skipped
-                + " 解码=" + decoded + " surfaceSubs=" + surfaceSubs.size());
+                + " 解码=" + decoded + " 流式矿石层=" + oreStreamed
+                + " surfaceSubs=" + surfaceSubs.size());
 
-        return assembleMap(heightMaps, biomeMaps, subChunks, dimension);
+        return assembleMap(heightMaps, biomeMaps, subChunks, dimension, streamOres);
     }
 
-    /** 组装全图：收集完 heightMaps/biomeMaps/subChunks 后的共享渲染路径。 */
+    /** 组装全图：收集完 heightMaps/biomeMaps/subChunks 后的共享渲染路径。
+     *  v432：streamOres = 第二遍流式扫描的窗口外矿石层标记（与
+     *  窗口内 sub≤4 层的标记合并——两组不重叠）。 */
     private static WorldMap assembleMap(Map<Long, int[]> heightMaps,
                                         Map<Long, byte[]> biomeMaps,
                                         Map<Long, Map<Integer, SubChunk>> subChunks,
-                                        int dimension) {
+                                        int dimension,
+                                        java.util.List<OreMarker> streamOres) {
         int minX = Integer.MAX_VALUE;
         int maxX = Integer.MIN_VALUE;
         int minZ = Integer.MAX_VALUE;
@@ -1509,6 +1538,9 @@ public class WorldMapRenderer {
             return null;
         }
         Arrays.fill(colors, COLOR_BACKGROUND);
+        // v432：回收第一遍/第二遍解码的解压垃圾（subchunk 解压 buffer
+        // 是手机 536MB heap OOM 的大头之一）——几十 ms 换 100+MB
+        Runtime.getRuntime().gc();
 
         for (Map.Entry<Long, int[]> e : heightMaps.entrySet()) {
             int cx = unpackX(e.getKey());
@@ -1562,7 +1594,11 @@ public class WorldMapRenderer {
             subCount += m.size();
         }
         // v413：小世界路径也收集矿石标点
+        // v432：先并入第二遍流式扫描的窗口外矿石层标记（不重叠）
         java.util.List<OreMarker> oreMarkers = new java.util.ArrayList<>();
+        if (streamOres != null) {
+            oreMarkers.addAll(streamOres);
+        }
         for (Map.Entry<Long, Map<Integer, SubChunk>> e : subChunks.entrySet()) {
             collectChunkOres(e.getValue(), unpackX(e.getKey()), unpackZ(e.getKey()),
                     dimension, oreMarkers);
@@ -3932,6 +3968,12 @@ public class WorldMapRenderer {
                         String name = idx >= 0 && idx < sub.palette.length
                                 ? sub.palette[idx] : null;
                         if (name == null) {
+                            continue;
+                        }
+                        // v432：零分配粗筛——此前每方块都 substring 再
+                        // 查表（数千万次临时 String 是手机 OOM 的垃圾源）；
+                        // 矿石名必含 "ore"，ancient_debris 例外
+                        if (name.indexOf("ore") < 0 && name.indexOf("debris") < 0) {
                             continue;
                         }
                         // palette 名带 minecraft: 前缀（色表 key 不带）
