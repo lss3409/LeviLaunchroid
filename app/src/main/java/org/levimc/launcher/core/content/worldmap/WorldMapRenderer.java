@@ -2686,6 +2686,78 @@ public class WorldMapRenderer {
         }
     }
 
+    /** v436：确保矿石标记可用（缓存命中补扫）——已有标记返回；
+     *  先读独立 ORE 缓存文件，无则流式解码矿石层（主世界 sub≤4、
+     *  下界 sub≤7、末地跳过——与渲染路径同款窗口）补扫并落盘。
+     *  后台线程调用；完成后 map.oreMarkers 同步回填。 */
+    public static java.util.List<OreMarker> ensureOreMarkers(WorldMap map,
+                                                             File dbDir,
+                                                             int dimension) {
+        if (map == null || dbDir == null || !dbDir.isDirectory()) {
+            return null;
+        }
+        synchronized (map) {
+            if (map.oreMarkers != null && !map.oreMarkers.isEmpty()) {
+                return map.oreMarkers;
+            }
+        }
+        java.util.List<OreMarker> ores = loadOreMarkers(dbDir, dimension);
+        if (ores == null) {
+            // 流式补扫：只解码矿石层（v432 流式窗口同款逻辑）
+            List<LevelDBEntry> entries = null;
+            try {
+                entries = NativeLevelDb.readAllEntries(dbDir);
+            } catch (Throwable ignored) {
+            }
+            if (entries == null) {
+                try {
+                    LevelDBReader reader = new LevelDBReader(dbDir);
+                    entries = reader.readAllEntries();
+                    reader.close();
+                } catch (Exception ignored) {
+                }
+            }
+            if (entries == null) {
+                return null;
+            }
+            final int oreMaxSub = dimension == DIM_NETHER ? 7 : 4;
+            if (dimension == DIM_END) {
+                return null; // 末地无矿石（v433）
+            }
+            ores = new java.util.ArrayList<>();
+            for (LevelDBEntry entry : entries) {
+                byte[] rawKey = entry.getKey().getRawKey();
+                int[] ck = parseChunkKey(rawKey);
+                if (ck == null || ck[2] != dimension || ck[3] < 0
+                        || ck[3] > oreMaxSub || !isSubchunkKey(rawKey)) {
+                    continue;
+                }
+                try {
+                    SubChunk sc = decodeSubChunk(entry.getValue());
+                    if (sc != null) {
+                        java.util.Map<Integer, SubChunk> tmp =
+                                new java.util.HashMap<>();
+                        tmp.put(ck[3], sc);
+                        collectChunkOres(tmp, ck[0], ck[1], dimension, ores);
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "矿石补扫失败 chunk(" + ck[0] + "," + ck[1] + ")", e);
+                }
+            }
+            // 落盘（下次直接读缓存）
+            if (!ores.isEmpty()) {
+                WorldMap tmp = new WorldMap(0, 0, 1, 1, null, null);
+                tmp.oreMarkers = ores;
+                saveOreMarkers(tmp, dbDir, dimension);
+            }
+        }
+        synchronized (map) {
+            map.oreMarkers = ores;
+        }
+        Log.i(TAG, "矿石标记已补全: " + ores.size() + " 个 (dim=" + dimension + ")");
+        return ores;
+    }
+
     /** db 文件指纹列表（"name:size:mtime"，名字排序稳定）。 */
     private static java.util.List<String> dbFileFingerprintList(File dbDir) {
         java.util.List<String> out = new java.util.ArrayList<>();

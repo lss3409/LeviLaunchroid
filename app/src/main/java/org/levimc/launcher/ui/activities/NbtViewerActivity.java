@@ -1334,13 +1334,63 @@ public class NbtViewerActivity extends BaseActivity {
                             }
                             if (worldMap != null) {
                                 WorldMapRenderer.saveSmallMapCache(worldMap, dbDir, dimId);
+                                WorldMapRenderer.saveOreMarkers(worldMap, dbDir, dimId);
                             }
                             entities = WorldMapRenderer.parseEntities(entries, dimId);
                             structures = WorldMapRenderer.parseStructureMarkers(entries, dimId);
                         }
                     } else {
+                        // v436：小世界切维度缓存命中——实体/结构/矿石
+                        // 不阻塞首屏，延迟 6 秒后台补（此前缓存命中分支
+                        // 完全不解析，实体/结构图层空）
                         entities = new java.util.ArrayList<>();
                         structures = new java.util.ArrayList<>();
+                        final WorldMapRenderer.WorldMap fMapC = worldMap;
+                        final int fDimC = dimId;
+                        flushHandler.postDelayed(() -> {
+                            if (fMapC == null || currentMap != fMapC) {
+                                return;
+                            }
+                            renderPool.execute(() -> {
+                                CpuScheduler.pinCurrentThreadToBigCores();
+                                java.util.List<WorldMapRenderer.EntityPos> ents =
+                                        WorldMapRenderer.parseEntitiesStreaming(dbDir, fDimC);
+                                java.util.List<WorldMapRenderer.StructureMarker> strs =
+                                        WorldMapRenderer.parseStructureMarkersStreaming(dbDir, fDimC);
+                                runOnUiThread(() -> {
+                                    if (isFinishing() || isDestroyed()
+                                            || !isCurrentLoad(gen) || currentMap != fMapC) {
+                                        return;
+                                    }
+                                    binding.worldMapImage.setEntityData(
+                                            ents != null ? ents : new java.util.ArrayList<>());
+                                    synchronized (currentStructures) {
+                                        currentStructures.clear();
+                                        currentStructures.addAll(strs != null ? strs
+                                                : new java.util.ArrayList<>());
+                                        mergeOnDemandStructures();
+                                    }
+                                    binding.worldMapImage.setStructureMarkers(currentStructures);
+                                    refreshDataPanelExtras(
+                                            strs != null ? strs : new java.util.ArrayList<>(),
+                                            null);
+                                });
+                            });
+                            // 矿石补扫（读 ORE 缓存/流式扫矿石层——
+                            // ensureOreMarkers 同步回填 map.oreMarkers）
+                            renderPool.execute(() -> {
+                                java.util.List<WorldMapRenderer.OreMarker> ores =
+                                        WorldMapRenderer.ensureOreMarkers(fMapC, dbDir, fDimC);
+                                if (ores != null && currentMap == fMapC) {
+                                    runOnUiThread(() -> {
+                                        if (!isFinishing() && !isDestroyed()
+                                                && isCurrentLoad(gen)) {
+                                            binding.worldMapImage.invalidate();
+                                        }
+                                    });
+                                }
+                            });
+                        }, 6000);
                     }
                 }
             }
@@ -1871,6 +1921,9 @@ public class NbtViewerActivity extends BaseActivity {
                     }
                     if (worldMap != null) {
                         WorldMapRenderer.saveSmallMapCache(worldMap, dbDir, 0);
+                        // v436：矿石标记独立落盘——缓存命中时补扫走
+                        // ensureOreMarkers 先读此文件（v426 缓存不存矿石）
+                        WorldMapRenderer.saveOreMarkers(worldMap, dbDir, 0);
                     }
                 } else if (worldMap.cacheStale) {
                     // 旧图已加载（立即显示）：后台全量重渲染 + 保存 + 替换
@@ -1883,6 +1936,7 @@ public class NbtViewerActivity extends BaseActivity {
                                     WorldMapRenderer.buildSatelliteMap(fEntries);
                             if (fresh != null) {
                                 WorldMapRenderer.saveSmallMapCache(fresh, fDbDir, 0);
+                                WorldMapRenderer.saveOreMarkers(fresh, fDbDir, 0);
                                 runOnUiThread(() -> {
                                     if (!isFinishing() && !isDestroyed()
                                             && currentMap == fOld) {
@@ -2016,6 +2070,25 @@ public class NbtViewerActivity extends BaseActivity {
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed() || !isCurrentLoad(gen)) return;
                 onDataLoaded(fWorld, fRoot, fEntries, fLevelMissing, fDbMissing, fWorldMap);
+                // v436：缓存命中补矿石（首屏已显示，后台流式补扫——
+                // v426 缓存不存矿石，矿石图层空；ensureOreMarkers
+                // 先读 ORE 独立缓存，miss 才扫）
+                final File fOreDb = dbDir;
+                if (fWorldMap != null && fOreDb != null
+                        && (fWorldMap.oreMarkers == null || fWorldMap.oreMarkers.isEmpty())) {
+                    renderPool.execute(() -> {
+                        java.util.List<WorldMapRenderer.OreMarker> ores =
+                                WorldMapRenderer.ensureOreMarkers(fWorldMap, fOreDb, 0);
+                        if (ores != null && currentMap == fWorldMap) {
+                            runOnUiThread(() -> {
+                                if (!isFinishing() && !isDestroyed()
+                                        && isCurrentLoad(gen)) {
+                                    binding.worldMapImage.invalidate();
+                                }
+                            });
+                        }
+                    });
+                }
                 binding.worldMapImage.setEntityData(fEntities);
                 // v427：合并进 currentStructures 并按检测开关过滤——
                 // 直接传 fStructures 会覆盖开关的过滤状态（关检测后
