@@ -52,6 +52,9 @@ public final class ContentActionPopup {
         popup.setClippingEnabled(true);
         popup.setElevation(dp(context, 10));
 
+        // v452：手机（<600dp）紧凑模式——行高压缩（icon 20dp/行距
+        // 收紧），7 个操作项弹窗总高能放下；平板保持现状
+        boolean compact = context.getResources().getConfiguration().screenWidthDp < 600;
         for (Action action : actions) {
             View row = inflater.inflate(R.layout.item_content_action, items, false);
             ImageView icon = row.findViewById(R.id.action_icon);
@@ -61,6 +64,15 @@ public final class ContentActionPopup {
             int color = ContextCompat.getColor(context, action.destructive ? R.color.error : R.color.on_surface);
             label.setTextColor(color);
             ImageViewCompat.setImageTintList(icon, ColorStateList.valueOf(color));
+            if (compact) {
+                ViewGroup.LayoutParams icp = icon.getLayoutParams();
+                icp.width = dp(context, 20);
+                icp.height = dp(context, 20);
+                icon.setLayoutParams(icp);
+                row.setPadding(dp(context, 12), dp(context, 5),
+                        dp(context, 12), dp(context, 5));
+                label.setTextSize(12);
+            }
             row.setOnClickListener(v -> {
                 popup.dismiss();
                 action.callback.run();
@@ -79,10 +91,17 @@ public final class ContentActionPopup {
         int[] rootLocation = new int[2];
         root.getLocationOnScreen(rootLocation);
         int screenBottom = rootLocation[1] + root.getHeight();
+        int screenTop = rootLocation[1];
         int xOffset = anchor.getWidth() - dp(context, 220);
         int yOffset = dp(context, 4);
         if (location[1] + anchor.getHeight() + popupHeight + yOffset > screenBottom) {
             yOffset = -popupHeight - anchor.getHeight() - dp(context, 4);
+            // v452：往上翻不能超出屏幕顶——超出时贴顶显示（此前
+            // 直接裁剪，手机上"显示不全"）
+            int topAfter = location[1] + yOffset;
+            if (topAfter < screenTop) {
+                yOffset = screenTop - location[1] + dp(context, 4);
+            }
         }
         popup.showAsDropDown(anchor, xOffset, yOffset);
     }
