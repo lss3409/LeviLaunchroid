@@ -444,6 +444,9 @@ public class NbtViewerActivity extends BaseActivity {
         // v427 修复：此前关闭时 removeIf 永久删除结构、再打开不恢复
         // （"关掉再打开就不显示了"的根因）；setStructureMarkers 传
         // 活动列表引用（无拷贝），删除直接作用到视图数据
+        // v427：先同步 UI 到静态状态（v420 阴影开关同款——XML 默认值
+        // 与上个存档切过的静态变量不一致会跨存档串扰）
+        binding.layerStructDetect.setChecked(WorldMapRenderer.enableStructureDetection);
         binding.layerStructDetect.setOnCheckedChangeListener((b, checked) -> {
             WorldMapRenderer.enableStructureDetection = checked;
             synchronized (currentStructures) {
@@ -1363,7 +1366,21 @@ public class NbtViewerActivity extends BaseActivity {
                     // fit 改动被用户要求回退——与主世界一致走 initialView
                     // 默认放大 20px/block，渲染从玩家/出生点周边渐进）
                     binding.worldMapImage.setEntityData(fEntities);
-                    binding.worldMapImage.setStructureMarkers(fStructures);
+                    // v427：合并进 currentStructures 并按检测开关过滤——
+                    // 直接传 fStructures 会覆盖开关的过滤状态（关检测
+                    // 后切维度，desert_temple/outpost 又出现）
+                    synchronized (currentStructures) {
+                        currentStructures.clear();
+                        currentStructures.addAll(fStructures);
+                        if (!WorldMapRenderer.enableStructureDetection) {
+                            allStructuresBackup.clear();
+                            allStructuresBackup.addAll(currentStructures);
+                            currentStructures.removeIf(m -> "desert_temple".equals(m.type)
+                                    || "outpost".equals(m.type));
+                        }
+                    }
+                    binding.worldMapImage.setStructureMarkers(
+                            new java.util.ArrayList<>(currentStructures));
                     binding.worldMapPlaceholder.setVisibility(View.GONE);
                     refreshMapBlueprintData();
                     // 下界/末地自动启动流式全量渲染（v373 切维度行为）：
@@ -2000,7 +2017,21 @@ public class NbtViewerActivity extends BaseActivity {
                 if (isFinishing() || isDestroyed() || !isCurrentLoad(gen)) return;
                 onDataLoaded(fWorld, fRoot, fEntries, fLevelMissing, fDbMissing, fWorldMap);
                 binding.worldMapImage.setEntityData(fEntities);
-                binding.worldMapImage.setStructureMarkers(fStructures);
+                // v427：合并进 currentStructures 并按检测开关过滤——
+                // 直接传 fStructures 会覆盖开关的过滤状态（关检测后
+                // 重进地图，desert_temple/outpost 又出现）
+                synchronized (currentStructures) {
+                    currentStructures.clear();
+                    currentStructures.addAll(fStructures);
+                    if (!WorldMapRenderer.enableStructureDetection) {
+                        allStructuresBackup.clear();
+                        allStructuresBackup.addAll(currentStructures);
+                        currentStructures.removeIf(m -> "desert_temple".equals(m.type)
+                                || "outpost".equals(m.type));
+                    }
+                }
+                binding.worldMapImage.setStructureMarkers(
+                        new java.util.ArrayList<>(currentStructures));
                 refreshDataPanelExtras(fStructures, fEntries);
             });
         });
