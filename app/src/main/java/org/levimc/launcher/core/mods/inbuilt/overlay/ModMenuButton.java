@@ -32,9 +32,25 @@ public class ModMenuButton {
     private long touchDownTime = 0;
     private static final long TAP_TIMEOUT = 200;
     private static final float DRAG_THRESHOLD = 10f;
-    /** v442：边缘半隐藏比例——贴边时 45% 藏在屏外（露出 55%）。 */
-    private static final float EDGE_HIDE_RATIO = 0.45f;
+    /** v443：贴边半隐藏比例——吸附后内容向屏外平移 50%（谷歌
+     *  AccessibilityFloatingMenuView 方案：窗口位置保持屏内，内容
+     *  translationX 移出窗口边界被 Surface 裁剪 = 视觉半隐藏；
+     *  负 x 出屏会被 ROM 钳制所以不能用）。 */
+    private static final float EDGE_HIDE_RATIO = 0.5f;
+    /** v443：半隐藏后的淡出透明度（谷歌 fadeOut 同款——3 秒不操作
+     *  淡到半透明，触碰恢复）。 */
+    private static final float FADE_OUT_ALPHA_SCALE = 0.55f;
+    private static final long FADE_OUT_DELAY_MS = 3000;
     private android.animation.ValueAnimator snapAnimator;
+    private boolean edgeHidden = false;
+    private int edgeSide = 0; // -1 左 / 1 右 / 0 未贴边
+    private final Runnable fadeOutRunnable = () -> {
+        if (buttonView == null) {
+            return;
+        }
+        buttonView.animate().alpha(applyBaseOpacity() * FADE_OUT_ALPHA_SCALE)
+                .setDuration(300).start();
+    };
     
     private ModMenuOverlay menuOverlay;
     
@@ -108,9 +124,13 @@ public class ModMenuButton {
 
     private void applyOpacity() {
         if (buttonView != null) {
-            int opacity = InbuiltModManager.getInstance(activity).getModMenuButtonOpacity();
-            buttonView.setAlpha(opacity / 100f);
+            buttonView.setAlpha(applyBaseOpacity());
         }
+    }
+
+    /** v443：用户设置的悬浮球透明度（0-1）。 */
+    private float applyBaseOpacity() {
+        return InbuiltModManager.getInstance(activity).getModMenuButtonOpacity() / 100f;
     }
 
     private void applyButtonOpacity() {
@@ -123,6 +143,17 @@ public class ModMenuButton {
                 // 按下取消进行中的吸附动画（贴边后再次拖动立即跟手）
                 if (snapAnimator != null && snapAnimator.isRunning()) {
                     snapAnimator.cancel();
+                }
+                // v443：触碰恢复——取消淡出、alpha 复原、贴边隐藏时
+                // 先滑出（150ms）
+                handler.removeCallbacks(fadeOutRunnable);
+                if (buttonView != null) {
+                    buttonView.animate().alpha(applyBaseOpacity())
+                            .setDuration(150).start();
+                    if (edgeHidden) {
+                        buttonView.animate().translationX(0f)
+                                .setDuration(150).start();
+                    }
                 }
                 initialX = wmParams.x;
                 initialY = wmParams.y;
@@ -138,6 +169,11 @@ public class ModMenuButton {
                     isDragging = true;
                 }
                 if (isDragging && windowManager != null && buttonView != null) {
+                    if (edgeHidden) {
+                        // 拖动时滑出全显再跟手
+                        edgeHidden = false;
+                        buttonView.setTranslationX(0f);
+                    }
                     wmParams.x = (int) (initialX + dx);
                     wmParams.y = (int) (initialY + dy);
                     windowManager.updateViewLayout(buttonView, wmParams);
@@ -160,8 +196,29 @@ public class ModMenuButton {
         return false;
     }
 
-    /** v442：吸附到最近左右边缘（45% 藏屏外），Y 钳制在屏幕内，
-     *  250ms decelerate 动画；落定后位置持久化（重启恢复）。 */
+    /** v443：贴边半隐藏（谷歌方案）——内容向屏外平移一半被窗口
+     *  Surface 裁剪，视觉只剩半个球；3 秒不操作淡到半透明。 */
+    private void hideToEdge() {
+        if (buttonView == null || edgeSide == 0) {
+            return;
+        }
+        edgeHidden = true;
+        int size = buttonView.getWidth();
+        if (size <= 0) {
+            size = wmParams != null ? wmParams.width : 0;
+        }
+        float offset = size * EDGE_HIDE_RATIO * (edgeSide < 0 ? -1f : 1f);
+        buttonView.animate().translationX(offset)
+                .setDuration(200)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                .start();
+        handler.removeCallbacks(fadeOutRunnable);
+        handler.postDelayed(fadeOutRunnable, FADE_OUT_DELAY_MS);
+    }
+
+    /** v442：吸附到最近左右边缘（窗口位置保持屏内——负 x 出屏会
+     *  被 ROM 钳制），Y 钳制在屏幕内，250ms decelerate 动画；
+     *  落定后半隐藏 + 位置持久化。 */
     private void snapToEdge() {
         if (windowManager == null || buttonView == null || wmParams == null) {
             return;
@@ -180,9 +237,8 @@ public class ModMenuButton {
             // 球心判断左右：球心在屏幕左半 → 吸左边缘
             float centerX = wmParams.x + size / 2f;
             boolean snapLeft = centerX < screenW / 2f;
-            int targetX = snapLeft
-                    ? (int) (-size * EDGE_HIDE_RATIO)
-                    : (int) (screenW - size * (1 - EDGE_HIDE_RATIO));
+            edgeSide = snapLeft ? -1 : 1;
+            int targetX = snapLeft ? 0 : screenW - size;
             int targetY = Math.max(0, Math.min(wmParams.y, screenH - size));
             snapAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f);
             snapAnimator.setDuration(250);
@@ -200,6 +256,7 @@ public class ModMenuButton {
                 @Override
                 public void onAnimationEnd(android.animation.Animator animation) {
                     saveBallPosition(targetX, targetY);
+                    hideToEdge();
                 }
             });
             snapAnimator.start();
@@ -291,9 +348,9 @@ public class ModMenuButton {
             int fromX = params.leftMargin;
             int fromY = params.topMargin;
             boolean snapLeft = params.leftMargin + size / 2f < screenW / 2f;
-            int targetX = snapLeft
-                    ? (int) (-size * EDGE_HIDE_RATIO)
-                    : (int) (screenW - size * (1 - EDGE_HIDE_RATIO));
+            edgeSide = snapLeft ? -1 : 1;
+            // v443：窗口位置保持屏内（负 margin 出屏被 ROM 钳制）
+            int targetX = snapLeft ? 0 : screenW - size;
             int targetY = Math.max(0, Math.min(params.topMargin, screenH - size));
             snapAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f);
             snapAnimator.setDuration(250);
@@ -308,6 +365,7 @@ public class ModMenuButton {
                 @Override
                 public void onAnimationEnd(android.animation.Animator animation) {
                     saveBallPosition(targetX, targetY);
+                    hideToEdge();
                 }
             });
             snapAnimator.start();
