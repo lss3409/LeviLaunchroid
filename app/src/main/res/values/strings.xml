@@ -595,6 +595,7 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="nbt_summary_hardcore">Hardcore: %1$s</string>
     <string name="nbt_summary_dead">Player dead: %1$s</string>
     <string name="nbt_summary_health">Health: %1$.1f</string>
+    <string name="nbt_summary_health_unknown">Health: ?</string>
     <string name="nbt_summary_pos">Player: %1$d, %2$d, %3$d</string>
     <string name="nbt_summary_uuid">UUID: %1$s</string>
     <string name="nbt_summary_size">Size: %1$s</string>

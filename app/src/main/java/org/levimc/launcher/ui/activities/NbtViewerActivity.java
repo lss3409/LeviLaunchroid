@@ -1508,6 +1508,41 @@ public class NbtViewerActivity extends BaseActivity {
             final WorldMapRenderer.WorldMap fMap = worldMap;
             final List<WorldMapRenderer.EntityPos> fEntities = entities;
             final List<WorldMapRenderer.StructureMarker> fStructures = structures;
+            // v459：切维度回主世界（dim 0）时 map 是新对象，玩家字段丢失
+            // ——延迟前缀读回填（下界/末地不读：玩家数据是主世界的，
+            // 显示无意义）。大小世界两个分支统一走这里。
+            if (fMap != null && "overworld".equals(dim)) {
+                flushHandler.postDelayed(() -> {
+                    renderPool.execute(() -> {
+                        CpuScheduler.pinCurrentThreadToBigCores();
+                        final PlayerInfo pinfo = readPlayerInfoByPrefix(dbDir);
+                        runOnUiThread(() -> {
+                            if (isFinishing() || isDestroyed() || !isCurrentLoad(gen)) {
+                                return;
+                            }
+                            if (pinfo.blockX >= 0) {
+                                fMap.playerRawBlockX = pinfo.blockX;
+                                fMap.playerRawBlockY = pinfo.blockY;
+                                fMap.playerRawBlockZ = pinfo.blockZ;
+                                fMap.playerBlockX = pinfo.blockX;
+                                fMap.playerBlockY = pinfo.blockY;
+                                fMap.playerBlockZ = pinfo.blockZ;
+                                if (fMap.blockScale > 1) {
+                                    fMap.playerBlockX = Math.floorDiv(
+                                            fMap.playerBlockX, fMap.blockScale);
+                                    fMap.playerBlockZ = Math.floorDiv(
+                                            fMap.playerBlockZ, fMap.blockScale);
+                                }
+                                fMap.playerUniqueId = pinfo.uniqueId;
+                                fMap.playerUuid = pinfo.uuid;
+                                if (currentMap == fMap) {
+                                    binding.worldMapImage.invalidate();
+                                }
+                            }
+                        });
+                    });
+                }, 2500);
+            }
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed() || !isCurrentLoad(gen)) return;
                 binding.nbtLoading.setVisibility(View.GONE);
@@ -1988,6 +2023,49 @@ public class NbtViewerActivity extends BaseActivity {
                             deliver.run();
                         });
                     }, 6000);
+                    // v459：大世界玩家数据此前完全没读（entries 为空），
+                    // playerBlockX 保持 -1 → 数据面板坐标显示 000、地图上
+                    // 玩家头像不画、UUID 显示问号。前缀读只碰 1-2 个
+                    // data block（毫秒级），延迟 2.5 秒让首屏视口先渲染。
+                    flushHandler.postDelayed(() -> {
+                        renderPool.execute(() -> {
+                            CpuScheduler.pinCurrentThreadToBigCores();
+                            final PlayerInfo pinfo = readPlayerInfoByPrefix(dbDir);
+                            runOnUiThread(() -> {
+                                if (isFinishing() || isDestroyed() || !isCurrentLoad(gen)) {
+                                    return;
+                                }
+                                if (fMap0 != null && pinfo.blockX >= 0) {
+                                    fMap0.playerRawBlockX = pinfo.blockX;
+                                    fMap0.playerRawBlockY = pinfo.blockY;
+                                    fMap0.playerRawBlockZ = pinfo.blockZ;
+                                    fMap0.playerBlockX = pinfo.blockX;
+                                    fMap0.playerBlockY = pinfo.blockY;
+                                    fMap0.playerBlockZ = pinfo.blockZ;
+                                    if (fMap0.blockScale > 1) {
+                                        fMap0.playerBlockX = Math.floorDiv(fMap0.playerBlockX, fMap0.blockScale);
+                                        fMap0.playerBlockZ = Math.floorDiv(fMap0.playerBlockZ, fMap0.blockScale);
+                                    }
+                                    fMap0.playerUniqueId = pinfo.uniqueId;
+                                    fMap0.playerUuid = pinfo.uuid;
+                                    Log.i(TAG, "大世界玩家位置: " + fMap0.playerBlockX + ","
+                                            + fMap0.playerBlockY + "," + fMap0.playerBlockZ
+                                            + " uuid=" + pinfo.uuid);
+                                    // 数据面板坐标/UUID 同步刷新（onDataLoaded
+                                    // 已跑过，此处直接改文本）
+                                    binding.infoPos.setText(getString(R.string.nbt_summary_pos,
+                                            fMap0.playerRawBlockX,
+                                            fMap0.playerRawBlockY >= 0 ? fMap0.playerRawBlockY : 0,
+                                            fMap0.playerRawBlockZ));
+                                    binding.infoUuid.setText(getString(R.string.nbt_summary_uuid,
+                                            formatPlayerUuid(fMap0)));
+                                    if (currentMap == fMap0) {
+                                        binding.worldMapImage.invalidate();
+                                    }
+                                }
+                            });
+                        });
+                    }, 2500);
                 });
             } else if (dbDir.isDirectory()) {
                 // 优先 BTR 同款原生库（自带全部 MCPE 压缩格式），失败回退纯 Java
@@ -2052,6 +2130,18 @@ public class NbtViewerActivity extends BaseActivity {
                                     if (!isFinishing() && !isDestroyed()
                                             && currentMap == fOld) {
                                         currentMap = fresh;
+                                        // v459：重渲染的新图没有玩家数据
+                                        // （玩家读取只发生在旧图上）——
+                                        // 拷贝玩家标记/UUID 字段，否则替换
+                                        // 后玩家头像消失
+                                        fresh.playerBlockX = fOld.playerBlockX;
+                                        fresh.playerBlockY = fOld.playerBlockY;
+                                        fresh.playerBlockZ = fOld.playerBlockZ;
+                                        fresh.playerRawBlockX = fOld.playerRawBlockX;
+                                        fresh.playerRawBlockY = fOld.playerRawBlockY;
+                                        fresh.playerRawBlockZ = fOld.playerRawBlockZ;
+                                        fresh.playerUniqueId = fOld.playerUniqueId;
+                                        fresh.playerUuid = fOld.playerUuid;
                                         // v421：keepView——后台刷新替换
                                         // 保留当前视图（此前不带 keepView
                                         // → initialView 重置跳回出生点，
@@ -2094,65 +2184,29 @@ public class NbtViewerActivity extends BaseActivity {
                 }
             }
 
-            // 玩家位置（db 玩家数据的 Pos）与出生点（level.dat SpawnX/Z）
-            // （大世界 entries 为空列表，此处只处理小世界；大世界玩家位置
-            // 用 level.dat 出生点）
+            // 玩家位置（db 玩家数据的 Pos）与出生点（level.dat SpawnX/Z）。
+            // v459：统一走 parsePlayerInfo——优先 ~local_player（本地设备玩家），
+            // 其他 player key（player_server 领域位置可能在地图外）回退；
+            // 大世界 entries 为空，由大世界分支的延迟前缀读任务补。
             if (worldMap != null && entries != null) {
-                for (LevelDBEntry entry : entries) {
-                    String name = entry.getKey().getDisplayName();
-                    byte[] rawKey = entry.getKey().getRawKey();
-                    boolean isPlayerKey = false;
-                    if (name != null && (name.contains("local_player") || name.startsWith("player"))) {
-                        isPlayerKey = true;
-                    } else if (rawKey != null && (rawKey.length == 9 || rawKey.length == 10)
-                            && !entry.getKey().isChunkKey()) {
-                        // 1.19+ actor 二进制 key：非 chunk 的 9/10 字节 key 按内容判定
-                        isPlayerKey = true;
+                PlayerInfo pinfo = parsePlayerInfo(entries);
+                if (pinfo.blockX >= 0) {
+                    worldMap.playerRawBlockX = pinfo.blockX;
+                    worldMap.playerRawBlockY = pinfo.blockY;
+                    worldMap.playerRawBlockZ = pinfo.blockZ;
+                    worldMap.playerBlockX = pinfo.blockX;
+                    worldMap.playerBlockY = pinfo.blockY;
+                    worldMap.playerBlockZ = pinfo.blockZ;
+                    // 降采样地图：玩家标记坐标 ÷blockScale
+                    if (worldMap.blockScale > 1) {
+                        worldMap.playerBlockX = Math.floorDiv(worldMap.playerBlockX, worldMap.blockScale);
+                        worldMap.playerBlockZ = Math.floorDiv(worldMap.playerBlockZ, worldMap.blockScale);
                     }
-                    if (!isPlayerKey) {
-                        continue;
-                    }
-                    try {
-                        NbtTag playerRoot = new BedrockNbtReader().readFromBytes(entry.getValue());
-                        if (playerRoot == null) {
-                            continue;
-                        }
-                        // 优先 Pos（生存中玩家位置）；死亡存档无 Pos，回退 DeathPosition（死亡点）
-                        NbtTag posTag = playerRoot.getTag("Pos");
-                        if (posTag != null && posTag.getType() == NbtTag.TAG_LIST
-                                && posTag.getList().size() >= 3) {
-                            float px = posTag.getList().get(0).getFloat();
-                            float py = posTag.getList().get(1).getFloat();
-                            float pz = posTag.getList().get(2).getFloat();
-                            // 合理世界范围（±3000 万方块）内才认定是玩家位置
-                            if (Math.abs(px) < 3e7f && Math.abs(pz) < 3e7f) {
-                                worldMap.playerBlockX = (int) Math.floor(px);
-                                worldMap.playerBlockY = (int) Math.floor(py);
-                                worldMap.playerBlockZ = (int) Math.floor(pz);
-                                // 降采样地图：玩家标记坐标 ÷blockScale
-                                if (worldMap.blockScale > 1) {
-                                    worldMap.playerBlockX = Math.floorDiv(worldMap.playerBlockX, worldMap.blockScale);
-                                    worldMap.playerBlockZ = Math.floorDiv(worldMap.playerBlockZ, worldMap.blockScale);
-                                }
-                                NbtTag uid = playerRoot.getTag("UniqueID");
-                                if (uid != null) {
-                                    worldMap.playerUniqueId = uid.getLong();
-                                }
-                                Log.i(TAG, "玩家位置: " + worldMap.playerBlockX + "," + worldMap.playerBlockZ);
-                                break;
-                            }
-                        }
-                        NbtTag deathX = playerRoot.getTag("DeathPositionX");
-                        NbtTag deathZ = playerRoot.getTag("DeathPositionZ");
-                        if (deathX != null && deathZ != null) {
-                            worldMap.playerBlockX = deathX.getInt();
-                            worldMap.playerBlockZ = deathZ.getInt();
-                            Log.i(TAG, "玩家位置(死亡点): " + worldMap.playerBlockX + "," + worldMap.playerBlockZ);
-                            break;
-                        }
-                    } catch (Exception ignored) {
-                    }
+                    worldMap.playerUniqueId = pinfo.uniqueId;
+                    Log.i(TAG, "玩家位置: " + worldMap.playerBlockX + ","
+                            + worldMap.playerBlockY + "," + worldMap.playerBlockZ);
                 }
+                worldMap.playerUuid = pinfo.uuid;
                 if (root != null) {
                     NbtTag sx = root.getTag("SpawnX");
                     NbtTag sz = root.getTag("SpawnZ");
@@ -2275,33 +2329,35 @@ public class NbtViewerActivity extends BaseActivity {
                     yesNo(worldItem.isHardcore())));
             binding.infoDead.setText(getString(R.string.nbt_summary_dead,
                     yesNo(worldItem.isPlayerDead())));
-            StringBuilder playerInfo = new StringBuilder();
-            playerInfo.append(getString(R.string.nbt_summary_health));
-            playerInfo.append(worldItem.getPlayerHealth() >= 0f
-                    ? String.format(Locale.getDefault(), "%.1f", worldItem.getPlayerHealth()) : "?");
-            binding.infoPlayer.setText(playerInfo.toString());
-            // 玩家坐标（db ~local_player Pos，xyz）
-            if (worldMap != null && worldMap.playerBlockX >= 0) {
+            // v459：生命值显示——此前 getString(R.string.nbt_summary_health)
+            // 漏了格式化参数，%1$.1f 原样输出（"生命值：%1$.1f20.0"
+            // 乱码根因）；带参 getString 才能格式化
+            if (worldItem.getPlayerHealth() >= 0f) {
+                binding.infoPlayer.setText(getString(R.string.nbt_summary_health,
+                        worldItem.getPlayerHealth()));
+            } else {
+                binding.infoPlayer.setText(getString(R.string.nbt_summary_health_unknown));
+            }
+            // 玩家坐标（db ~local_player Pos，xyz——显示真实方块坐标，
+            // 降采样地图的标记坐标已 ÷blockScale，面板不能显示那个）
+            if (worldMap != null && (worldMap.playerRawBlockX >= 0
+                    || worldMap.playerBlockX >= 0)) {
+                int ppx = worldMap.playerRawBlockX >= 0
+                        ? worldMap.playerRawBlockX : worldMap.playerBlockX;
+                int ppy = worldMap.playerRawBlockY >= 0
+                        ? worldMap.playerRawBlockY : worldMap.playerBlockY;
+                int ppz = worldMap.playerRawBlockZ >= 0
+                        ? worldMap.playerRawBlockZ : worldMap.playerBlockZ;
                 binding.infoPos.setText(getString(R.string.nbt_summary_pos,
-                        worldMap.playerBlockX,
-                        worldMap.playerBlockY >= 0 ? worldMap.playerBlockY : 0,
-                        worldMap.playerBlockZ));
+                        ppx, ppy >= 0 ? ppy : 0, ppz));
             } else {
                 binding.infoPos.setText(getString(R.string.nbt_summary_pos, 0, 0, 0));
             }
-            // v458：UUID 显示 unsigned hex 8-4-4（Bedrock UniqueID 是
-            // 64 位 = 16 位十六进制——v457 按 32 位 UUID 的 8-4-4-4-12
-            // 分段 substring 越界崩溃）；此前 Long 直接显示负数
-            long uidVal = worldMap != null ? worldMap.playerUniqueId : -1;
-            String uidText;
-            if (uidVal == -1 || uidVal == 0) {
-                uidText = "?";
-            } else {
-                String hex = String.format(Locale.getDefault(), "%016x", uidVal);
-                uidText = hex.substring(0, 8) + "-" + hex.substring(8, 12) + "-"
-                        + hex.substring(12);
-            }
-            binding.infoUuid.setText(getString(R.string.nbt_summary_uuid, uidText));
+            // v459：UUID 优先 player_<uuid> key 的 MsaId（1.21 存档真实
+            // UUID 来源；UniqueID 是占位值 ffffffff00000001，直接显示
+            // 会成乱码）；回退有效 UniqueID 的 unsigned hex 8-4-4
+            binding.infoUuid.setText(getString(R.string.nbt_summary_uuid,
+                    formatPlayerUuid(worldMap)));
             // 游戏版本（level.dat LastOpenedWithVersion——直接用 root 参数：
             // levelDatRoot 字段在本方法后面才赋值，读字段会拿到上一次的值/null）
             binding.infoVersion.setText(getString(R.string.nbt_summary_version,
@@ -3608,6 +3664,177 @@ public class NbtViewerActivity extends BaseActivity {
             sb.append(t.getInt());
         }
         return sb.toString();
+    }
+
+    /** v459：玩家数据解析结果（后台解析、UI 线程回填，避免跨线程写地图字段）。 */
+    private static class PlayerInfo {
+        int blockX = -1;
+        int blockY = -1;
+        int blockZ = -1;
+        long uniqueId = -1;
+        /** player_<uuid> key 的 MsaId 36 字符 UUID（1.21 存档真实 UUID 来源）。 */
+        String uuid;
+    }
+
+    /** v459：从 player entries 解析玩家位置/UUID。
+     *  两遍筛：第一遍只认 ~local_player（本地设备玩家，player_server
+     *  领域同步位置可能在地图 bounds 外——头像不显示的根因之一）；
+     *  第二遍回退其他 player key（老格式 actor 二进制 key 只在第二遍）。 */
+    private static PlayerInfo parsePlayerInfo(java.util.List<LevelDBEntry> entries) {
+        PlayerInfo info = new PlayerInfo();
+        if (entries == null) {
+            return info;
+        }
+        boolean posSet = false;
+        for (int pass = 0; pass < 2 && !posSet; pass++) {
+            for (LevelDBEntry entry : entries) {
+                String name = entry.getKey().getDisplayName();
+                byte[] rawKey = entry.getKey().getRawKey();
+                boolean isLocal = name != null && name.contains("local_player");
+                boolean isPlayer = isLocal || (name != null && name.startsWith("player"))
+                        || (rawKey != null && (rawKey.length == 9 || rawKey.length == 10)
+                                && !entry.getKey().isChunkKey());
+                if (!isPlayer) {
+                    continue;
+                }
+                if (pass == 0 && !isLocal) {
+                    continue; // 第一遍只认本地玩家
+                }
+                if (pass == 1 && isLocal) {
+                    continue; // 本地玩家第一遍已试过
+                }
+                try {
+                    NbtTag playerRoot = new BedrockNbtReader().readFromBytes(entry.getValue());
+                    if (playerRoot == null) {
+                        continue;
+                    }
+                    // 优先 Pos（生存中玩家位置）；死亡存档无 Pos，回退 DeathPosition
+                    NbtTag posTag = playerRoot.getTag("Pos");
+                    if (posTag != null && posTag.getType() == NbtTag.TAG_LIST
+                            && posTag.getList().size() >= 3) {
+                        float px = posTag.getList().get(0).getFloat();
+                        float py = posTag.getList().get(1).getFloat();
+                        float pz = posTag.getList().get(2).getFloat();
+                        // 合理世界范围（±3000 万方块）内才认定是玩家位置
+                        if (Math.abs(px) < 3e7f && Math.abs(pz) < 3e7f) {
+                            info.blockX = (int) Math.floor(px);
+                            info.blockY = (int) Math.floor(py);
+                            info.blockZ = (int) Math.floor(pz);
+                            NbtTag uid = playerRoot.getTag("UniqueID");
+                            if (uid != null) {
+                                long v = uid.getLong();
+                                // 1.21 存档 UniqueID 常为占位值
+                                // 0xFFFFFFFF00000001（-4294967295，未登录）
+                                // ——无效，不采用
+                                if (v > 0 && v != 0xFFFFFFFF00000001L) {
+                                    info.uniqueId = v;
+                                }
+                            }
+                            posSet = true;
+                            break;
+                        }
+                    }
+                    NbtTag deathX = playerRoot.getTag("DeathPositionX");
+                    NbtTag deathZ = playerRoot.getTag("DeathPositionZ");
+                    if (deathX != null && deathZ != null) {
+                        info.blockX = deathX.getInt();
+                        info.blockZ = deathZ.getInt();
+                        posSet = true;
+                        break;
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        // UUID：player_<uuid> key 的 MsaId 字段（或 key 名尾部 36 字符）
+        for (LevelDBEntry entry : entries) {
+            String name = entry.getKey().getDisplayName();
+            if (name == null || !name.startsWith("player_")) {
+                continue;
+            }
+            try {
+                NbtTag r = new BedrockNbtReader().readFromBytes(entry.getValue());
+                if (r != null) {
+                    String msa = readMsaId(r, name);
+                    if (msa != null) {
+                        info.uuid = msa;
+                        break;
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return info;
+    }
+
+    /** v459：大世界玩家数据前缀读（index 二分只碰少量 data block）。
+     *  三个前缀分开读：~local_player（本地玩家）、player_server（领域
+     *  同步位置，Pos 回退源）、player_（MsaId UUID 来源）。不能合并成
+     *  "player" 一次读——stopAfterFound 找到第一个含匹配的 sst 就停，
+     *  player_<uuid> 注册时写入的旧 sst 会被 player_server（每局更新、
+     *  在最新 sst）挡住，UUID 漏读。 */
+    private static PlayerInfo readPlayerInfoByPrefix(File dbDir) {
+        PlayerInfo info = new PlayerInfo();
+        if (dbDir == null || !dbDir.isDirectory()) {
+            return info;
+        }
+        try {
+            LevelDBReader reader = new LevelDBReader(dbDir);
+            java.util.List<LevelDBEntry> list = new ArrayList<>();
+            list.addAll(reader.readEntriesByPrefix(
+                    "~local_player".getBytes(java.nio.charset.StandardCharsets.US_ASCII)));
+            list.addAll(reader.readEntriesByPrefix(
+                    "player_server".getBytes(java.nio.charset.StandardCharsets.US_ASCII)));
+            list.addAll(reader.readEntriesByPrefix(
+                    "player_".getBytes(java.nio.charset.StandardCharsets.US_ASCII)));
+            reader.close();
+            info = parsePlayerInfo(list);
+        } catch (Exception e) {
+            Log.w(TAG, "大世界玩家数据前缀读失败", e);
+        }
+        return info;
+    }
+
+    /** v459：player_<uuid> key 的 NBT / key 名里提取 36 字符 MsaId UUID。 */
+    private static String readMsaId(NbtTag r, String keyDisplayName) {
+        if (r != null && r.getType() == NbtTag.TAG_COMPOUND) {
+            NbtTag msa = r.getCompound().get("MsaId");
+            if (msa != null && msa.getString() != null
+                    && isUuidString(msa.getString())) {
+                return msa.getString();
+            }
+        }
+        // key 名 = "player_" + 36 字符 UUID（如 player_c36b7fb0-eb97-...）
+        if (keyDisplayName != null && keyDisplayName.length() == 43
+                && keyDisplayName.startsWith("player_")
+                && isUuidString(keyDisplayName.substring(7))) {
+            return keyDisplayName.substring(7);
+        }
+        return null;
+    }
+
+    private static boolean isUuidString(String s) {
+        return s != null && s.length() == 36 && s.charAt(8) == '-'
+                && s.charAt(13) == '-' && s.charAt(18) == '-' && s.charAt(23) == '-';
+    }
+
+    /** v459：玩家 UUID 显示文本——优先 MsaId 字符串 UUID；
+     *  回退有效 UniqueID 的 unsigned hex 8-4-4（Bedrock UniqueID 是
+     *  64 位 = 16 位十六进制）；都没有显示 ?。 */
+    private static String formatPlayerUuid(WorldMapRenderer.WorldMap map) {
+        if (map == null) {
+            return "?";
+        }
+        if (map.playerUuid != null && !map.playerUuid.isEmpty()) {
+            return map.playerUuid;
+        }
+        long uidVal = map.playerUniqueId;
+        if (uidVal > 0 && uidVal != 0xFFFFFFFF00000001L) {
+            String hex = String.format(Locale.getDefault(), "%016x", uidVal);
+            return hex.substring(0, 8) + "-" + hex.substring(8, 12) + "-"
+                    + hex.substring(12);
+        }
+        return "?";
     }
 
     /** 3D 体素视图：进入地图拖选模式（BedrockMap 右键拖选同款），松手生成。 */

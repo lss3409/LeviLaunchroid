@@ -1097,8 +1097,17 @@ public class WorldMapRenderer {
         public int playerBlockX = -1;
         public int playerBlockY = -1;
         public int playerBlockZ = -1;
+        /** v459：玩家真实方块坐标（未经 blockScale 降采样——数据面板
+         *  显示用；标记绘制仍用 playerBlockX/Z）。-1 = 无。 */
+        public int playerRawBlockX = -1;
+        public int playerRawBlockY = -1;
+        public int playerRawBlockZ = -1;
         /** 本地玩家 UniqueID（db ~local_player，-1 = 无） */
         public long playerUniqueId = -1;
+        /** v459：玩家 UUID 文本（player_<uuid> key 的 MsaId 字符串，
+         *  36 字符标准格式；1.21 存档 UniqueID 是占位值 ffffffff00000001，
+         *  真实 UUID 只在这个 key 里。null = 无）。 */
+        public String playerUuid;
         /** 流式渲染时 palette 检测到的结构标记（海底神殿/末地城；小世界路径为 null） */
         public List<StructureMarker> detectedStructures;
         /** 降采样比例（大世界 4×4 代表 chunk = 4；普通世界 1）。标记坐标需除以该值。 */

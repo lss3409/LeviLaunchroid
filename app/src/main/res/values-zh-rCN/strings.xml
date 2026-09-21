@@ -560,6 +560,7 @@
     <string name="nbt_summary_hardcore">极限模式：%1$s</string>
     <string name="nbt_summary_dead">玩家死亡：%1$s</string>
     <string name="nbt_summary_health">生命值：%1$.1f</string>
+    <string name="nbt_summary_health_unknown">生命值：?</string>
     <string name="nbt_summary_pos">玩家坐标：%1$d, %2$d, %3$d</string>
     <string name="nbt_summary_uuid">UUID：%1$s</string>
     <string name="nbt_summary_size">存档大小：%1$s</string>
