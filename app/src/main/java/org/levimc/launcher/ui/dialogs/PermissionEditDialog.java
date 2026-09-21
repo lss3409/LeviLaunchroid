@@ -84,31 +84,24 @@ public final class PermissionEditDialog {
 
         int accent = new PersonalizationManager(context).getAccentColor();
 
-        // 权限等级：0 访客 / 1 成员 / 2 操作员（缺省按成员显示但禁用）
-        boolean hasPerm = perm >= 0;
-        selectCapsule(context, capsPerm, Math.max(0, Math.min(2, hasPerm ? perm : 1)), accent);
+        // 权限等级：0 访客 / 1 成员 / 2 操作员。
+        // v463：字段缺失（单人存档常见）不再禁用——按默认值成员
+        // 显示可编辑，保存时创建字段（Bedrock 标准字段，游戏认）。
+        int curPerm = Math.max(0, Math.min(2, perm >= 0 ? perm : 1));
+        selectCapsule(context, capsPerm, curPerm, accent);
         bindCapsuleGroup(context, capsPerm, accent);
-        setRowEnabled(capsPerm, hasPerm);
 
         // 玩家权限等级：0 访客 / 1 成员 / 2 操作员 / 3 自定义
-        boolean hasPperm = pperm >= 0;
-        selectCapsule(context, capsPperm, Math.max(0, Math.min(3, hasPperm ? pperm : 1)), accent);
+        int curPperm = Math.max(0, Math.min(3, pperm >= 0 ? pperm : 1));
+        selectCapsule(context, capsPperm, curPperm, accent);
         bindCapsuleGroup(context, capsPperm, accent);
-        setRowEnabled(capsPperm, hasPperm);
 
         new CustomAlertDialog(context)
                 .setTitleText(context.getString(R.string.nbt_edit_permissions))
                 .setCustomView(panel)
-                .setPositiveButton(context.getString(R.string.nbt_edit_save), v -> {
-                    if (!hasPerm && !hasPperm) {
-                        Toast.makeText(context, R.string.nbt_no_data,
-                                Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    save(context, worldDir, compound,
-                            hasPerm ? selectedCapsule(capsPerm) : -1,
-                            hasPperm ? selectedCapsule(capsPperm) : -1);
-                })
+                .setPositiveButton(context.getString(R.string.nbt_edit_save), v ->
+                        save(context, worldDir, compound,
+                                selectedCapsule(capsPerm), selectedCapsule(capsPperm)))
                 .setNegativeButton(context.getString(R.string.nbt_edit_cancel), null)
                 .show();
     }
@@ -122,14 +115,11 @@ public final class PermissionEditDialog {
             try {
                 File backup = new File(worldDir, "level.dat.bak");
                 copyFile(levelDat, backup);
-                if (perm >= 0) {
-                    compound.put("PermissionsLevel", new NbtTag(NbtTag.TAG_INT,
-                            "PermissionsLevel", perm));
-                }
-                if (pperm >= 0) {
-                    compound.put("PlayerPermissionsLevel", new NbtTag(NbtTag.TAG_INT,
-                            "PlayerPermissionsLevel", pperm));
-                }
+                // v463：无条件写回（字段缺失时创建——Bedrock 标准字段）
+                compound.put("PermissionsLevel", new NbtTag(NbtTag.TAG_INT,
+                        "PermissionsLevel", perm));
+                compound.put("PlayerPermissionsLevel", new NbtTag(NbtTag.TAG_INT,
+                        "PlayerPermissionsLevel", pperm));
                 NbtTag root = new NbtTag(NbtTag.TAG_COMPOUND, "", compound);
                 BedrockNbtWriter writer = new BedrockNbtWriter();
                 writer.setHeaderVersion(10);

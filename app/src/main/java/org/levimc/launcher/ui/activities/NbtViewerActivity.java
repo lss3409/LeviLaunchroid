@@ -69,8 +69,6 @@ public class NbtViewerActivity extends BaseActivity {
     /** v462：「编辑世界」入口直达——打开后自动弹出数据面板世界设置 Tab。 */
     public static final String EXTRA_OPEN_SETTINGS = "open_settings";
 
-    private static final int TAB_LEVEL = 0;
-    private static final int TAB_DB = 1;
     /** v460：世界设置表单 Tab（表单化 NBT 编辑） */
     private static final int TAB_SETTINGS = 2;
 
@@ -230,7 +228,7 @@ public class NbtViewerActivity extends BaseActivity {
         return generation == loadGeneration;
     }
 
-    private int currentTab = TAB_LEVEL;
+    private int currentTab = TAB_SETTINGS;
     private int accentColor = 0;
     /** 当前视口中心（渲染排序用，Atomic 供渲染线程读）。 */
     private final java.util.concurrent.atomic.AtomicInteger viewCenterX =
@@ -245,9 +243,6 @@ public class NbtViewerActivity extends BaseActivity {
     /** v462：「编辑世界」入口直达——onDataLoaded 后自动弹设置表单。 */
     private boolean pendingOpenSettings;
     private File currentWorldDir;
-    private final List<LevelDBEntry> dbEntries = new ArrayList<>();
-    private DbEntryAdapter dbAdapter;
-    private boolean dbParseRunning = false;
 
     // ---- 标点 / 连线 / 蓝图码（PRD 缝合功能） ----
     private BlueprintDb blueprintDb;
@@ -306,23 +301,9 @@ public class NbtViewerActivity extends BaseActivity {
         binding.nbtBack.setOnClickListener(v -> finish());
         DynamicAnim.applyPressScale(binding.nbtBack);
 
-        // v460：旧"编辑世界设置"弹窗入口改为直接切到表单 Tab
-        binding.nbtEditLeveldatButton.setOnClickListener(v -> selectTab(TAB_SETTINGS));
+        // v464：数据面板只保留世界设置表单（level.dat 树/db 条目已删）
+        binding.nbtEditLeveldatButton.setOnClickListener(v -> openDataPanel(TAB_SETTINGS));
         DynamicAnim.applyPressScale(binding.nbtEditLeveldatButton);
-
-        binding.nbtTabLevel.setOnClickListener(v -> selectTab(TAB_LEVEL));
-        binding.nbtTabDb.setOnClickListener(v -> selectTab(TAB_DB));
-        binding.nbtTabSettings.setOnClickListener(v -> selectTab(TAB_SETTINGS));
-        DynamicAnim.applyPressScale(binding.nbtTabLevel);
-        DynamicAnim.applyPressScale(binding.nbtTabDb);
-        DynamicAnim.applyPressScale(binding.nbtTabSettings);
-
-        binding.nbtDbBack.setOnClickListener(v -> showDbEntryList());
-        DynamicAnim.applyPressScale(binding.nbtDbBack);
-
-        dbAdapter = new DbEntryAdapter(this::onDbEntryClick);
-        binding.nbtDbRecycler.setLayoutManager(new LinearLayoutManager(this));
-        binding.nbtDbRecycler.setAdapter(dbAdapter);
 
         WorldMapRenderer.init(getApplicationContext());
         CpuScheduler.init();
@@ -343,7 +324,6 @@ public class NbtViewerActivity extends BaseActivity {
             WorldMapRenderer.bumpBakeViewport(cx, cz);
         });
 
-        selectTab(TAB_LEVEL);
         loadData(worldDir, worldName);
     }
 
@@ -1724,124 +1704,12 @@ public class NbtViewerActivity extends BaseActivity {
      * 成员列表 = 本地玩家（~local_player DisplayName）+ 其它 player_* XUID，
      * 头像 = 名字 hash 8×8 像素块；结构列表 = 结构检测标记（类型 + 坐标）。
      */
-    private void refreshDataPanelExtras(List<WorldMapRenderer.StructureMarker> structures,
-                                        List<LevelDBEntry> entries) {
-        if (binding.dpPermsList == null) {
-            return; // 旧布局无卡片
-        }
-        // 添加权限（HTML 原型 perm-add 占位：正式版写入 level.dat 多人权限）
-        binding.dpPermAdd.setOnClickListener(v ->
-                Toast.makeText(this, R.string.dp_perm_add_toast, Toast.LENGTH_SHORT).show());
-        binding.dpPermsList.removeAllViews();
-        binding.dpStructsList.removeAllViews();
-        float d = getResources().getDisplayMetrics().density;
 
-        // 成员：本地玩家 + player_* XUID（Bedrock 权限成员无本地完整存储，
-        // level.dat 仅全局 permissionsLevel；按可用数据显示）
-        java.util.List<String[]> members = new java.util.ArrayList<>();
-        if (entries != null) {
-            for (LevelDBEntry e : entries) {
-                byte[] rawKey = e.getKey().getRawKey();
-                if (rawKey == null || rawKey.length < 8) {
-                    continue;
-                }
-                String keyStr;
-                boolean printable = true;
-                for (byte b : rawKey) {
-                    if (b < 32 || b > 126) {
-                        printable = false;
-                        break;
-                    }
-                }
-                if (!printable) {
-                    continue;
-                }
-                keyStr = new String(rawKey, java.nio.charset.StandardCharsets.US_ASCII);
-                if (keyStr.equals("~local_player")) {
-                    String name = "本地玩家";
-                    try {
-                        NbtTag root = new BedrockNbtReader().readFromBytes(e.getValue());
-                        if (root != null && root.getType() == NbtTag.TAG_COMPOUND) {
-                            NbtTag dn = root.getTag("DisplayName");
-                            if (dn != null) {
-                                name = dn.getString();
-                            }
-                        }
-                    } catch (Exception ignored) {
-                    }
-                    members.add(new String[]{name, "local", "owner"});
-                } else if (keyStr.startsWith("player_") && keyStr.length() > 7) {
-                    String xuid = keyStr.substring(7, Math.min(15, keyStr.length()));
-                    members.add(new String[]{"XUID " + xuid + "…", keyStr.substring(7), "member"});
-                }
-            }
-        }
-        if (members.isEmpty()) {
-            TextView empty = new TextView(this);
-            empty.setText(R.string.dp_member_empty);
-            empty.setTextColor(getColor(R.color.text_secondary));
-            empty.setTextSize(12f);
-            binding.dpPermsList.addView(empty);
-        } else {
-            for (String[] m : members) {
-                LinearLayout row = new LinearLayout(this);
-                row.setOrientation(LinearLayout.HORIZONTAL);
-                row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-                row.setPadding(0, (int) (4 * d), 0, 0);
-                ImageView av = new ImageView(this);
-                av.setImageBitmap(pixelAvatar(m[0], 34));
-                int sz = (int) (34 * d);
-                row.addView(av, new LinearLayout.LayoutParams(sz, sz));
-                LinearLayout info = new LinearLayout(this);
-                info.setOrientation(LinearLayout.VERTICAL);
-                TextView n1 = new TextView(this);
-                n1.setText(m[0]);
-                n1.setTextColor(getColor(R.color.on_surface));
-                n1.setTextSize(12f);
-                n1.setTypeface(null, android.graphics.Typeface.BOLD);
-                info.addView(n1);
-                TextView n2 = new TextView(this);
-                n2.setText(m[1].equals("local") ? getString(R.string.dp_perm_local)
-                        : "XUID " + m[1]);
-                n2.setTextColor(getColor(R.color.text_secondary));
-                n2.setTextSize(10f);
-                info.addView(n2);
-                LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(
-                        0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-                ilp.leftMargin = (int) (6 * d);
-                row.addView(info, ilp);
-                TextView badge = new TextView(this);
-                badge.setText(m[2].equals("owner") ? getString(R.string.dp_perm_owner)
-                        : getString(R.string.dp_perm_member));
-                badge.setTextColor(getColor(R.color.primary));
-                badge.setTextSize(10f);
-                badge.setTypeface(null, android.graphics.Typeface.BOLD);
-                row.addView(badge);
-                binding.dpPermsList.addView(row);
-            }
-        }
-
-        // 结构卡
-        if (structures == null || structures.isEmpty()) {
-            TextView empty = new TextView(this);
-            empty.setText(R.string.dp_struct_empty);
-            empty.setTextColor(getColor(R.color.text_secondary));
-            empty.setTextSize(12f);
-            binding.dpStructsList.addView(empty);
-        } else {
-            int shown = 0;
-            for (WorldMapRenderer.StructureMarker m : structures) {
-                if (shown++ >= 8) {
-                    break;
-                }
-                TextView row = new TextView(this);
-                row.setText(m.type + "：(" + m.x + ", " + m.z + ")");
-                row.setTextColor(getColor(R.color.on_surface));
-                row.setTextSize(11f);
-                row.setPadding(0, (int) (3 * d), 0, 0);
-                binding.dpStructsList.addView(row);
-            }
-        }
+    /** v464：权限卡/结构卡（dp_extras_row）已随旧 UI 删除——
+     *  方法保留空实现，调用点（延迟实体/结构回填）无需改动。 */
+    private void refreshDataPanelExtras(java.util.List<WorldMapRenderer.StructureMarker> structures,
+                                        java.util.List<LevelDBEntry> entries) {
+        // 旧 UI 已删：权限/结构卡不再渲染
     }
 
     /** 名字 hash 生成 8×8 像素头像（HTML 原型 makeAvatar 同款思路）。 */
@@ -2420,35 +2288,9 @@ public class NbtViewerActivity extends BaseActivity {
             binding.nbtSummaryInfo.setText(info.toString());
         }
 
-        // a) level.dat 树
+        // v464：level.dat NBT 树与 db 条目浏览已删——只保留
+        // levelDatRoot 供世界设置表单读取
         levelDatRoot = root;
-        binding.nbtLevelTree.removeAllViews();
-        if (root == null) {
-            binding.nbtLevelEmpty.setVisibility(View.VISIBLE);
-            if (!levelDatMissing) {
-                binding.nbtLevelEmpty.setText(R.string.nbt_no_data);
-            }
-        } else {
-            binding.nbtLevelEmpty.setVisibility(View.GONE);
-            addTreeRoot(binding.nbtLevelTree, root, getString(R.string.nbt_level_dat));
-        }
-
-        // b) db 条目（v374 小世界秒进：entries 延迟后台解析，此处可能为 null）
-        dbEntries.clear();
-        if (entries != null) {
-            dbEntries.addAll(entries);
-        }
-        dbAdapter.notifyDataSetChanged();
-        int entryCount = entries != null ? entries.size() : 0;
-        binding.nbtTabDb.setText(getString(R.string.nbt_db_entries) + " (" + entryCount + ")");
-        if (entryCount == 0) {
-            binding.nbtDbEmpty.setVisibility(View.VISIBLE);
-            if (!dbMissing) {
-                binding.nbtDbEmpty.setText(R.string.nbt_no_data);
-            }
-        } else {
-            binding.nbtDbEmpty.setVisibility(View.GONE);
-        }
     }
 
     private String yesNo(boolean value) {
@@ -2886,8 +2728,6 @@ public class NbtViewerActivity extends BaseActivity {
                     yesNo(levelDatRoot.getTag("PlayerHasDied") != null
                             && levelDatRoot.getTag("PlayerHasDied").getByte() != 0)));
             binding.nbtSummaryInfo.setText(info.toString());
-            binding.nbtLevelTree.removeAllViews();
-            addTreeRoot(binding.nbtLevelTree, levelDatRoot, getString(R.string.nbt_level_dat));
         } catch (IOException e) {
             Log.e(TAG, "写回 level.dat 失败", e);
             Toast.makeText(this, getString(R.string.nbt_edit_failed, e.getMessage()),
@@ -2946,28 +2786,19 @@ public class NbtViewerActivity extends BaseActivity {
         }
     }
 
-    // ---------------------------------------------------------------- Tabs
+    // ---------------------------------------------------------------- Tabs（v464 只留设置）
 
     private void selectTab(int tab) {
         currentTab = tab;
-        binding.nbtLevelPane.setVisibility(tab == TAB_LEVEL ? View.VISIBLE : View.GONE);
-        binding.nbtDbPane.setVisibility(tab == TAB_DB ? View.VISIBLE : View.GONE);
         binding.nbtSettingsPane.setVisibility(tab == TAB_SETTINGS ? View.VISIBLE : View.GONE);
-
-        styleTab(binding.nbtTabLevel, tab == TAB_LEVEL);
-        styleTab(binding.nbtTabDb, tab == TAB_DB);
-        styleTab(binding.nbtTabSettings, tab == TAB_SETTINGS);
-        // v460：切到设置 Tab 时同步刷新表单（level.dat 可能刚被
-        // 打开流程重载/玩家数据延迟回填）
-        if (tab == TAB_SETTINGS) {
-            refreshSettingsForm();
-        }
+        // v464：切换即刷新表单（level.dat 可能刚被打开流程重载）
+        refreshSettingsForm();
     }
 
     /** v460：返回键——设置表单有未保存改动时先确认。 */
     @Override
     public void onBackPressed() {
-        if (settingsDirty && currentTab == TAB_SETTINGS) {
+        if (settingsDirty) {
             new CustomAlertDialog(this)
                     .setTitleText(getString(R.string.nbt_set_unsaved_title))
                     .setMessage(getString(R.string.nbt_set_unsaved_msg))
@@ -3003,334 +2834,6 @@ public class NbtViewerActivity extends BaseActivity {
         binding.dataPanel.setVisibility(View.GONE);
     }
 
-    private void styleTab(TextView tab, boolean selected) {
-        tab.setBackgroundResource(selected ? R.drawable.bg_tab_selected : R.drawable.bg_tab_unselected);
-        if (selected && accentColor != 0) {
-            tab.setBackgroundTintList(ColorStateList.valueOf(accentColor));
-        } else {
-            tab.setBackgroundTintList(null);
-        }
-        tab.setTextColor(ContextCompat.getColor(this,
-                selected ? R.color.on_primary : R.color.text_secondary));
-        tab.setTypeface(tab.getTypeface(), selected ? Typeface.BOLD : Typeface.NORMAL);
-    }
-
-    // ---------------------------------------------------------------- db 列表
-
-    private void onDbEntryClick(LevelDBEntry entry) {
-        if (dbParseRunning) return;
-        byte[] value = entry.getValue();
-        if (value == null) return;
-
-        dbParseRunning = true;
-        executor.execute(() -> {
-            NbtTag root = null;
-            String error = null;
-            if (value.length > MAX_PARSE_BYTES) {
-                error = getString(R.string.nbt_value_too_large);
-            } else {
-                try {
-                    root = new BedrockNbtReader().readFromBytes(value);
-                    if (root == null || root.getType() == NbtTag.TAG_END) {
-                        root = null;
-                        error = getString(R.string.nbt_not_nbt);
-                    }
-                } catch (Exception e) {
-                    root = null;
-                    error = getString(R.string.nbt_not_nbt) + ": " + e.getMessage();
-                }
-            }
-            final NbtTag fRoot = root;
-            final String fError = error;
-            runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
-                showDbEntryDetail(entry, fRoot, fError);
-            });
-        });
-    }
-
-    private void showDbEntryDetail(LevelDBEntry entry, NbtTag root, String error) {
-        dbParseRunning = false;
-        binding.nbtDbDetailHeader.setVisibility(View.VISIBLE);
-        binding.nbtDbKeyName.setText(entry.getKey().getDisplayName());
-        binding.nbtDbRecycler.setVisibility(View.GONE);
-        binding.nbtDbEmpty.setVisibility(View.GONE);
-        binding.nbtDbScroll.setVisibility(View.VISIBLE);
-
-        binding.nbtDbTree.removeAllViews();
-        if (root != null) {
-            addTreeRoot(binding.nbtDbTree, root, entry.getKey().getDisplayName());
-        } else {
-            TextView message = new TextView(this);
-            message.setText(error != null ? error : getString(R.string.nbt_not_nbt));
-            message.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
-            message.setTextSize(13);
-            message.setPadding(dp(8), dp(12), dp(8), dp(4));
-            message.setTypeface(misans(), Typeface.NORMAL);
-            binding.nbtDbTree.addView(message);
-            binding.nbtDbTree.addView(buildHexPreview(entry.getValue()));
-        }
-    }
-
-    private void showDbEntryList() {
-        binding.nbtDbDetailHeader.setVisibility(View.GONE);
-        binding.nbtDbScroll.setVisibility(View.GONE);
-        binding.nbtDbTree.removeAllViews();
-        binding.nbtDbRecycler.setVisibility(View.VISIBLE);
-        if (dbEntries.isEmpty()) {
-            binding.nbtDbEmpty.setVisibility(View.VISIBLE);
-        }
-    }
-
-    /** 非 NBT 数据：展示前 64 字节十六进制预览 */
-    private TextView buildHexPreview(byte[] value) {
-        int shown = Math.min(value != null ? value.length : 0, 64);
-        StringBuilder hex = new StringBuilder();
-        for (int i = 0; i < shown; i++) {
-            hex.append(String.format(Locale.US, "%02X ", value[i] & 0xFF));
-        }
-        if (shown < (value != null ? value.length : 0)) {
-            hex.append("…");
-        }
-        TextView preview = new TextView(this);
-        preview.setText(hex.toString());
-        preview.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
-        preview.setTextSize(11);
-        preview.setPadding(dp(8), 0, dp(8), dp(12));
-        preview.setTypeface(Typeface.MONOSPACE);
-        return preview;
-    }
-
-    // ---------------------------------------------------------------- NBT 树渲染
-
-    private void addTreeRoot(LinearLayout container, NbtTag root, String rootTitle) {
-        if (rootTitle != null && !rootTitle.isEmpty()) {
-            TextView title = new TextView(this);
-            title.setText(rootTitle);
-            title.setTextColor(ContextCompat.getColor(this, R.color.primary));
-            title.setTextSize(14);
-            title.setTypeface(misans(), Typeface.BOLD);
-            title.setPadding(0, dp(4), 0, dp(4));
-            container.addView(title);
-        }
-        if (root.getType() == NbtTag.TAG_COMPOUND || root.getType() == NbtTag.TAG_LIST) {
-            buildChildren(container, root, 0);
-        } else {
-            addTagNode(container, root, -1, 0);
-        }
-    }
-
-    /** 递归渲染节点：COMPOUND/LIST 为可折叠节点，基本类型为叶行 */
-    private void addTagNode(LinearLayout parent, NbtTag tag, int index, int depth) {
-        boolean containerType = tag.getType() == NbtTag.TAG_COMPOUND
-                || tag.getType() == NbtTag.TAG_LIST;
-        boolean expandable = containerType && depth < MAX_DEPTH;
-
-        if (expandable) {
-            View header = createExpandableHeader(tag, index, depth);
-            LinearLayout children = new LinearLayout(this);
-            children.setOrientation(LinearLayout.VERTICAL);
-            children.setLayoutParams(new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-            children.setPadding(dp(16), 0, 0, 0);
-            children.setVisibility(View.GONE);
-            parent.addView(header);
-            parent.addView(children);
-
-            NodeHolder holder = new NodeHolder(tag, children, depth, header);
-            header.setTag(holder);
-            header.setOnClickListener(v -> toggleNode((NodeHolder) v.getTag()));
-        } else if (containerType) {
-            // 深度限制：仅显示摘要行
-            parent.addView(createLeafRow(formatContainerSummary(tag, index), depth, Typeface.NORMAL,
-                    ContextCompat.getColor(this, R.color.text_secondary)));
-        } else {
-            parent.addView(createLeafRow(formatPrimitive(tag, index), depth, Typeface.NORMAL,
-                    ContextCompat.getColor(this, R.color.on_surface)));
-        }
-    }
-
-    private void toggleNode(NodeHolder holder) {
-        if (!holder.built) {
-            holder.built = true;
-            buildChildren(holder.children, holder.tag, holder.depth + 1);
-        }
-        boolean nowVisible = holder.children.getVisibility() != View.VISIBLE;
-        holder.children.setVisibility(nowVisible ? View.VISIBLE : View.GONE);
-        holder.arrow.setText(nowVisible ? "▾" : "▸");
-    }
-
-    private void buildChildren(LinearLayout container, NbtTag tag, int depth) {
-        if (tag.getType() == NbtTag.TAG_COMPOUND) {
-            Map<String, NbtTag> map = tag.getCompound();
-            int shown = 0;
-            for (Map.Entry<String, NbtTag> entry : map.entrySet()) {
-                if (shown >= MAX_CHILDREN) break;
-                addTagNode(container, entry.getValue(), -1, depth);
-                shown++;
-            }
-            if (map.size() > MAX_CHILDREN) {
-                addHiddenRow(container, map.size() - MAX_CHILDREN);
-            }
-        } else if (tag.getType() == NbtTag.TAG_LIST) {
-            List<NbtTag> list = tag.getList();
-            int shown = 0;
-            for (int i = 0; i < list.size() && shown < MAX_CHILDREN; i++) {
-                addTagNode(container, list.get(i), i, depth);
-                shown++;
-            }
-            if (list.size() > MAX_CHILDREN) {
-                addHiddenRow(container, list.size() - MAX_CHILDREN);
-            }
-        }
-    }
-
-    private void addHiddenRow(LinearLayout container, int hiddenCount) {
-        TextView row = new TextView(this);
-        row.setText(getString(R.string.nbt_items_hidden, hiddenCount));
-        row.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
-        row.setTextSize(12);
-        row.setTypeface(misans(), Typeface.ITALIC);
-        row.setPadding(0, dp(3), 0, dp(3));
-        container.addView(row);
-    }
-
-    private View createExpandableHeader(NbtTag tag, int index, int depth) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, dp(3), 0, dp(3));
-        row.setLayoutParams(new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        TypedValue outValue = new TypedValue();
-        getTheme().resolveAttribute(android.R.attr.selectableItemBackground, outValue, true);
-        row.setBackgroundResource(outValue.resourceId);
-
-        TextView arrow = new TextView(this);
-        arrow.setText("▸");
-        arrow.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
-        arrow.setTextSize(10);
-        arrow.setGravity(Gravity.CENTER);
-        arrow.setLayoutParams(new LinearLayout.LayoutParams(dp(20), dp(20)));
-        row.addView(arrow);
-
-        TextView label = new TextView(this);
-        label.setText(formatContainerSummary(tag, index));
-        label.setTextColor(ContextCompat.getColor(this, R.color.on_surface));
-        label.setTextSize(13);
-        label.setTypeface(misans(), Typeface.BOLD);
-        label.setPadding(0, 0, dp(8), 0);
-        row.addView(label);
-
-        return row;
-    }
-
-    private TextView createLeafRow(String text, int depth, int style, int color) {
-        TextView row = new TextView(this);
-        row.setText(text);
-        row.setTextColor(color);
-        row.setTextSize(13);
-        row.setTypeface(misans(), style);
-        row.setPadding(0, dp(3), dp(8), dp(3));
-        return row;
-    }
-
-    private String formatContainerSummary(NbtTag tag, int index) {
-        String name = displayName(tag, index);
-        if (tag.getType() == NbtTag.TAG_COMPOUND) {
-            String count = getString(R.string.nbt_items, tag.getCompound().size());
-            if (tag.getName() == null || tag.getName().isEmpty()) {
-                return name + " · " + count;
-            }
-            return "{" + name + "} · " + count;
-        }
-        return name + " [" + tag.getList().size() + "]";
-    }
-
-    private String formatPrimitive(NbtTag tag, int index) {
-        String name = displayName(tag, index);
-        switch (tag.getType()) {
-            case NbtTag.TAG_BYTE: {
-                byte v = tag.getByte();
-                if (v == 0) return name + " = 0 (false)";
-                if (v == 1) return name + " = 1 (true)";
-                return name + " = " + v;
-            }
-            case NbtTag.TAG_SHORT:
-                return name + " = " + tag.getShort();
-            case NbtTag.TAG_INT:
-                return name + " = " + tag.getInt();
-            case NbtTag.TAG_LONG: {
-                long v = tag.getLong();
-                String suffix = longTimeSuffix(name, v);
-                return name + " = " + v + (suffix != null ? suffix : "");
-            }
-            case NbtTag.TAG_FLOAT:
-                return name + " = " + String.format(Locale.US, "%.1f", tag.getFloat());
-            case NbtTag.TAG_DOUBLE:
-                return name + " = " + String.format(Locale.US, "%.2f", tag.getDouble());
-            case NbtTag.TAG_STRING: {
-                String s = tag.getString();
-                if (s.length() > MAX_STRING_DISPLAY) {
-                    s = s.substring(0, MAX_STRING_DISPLAY) + "…";
-                }
-                return name + " = \"" + s + "\"";
-            }
-            case NbtTag.TAG_BYTE_ARRAY: {
-                byte[] arr = tag.getByteArray();
-                StringBuilder sb = new StringBuilder("byte[")
-                        .append(arr.length).append("]");
-                int n = Math.min(arr.length, 8);
-                if (n > 0) {
-                    sb.append(": ");
-                    for (int i = 0; i < n; i++) {
-                        sb.append(String.format(Locale.US, "%02X ", arr[i] & 0xFF));
-                    }
-                    if (arr.length > n) sb.append("…");
-                }
-                return name + " = " + sb;
-            }
-            case NbtTag.TAG_INT_ARRAY:
-                return name + " = int[" + tag.getIntArray().length + "]";
-            case NbtTag.TAG_LONG_ARRAY:
-                return name + " = long[" + tag.getLongArray().length + "]";
-            case NbtTag.TAG_END:
-                return name + " = END";
-            default:
-                return name + " = " + tag.getValue();
-        }
-    }
-
-    /** Long 时间换算：key 含 Time/Played 时附加上下文 */
-    private String longTimeSuffix(String name, long value) {
-        if (name == null) return null;
-        String lower = name.toLowerCase(Locale.ROOT);
-        if (!lower.contains("time") && !lower.contains("played")) {
-            return null;
-        }
-        if (value >= 100_000_000L && value <= 1_000_000_000_000L) {
-            // 秒级时间戳（如 LastPlayed）
-            return " (" + dateFormat.format(new Date(value * 1000L)) + ")";
-        }
-        if (value >= 0) {
-            // 游戏刻：24000 刻/天，1000 刻/时
-            long days = value / 24000L;
-            long hours = (value % 24000L) / 1000L;
-            long minutes = (value % 1000L) * 60L / 1000L;
-            return " (" + getString(R.string.nbt_ticks_time, days, hours, minutes) + ")";
-        }
-        return null;
-    }
-
-    private String displayName(NbtTag tag, int index) {
-        String name = tag.getName();
-        if (name != null && !name.isEmpty()) {
-            return name;
-        }
-        return index >= 0 ? "[" + index + "]" : "(root)";
-    }
-
     private Typeface misans() {
         return ResourcesCompat.getFont(this, R.font.misans);
     }
@@ -3345,107 +2848,6 @@ public class NbtViewerActivity extends BaseActivity {
         return String.format(Locale.US, "%.1f MB", bytes / (1024f * 1024f));
     }
 
-    // ---------------------------------------------------------------- 节点状态
-
-    private static class NodeHolder {
-        final NbtTag tag;
-        final LinearLayout children;
-        final TextView arrow;
-        final int depth;
-        boolean built;
-
-        NodeHolder(NbtTag tag, LinearLayout children, int depth, View header) {
-            this.tag = tag;
-            this.children = children;
-            this.depth = depth;
-            this.arrow = header instanceof LinearLayout
-                    ? (TextView) ((LinearLayout) header).getChildAt(0)
-                    : null;
-        }
-    }
-
-    // ---------------------------------------------------------------- db 条目适配器
-
-    private class DbEntryAdapter extends RecyclerView.Adapter<DbEntryAdapter.VH> {
-
-        interface Listener {
-            void onEntryClick(LevelDBEntry entry);
-        }
-
-        private final Listener listener;
-
-        DbEntryAdapter(Listener listener) {
-            this.listener = listener;
-        }
-
-        @NonNull
-        @Override
-        public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            ItemNbtDbEntryBinding itemBinding = ItemNbtDbEntryBinding.inflate(
-                    getLayoutInflater(), parent, false);
-            return new VH(itemBinding);
-        }
-
-        @Override
-        public void onBindViewHolder(@NonNull VH holder, int position) {
-            LevelDBEntry entry = dbEntries.get(position);
-            byte[] value = entry.getValue();
-            holder.binding.nbtEntryName.setText(entry.getKey().getDisplayName());
-            holder.binding.nbtEntryInfo.setText(humanSize(value != null ? value.length : 0));
-            holder.itemView.setOnClickListener(v -> {
-                if (listener != null) listener.onEntryClick(entry);
-            });
-        }
-
-        @Override
-        public int getItemCount() {
-            return dbEntries.size();
-        }
-
-        class VH extends RecyclerView.ViewHolder {
-            final ItemNbtDbEntryBinding binding;
-
-            VH(ItemNbtDbEntryBinding binding) {
-                super(binding.getRoot());
-                this.binding = binding;
-            }
-        }
-    }
-
-    @Override
-    protected void onDestroy() {
-        // 大世界按需渲染：把本次会话渲染过的 chunk 增量写入磁盘缓存
-        // （v378 小世界全量回填后 currentMap 是 colors 数组路径 map，
-        // 其 chunkColors 为 null——判空保护，否则 onDestroy NPE 崩溃）。
-        // 所有维度缓存都持久保存（v384：撤销 v382 的退出删除——用户
-        // 新思路"专门存地图数据的地方，打开瞬间读，存档更新时更新"）
-        if (currentMap != null && currentMap.chunkSourceDir != null
-                && currentMap.chunkColors != null
-                && !currentMap.chunkColors.isEmpty()) {
-            // v19：保持 map 的完整性标志（完整缓存退出后再存仍是完整）
-            WorldMapRenderer.saveChunkCache(currentMap, currentMap.chunkSourceDir,
-                    currentMap.chunkSourceDim, currentMap.cacheComplete);
-            // v413：矿石标点一起落盘（烘焙未跑完时保留已收集部分）
-            WorldMapRenderer.saveOreMarkers(currentMap,
-                    currentMap.chunkSourceDir, currentMap.chunkSourceDim);
-        }
-        if (bakeThread != null) {
-            bakeThread.interrupt();
-        }
-        // v400：退出卫星图——恢复其它存档的后台静默烘焙
-        org.levimc.launcher.core.content.worldmap.SilentBakeManager.get().resume();
-        super.onDestroy();
-        if (executor != null) {
-            executor.shutdown();
-        }
-        if (blueprintDb != null) {
-            blueprintDb.close();
-        }
-    }
-
-    // ---------------------------------------------------------------- 标点编辑 / 详情
-
-    /** 标点编辑弹窗（point=null 时新建，坐标为 blockX/blockZ）。 */
     private void showPointEditor(BlueprintDb.Point point, int blockX, int blockZ) {
         EditText nameEdit = new EditText(this);
         nameEdit.setSingleLine(true);

@@ -817,53 +817,7 @@
                 android:textColor="@color/primary"
                 android:textSize="18sp"
                 android:textStyle="bold" />
-
-            <!-- 数据源切换 Tab -->
-            <TextView
-                android:id="@+id/nbt_tab_level"
-                android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:layout_marginEnd="8dp"
-                android:background="@drawable/bg_tab_selected"
-                android:clickable="true"
-                android:focusable="true"
-                android:fontFamily="@font/misans"
-                android:gravity="center"
-                android:paddingHorizontal="16dp"
-                android:text="@string/nbt_level_dat"
-                android:textColor="@color/on_primary"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/nbt_tab_db"
-                android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:background="@drawable/bg_tab_unselected"
-                android:clickable="true"
-                android:focusable="true"
-                android:fontFamily="@font/misans"
-                android:gravity="center"
-                android:paddingHorizontal="16dp"
-                android:text="@string/nbt_db_entries"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
         </LinearLayout>
-
-            <!-- v460：世界设置 Tab（表单化 NBT 编辑） -->
-            <TextView
-                android:id="@+id/nbt_tab_settings"
-                android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:background="@drawable/bg_tab_unselected"
-                android:clickable="true"
-                android:focusable="true"
-                android:fontFamily="@font/misans"
-                android:gravity="center"
-                android:paddingHorizontal="16dp"
-                android:text="@string/nbt_tab_settings"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
 
         <!-- 世界信息摘要卡 -->
         <LinearLayout
@@ -920,204 +874,17 @@
             android:layout_marginTop="10dp"
             android:layout_weight="1">
 
-            <!-- a) level.dat NBT 树 -->
+            <!-- v460：世界设置表单（v464 起数据面板只保留这一个内容区：
+                 level.dat 树/db 条目浏览已删除，用户要求） -->
             <FrameLayout
-                android:id="@+id/nbt_level_pane"
+                android:id="@+id/nbt_settings_pane"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent">
 
-                <ScrollView
-                    android:id="@+id/nbt_level_scroll"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:fillViewport="true">
-
-                    <LinearLayout
-                        android:id="@+id/nbt_level_tree"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="4dp" />
-                </ScrollView>
-
-                <TextView
-                    android:id="@+id/nbt_level_empty"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center"
-                    android:fontFamily="@font/misans"
-                    android:text="@string/level_dat_not_found"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp"
-                    android:visibility="gone" />
+                <include
+                    android:id="@+id/settings_form"
+                    layout="@layout/nbt_settings_pane" />
             </FrameLayout>
-
-            <!-- 权限卡 + 结构卡（HTML 原型 renderDataPanelExtras：成员权限 / 结构列表） -->
-            <LinearLayout
-                android:id="@+id/dp_extras_row"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="horizontal">
-
-                <LinearLayout
-                    android:id="@+id/dp_perms_card"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginEnd="4dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_rounded_card"
-                    android:orientation="vertical"
-                    android:padding="12dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:fontFamily="@font/misans"
-                            android:text="@string/dp_members_title"
-                            android:textColor="@color/on_surface"
-                            android:textSize="13sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/dp_perm_add"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:clickable="true"
-                            android:focusable="true"
-                            android:fontFamily="@font/misans"
-                            android:padding="4dp"
-                            android:text="@string/dp_perm_add"
-                            android:textColor="@color/primary"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:id="@+id/dp_perms_list"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:orientation="vertical" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/dp_structs_card"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="4dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_rounded_card"
-                    android:orientation="vertical"
-                    android:padding="12dp">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="@font/misans"
-                        android:text="@string/dp_structs_title"
-                        android:textColor="@color/on_surface"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
-
-                    <LinearLayout
-                        android:id="@+id/dp_structs_list"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:orientation="vertical" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <!-- b) db 条目列表 / 条目 NBT 树 -->
-            <LinearLayout
-                android:id="@+id/nbt_db_pane"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:visibility="gone">
-
-                <LinearLayout
-                    android:id="@+id/nbt_db_detail_header"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:visibility="gone">
-
-                    <TextView
-                        android:id="@+id/nbt_db_back"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="?attr/selectableItemBackgroundBorderless"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:fontFamily="@font/misans"
-                        android:padding="6dp"
-                        android:text="@string/nbt_back_to_list"
-                        android:textColor="@color/primary"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/nbt_db_key_name"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="6dp"
-                        android:ellipsize="middle"
-                        android:fontFamily="@font/misans"
-                        android:maxLines="1"
-                        android:textColor="@color/on_surface"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <FrameLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1">
-
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/nbt_db_recycler"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:clipToPadding="false"
-                        android:paddingBottom="24dp" />
-
-                    <ScrollView
-                        android:id="@+id/nbt_db_scroll"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:fillViewport="true"
-                        android:visibility="gone">
-
-                        <LinearLayout
-                            android:id="@+id/nbt_db_tree"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="4dp" />
-                    </ScrollView>
-
-                    <TextView
-                        android:id="@+id/nbt_db_empty"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="center"
-                        android:fontFamily="@font/misans"
-                        android:text="@string/nbt_no_data"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13sp"
-                        android:visibility="gone" />
-                </FrameLayout>
-            </LinearLayout>
 
             <ProgressBar
                 android:id="@+id/nbt_loading"
@@ -1125,18 +892,6 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center" />
         </FrameLayout>
-
-            <!-- c) v460：世界设置表单（Tab3） -->
-            <FrameLayout
-                android:id="@+id/nbt_settings_pane"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:visibility="gone">
-
-                <include
-                    android:id="@+id/settings_form"
-                    layout="@layout/nbt_settings_pane" />
-            </FrameLayout>
     </LinearLayout>
 
 </FrameLayout>
