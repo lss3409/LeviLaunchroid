@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- v460：世界设置表单（数据面板 Tab3）——分组卡片 + 胶囊选择 + 开关，
-     全部复用启动器既有颜色/drawable（只改布局不改颜色） -->
+     全部复用启动器既有颜色/drawable（只改布局不改颜色）。
+     v463：权限分组提到第二位（编辑高频项）；删除玩家只读分组
+     （左栏世界信息 Tab 已有，避免表单过长要拖动） -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fillViewport="true"
@@ -182,7 +183,93 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- ============ 分组 B：时间与天气 ============ -->
+        <!-- ============ 分组 B：权限 ============ -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:fontFamily="@font/misans"
+            android:text="@string/nbt_set_group_permission"
+            android:textColor="@color/primary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_rounded_card"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/misans"
+                android:text="@string/nbt_set_permission_level"
+                android:textColor="@color/on_surface"
+                android:textSize="12sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/caps_perm_0"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_perm_visitor" />
+
+                <TextView
+                    android:id="@+id/caps_perm_1"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_perm_member" />
+
+                <TextView
+                    android:id="@+id/caps_perm_2"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_perm_operator" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:fontFamily="@font/misans"
+                android:text="@string/nbt_set_player_permission"
+                android:textColor="@color/on_surface"
+                android:textSize="12sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/caps_pperm_0"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_perm_visitor" />
+
+                <TextView
+                    android:id="@+id/caps_pperm_1"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_perm_member" />
+
+                <TextView
+                    android:id="@+id/caps_pperm_2"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_perm_operator" />
+
+                <TextView
+                    android:id="@+id/caps_pperm_3"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_perm_custom" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ============ 分组 C：时间与天气 ============ -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -273,7 +360,7 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- ============ 分组 C：出生点 ============ -->
+        <!-- ============ 分组 D：出生点 ============ -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -382,7 +469,7 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- ============ 分组 D：游戏规则 ============ -->
+        <!-- ============ 分组 E：游戏规则 ============ -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -544,151 +631,6 @@
                     android:id="@+id/sw_tiledrops"
                     style="@style/NbtSwitch" />
             </LinearLayout>
-        </LinearLayout>
-
-        <!-- ============ 分组 E：权限 ============ -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:fontFamily="@font/misans"
-            android:text="@string/nbt_set_group_permission"
-            android:textColor="@color/primary"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:background="@drawable/bg_rounded_card"
-            android:orientation="vertical"
-            android:padding="14dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="@font/misans"
-                android:text="@string/nbt_set_permission_level"
-                android:textColor="@color/on_surface"
-                android:textSize="12sp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:id="@+id/caps_perm_0"
-                    style="@style/NbtCapsule"
-                    android:text="@string/nbt_perm_visitor" />
-
-                <TextView
-                    android:id="@+id/caps_perm_1"
-                    style="@style/NbtCapsule"
-                    android:text="@string/nbt_perm_member" />
-
-                <TextView
-                    android:id="@+id/caps_perm_2"
-                    style="@style/NbtCapsule"
-                    android:text="@string/nbt_perm_operator" />
-            </LinearLayout>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:fontFamily="@font/misans"
-                android:text="@string/nbt_set_player_permission"
-                android:textColor="@color/on_surface"
-                android:textSize="12sp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:id="@+id/caps_pperm_0"
-                    style="@style/NbtCapsule"
-                    android:text="@string/nbt_perm_visitor" />
-
-                <TextView
-                    android:id="@+id/caps_pperm_1"
-                    style="@style/NbtCapsule"
-                    android:text="@string/nbt_perm_member" />
-
-                <TextView
-                    android:id="@+id/caps_pperm_2"
-                    style="@style/NbtCapsule"
-                    android:text="@string/nbt_perm_operator" />
-
-                <TextView
-                    android:id="@+id/caps_pperm_3"
-                    style="@style/NbtCapsule"
-                    android:text="@string/nbt_perm_custom" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- ============ 分组 F：玩家（只读） ============ -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:fontFamily="@font/misans"
-            android:text="@string/nbt_set_group_player"
-            android:textColor="@color/primary"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:background="@drawable/bg_rounded_card"
-            android:orientation="vertical"
-            android:padding="14dp">
-
-            <TextView
-                android:id="@+id/tv_player_pos"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:fontFamily="@font/misans"
-                android:lineSpacingExtra="2dp"
-                android:textColor="@color/on_surface"
-                android:textSize="12sp" />
-
-            <TextView
-                android:id="@+id/tv_player_health"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:fontFamily="@font/misans"
-                android:lineSpacingExtra="2dp"
-                android:textColor="@color/on_surface"
-                android:textSize="12sp" />
-
-            <TextView
-                android:id="@+id/tv_player_uuid"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:fontFamily="@font/misans"
-                android:lineSpacingExtra="2dp"
-                android:textColor="@color/on_surface"
-                android:textSize="12sp" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:fontFamily="@font/misans"
-                android:lineSpacingExtra="2dp"
-                android:text="@string/nbt_set_player_hint"
-                android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
         </LinearLayout>
 
         <!-- ============ 底部保存 ============ -->

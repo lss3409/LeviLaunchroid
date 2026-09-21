@@ -1404,4 +1404,9 @@
 
     <!-- v462：地图 FAB 菜单「世界数据」入口 -->
     <string name="tool_world_data">世界数据</string>
+
+    <!-- v463：权限编辑弹窗（⋮ 菜单「编辑」入口） -->
+    <string name="nbt_edit_permissions">编辑权限</string>
+    <string name="nbt_perm_level_hint">控制加入此世界的玩家可执行的操作。</string>
+    <string name="nbt_pperm_level_hint">控制本地玩家在此世界可执行的操作。</string>
 </resources>

@@ -1454,4 +1454,9 @@ Migration must complete before LeviLauncher can continue.</string>
 
     <!-- v462：地图 FAB 菜单「世界数据」入口 -->
     <string name="tool_world_data">World Data</string>
+
+    <!-- v463：权限编辑弹窗（⋮ 菜单「编辑」入口） -->
+    <string name="nbt_edit_permissions">Edit Permissions</string>
+    <string name="nbt_perm_level_hint">Controls what players joining this world can do.</string>
+    <string name="nbt_pperm_level_hint">Controls what the local player can do in this world.</string>
 </resources>

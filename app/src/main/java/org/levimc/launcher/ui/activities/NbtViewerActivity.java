@@ -2585,29 +2585,6 @@ public class NbtViewerActivity extends BaseActivity {
         bindRuleSwitch(swEntitydrops, root, "Doentitydrops");
         bindRuleSwitch(swTiledrops, root, "Dotiledrops");
 
-        // 玩家只读信息（db ~local_player，随延迟回填更新）
-        StringBuilder pos = new StringBuilder(getString(R.string.nbt_summary_pos_label));
-        if (currentMap != null && (currentMap.playerRawBlockX >= 0
-                || currentMap.playerBlockX >= 0)) {
-            int px = currentMap.playerRawBlockX >= 0
-                    ? currentMap.playerRawBlockX : currentMap.playerBlockX;
-            int py = currentMap.playerRawBlockY >= 0
-                    ? currentMap.playerRawBlockY : currentMap.playerBlockY;
-            int pz = currentMap.playerRawBlockZ >= 0
-                    ? currentMap.playerRawBlockZ : currentMap.playerBlockZ;
-            pos.append(px).append(", ").append(py).append(", ").append(pz);
-        } else {
-            pos.append("?");
-        }
-        binding.settingsForm.tvPlayerPos.setText(pos.toString());
-        if (loadedWorldItem != null && loadedWorldItem.getPlayerHealth() >= 0f) {
-            binding.settingsForm.tvPlayerHealth.setText(getString(R.string.nbt_summary_health,
-                    loadedWorldItem.getPlayerHealth()));
-        } else {
-            binding.settingsForm.tvPlayerHealth.setText(getString(R.string.nbt_summary_health_unknown));
-        }
-        binding.settingsForm.tvPlayerUuid.setText(getString(R.string.nbt_summary_uuid,
-                formatPlayerUuid(currentMap)));
 
         settingsDirty = false;
         updateSaveButtonState();
