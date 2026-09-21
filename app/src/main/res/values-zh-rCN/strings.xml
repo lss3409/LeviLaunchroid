@@ -462,7 +462,6 @@
     <string name="select_storage_label">选择存储：</string>
     <string name="search_hint">搜索…</string>
     <string name="search_properties_hint">搜索属性…</string>
-    <string name="no_matching_properties">未找到匹配的属性</string>
     <string name="transfer">传输</string>
     <string name="transfer_content">传输内容</string>
     <string name="transfer_to">传输至：</string>
@@ -522,10 +521,7 @@
     <string name="save">保存</string>
     <string name="reset">重置</string>
     <string name="level_dat_not_found">未找到 level.dat</string>
-    <string name="no_editable_properties">未找到可编辑属性</string>
     <string name="no_data">无数据</string>
-    <string name="error_loading_world">加载世界时出错</string>
-    <string name="world_saved">世界保存成功</string>
     <string name="save_failed">保存失败</string>
     <string name="unsaved_changes">未保存的更改</string>
     <string name="discard_changes_message">您有未保存的更改。要放弃这些更改吗？</string>
@@ -537,7 +533,6 @@
     <string name="world_map_title">世界地图</string>
     <string name="world_map_unavailable">地图不可用</string>
     <string name="world_map_loading">正在加载世界数据…</string>
-    <string name="nbt_view_world_data">查看 NBT</string>
     <string name="nbt_level_dat">level.dat</string>
     <string name="dp_perm_local">本地玩家</string>
     <string name="dp_perm_owner">所有者</string>
@@ -1364,4 +1359,46 @@
     <string name="point_need_two">至少需要 2 个标点才能连线/测距</string>
     <string name="point_color">颜色</string>
     <string name="point_save_failed">标点保存失败</string>
+
+
+    <!-- v460：世界设置表单 -->
+    <string name="nbt_tab_settings">世界设置</string>
+    <string name="nbt_set_group_basic">基本信息</string>
+    <string name="nbt_set_group_time">时间与天气</string>
+    <string name="nbt_set_group_spawn">出生点</string>
+    <string name="nbt_set_group_rules">游戏规则</string>
+    <string name="nbt_set_group_permission">权限</string>
+    <string name="nbt_set_group_player">玩家（只读）</string>
+    <string name="nbt_set_cheats">允许作弊</string>
+    <string name="nbt_edit_time">世界时间</string>
+    <string name="nbt_edit_tick_speed">随机刻速度</string>
+    <string name="nbt_set_daylight">昼夜循环</string>
+    <string name="nbt_set_weather_cycle">天气循环</string>
+    <string name="nbt_edit_spawn_x">出生点 X</string>
+    <string name="nbt_edit_spawn_y">出生点 Y</string>
+    <string name="nbt_edit_spawn_z">出生点 Z</string>
+    <string name="nbt_set_keep_inventory">保留物品栏</string>
+    <string name="nbt_set_mob_griefing">生物破坏</string>
+    <string name="nbt_set_fire_tick">火焰蔓延</string>
+    <string name="nbt_set_tnt_explodes">TNT 爆炸</string>
+    <string name="nbt_set_natural_regen">自然恢复</string>
+    <string name="nbt_set_pvp">玩家对战</string>
+    <string name="nbt_set_show_coords">显示坐标</string>
+    <string name="nbt_set_immediate_respawn">立即重生</string>
+    <string name="nbt_set_mob_spawning">生成生物</string>
+    <string name="nbt_set_entity_drops">实体掉落</string>
+    <string name="nbt_set_tile_drops">方块掉落</string>
+    <string name="nbt_set_permission_level">权限等级</string>
+    <string name="nbt_set_player_permission">玩家权限等级</string>
+    <string name="nbt_perm_visitor">访客</string>
+    <string name="nbt_perm_member">成员</string>
+    <string name="nbt_perm_operator">操作员</string>
+    <string name="nbt_perm_custom">自定义</string>
+    <string name="nbt_set_player_hint">玩家数据保存在存档数据库（db）中，随游戏自动更新。</string>
+    <string name="nbt_set_revert">撤销</string>
+    <string name="nbt_set_unsaved_title">未保存的修改</string>
+    <string name="nbt_set_unsaved_msg">有未保存的世界设置修改，关闭将丢弃这些修改。</string>
+    <string name="nbt_set_discard">丢弃</string>
+    <string name="nbt_gamemode_spectator">旁观</string>
+    <string name="nbt_summary_pos_label">玩家坐标：</string>
 </resources>

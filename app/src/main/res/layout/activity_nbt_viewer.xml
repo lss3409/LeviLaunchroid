@@ -837,6 +837,21 @@
                 android:textSize="12sp" />
         </LinearLayout>
 
+            <!-- v460：世界设置 Tab（表单化 NBT 编辑） -->
+            <TextView
+                android:id="@+id/nbt_tab_settings"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:background="@drawable/bg_tab_unselected"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="@font/misans"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="@string/nbt_tab_settings"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+
         <!-- 世界信息摘要卡 -->
         <LinearLayout
             android:id="@+id/nbt_summary_card"
@@ -1097,6 +1112,18 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center" />
         </FrameLayout>
+
+            <!-- c) v460：世界设置表单（Tab3） -->
+            <FrameLayout
+                android:id="@+id/nbt_settings_pane"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone">
+
+                <include
+                    android:id="@+id/settings_form"
+                    layout="@layout/nbt_settings_pane" />
+            </FrameLayout>
     </LinearLayout>
 
 </FrameLayout>

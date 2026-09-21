@@ -460,6 +460,8 @@ public class ContentListActivity extends BaseActivity {
         binding.contentRecyclerView.post(() -> DynamicAnim.staggerRecyclerChildren(binding.contentRecyclerView));
     }
 
+    /** v460：旧 WorldEditorActivity 已删除——"编辑世界"统一进
+     *  NbtViewerActivity 地图页，数据面板「世界设置」Tab 表单化编辑。 */
     private void openWorldEditor(WorldItem world) {
         File worldFile = world.getFile();
         if (worldFile == null || !worldFile.exists()) {
@@ -467,9 +469,9 @@ public class ContentListActivity extends BaseActivity {
             return;
         }
 
-        Intent intent = new Intent(this, WorldEditorActivity.class);
-        intent.putExtra(WorldEditorActivity.EXTRA_WORLD_PATH, worldFile.getAbsolutePath());
-        intent.putExtra(WorldEditorActivity.EXTRA_WORLD_NAME, world.getWorldName());
+        Intent intent = new Intent(this, NbtViewerActivity.class);
+        intent.putExtra(NbtViewerActivity.EXTRA_WORLD_DIR, worldFile.getAbsolutePath());
+        intent.putExtra(NbtViewerActivity.EXTRA_WORLD_NAME, world.getWorldName());
         startActivity(intent);
     }
 

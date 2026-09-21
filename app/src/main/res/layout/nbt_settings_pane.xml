@@ -1,0 +1,727 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v460：世界设置表单（数据面板 Tab3）——分组卡片 + 胶囊选择 + 开关，
+     全部复用启动器既有颜色/drawable（只改布局不改颜色） -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:overScrollMode="never"
+    android:scrollbars="none">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingBottom="16dp">
+
+        <!-- ============ 分组 A：基本信息 ============ -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:fontFamily="@font/misans"
+            android:text="@string/nbt_set_group_basic"
+            android:textColor="@color/primary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_rounded_card"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/misans"
+                android:text="@string/nbt_edit_name"
+                android:textColor="@color/on_surface"
+                android:textSize="12sp" />
+
+            <EditText
+                android:id="@+id/edit_world_name"
+                android:layout_width="match_parent"
+                android:layout_height="42dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_search_field_light"
+                android:fontFamily="@font/misans"
+                android:importantForAutofill="no"
+                android:paddingHorizontal="12dp"
+                android:singleLine="true"
+                android:textColor="@color/on_surface"
+                android:textColorHint="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <!-- 游戏模式胶囊 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:fontFamily="@font/misans"
+                android:text="@string/nbt_edit_gamemode"
+                android:textColor="@color/on_surface"
+                android:textSize="12sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/caps_gamemode_0"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_gamemode_survival" />
+
+                <TextView
+                    android:id="@+id/caps_gamemode_1"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_gamemode_creative" />
+
+                <TextView
+                    android:id="@+id/caps_gamemode_2"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_gamemode_adventure" />
+
+                <TextView
+                    android:id="@+id/caps_gamemode_3"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_gamemode_spectator" />
+            </LinearLayout>
+
+            <!-- 难度胶囊 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:fontFamily="@font/misans"
+                android:text="@string/nbt_edit_difficulty"
+                android:textColor="@color/on_surface"
+                android:textSize="12sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/caps_diff_0"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_difficulty_peaceful" />
+
+                <TextView
+                    android:id="@+id/caps_diff_1"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_difficulty_easy" />
+
+                <TextView
+                    android:id="@+id/caps_diff_2"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_difficulty_normal" />
+
+                <TextView
+                    android:id="@+id/caps_diff_3"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_difficulty_hard" />
+            </LinearLayout>
+
+            <!-- 种子 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:fontFamily="@font/misans"
+                android:text="@string/nbt_edit_seed"
+                android:textColor="@color/on_surface"
+                android:textSize="12sp" />
+
+            <EditText
+                android:id="@+id/edit_seed"
+                android:layout_width="match_parent"
+                android:layout_height="42dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_search_field_light"
+                android:fontFamily="@font/misans"
+                android:importantForAutofill="no"
+                android:inputType="numberSigned"
+                android:paddingHorizontal="12dp"
+                android:singleLine="true"
+                android:textColor="@color/on_surface"
+                android:textSize="13sp" />
+
+            <!-- 硬核 / 作弊开关 -->
+            <LinearLayout
+                android:id="@+id/switch_hardcore"
+                style="@style/NbtSwitchRow">
+
+                <TextView
+                    style="@style/NbtSwitchLabel"
+                    android:text="@string/nbt_edit_hardcore" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/sw_hardcore"
+                    style="@style/NbtSwitch" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/switch_cheats"
+                style="@style/NbtSwitchRow">
+
+                <TextView
+                    style="@style/NbtSwitchLabel"
+                    android:text="@string/nbt_set_cheats" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/sw_cheats"
+                    style="@style/NbtSwitch" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ============ 分组 B：时间与天气 ============ -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:fontFamily="@font/misans"
+            android:text="@string/nbt_set_group_time"
+            android:textColor="@color/primary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_rounded_card"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/misans"
+                android:text="@string/nbt_edit_time"
+                android:textColor="@color/on_surface"
+                android:textSize="12sp" />
+
+            <EditText
+                android:id="@+id/edit_time"
+                android:layout_width="match_parent"
+                android:layout_height="42dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_search_field_light"
+                android:fontFamily="@font/misans"
+                android:importantForAutofill="no"
+                android:inputType="numberSigned"
+                android:paddingHorizontal="12dp"
+                android:singleLine="true"
+                android:textColor="@color/on_surface"
+                android:textSize="13sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:fontFamily="@font/misans"
+                android:text="@string/nbt_edit_tick_speed"
+                android:textColor="@color/on_surface"
+                android:textSize="12sp" />
+
+            <EditText
+                android:id="@+id/edit_tick_speed"
+                android:layout_width="match_parent"
+                android:layout_height="42dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_search_field_light"
+                android:fontFamily="@font/misans"
+                android:importantForAutofill="no"
+                android:inputType="numberSigned"
+                android:paddingHorizontal="12dp"
+                android:singleLine="true"
+                android:textColor="@color/on_surface"
+                android:textSize="13sp" />
+
+            <LinearLayout
+                android:id="@+id/switch_daylight"
+                style="@style/NbtSwitchRow">
+
+                <TextView
+                    style="@style/NbtSwitchLabel"
+                    android:text="@string/nbt_set_daylight" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/sw_daylight"
+                    style="@style/NbtSwitch" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/switch_weather"
+                style="@style/NbtSwitchRow">
+
+                <TextView
+                    style="@style/NbtSwitchLabel"
+                    android:text="@string/nbt_set_weather_cycle" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/sw_weather"
+                    style="@style/NbtSwitch" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ============ 分组 C：出生点 ============ -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:fontFamily="@font/misans"
+            android:text="@string/nbt_set_group_spawn"
+            android:textColor="@color/primary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_rounded_card"
+            android:orientation="horizontal"
+            android:padding="14dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/misans"
+                    android:text="@string/nbt_edit_spawn_x"
+                    android:textColor="@color/on_surface"
+                    android:textSize="12sp" />
+
+                <EditText
+                    android:id="@+id/edit_spawn_x"
+                    android:layout_width="match_parent"
+                    android:layout_height="42dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_search_field_light"
+                    android:fontFamily="@font/misans"
+                    android:importantForAutofill="no"
+                    android:inputType="numberSigned"
+                    android:paddingHorizontal="12dp"
+                    android:singleLine="true"
+                    android:textColor="@color/on_surface"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/misans"
+                    android:text="@string/nbt_edit_spawn_y"
+                    android:textColor="@color/on_surface"
+                    android:textSize="12sp" />
+
+                <EditText
+                    android:id="@+id/edit_spawn_y"
+                    android:layout_width="match_parent"
+                    android:layout_height="42dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_search_field_light"
+                    android:fontFamily="@font/misans"
+                    android:importantForAutofill="no"
+                    android:inputType="numberSigned"
+                    android:paddingHorizontal="12dp"
+                    android:singleLine="true"
+                    android:textColor="@color/on_surface"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/misans"
+                    android:text="@string/nbt_edit_spawn_z"
+                    android:textColor="@color/on_surface"
+                    android:textSize="12sp" />
+
+                <EditText
+                    android:id="@+id/edit_spawn_z"
+                    android:layout_width="match_parent"
+                    android:layout_height="42dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_search_field_light"
+                    android:fontFamily="@font/misans"
+                    android:importantForAutofill="no"
+                    android:inputType="numberSigned"
+                    android:paddingHorizontal="12dp"
+                    android:singleLine="true"
+                    android:textColor="@color/on_surface"
+                    android:textSize="13sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ============ 分组 D：游戏规则 ============ -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:fontFamily="@font/misans"
+            android:text="@string/nbt_set_group_rules"
+            android:textColor="@color/primary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_rounded_card"
+            android:orientation="vertical"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="6dp">
+
+            <LinearLayout
+                android:id="@+id/switch_keepinv"
+                style="@style/NbtSwitchRow">
+
+                <TextView
+                    style="@style/NbtSwitchLabel"
+                    android:text="@string/nbt_set_keep_inventory" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/sw_keepinv"
+                    style="@style/NbtSwitch" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/switch_mobgrief"
+                style="@style/NbtSwitchRow">
+
+                <TextView
+                    style="@style/NbtSwitchLabel"
+                    android:text="@string/nbt_set_mob_griefing" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/sw_mobgrief"
+                    style="@style/NbtSwitch" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/switch_firetick"
+                style="@style/NbtSwitchRow">
+
+                <TextView
+                    style="@style/NbtSwitchLabel"
+                    android:text="@string/nbt_set_fire_tick" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/sw_firetick"
+                    style="@style/NbtSwitch" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/switch_tnt"
+                style="@style/NbtSwitchRow">
+
+                <TextView
+                    style="@style/NbtSwitchLabel"
+                    android:text="@string/nbt_set_tnt_explodes" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/sw_tnt"
+                    style="@style/NbtSwitch" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/switch_regen"
+                style="@style/NbtSwitchRow">
+
+                <TextView
+                    style="@style/NbtSwitchLabel"
+                    android:text="@string/nbt_set_natural_regen" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/sw_regen"
+                    style="@style/NbtSwitch" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/switch_pvp"
+                style="@style/NbtSwitchRow">
+
+                <TextView
+                    style="@style/NbtSwitchLabel"
+                    android:text="@string/nbt_set_pvp" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/sw_pvp"
+                    style="@style/NbtSwitch" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/switch_coords"
+                style="@style/NbtSwitchRow">
+
+                <TextView
+                    style="@style/NbtSwitchLabel"
+                    android:text="@string/nbt_set_show_coords" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/sw_coords"
+                    style="@style/NbtSwitch" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/switch_respawn"
+                style="@style/NbtSwitchRow">
+
+                <TextView
+                    style="@style/NbtSwitchLabel"
+                    android:text="@string/nbt_set_immediate_respawn" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/sw_respawn"
+                    style="@style/NbtSwitch" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/switch_mobspawn"
+                style="@style/NbtSwitchRow">
+
+                <TextView
+                    style="@style/NbtSwitchLabel"
+                    android:text="@string/nbt_set_mob_spawning" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/sw_mobspawn"
+                    style="@style/NbtSwitch" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/switch_entitydrops"
+                style="@style/NbtSwitchRow">
+
+                <TextView
+                    style="@style/NbtSwitchLabel"
+                    android:text="@string/nbt_set_entity_drops" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/sw_entitydrops"
+                    style="@style/NbtSwitch" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/switch_tiledrops"
+                style="@style/NbtSwitchRow">
+
+                <TextView
+                    style="@style/NbtSwitchLabel"
+                    android:text="@string/nbt_set_tile_drops" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/sw_tiledrops"
+                    style="@style/NbtSwitch" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ============ 分组 E：权限 ============ -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:fontFamily="@font/misans"
+            android:text="@string/nbt_set_group_permission"
+            android:textColor="@color/primary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_rounded_card"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/misans"
+                android:text="@string/nbt_set_permission_level"
+                android:textColor="@color/on_surface"
+                android:textSize="12sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/caps_perm_0"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_perm_visitor" />
+
+                <TextView
+                    android:id="@+id/caps_perm_1"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_perm_member" />
+
+                <TextView
+                    android:id="@+id/caps_perm_2"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_perm_operator" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:fontFamily="@font/misans"
+                android:text="@string/nbt_set_player_permission"
+                android:textColor="@color/on_surface"
+                android:textSize="12sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/caps_pperm_0"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_perm_visitor" />
+
+                <TextView
+                    android:id="@+id/caps_pperm_1"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_perm_member" />
+
+                <TextView
+                    android:id="@+id/caps_pperm_2"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_perm_operator" />
+
+                <TextView
+                    android:id="@+id/caps_pperm_3"
+                    style="@style/NbtCapsule"
+                    android:text="@string/nbt_perm_custom" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ============ 分组 F：玩家（只读） ============ -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:fontFamily="@font/misans"
+            android:text="@string/nbt_set_group_player"
+            android:textColor="@color/primary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_rounded_card"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <TextView
+                android:id="@+id/tv_player_pos"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/misans"
+                android:lineSpacingExtra="2dp"
+                android:textColor="@color/on_surface"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tv_player_health"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:fontFamily="@font/misans"
+                android:lineSpacingExtra="2dp"
+                android:textColor="@color/on_surface"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tv_player_uuid"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:fontFamily="@font/misans"
+                android:lineSpacingExtra="2dp"
+                android:textColor="@color/on_surface"
+                android:textSize="12sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:fontFamily="@font/misans"
+                android:lineSpacingExtra="2dp"
+                android:text="@string/nbt_set_player_hint"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <!-- ============ 底部保存 ============ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_revert_settings"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_tab_unselected"
+                android:fontFamily="@font/misans"
+                android:text="@string/nbt_set_revert"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btn_save_settings"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_launch_button"
+                android:fontFamily="@font/misans"
+                android:text="@string/nbt_edit_save"
+                android:textColor="@color/on_primary"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

@@ -496,7 +496,6 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="select_storage_label">Select Storage:</string>
     <string name="search_hint">Search…</string>
     <string name="search_properties_hint">Search properties…</string>
-    <string name="no_matching_properties">No matching properties found</string>
     <string name="transfer">Transfer</string>
     <string name="transfer_content">Transfer Content</string>
     <string name="transfer_to">Transfer to:</string>
@@ -557,10 +556,7 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="reset">Reset</string>
     <string name="saved_to_gallery">Saved to gallery</string>
     <string name="level_dat_not_found">level.dat not found</string>
-    <string name="no_editable_properties">No editable properties found</string>
     <string name="no_data">No data</string>
-    <string name="error_loading_world">Error loading world</string>
-    <string name="world_saved">World saved successfully</string>
     <string name="save_failed">Save failed</string>
     <string name="unsaved_changes">Unsaved Changes</string>
     <string name="discard_changes_message">You have unsaved changes. Do you want to discard them?</string>
@@ -581,7 +577,6 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="dp_perm_owner">Owner</string>
     <string name="dp_perm_member">Member</string>
     <string name="dp_perm_add_toast">Enter a Gamertag to grant permission (level.dat write WIP)</string>
-    <string name="nbt_view_world_data">View NBT</string>
     <string name="nbt_level_dat">level.dat</string>
     <string name="nbt_db_entries">DB Entries</string>
     <string name="nbt_no_data">No data</string>
@@ -1414,4 +1409,46 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="point_need_two">Need at least 2 points to link/measure</string>
     <string name="point_color">Color</string>
     <string name="point_save_failed">Failed to save point</string>
+
+
+    <!-- v460：世界设置表单 -->
+    <string name="nbt_tab_settings">Settings</string>
+    <string name="nbt_set_group_basic">Basic</string>
+    <string name="nbt_set_group_time">Time &amp; Weather</string>
+    <string name="nbt_set_group_spawn">Spawn Point</string>
+    <string name="nbt_set_group_rules">Game Rules</string>
+    <string name="nbt_set_group_permission">Permissions</string>
+    <string name="nbt_set_group_player">Player (read-only)</string>
+    <string name="nbt_set_cheats">Cheats Enabled</string>
+    <string name="nbt_edit_time">World Time</string>
+    <string name="nbt_edit_tick_speed">Random Tick Speed</string>
+    <string name="nbt_set_daylight">Daylight Cycle</string>
+    <string name="nbt_set_weather_cycle">Weather Cycle</string>
+    <string name="nbt_edit_spawn_x">Spawn X</string>
+    <string name="nbt_edit_spawn_y">Spawn Y</string>
+    <string name="nbt_edit_spawn_z">Spawn Z</string>
+    <string name="nbt_set_keep_inventory">Keep Inventory</string>
+    <string name="nbt_set_mob_griefing">Mob Griefing</string>
+    <string name="nbt_set_fire_tick">Fire Spread</string>
+    <string name="nbt_set_tnt_explodes">TNT Explodes</string>
+    <string name="nbt_set_natural_regen">Natural Regeneration</string>
+    <string name="nbt_set_pvp">PvP</string>
+    <string name="nbt_set_show_coords">Show Coordinates</string>
+    <string name="nbt_set_immediate_respawn">Immediate Respawn</string>
+    <string name="nbt_set_mob_spawning">Mob Spawning</string>
+    <string name="nbt_set_entity_drops">Entity Drops</string>
+    <string name="nbt_set_tile_drops">Tile Drops</string>
+    <string name="nbt_set_permission_level">Permission Level</string>
+    <string name="nbt_set_player_permission">Player Permission Level</string>
+    <string name="nbt_perm_visitor">Visitor</string>
+    <string name="nbt_perm_member">Member</string>
+    <string name="nbt_perm_operator">Operator</string>
+    <string name="nbt_perm_custom">Custom</string>
+    <string name="nbt_set_player_hint">Player data is stored in the world database (db) and updated by the game.</string>
+    <string name="nbt_set_revert">Revert</string>
+    <string name="nbt_set_unsaved_title">Unsaved Changes</string>
+    <string name="nbt_set_unsaved_msg">You have unsaved world settings changes. Closing will discard them.</string>
+    <string name="nbt_set_discard">Discard</string>
+    <string name="nbt_gamemode_spectator">Spectator</string>
+    <string name="nbt_summary_pos_label">Player position: </string>
 </resources>

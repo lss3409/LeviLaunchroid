@@ -69,6 +69,8 @@ public class NbtViewerActivity extends BaseActivity {
 
     private static final int TAB_LEVEL = 0;
     private static final int TAB_DB = 1;
+    /** v460：世界设置表单 Tab（表单化 NBT 编辑） */
+    private static final int TAB_SETTINGS = 2;
 
     /** 大 NBT 限制：最大展开深度 */
     private static final int MAX_DEPTH = 6;
@@ -236,6 +238,8 @@ public class NbtViewerActivity extends BaseActivity {
 
     private NbtTag levelDatRoot;
     private WorldMapRenderer.WorldMap currentMap;
+    /** v460：世界设置表单引用（onDataLoaded 回填，玩家只读信息用）。 */
+    private WorldItem loadedWorldItem;
     private File currentWorldDir;
     private final List<LevelDBEntry> dbEntries = new ArrayList<>();
     private DbEntryAdapter dbAdapter;
@@ -296,13 +300,16 @@ public class NbtViewerActivity extends BaseActivity {
         binding.nbtBack.setOnClickListener(v -> finish());
         DynamicAnim.applyPressScale(binding.nbtBack);
 
-        binding.nbtEditLeveldatButton.setOnClickListener(v -> showEditLevelDatDialog());
+        // v460：旧"编辑世界设置"弹窗入口改为直接切到表单 Tab
+        binding.nbtEditLeveldatButton.setOnClickListener(v -> selectTab(TAB_SETTINGS));
         DynamicAnim.applyPressScale(binding.nbtEditLeveldatButton);
 
         binding.nbtTabLevel.setOnClickListener(v -> selectTab(TAB_LEVEL));
         binding.nbtTabDb.setOnClickListener(v -> selectTab(TAB_DB));
+        binding.nbtTabSettings.setOnClickListener(v -> selectTab(TAB_SETTINGS));
         DynamicAnim.applyPressScale(binding.nbtTabLevel);
         DynamicAnim.applyPressScale(binding.nbtTabDb);
+        DynamicAnim.applyPressScale(binding.nbtTabSettings);
 
         binding.nbtDbBack.setOnClickListener(v -> showDbEntryList());
         DynamicAnim.applyPressScale(binding.nbtDbBack);
@@ -350,8 +357,7 @@ public class NbtViewerActivity extends BaseActivity {
             }
             @Override public void afterTextChanged(android.text.Editable s) {}
         });
-        binding.dataPanelClose.setOnClickListener(v ->
-                binding.dataPanel.setVisibility(View.GONE));
+        binding.dataPanelClose.setOnClickListener(v -> closeDataPanel());
         DynamicAnim.applyPressScale(binding.dataPanelClose);
 
         // 左栏：图标条点击切换 Tab（展开抽屉）；再点当前 Tab 收回抽屉。
@@ -2278,6 +2284,8 @@ public class NbtViewerActivity extends BaseActivity {
     private void onDataLoaded(WorldItem worldItem, NbtTag root, List<LevelDBEntry> entries,
                               boolean levelDatMissing, boolean dbMissing,
                               WorldMapRenderer.WorldMap worldMap) {
+        // v460：世界设置表单引用（玩家只读信息）
+        loadedWorldItem = worldItem;
                 currentMap = worldMap;
         binding.nbtLoading.setVisibility(View.GONE);
 
@@ -2428,10 +2436,325 @@ public class NbtViewerActivity extends BaseActivity {
         return getString(value ? R.string.nbt_yes : R.string.nbt_no);
     }
 
-    // ---------------------------------------------------------------- level.dat 编辑
+    // ---------------------------------------------------------------- level.dat 编辑（v460 表单化）
 
-    /** 编辑 level.dat 常用字段（世界名/模式/难度/硬核/种子）。启动器卡片风格 UI。 */
-    private void showEditLevelDatDialog() {
+    /** 表单字段存在性（level.dat 没有的字段禁用控件、不写回）。 */
+    private static class FieldPresence {
+        boolean hasName;
+        boolean hasGameType;
+        boolean hasDifficulty;
+        boolean hasHardcore;
+        boolean hasSeed;
+        boolean hasCheats;
+        boolean hasTime;
+        boolean hasTickSpeed;
+        boolean hasDaylight;
+        boolean hasWeatherCycle;
+        boolean hasSpawn;
+    }
+
+    private final FieldPresence fieldPresence = new FieldPresence();
+    private boolean settingsBound = false;
+    /** 表单有未保存改动（返回/关面板时确认）。 */
+    private boolean settingsDirty = false;
+
+    /** v460：初始化/刷新世界设置表单——从 level.dat 读值填控件。
+     *  selectTab(TAB_SETTINGS) 每次进入都调用（大世界玩家数据延迟回填）。 */
+    private void refreshSettingsForm() {
+        if (!settingsBound) {
+            bindSettingsForm();
+        }
+        Map<String, NbtTag> root = levelDatRoot != null
+                && levelDatRoot.getType() == NbtTag.TAG_COMPOUND
+                ? levelDatRoot.getCompound() : java.util.Collections.emptyMap();
+        FieldPresence p = fieldPresence;
+
+        EditText nameEdit = binding.settingsForm.editWorldName;
+        EditText seedEdit = binding.settingsForm.editSeed;
+        EditText timeEdit = binding.settingsForm.editTime;
+        EditText tickEdit = binding.settingsForm.editTickSpeed;
+        EditText sxEdit = binding.settingsForm.editSpawnX;
+        EditText syEdit = binding.settingsForm.editSpawnY;
+        EditText szEdit = binding.settingsForm.editSpawnZ;
+
+        // 字段存在性 + 初始值
+        NbtTag nameTag = root.get("LevelName");
+        p.hasName = nameTag != null && nameTag.getType() == NbtTag.TAG_STRING;
+        nameEdit.setText(p.hasName ? nameTag.getString() : "");
+        nameEdit.setEnabled(p.hasName);
+
+        NbtTag seedTag = root.get("RandomSeed");
+        p.hasSeed = seedTag != null;
+        seedEdit.setText(p.hasSeed ? String.valueOf(seedTag.getLong()) : "");
+        seedEdit.setEnabled(p.hasSeed);
+
+        NbtTag timeTag = root.get("Time");
+        p.hasTime = timeTag != null;
+        timeEdit.setText(p.hasTime ? String.valueOf(timeTag.getInt()) : "");
+        timeEdit.setEnabled(p.hasTime);
+
+        NbtTag tickTag = root.get("Randomtickspeed");
+        p.hasTickSpeed = tickTag != null;
+        tickEdit.setText(p.hasTickSpeed ? String.valueOf(tickTag.getInt()) : "");
+        tickEdit.setEnabled(p.hasTickSpeed);
+
+        NbtTag sxTag = root.get("SpawnX");
+        NbtTag syTag = root.get("SpawnY");
+        NbtTag szTag = root.get("SpawnZ");
+        p.hasSpawn = sxTag != null && syTag != null && szTag != null;
+        sxEdit.setText(p.hasSpawn ? String.valueOf(sxTag.getInt()) : "");
+        syEdit.setText(p.hasSpawn ? String.valueOf(syTag.getInt()) : "");
+        szEdit.setText(p.hasSpawn ? String.valueOf(szTag.getInt()) : "");
+        sxEdit.setEnabled(p.hasSpawn);
+        syEdit.setEnabled(p.hasSpawn);
+        szEdit.setEnabled(p.hasSpawn);
+
+        // 游戏模式 / 难度胶囊
+        NbtTag gmTag = root.get("GameType");
+        p.hasGameType = gmTag != null;
+        selectCapsule(capsGamemode, p.hasGameType
+                ? Math.max(0, Math.min(3, gmTag.getInt())) : 0);
+        setCapsuleRowEnabled(capsGamemode, p.hasGameType);
+
+        NbtTag diffTag = root.get("Difficulty");
+        p.hasDifficulty = diffTag != null;
+        selectCapsule(capsDifficulty, p.hasDifficulty
+                ? Math.max(0, Math.min(3, diffTag.getInt())) : 1);
+        setCapsuleRowEnabled(capsDifficulty, p.hasDifficulty);
+
+        // 权限胶囊
+        NbtTag permTag = root.get("PermissionsLevel");
+        selectCapsule(capsPerm, permTag != null
+                ? Math.max(0, Math.min(2, permTag.getInt())) : 1);
+        setCapsuleRowEnabled(capsPerm, permTag != null);
+
+        NbtTag ppermTag = root.get("PlayerPermissionsLevel");
+        selectCapsule(capsPperm, ppermTag != null
+                ? Math.max(0, Math.min(3, ppermTag.getInt())) : 1);
+        setCapsuleRowEnabled(capsPperm, ppermTag != null);
+
+        // 开关组（存在才启用）
+        NbtTag hcTag = root.get("IsHardcore");
+        p.hasHardcore = hcTag != null;
+        setSwitchRow(swHardcore, p.hasHardcore, hcTag != null && hcTag.getByte() != 0);
+
+        NbtTag cheatTag = root.get("CommandsEnabled");
+        p.hasCheats = cheatTag != null;
+        setSwitchRow(swCheats, p.hasCheats, cheatTag != null && cheatTag.getByte() != 0);
+
+        // 昼夜/天气循环：老存档可能用 Do 前缀（大小写不同名）
+        NbtTag dlTag = root.get("DaylightCycle");
+        if (dlTag == null) {
+            dlTag = root.get("Dodaylightcycle");
+        }
+        p.hasDaylight = dlTag != null;
+        setSwitchRow(swDaylight, p.hasDaylight, dlTag != null && dlTag.getByte() != 0);
+
+        NbtTag wcTag = root.get("Doweathercycle");
+        p.hasWeatherCycle = wcTag != null;
+        setSwitchRow(swWeather, p.hasWeatherCycle, wcTag != null && wcTag.getByte() != 0);
+
+        bindRuleSwitch(swKeepinv, root, "Keepinventory");
+        bindRuleSwitch(swMobgrief, root, "Mobgriefing");
+        bindRuleSwitch(swFiretick, root, "Dofiretick");
+        bindRuleSwitch(swTnt, root, "Tntexplodes");
+        bindRuleSwitch(swRegen, root, "Naturalregeneration");
+        bindRuleSwitch(swPvp, root, "Pvp");
+        bindRuleSwitch(swCoords, root, "showcoordinates");
+        bindRuleSwitch(swRespawn, root, "Doimmediaterespawn");
+        bindRuleSwitch(swMobspawn, root, "Domobspawning");
+        bindRuleSwitch(swEntitydrops, root, "Doentitydrops");
+        bindRuleSwitch(swTiledrops, root, "Dotiledrops");
+
+        // 玩家只读信息（db ~local_player，随延迟回填更新）
+        StringBuilder pos = new StringBuilder(getString(R.string.nbt_summary_pos_label));
+        if (currentMap != null && (currentMap.playerRawBlockX >= 0
+                || currentMap.playerBlockX >= 0)) {
+            int px = currentMap.playerRawBlockX >= 0
+                    ? currentMap.playerRawBlockX : currentMap.playerBlockX;
+            int py = currentMap.playerRawBlockY >= 0
+                    ? currentMap.playerRawBlockY : currentMap.playerBlockY;
+            int pz = currentMap.playerRawBlockZ >= 0
+                    ? currentMap.playerRawBlockZ : currentMap.playerBlockZ;
+            pos.append(px).append(", ").append(py).append(", ").append(pz);
+        } else {
+            pos.append("?");
+        }
+        binding.settingsForm.tvPlayerPos.setText(pos.toString());
+        if (loadedWorldItem != null && loadedWorldItem.getPlayerHealth() >= 0f) {
+            binding.settingsForm.tvPlayerHealth.setText(getString(R.string.nbt_summary_health,
+                    loadedWorldItem.getPlayerHealth()));
+        } else {
+            binding.settingsForm.tvPlayerHealth.setText(getString(R.string.nbt_summary_health_unknown));
+        }
+        binding.settingsForm.tvPlayerUuid.setText(getString(R.string.nbt_summary_uuid,
+                formatPlayerUuid(currentMap)));
+
+        settingsDirty = false;
+        updateSaveButtonState();
+    }
+
+    // ---- 控件引用（懒绑定一次） ----
+    private TextView[] capsGamemode;
+    private TextView[] capsDifficulty;
+    private TextView[] capsPerm;
+    private TextView[] capsPperm;
+    private com.google.android.material.switchmaterial.SwitchMaterial swHardcore;
+    private com.google.android.material.switchmaterial.SwitchMaterial swCheats;
+    private com.google.android.material.switchmaterial.SwitchMaterial swDaylight;
+    private com.google.android.material.switchmaterial.SwitchMaterial swWeather;
+    private com.google.android.material.switchmaterial.SwitchMaterial swKeepinv;
+    private com.google.android.material.switchmaterial.SwitchMaterial swMobgrief;
+    private com.google.android.material.switchmaterial.SwitchMaterial swFiretick;
+    private com.google.android.material.switchmaterial.SwitchMaterial swTnt;
+    private com.google.android.material.switchmaterial.SwitchMaterial swRegen;
+    private com.google.android.material.switchmaterial.SwitchMaterial swPvp;
+    private com.google.android.material.switchmaterial.SwitchMaterial swCoords;
+    private com.google.android.material.switchmaterial.SwitchMaterial swRespawn;
+    private com.google.android.material.switchmaterial.SwitchMaterial swMobspawn;
+    private com.google.android.material.switchmaterial.SwitchMaterial swEntitydrops;
+    private com.google.android.material.switchmaterial.SwitchMaterial swTiledrops;
+
+    private void bindSettingsForm() {
+        capsGamemode = new TextView[]{
+                binding.settingsForm.capsGamemode0, binding.settingsForm.capsGamemode1,
+                binding.settingsForm.capsGamemode2, binding.settingsForm.capsGamemode3};
+        capsDifficulty = new TextView[]{
+                binding.settingsForm.capsDiff0, binding.settingsForm.capsDiff1,
+                binding.settingsForm.capsDiff2, binding.settingsForm.capsDiff3};
+        capsPerm = new TextView[]{
+                binding.settingsForm.capsPerm0, binding.settingsForm.capsPerm1, binding.settingsForm.capsPerm2};
+        capsPperm = new TextView[]{
+                binding.settingsForm.capsPperm0, binding.settingsForm.capsPperm1,
+                binding.settingsForm.capsPperm2, binding.settingsForm.capsPperm3};
+        bindCapsuleGroup(capsGamemode);
+        bindCapsuleGroup(capsDifficulty);
+        bindCapsuleGroup(capsPerm);
+        bindCapsuleGroup(capsPperm);
+
+        swHardcore = binding.settingsForm.swHardcore;
+        swCheats = binding.settingsForm.swCheats;
+        swDaylight = binding.settingsForm.swDaylight;
+        swWeather = binding.settingsForm.swWeather;
+        swKeepinv = binding.settingsForm.swKeepinv;
+        swMobgrief = binding.settingsForm.swMobgrief;
+        swFiretick = binding.settingsForm.swFiretick;
+        swTnt = binding.settingsForm.swTnt;
+        swRegen = binding.settingsForm.swRegen;
+        swPvp = binding.settingsForm.swPvp;
+        swCoords = binding.settingsForm.swCoords;
+        swRespawn = binding.settingsForm.swRespawn;
+        swMobspawn = binding.settingsForm.swMobspawn;
+        swEntitydrops = binding.settingsForm.swEntitydrops;
+        swTiledrops = binding.settingsForm.swTiledrops;
+
+        // 任意开关/输入框改动 → 未保存标记
+        com.google.android.material.switchmaterial.SwitchMaterial[] switches = {
+                swHardcore, swCheats, swDaylight, swWeather, swKeepinv, swMobgrief,
+                swFiretick, swTnt, swRegen, swPvp, swCoords, swRespawn,
+                swMobspawn, swEntitydrops, swTiledrops};
+        for (com.google.android.material.switchmaterial.SwitchMaterial sw : switches) {
+            sw.setOnCheckedChangeListener((v, checked) -> {
+                settingsDirty = true;
+                updateSaveButtonState();
+            });
+        }
+        android.text.TextWatcher tw = new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int a, int b, int c) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int a, int b, int c) {
+                settingsDirty = true;
+                updateSaveButtonState();
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable s) {
+            }
+        };
+        for (EditText et : new EditText[]{binding.settingsForm.editWorldName, binding.settingsForm.editSeed,
+                binding.settingsForm.editTime, binding.settingsForm.editTickSpeed, binding.settingsForm.editSpawnX,
+                binding.settingsForm.editSpawnY, binding.settingsForm.editSpawnZ}) {
+            et.addTextChangedListener(tw);
+        }
+
+        binding.settingsForm.btnSaveSettings.setOnClickListener(v -> saveSettingsForm());
+        binding.settingsForm.btnRevertSettings.setOnClickListener(v -> refreshSettingsForm());
+        DynamicAnim.applyPressScale(binding.settingsForm.btnSaveSettings);
+        DynamicAnim.applyPressScale(binding.settingsForm.btnRevertSettings);
+        settingsBound = true;
+    }
+
+    /** 胶囊组：单选样式 + 点击回调。 */
+    private void bindCapsuleGroup(TextView[] caps) {
+        for (int i = 0; i < caps.length; i++) {
+            final int idx = i;
+            caps[i].setOnClickListener(v -> {
+                selectCapsule(caps, idx);
+                settingsDirty = true;
+                updateSaveButtonState();
+            });
+            DynamicAnim.applyPressScale(caps[i]);
+        }
+    }
+
+    private void selectCapsule(TextView[] caps, int index) {
+        for (int i = 0; i < caps.length; i++) {
+            boolean sel = i == index;
+            caps[i].setBackgroundResource(sel
+                    ? R.drawable.bg_tab_selected : R.drawable.bg_tab_unselected);
+            if (sel && accentColor != 0) {
+                caps[i].setBackgroundTintList(ColorStateList.valueOf(accentColor));
+            } else {
+                caps[i].setBackgroundTintList(null);
+            }
+            caps[i].setTextColor(ContextCompat.getColor(this,
+                    sel ? R.color.on_primary : R.color.text_secondary));
+            caps[i].setTypeface(caps[i].getTypeface(), sel ? Typeface.BOLD : Typeface.NORMAL);
+        }
+    }
+
+    private int selectedCapsule(TextView[] caps) {
+        for (int i = 0; i < caps.length; i++) {
+            if (caps[i].getTypeface() != null && caps[i].getTypeface().isBold()) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    private void setCapsuleRowEnabled(TextView[] caps, boolean enabled) {
+        for (TextView c : caps) {
+            c.setEnabled(enabled);
+            c.setAlpha(enabled ? 1f : 0.4f);
+        }
+    }
+
+    /** 开关行：初始值 + 存在性启用。 */
+    private void setSwitchRow(com.google.android.material.switchmaterial.SwitchMaterial sw,
+                              boolean present, boolean value) {
+        sw.setChecked(value);
+        sw.setEnabled(present);
+        sw.setAlpha(present ? 1f : 0.4f);
+    }
+
+    /** 游戏规则开关（TAG_BYTE 0/1）。 */
+    private void bindRuleSwitch(com.google.android.material.switchmaterial.SwitchMaterial sw,
+                                Map<String, NbtTag> root, String key) {
+        NbtTag tag = root.get(key);
+        setSwitchRow(sw, tag != null, tag != null && tag.getByte() != 0);
+    }
+
+    private void updateSaveButtonState() {
+        // 未保存改动时保存按钮恢复主色（默认 disable 色背景换主色）
+        binding.settingsForm.btnSaveSettings.setEnabled(settingsDirty);
+        binding.settingsForm.btnSaveSettings.setAlpha(settingsDirty ? 1f : 0.5f);
+    }
+
+    /** v460：收集表单值写回 level.dat（写前备份 level.dat.bak）。 */
+    private void saveSettingsForm() {
         if (levelDatRoot == null || currentWorldDir == null) {
             Toast.makeText(this, R.string.nbt_no_data, Toast.LENGTH_SHORT).show();
             return;
@@ -2441,98 +2764,159 @@ public class NbtViewerActivity extends BaseActivity {
             Toast.makeText(this, R.string.nbt_no_data, Toast.LENGTH_SHORT).show();
             return;
         }
-
-        View panel = getLayoutInflater().inflate(R.layout.dialog_edit_leveldat, null);
-        EditText nameEdit = panel.findViewById(R.id.edit_world_name);
-        EditText seedEdit = panel.findViewById(R.id.edit_seed);
-        TextView gamemodeValue = panel.findViewById(R.id.tv_gamemode_value);
-        TextView difficultyValue = panel.findViewById(R.id.tv_difficulty_value);
-        SwitchMaterial hardcoreSwitch = panel.findViewById(R.id.switch_hardcore);
-
-        // 初始值
-        String curName = "";
-        NbtTag nameTag = root.get("LevelName");
-        if (nameTag != null && nameTag.getType() == NbtTag.TAG_STRING) {
-            curName = nameTag.getString();
+        FieldPresence p = fieldPresence;
+        // 数值字段解析（失败提示并中止）
+        long seed;
+        try {
+            seed = Long.parseLong(binding.settingsForm.editSeed.getText().toString().trim());
+        } catch (NumberFormatException e) {
+            Toast.makeText(this, R.string.nbt_edit_seed_invalid, Toast.LENGTH_SHORT).show();
+            return;
         }
-        nameEdit.setText(curName);
-
-        NbtTag seedTag = root.get("RandomSeed");
-        if (seedTag != null && seedTag.getType() == NbtTag.TAG_LONG) {
-            seedEdit.setText(String.valueOf(seedTag.getLong()));
+        int time = parseFieldInt(binding.settingsForm.editTime, p.hasTime);
+        int tickSpeed = parseFieldInt(binding.settingsForm.editTickSpeed, p.hasTickSpeed);
+        int sx = parseFieldInt(binding.settingsForm.editSpawnX, p.hasSpawn);
+        int sy = parseFieldInt(binding.settingsForm.editSpawnY, p.hasSpawn);
+        int sz = parseFieldInt(binding.settingsForm.editSpawnZ, p.hasSpawn);
+        if ((p.hasTime && time == Integer.MIN_VALUE)
+                || (p.hasTickSpeed && tickSpeed == Integer.MIN_VALUE)
+                || (p.hasSpawn && (sx == Integer.MIN_VALUE
+                        || sy == Integer.MIN_VALUE || sz == Integer.MIN_VALUE))) {
+            Toast.makeText(this, R.string.nbt_edit_seed_invalid, Toast.LENGTH_SHORT).show();
+            return;
         }
 
-        NbtTag hcTag = root.get("IsHardcore");
-        hardcoreSwitch.setChecked(hcTag != null && hcTag.getByte() != 0);
+        try {
+            File levelDat = new File(currentWorldDir, "level.dat");
+            File backup = new File(currentWorldDir, "level.dat.bak");
+            copyFile(levelDat, backup);
 
-        final int[] curGamemode = {0};
-        NbtTag gmTag = root.get("GameType");
-        if (gmTag != null && gmTag.getType() == NbtTag.TAG_INT) {
-            curGamemode[0] = Math.max(0, Math.min(2, gmTag.getInt()));
+            String newName = binding.settingsForm.editWorldName.getText().toString().trim();
+            if (p.hasName && !newName.isEmpty()) {
+                root.put("LevelName", new NbtTag(NbtTag.TAG_STRING, "LevelName", newName));
+            }
+            if (p.hasGameType) {
+                root.put("GameType", new NbtTag(NbtTag.TAG_INT, "GameType",
+                        selectedCapsule(capsGamemode)));
+            }
+            if (p.hasDifficulty) {
+                root.put("Difficulty", new NbtTag(NbtTag.TAG_INT, "Difficulty",
+                        selectedCapsule(capsDifficulty)));
+            }
+            if (p.hasHardcore) {
+                root.put("IsHardcore", new NbtTag(NbtTag.TAG_BYTE, "IsHardcore",
+                        (byte) (swHardcore.isChecked() ? 1 : 0)));
+            }
+            if (p.hasSeed) {
+                root.put("RandomSeed", new NbtTag(NbtTag.TAG_LONG, "RandomSeed", seed));
+            }
+            if (p.hasCheats) {
+                root.put("CommandsEnabled", new NbtTag(NbtTag.TAG_BYTE, "CommandsEnabled",
+                        (byte) (swCheats.isChecked() ? 1 : 0)));
+            }
+            if (p.hasTime) {
+                root.put("Time", new NbtTag(NbtTag.TAG_INT, "Time", time));
+            }
+            if (p.hasTickSpeed) {
+                root.put("Randomtickspeed", new NbtTag(NbtTag.TAG_INT,
+                        "Randomtickspeed", tickSpeed));
+            }
+            if (p.hasDaylight) {
+                String key = root.containsKey("DaylightCycle")
+                        ? "DaylightCycle" : "Dodaylightcycle";
+                root.put(key, new NbtTag(NbtTag.TAG_BYTE, key,
+                        (byte) (swDaylight.isChecked() ? 1 : 0)));
+            }
+            if (p.hasWeatherCycle) {
+                root.put("Doweathercycle", new NbtTag(NbtTag.TAG_BYTE, "Doweathercycle",
+                        (byte) (swWeather.isChecked() ? 1 : 0)));
+            }
+            if (p.hasSpawn) {
+                root.put("SpawnX", new NbtTag(NbtTag.TAG_INT, "SpawnX", sx));
+                root.put("SpawnY", new NbtTag(NbtTag.TAG_INT, "SpawnY", sy));
+                root.put("SpawnZ", new NbtTag(NbtTag.TAG_INT, "SpawnZ", sz));
+            }
+            // 游戏规则开关：写回原 key（存在才写）
+            putRuleSwitch(root, "Keepinventory", swKeepinv);
+            putRuleSwitch(root, "Mobgriefing", swMobgrief);
+            putRuleSwitch(root, "Dofiretick", swFiretick);
+            putRuleSwitch(root, "Tntexplodes", swTnt);
+            putRuleSwitch(root, "Naturalregeneration", swRegen);
+            putRuleSwitch(root, "Pvp", swPvp);
+            putRuleSwitch(root, "showcoordinates", swCoords);
+            putRuleSwitch(root, "Doimmediaterespawn", swRespawn);
+            putRuleSwitch(root, "Domobspawning", swMobspawn);
+            putRuleSwitch(root, "Doentitydrops", swEntitydrops);
+            putRuleSwitch(root, "Dotiledrops", swTiledrops);
+            // 权限（存在才写）
+            if (root.containsKey("PermissionsLevel")) {
+                root.put("PermissionsLevel", new NbtTag(NbtTag.TAG_INT, "PermissionsLevel",
+                        selectedCapsule(capsPerm)));
+            }
+            if (root.containsKey("PlayerPermissionsLevel")) {
+                root.put("PlayerPermissionsLevel",
+                        new NbtTag(NbtTag.TAG_INT, "PlayerPermissionsLevel",
+                                selectedCapsule(capsPperm)));
+            }
+
+            BedrockNbtWriter writer = new BedrockNbtWriter();
+            writer.setHeaderVersion(10);
+            writer.writeFile(levelDat, levelDatRoot);
+            settingsDirty = false;
+            updateSaveButtonState();
+            Toast.makeText(this, R.string.nbt_edit_saved, Toast.LENGTH_SHORT).show();
+            Log.i(TAG, "世界设置已写回: " + levelDat.getAbsolutePath());
+            // 世界名同步 levelname.txt（启动器列表读取它显示名字）
+            if (p.hasName && !newName.isEmpty() && currentWorldDir != null) {
+                File levelNameFile = new File(currentWorldDir, "levelname.txt");
+                try (FileOutputStream fos = new FileOutputStream(levelNameFile)) {
+                    fos.write(newName.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                } catch (IOException e) {
+                    Log.w(TAG, "levelname.txt 同步失败", e);
+                }
+            }
+
+            // 刷新摘要卡与 NBT 树
+            String name = p.hasName && !newName.isEmpty() ? newName : "";
+            binding.nbtSummaryName.setText(name.isEmpty()
+                    ? getString(R.string.nbt_unknown) : name);
+            StringBuilder info = new StringBuilder();
+            info.append(getString(R.string.nbt_summary_seed, seed)).append('\n');
+            info.append(getString(R.string.nbt_summary_gamemode,
+                    gamemodeName(p.hasGameType ? selectedCapsule(capsGamemode) : 0))).append('\n');
+            info.append(getString(R.string.nbt_summary_hardcore,
+                    yesNo(swHardcore.isChecked()))).append('\n');
+            info.append(getString(R.string.nbt_summary_dead,
+                    yesNo(levelDatRoot.getTag("PlayerHasDied") != null
+                            && levelDatRoot.getTag("PlayerHasDied").getByte() != 0)));
+            binding.nbtSummaryInfo.setText(info.toString());
+            binding.nbtLevelTree.removeAllViews();
+            addTreeRoot(binding.nbtLevelTree, levelDatRoot, getString(R.string.nbt_level_dat));
+        } catch (IOException e) {
+            Log.e(TAG, "写回 level.dat 失败", e);
+            Toast.makeText(this, getString(R.string.nbt_edit_failed, e.getMessage()),
+                    Toast.LENGTH_LONG).show();
         }
-        gamemodeValue.setText(gamemodeName(curGamemode[0]));
+    }
 
-        final int[] curDifficulty = {1};
-        NbtTag diffTag = root.get("Difficulty");
-        if (diffTag != null && diffTag.getType() == NbtTag.TAG_INT) {
-            curDifficulty[0] = Math.max(0, Math.min(3, diffTag.getInt()));
+    private void putRuleSwitch(Map<String, NbtTag> root, String key,
+                               com.google.android.material.switchmaterial.SwitchMaterial sw) {
+        if (root.containsKey(key)) {
+            root.put(key, new NbtTag(NbtTag.TAG_BYTE, key,
+                    (byte) (sw.isChecked() ? 1 : 0)));
         }
-        difficultyValue.setText(difficultyName(curDifficulty[0]));
+    }
 
-        // 游戏模式：点击弹出启动器列表选择
-        String[] modes = {
-                getString(R.string.nbt_gamemode_survival),
-                getString(R.string.nbt_gamemode_creative),
-                getString(R.string.nbt_gamemode_adventure)
-        };
-        panel.findViewById(R.id.row_gamemode).setOnClickListener(v -> {
-            new CustomAlertDialog(this)
-                    .setTitleText(getString(R.string.nbt_edit_gamemode))
-                    .setItems(modes, (dialog, which) -> {
-                        curGamemode[0] = which;
-                        gamemodeValue.setText(gamemodeName(which));
-                    })
-                    .setNegativeButton(getString(R.string.nbt_edit_cancel), null)
-                    .show();
-        });
-
-        // 难度：点击弹出启动器列表选择
-        String[] difficulties = {
-                getString(R.string.nbt_difficulty_peaceful),
-                getString(R.string.nbt_difficulty_easy),
-                getString(R.string.nbt_difficulty_normal),
-                getString(R.string.nbt_difficulty_hard)
-        };
-        panel.findViewById(R.id.row_difficulty).setOnClickListener(v -> {
-            new CustomAlertDialog(this)
-                    .setTitleText(getString(R.string.nbt_edit_difficulty))
-                    .setItems(difficulties, (dialog, which) -> {
-                        curDifficulty[0] = which;
-                        difficultyValue.setText(difficultyName(which));
-                    })
-                    .setNegativeButton(getString(R.string.nbt_edit_cancel), null)
-                    .show();
-        });
-
-        // 使用启动器统一弹窗 UI
-        CustomAlertDialog dialog = new CustomAlertDialog(this)
-                .setTitleText(getString(R.string.nbt_edit_leveldat))
-                .setCustomView(panel)
-                .setPositiveButton(getString(R.string.nbt_edit_save), v -> {
-                    String newName = nameEdit.getText().toString().trim();
-                    String seedText = seedEdit.getText().toString().trim();
-                    long newSeed;
-                    try {
-                        newSeed = Long.parseLong(seedText);
-                    } catch (NumberFormatException e) {
-                        Toast.makeText(this, R.string.nbt_edit_seed_invalid, Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    applyLevelDatEdits(root, newName, curGamemode[0],
-                            curDifficulty[0], hardcoreSwitch.isChecked(), newSeed);
-                })
-                .setNegativeButton(getString(R.string.nbt_edit_cancel), null);
-        dialog.show();
+    /** 解析数字输入（不存在/空返回原值占位 MIN_VALUE，调用方据此报错）。 */
+    private int parseFieldInt(EditText edit, boolean present) {
+        if (!present) {
+            return Integer.MIN_VALUE;
+        }
+        try {
+            return Integer.parseInt(edit.getText().toString().trim());
+        } catch (NumberFormatException e) {
+            return Integer.MIN_VALUE;
+        }
     }
 
     private String difficultyName(int difficulty) {
@@ -2545,49 +2929,6 @@ public class NbtViewerActivity extends BaseActivity {
         };
     }
 
-    /** 修改 NBT 树并写回 level.dat（写前备份为 level.dat.bak）。 */
-    private void applyLevelDatEdits(Map<String, NbtTag> root, String newName, int gameType,
-                                    int difficulty, boolean hardcore, long seed) {
-        File levelDat = new File(currentWorldDir, "level.dat");
-        try {
-            // 备份当前文件（游戏只保留 level.dat_old，这里额外留一份启动器备份）
-            File backup = new File(currentWorldDir, "level.dat.bak");
-            copyFile(levelDat, backup);
-
-            if (!newName.isEmpty()) {
-                root.put("LevelName", new NbtTag(NbtTag.TAG_STRING, "LevelName", newName));
-            }
-            root.put("GameType", new NbtTag(NbtTag.TAG_INT, "GameType", gameType));
-            root.put("Difficulty", new NbtTag(NbtTag.TAG_INT, "Difficulty", difficulty));
-            root.put("IsHardcore", new NbtTag(NbtTag.TAG_BYTE, "IsHardcore",
-                    (byte) (hardcore ? 1 : 0)));
-            root.put("RandomSeed", new NbtTag(NbtTag.TAG_LONG, "RandomSeed", seed));
-
-            BedrockNbtWriter writer = new BedrockNbtWriter();
-            writer.setHeaderVersion(10);
-            writer.writeFile(levelDat, levelDatRoot);
-            Toast.makeText(this, R.string.nbt_edit_saved, Toast.LENGTH_SHORT).show();
-            Log.i(TAG, "level.dat 已写回: " + levelDat.getAbsolutePath());
-
-            // 刷新摘要与 NBT 树
-            binding.nbtSummaryName.setText(newName.isEmpty()
-                    ? getString(R.string.nbt_unknown) : newName);
-            StringBuilder info = new StringBuilder();
-            info.append(getString(R.string.nbt_summary_seed, seed)).append('\n');
-            info.append(getString(R.string.nbt_summary_gamemode, gamemodeName(gameType))).append('\n');
-            info.append(getString(R.string.nbt_summary_hardcore, yesNo(hardcore))).append('\n');
-            info.append(getString(R.string.nbt_summary_dead, yesNo(levelDatRoot != null
-                    && levelDatRoot.getTag("PlayerHasDied") != null
-                    && levelDatRoot.getTag("PlayerHasDied").getByte() != 0)));
-            binding.nbtSummaryInfo.setText(info.toString());
-            binding.nbtLevelTree.removeAllViews();
-            addTreeRoot(binding.nbtLevelTree, levelDatRoot, getString(R.string.nbt_level_dat));
-        } catch (IOException e) {
-            Log.e(TAG, "写回 level.dat 失败", e);
-            Toast.makeText(this, getString(R.string.nbt_edit_failed, e.getMessage()),
-                    Toast.LENGTH_LONG).show();
-        }
-    }
 
     private String gamemodeName(int gameType) {
         return switch (gameType) {
@@ -2615,10 +2956,47 @@ public class NbtViewerActivity extends BaseActivity {
         currentTab = tab;
         binding.nbtLevelPane.setVisibility(tab == TAB_LEVEL ? View.VISIBLE : View.GONE);
         binding.nbtDbPane.setVisibility(tab == TAB_DB ? View.VISIBLE : View.GONE);
+        binding.nbtSettingsPane.setVisibility(tab == TAB_SETTINGS ? View.VISIBLE : View.GONE);
 
-        boolean levelSelected = tab == TAB_LEVEL;
-        styleTab(binding.nbtTabLevel, levelSelected);
-        styleTab(binding.nbtTabDb, !levelSelected);
+        styleTab(binding.nbtTabLevel, tab == TAB_LEVEL);
+        styleTab(binding.nbtTabDb, tab == TAB_DB);
+        styleTab(binding.nbtTabSettings, tab == TAB_SETTINGS);
+        // v460：切到设置 Tab 时同步刷新表单（level.dat 可能刚被
+        // 打开流程重载/玩家数据延迟回填）
+        if (tab == TAB_SETTINGS) {
+            refreshSettingsForm();
+        }
+    }
+
+    /** v460：返回键——设置表单有未保存改动时先确认。 */
+    @Override
+    public void onBackPressed() {
+        if (settingsDirty && currentTab == TAB_SETTINGS) {
+            new CustomAlertDialog(this)
+                    .setTitleText(getString(R.string.nbt_set_unsaved_title))
+                    .setMessage(getString(R.string.nbt_set_unsaved_msg))
+                    .setPositiveButton(getString(R.string.nbt_set_discard),
+                            v -> finish())
+                    .setNegativeButton(getString(R.string.nbt_edit_cancel), null)
+                    .show();
+            return;
+        }
+        super.onBackPressed();
+    }
+
+    /** v460：关闭数据面板（世界设置表单有未保存改动时先确认）。 */
+    private void closeDataPanel() {
+        if (settingsDirty) {
+            new CustomAlertDialog(this)
+                    .setTitleText(getString(R.string.nbt_set_unsaved_title))
+                    .setMessage(getString(R.string.nbt_set_unsaved_msg))
+                    .setPositiveButton(getString(R.string.nbt_set_discard),
+                            v -> binding.dataPanel.setVisibility(View.GONE))
+                    .setNegativeButton(getString(R.string.nbt_edit_cancel), null)
+                    .show();
+            return;
+        }
+        binding.dataPanel.setVisibility(View.GONE);
     }
 
     private void styleTab(TextView tab, boolean selected) {
