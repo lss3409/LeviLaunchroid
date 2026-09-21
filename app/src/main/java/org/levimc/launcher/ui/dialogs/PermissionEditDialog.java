@@ -177,13 +177,6 @@ public final class PermissionEditDialog {
         return 0;
     }
 
-    private static void setRowEnabled(TextView[] caps, boolean enabled) {
-        for (TextView cap : caps) {
-            cap.setEnabled(enabled);
-            cap.setAlpha(enabled ? 1f : 0.4f);
-        }
-    }
-
     private static int readInt(Map<String, NbtTag> compound, String key, int def) {
         NbtTag tag = compound.get(key);
         return tag != null ? tag.getInt() : def;
