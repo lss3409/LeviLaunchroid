@@ -1451,4 +1451,7 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="nbt_set_discard">Discard</string>
     <string name="nbt_gamemode_spectator">Spectator</string>
     <string name="nbt_summary_pos_label">Player position: </string>
+
+    <!-- v462：地图 FAB 菜单「世界数据」入口 -->
+    <string name="tool_world_data">World Data</string>
 </resources>

@@ -66,6 +66,8 @@ public class NbtViewerActivity extends BaseActivity {
 
     public static final String EXTRA_WORLD_DIR = "world_dir";
     public static final String EXTRA_WORLD_NAME = "world_name";
+    /** v462：「编辑世界」入口直达——打开后自动弹出数据面板世界设置 Tab。 */
+    public static final String EXTRA_OPEN_SETTINGS = "open_settings";
 
     private static final int TAB_LEVEL = 0;
     private static final int TAB_DB = 1;
@@ -240,6 +242,8 @@ public class NbtViewerActivity extends BaseActivity {
     private WorldMapRenderer.WorldMap currentMap;
     /** v460：世界设置表单引用（onDataLoaded 回填，玩家只读信息用）。 */
     private WorldItem loadedWorldItem;
+    /** v462：「编辑世界」入口直达——onDataLoaded 后自动弹设置表单。 */
+    private boolean pendingOpenSettings;
     private File currentWorldDir;
     private final List<LevelDBEntry> dbEntries = new ArrayList<>();
     private DbEntryAdapter dbAdapter;
@@ -288,6 +292,8 @@ public class NbtViewerActivity extends BaseActivity {
             return;
         }
         final String worldName = getIntent().getStringExtra(EXTRA_WORLD_NAME);
+        // v462：「编辑世界」入口直达——数据就绪后自动打开设置表单
+        pendingOpenSettings = getIntent().getBooleanExtra(EXTRA_OPEN_SETTINGS, false);
 
         PersonalizationManager pm = new PersonalizationManager(this);
         accentColor = pm.getAccentColor();
@@ -1021,6 +1027,13 @@ public class NbtViewerActivity extends BaseActivity {
         binding.toolVoxel.setOnClickListener(v -> {
             closeToolMenu();
             showVoxelDialog();
+        });
+        // v462：世界数据面板入口（NBT 树 / db 条目 / 世界设置表单）
+        // ——v341 顶栏改造删掉了 btnDataPanel 后数据面板再也没有
+        // 打开入口，level.dat 树和 v460 的世界设置 Tab 永远不可见
+        binding.toolNbt.setOnClickListener(v -> {
+            closeToolMenu();
+            openDataPanel(TAB_SETTINGS);
         });
         // v438：跳到坐标（细节#9）——输入 X/Z 直接 flyTo 定位，
         // 不用手拖（animateTo 平滑飞+自动放大到 4px/block）
@@ -2289,6 +2302,12 @@ public class NbtViewerActivity extends BaseActivity {
                 currentMap = worldMap;
         binding.nbtLoading.setVisibility(View.GONE);
 
+        // v462：「编辑世界」入口直达——数据就绪后自动弹设置表单
+        if (pendingOpenSettings) {
+            pendingOpenSettings = false;
+            openDataPanel(TAB_SETTINGS);
+        }
+
         // 世界地图：占满全屏（PRD 布局），缩放/平移时按比例重采样方块颜色
         if (worldMap != null) {
             // v418：骨架已显示则保留视图（不跳不闪）
@@ -2982,6 +3001,14 @@ public class NbtViewerActivity extends BaseActivity {
             return;
         }
         super.onBackPressed();
+    }
+
+    /** v462：打开数据面板并切到指定 Tab（v341 起面板没有打开入口，
+     *  level.dat 树/db 条目/世界设置 Tab 全部不可见——FAB 菜单
+     *  「世界数据」按钮和「编辑世界」入口直达都走这里）。 */
+    private void openDataPanel(int tab) {
+        binding.dataPanel.setVisibility(View.VISIBLE);
+        selectTab(tab);
     }
 
     /** v460：关闭数据面板（世界设置表单有未保存改动时先确认）。 */

@@ -1401,4 +1401,7 @@
     <string name="nbt_set_discard">丢弃</string>
     <string name="nbt_gamemode_spectator">旁观</string>
     <string name="nbt_summary_pos_label">玩家坐标：</string>
+
+    <!-- v462：地图 FAB 菜单「世界数据」入口 -->
+    <string name="tool_world_data">世界数据</string>
 </resources>
