@@ -2289,8 +2289,9 @@ public class NbtViewerActivity extends BaseActivity {
             } else {
                 binding.infoPos.setText(getString(R.string.nbt_summary_pos, 0, 0, 0));
             }
-            // v457：UUID 显示为标准格式（unsigned hex 8-4-4-4-12）——
-            // 此前 Long 直接显示（负数/巨大数字"异常"）
+            // v458：UUID 显示 unsigned hex 8-4-4（Bedrock UniqueID 是
+            // 64 位 = 16 位十六进制——v457 按 32 位 UUID 的 8-4-4-4-12
+            // 分段 substring 越界崩溃）；此前 Long 直接显示负数
             long uidVal = worldMap != null ? worldMap.playerUniqueId : -1;
             String uidText;
             if (uidVal == -1 || uidVal == 0) {
@@ -2298,8 +2299,7 @@ public class NbtViewerActivity extends BaseActivity {
             } else {
                 String hex = String.format(Locale.getDefault(), "%016x", uidVal);
                 uidText = hex.substring(0, 8) + "-" + hex.substring(8, 12) + "-"
-                        + hex.substring(12, 16) + "-" + hex.substring(16, 20) + "-"
-                        + hex.substring(20);
+                        + hex.substring(12);
             }
             binding.infoUuid.setText(getString(R.string.nbt_summary_uuid, uidText));
             // 游戏版本（level.dat LastOpenedWithVersion——直接用 root 参数：
