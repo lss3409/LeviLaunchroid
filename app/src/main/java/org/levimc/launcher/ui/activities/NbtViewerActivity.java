@@ -2289,13 +2289,19 @@ public class NbtViewerActivity extends BaseActivity {
             } else {
                 binding.infoPos.setText(getString(R.string.nbt_summary_pos, 0, 0, 0));
             }
-            // UUID = local_player UniqueID（Bedrock 存档无 Xbox XUID 字段；
-            // 部分存档高位 0xFF 填充，负数时取低 32 位无符号有效值）
+            // v457：UUID 显示为标准格式（unsigned hex 8-4-4-4-12）——
+            // 此前 Long 直接显示（负数/巨大数字"异常"）
             long uidVal = worldMap != null ? worldMap.playerUniqueId : -1;
-            if (uidVal < 0 && uidVal != -1) {
-                uidVal = uidVal & 0xFFFFFFFFL;
+            String uidText;
+            if (uidVal == -1 || uidVal == 0) {
+                uidText = "?";
+            } else {
+                String hex = String.format(Locale.getDefault(), "%016x", uidVal);
+                uidText = hex.substring(0, 8) + "-" + hex.substring(8, 12) + "-"
+                        + hex.substring(12, 16) + "-" + hex.substring(16, 20) + "-"
+                        + hex.substring(20);
             }
-            binding.infoUuid.setText(getString(R.string.nbt_summary_uuid, uidVal));
+            binding.infoUuid.setText(getString(R.string.nbt_summary_uuid, uidText));
             // 游戏版本（level.dat LastOpenedWithVersion——直接用 root 参数：
             // levelDatRoot 字段在本方法后面才赋值，读字段会拿到上一次的值/null）
             binding.infoVersion.setText(getString(R.string.nbt_summary_version,

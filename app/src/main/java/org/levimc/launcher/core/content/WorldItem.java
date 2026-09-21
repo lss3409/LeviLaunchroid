@@ -130,9 +130,46 @@ public class WorldItem extends ContentItem {
                         playerDead = true;
                     }
                     if (healthTag != null) {
-                        playerHealth = healthTag.getFloat();
+                        // v457：Health 字段类型兼容（部分版本是 Short/Int，
+                        // getFloat 对非浮点类型返回 0——"生命值异常"根因）
+                        switch (healthTag.getType()) {
+                            case NbtTag.TAG_FLOAT:
+                                playerHealth = healthTag.getFloat();
+                                break;
+                            case NbtTag.TAG_INT:
+                                playerHealth = healthTag.getInt();
+                                break;
+                            case NbtTag.TAG_SHORT:
+                                playerHealth = healthTag.getShort();
+                                break;
+                            default:
+                                playerHealth = healthTag.getFloat();
+                        }
                         if (playerHealth <= 0f) {
                             playerDead = true;
+                        }
+                    } else {
+                        // v457：1.18+ 健康在 Attributes 列表
+                        // （minecraft:health 的 Current）
+                        NbtTag attrs = compound.get("Attributes");
+                        if (attrs != null && attrs.getType() == NbtTag.TAG_LIST) {
+                            for (NbtTag a : attrs.getList()) {
+                                if (a == null || a.getType() != NbtTag.TAG_COMPOUND) {
+                                    continue;
+                                }
+                                NbtTag nm = a.getCompound().get("Name");
+                                if (nm != null && nm.getString() != null
+                                        && nm.getString().contains("health")) {
+                                    NbtTag cur = a.getCompound().get("Current");
+                                    if (cur != null) {
+                                        playerHealth = cur.getFloat();
+                                        if (playerHealth <= 0f) {
+                                            playerDead = true;
+                                        }
+                                    }
+                                    break;
+                                }
+                            }
                         }
                     }
                     // PlayerGameMode 不可靠（实测未死存档也会是 5/6），不参与死亡判定。

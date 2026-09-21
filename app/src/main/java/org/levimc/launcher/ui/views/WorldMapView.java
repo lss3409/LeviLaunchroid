@@ -551,8 +551,13 @@ public class WorldMapView extends View {
         if (viewW <= 0 || viewH <= 0) {
             return;
         }
-        // 清空画布（平移缓存位图路径只覆盖部分区域，不清会叠出"盗梦空间"残影）
+        // 清空画布（平移缓存位图路径只覆盖部分区域，不清会叠出"盗梦空间"残影）；
+        // v457：清空后铺启动器背景色——未渲染区块显示启动器背景
+        //（此前 CLEAR 透明，露出 Activity 根背景与地图区域不一致）
         canvas.drawColor(0x00000000, android.graphics.PorterDuff.Mode.CLEAR);
+        if (map != null) {
+            canvas.drawColor(launcherBackgroundColor());
+        }
         if (map.chunkColors != null) {
             // 大世界：chunk tile 平铺（BTR 同款）——零重采样、零 39MB 大位图，
             // 每帧只 drawBitmap 视口内 chunk 的小 tile（GPU 加速）
@@ -1208,34 +1213,70 @@ public class WorldMapView extends View {
         }
     }
 
-    /** 绘制玩家标记（绿色圆点）与出生点（白色描边圆点）。 */
+    /** v457：启动器背景色（未渲染区块背景）。 */
+    private int launcherBackgroundColor() {
+        try {
+            return androidx.core.content.ContextCompat.getColor(
+                    getContext(), org.levimc.launcher.R.color.background);
+        } catch (Throwable ignored) {
+            return 0xFFF8FFF0;
+        }
+    }
+
+    /** v457：玩家标记贴图缓存（16×16 PNG）。 */
+    private android.graphics.Bitmap playerMarkerBmp;
+
+    /** v457：玩家标记贴图（用户提供的 16×16 PNG，进程级缓存）。 */
+    private android.graphics.Bitmap playerMarkerBitmap() {
+        if (playerMarkerBmp != null) {
+            return playerMarkerBmp;
+        }
+        try (java.io.InputStream in = getContext().getAssets()
+                .open("map_markers/player_marker.png")) {
+            playerMarkerBmp = android.graphics.BitmapFactory.decodeStream(in);
+        } catch (Exception ignored) {
+        }
+        return playerMarkerBmp;
+    }
+
+    /** 绘制玩家标记（v457：贴图图标，底部中心锚定坐标点）
+     *  与出生点（房子图标，底部中心锚定）。 */
     private void drawMarkers(android.graphics.Canvas canvas) {
         if (map == null) {
             return;
         }
-        android.graphics.Paint paint = new android.graphics.Paint();
-        paint.setAntiAlias(true);
         if (map.spawnBlockX >= 0) {
-            float sx = map.spawnBlockX - map.minBlockX + 0.5f;
-            float sz = map.spawnBlockZ - map.minBlockZ + 0.5f;
-            paint.setStyle(android.graphics.Paint.Style.STROKE);
-            paint.setStrokeWidth(Math.max(2f, pixelsPerBlock * 0.18f));
-            paint.setColor(0xCCFFFFFF);
-            canvas.drawCircle(offsetX + sx * pixelsPerBlock, offsetY + sz * pixelsPerBlock,
-                    Math.max(5f, pixelsPerBlock * 0.8f), paint);
+            float sx = offsetX + (map.spawnBlockX - map.minBlockX + 0.5f) * pixelsPerBlock;
+            float sz = offsetY + (map.spawnBlockZ - map.minBlockZ + 0.5f) * pixelsPerBlock;
+            float size = Math.max(16f, pixelsPerBlock * 2.0f);
+            android.graphics.drawable.Drawable house =
+                    androidx.core.content.ContextCompat.getDrawable(
+                            getContext(), org.levimc.launcher.R.drawable.ic_house);
+            if (house != null) {
+                house.setBounds((int) (sx - size / 2f), (int) (sz - size),
+                        (int) (sx + size / 2f), (int) sz);
+                house.draw(canvas);
+            }
         }
         if (map.playerBlockX >= 0) {
-            float px = map.playerBlockX - map.minBlockX + 0.5f;
-            float pz = map.playerBlockZ - map.minBlockZ + 0.5f;
-            paint.setStyle(android.graphics.Paint.Style.FILL);
-            paint.setColor(0xFF3FE33F); // 绿色玩家点
-            canvas.drawCircle(offsetX + px * pixelsPerBlock, offsetY + pz * pixelsPerBlock,
-                    Math.max(4f, pixelsPerBlock * 0.7f), paint);
-            paint.setStyle(android.graphics.Paint.Style.STROKE);
-            paint.setStrokeWidth(Math.max(1.5f, pixelsPerBlock * 0.15f));
-            paint.setColor(0xCC000000);
-            canvas.drawCircle(offsetX + px * pixelsPerBlock, offsetY + pz * pixelsPerBlock,
-                    Math.max(4f, pixelsPerBlock * 0.7f), paint);
+            float px = offsetX + (map.playerBlockX - map.minBlockX + 0.5f) * pixelsPerBlock;
+            float pz = offsetY + (map.playerBlockZ - map.minBlockZ + 0.5f) * pixelsPerBlock;
+            android.graphics.Bitmap bmp = playerMarkerBitmap();
+            if (bmp != null) {
+                float size = Math.max(18f, pixelsPerBlock * 2.2f);
+                android.graphics.Paint p = new android.graphics.Paint(
+                        android.graphics.Paint.ANTI_ALIAS_FLAG
+                                | android.graphics.Paint.FILTER_BITMAP_FLAG);
+                android.graphics.RectF dst = new android.graphics.RectF(
+                        px - size / 2f, pz - size, px + size / 2f, pz);
+                canvas.drawBitmap(bmp, null, dst, p);
+            } else {
+                // 贴图缺失回退：绿点
+                android.graphics.Paint paint = new android.graphics.Paint();
+                paint.setAntiAlias(true);
+                paint.setColor(0xFF3FE33F);
+                canvas.drawCircle(px, pz, Math.max(4f, pixelsPerBlock * 0.7f), paint);
+            }
         }
     }
 
