@@ -825,6 +825,11 @@ public class WorldMapView extends View {
             return;
         }
         Bitmap mini = Bitmap.createBitmap(cw, ch, Bitmap.Config.ARGB_8888);
+        // v465：createBitmap 的像素内存未初始化——未渲染 chunk 的
+        // 像素显示内存残留色（ART 回收页常见绿色调，r≈0 b≈0 纯绿），
+        // 即"沙滩区块诡异绿色"根因。先清透明：未渲染 chunk 透出
+        // 地图背景（v457 未渲染区块背景语义），与视口 tile 一致
+        mini.eraseColor(0x00000000);
         for (java.util.Map.Entry<Long, int[]> e : map.chunkColors.entrySet()) {
             int cx = (int) (e.getKey() >> 32);
             int cz = (int) (long) e.getKey();
