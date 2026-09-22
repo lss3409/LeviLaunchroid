@@ -46,9 +46,21 @@ public class ModMenuButton {
     private static final float DEEP_HIDE_RATIO = 0.85f;
     private static final float DEEP_HIDE_ALPHA_SCALE = 0.25f;
     private static final long DEEP_HIDE_DELAY_MS = 15000;
+    /** v479：菜单关闭后延迟重启隐藏链（给玩家留拖动窗口）。 */
+    private static final long MENU_REHIDE_DELAY_MS = 3000;
     private android.animation.ValueAnimator snapAnimator;
     private boolean edgeHidden = false;
     private int edgeSide = 0; // -1 左 / 1 右 / 0 未贴边
+    /** v479：按下时球是否处于贴边隐藏态（隐藏态单击只恢复不打开
+     *  菜单——双击第二下才打开，避免摸边缘条误开菜单）。 */
+    private boolean hiddenOnDown = false;
+    /** v479：菜单关闭后延迟重启隐藏链（给玩家留拖动窗口——
+     *  关闭即吸附太小不好拖，用户要求留时间）。 */
+    private final Runnable menuRehideRunnable = () -> {
+        if (isShowing && buttonView != null && edgeSide != 0) {
+            hideToEdge();
+        }
+    };
     private final Runnable fadeOutRunnable = () -> {
         if (buttonView == null) {
             return;
@@ -218,9 +230,12 @@ public class ModMenuButton {
                     snapAnimator.cancel();
                 }
                 // v443：触碰恢复——取消淡出、alpha 复原、贴边隐藏时
-                // 先滑出（150ms）；v476：同样取消深度隐藏
+                // 先滑出（150ms）；v476：同样取消深度隐藏；
+                // v479：取消菜单关闭后的延迟重隐藏（玩家开始拖动）
                 handler.removeCallbacks(fadeOutRunnable);
                 handler.removeCallbacks(deepHideRunnable);
+                handler.removeCallbacks(menuRehideRunnable);
+                hiddenOnDown = edgeHidden;
                 if (buttonView != null) {
                     buttonView.animate().alpha(applyBaseOpacity())
                             .setDuration(150).start();
@@ -258,7 +273,12 @@ public class ModMenuButton {
             case MotionEvent.ACTION_UP:
                 long elapsed = SystemClock.uptimeMillis() - touchDownTime;
                 if (!isDragging && elapsed < TAP_TIMEOUT) {
-                    handler.post(this::onButtonClick);
+                    // v479：隐藏态单击只恢复（ACTION_DOWN 已滑出），
+                    // 不打开菜单——双击第二下才打开，避免摸边缘条
+                    // 误开菜单（用户要求）
+                    if (!hiddenOnDown) {
+                        handler.post(this::onButtonClick);
+                    }
                 } else if (isDragging) {
                     // v442：松手吸附到最近屏幕边缘 + 半隐藏
                     snapToEdge();
@@ -499,13 +519,12 @@ public class ModMenuButton {
         // 一直全亮停在边缘（用户反馈）。
         // 注意：dismiss 回调在 hide() 开头同步触发，此刻 isShowing
         // 仍为 true（hide() 内部延迟才置 false）——不能再查
-        // isShowing，否则条件永远不成立（v477 首版实测不生效根因）
+        // isShowing，否则条件永远不成立（v477 首版实测不生效根因）。
+        // v479：延迟 3 秒再重启隐藏链——关闭后立刻隐藏球太小不好
+        // 拖，给玩家留出拖动窗口（用户要求）。
         menuOverlay.setOnDismissListener(() -> {
-            handler.post(() -> {
-                if (isShowing && buttonView != null && edgeSide != 0) {
-                    hideToEdge();
-                }
-            });
+            handler.removeCallbacks(menuRehideRunnable);
+            handler.postDelayed(menuRehideRunnable, MENU_REHIDE_DELAY_MS);
         });
         menuOverlay.show();
     }
@@ -527,6 +546,7 @@ public class ModMenuButton {
         if (!isShowing || buttonView == null) return;
         handler.removeCallbacks(fadeOutRunnable);
         handler.removeCallbacks(deepHideRunnable);
+        handler.removeCallbacks(menuRehideRunnable);
         handler.post(() -> {
             try {
                 if (wmParams != null && windowManager != null) {
