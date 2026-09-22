@@ -1065,6 +1065,11 @@ public class WorldMapRenderer {
 
     /** 海平面（BTR 渲染基准） */
     private static final int SEA_LEVEL = 63;
+    /** v467：草地灰度模板（grass_block 色表色 147,147,147——
+     *  陆地回退列与正常渲染列亮度统一用）。 */
+    private static final int GRASS_TEMPLATE_COLOR = 0xFF939393;
+    /** v468：回退列模拟河床的沙色（与 colorForBlock 的 sand 一致）。 */
+    private static final int SAND_BED_COLOR = 0xFFDBD3A0;
 
     /** 水色（BTR 老版 water 0x802e43f4 半透明混黑底 50% 的观感） */
     private static final int COLOR_WATER = 0xFF17217A;
@@ -5246,11 +5251,24 @@ public class WorldMapRenderer {
             // v466：海平面以下的回退列优先显示水色（用户要求"海的
             // 颜色优先"）——1.26 存档海区大量列无方块数据（本地
             // 模拟实测 ~9% 列走此回退），biome 草色在海里成绿色
-            // 纯色块。海里的列本应有水面覆盖，无数据时按水面渲染；
-            // 陆地回退仍走 biome 色不受影响。
+            // 纯色块。v468：不是纯水色——模拟河床（沙色）+ 水覆盖
+            // 混合（与正常渲染列同款曲线），保持"海底+海滤镜"观感
+            // （纯水色没有海底内容，用户反馈像一块色）。
             if (dimension == DIM_OVERWORLD && height <= SEA_LEVEL) {
-                return 0xFF000000 | (DEFAULT_WATER_TINT[0] << 16)
+                int depth = Math.max(1, SEA_LEVEL - height);
+                float op = Math.min(0.2f * depth + 0.35f, 0.9f);
+                int waterC = 0xFF000000 | (DEFAULT_WATER_TINT[0] << 16)
                         | (DEFAULT_WATER_TINT[1] << 8) | DEFAULT_WATER_TINT[2];
+                return blendColors(waterC, SAND_BED_COLOR, op);
+            }
+            // v467：陆地回退列按"草地灰度模板 × tint"输出——此前直接
+            // 返回 tint 原值（如 extreme_hills (138,182,137)），比正常
+            // 渲染列（147 模板 × tint ≈ (80,105,79)）亮 ~40%，森林里
+            // 出现比周围"偏亮偏土"的色块（用户反馈）。统一乘模板后
+            // 与正常草色亮度一致，阴影在 assembleMap 统一应用。
+            int[] ft = biomeTintTable.get(biomeId);
+            if (ft != null && ft[3] >= 0) {
+                return multiplyTint(GRASS_TEMPLATE_COLOR, ft, 3);
             }
             return biomeColor;
         }
