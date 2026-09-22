@@ -2108,8 +2108,18 @@ public class NbtViewerActivity extends BaseActivity {
             // v459：统一走 parsePlayerInfo——优先 ~local_player（本地设备玩家），
             // 其他 player key（player_server 领域位置可能在地图外）回退；
             // 大世界 entries 为空，由大世界分支的延迟前缀读任务补。
+            // v483：entries 来自 NativeLevelDb.readAllEntries——原生库可能
+            // 漏读 13 字节的 ~local_player key（"玩家位置老是找不到"根因），
+            // 解析不到时回退纯 Java 前缀读（index 二分，毫秒级）。
             if (worldMap != null && entries != null) {
                 PlayerInfo pinfo = parsePlayerInfo(entries);
+                if (pinfo.blockX < 0 && currentWorldDir != null) {
+                    PlayerInfo fb = readPlayerInfoByPrefix(new File(currentWorldDir, "db"));
+                    if (fb.blockX >= 0) {
+                        pinfo = fb;
+                        Log.i(TAG, "玩家位置前缀读回退成功（原生库漏读 ~local_player）");
+                    }
+                }
                 if (pinfo.blockX >= 0) {
                     worldMap.playerRawBlockX = pinfo.blockX;
                     worldMap.playerRawBlockY = pinfo.blockY;
