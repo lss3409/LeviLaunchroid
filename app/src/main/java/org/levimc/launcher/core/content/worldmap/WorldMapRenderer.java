@@ -1468,9 +1468,20 @@ public class WorldMapRenderer {
                     skipped++;
                     continue; // 无 subchunk 数据或深层非矿石层：卫星图不需要
                 }
+                // v473：海面层 sub 3（y48-63，水方块在 storage 1）、浅水
+                // 河床层 sub 2（y32-47）、沙滩层 sub 4（y64-79）即使低于
+                // 窗口也必须保留给渲染——v432 把它们流式扫矿石后丢弃，
+                // 沿海有树/建筑（maxSub≥5）的 chunk 海列看不到水面/河床
+                // → 走回退分支（v446 时输出 biome 草色=绿色块、沙滩列
+                // 变绿、海面纯色无海底，用户回溯验证 v426 正常 v446
+                // 异常即因此；v426 时 sub≤4 全保留）。v472 只修了回退
+                // 颜色（深蓝海），根因在此。深层河床 sub 0-1 仍流式
+                // 丢弃（回退列渲染深蓝海与真实海观感一致）。
+                boolean seaLayer = dimension == DIM_OVERWORLD
+                        && sub >= 2 && sub <= 4;
                 // v432：窗口外矿石层流式扫描（解码后只留矿石标记，
                 // SubChunk 立即丢弃——内存峰值 -50%）
-                if (oreLayer && sub < maxSub - 2) {
+                if (oreLayer && sub < maxSub - 2 && !seaLayer) {
                     try {
                         SubChunk sc = decodeSubChunk(entry.getValue());
                         if (sc != null) {
@@ -2265,7 +2276,11 @@ public class WorldMapRenderer {
     private static final int SMALL_CACHE_MAGIC = 0x4D437653; // "MCvs"
     // v2：v466-v472 回退水色/河床混合修复（旧缓存是绿色回退/紫灰/
     //      沙床浅蓝渲染结果，必须失效重渲）
-    private static final int SMALL_CACHE_VERSION = 2;
+    // v3：v473 海面/浅水河床/沙滩层（sub 2-4）保留给渲染——v432 起
+    //      它们被矿石流式扫描丢弃，沿海 chunk 海列走回退（v446 绿色
+    //      块根因，用户回溯 v426 正常 v446 异常）。旧缓存海区是回退
+    //      色渲染，必须失效
+    private static final int SMALL_CACHE_VERSION = 3;
 
     /** 小世界全图缓存文件（v395 新结构：<世界>/<维度>/small.bin）。
      *  v413：阴影开关进文件名——切换后小世界缓存也作废。 */
