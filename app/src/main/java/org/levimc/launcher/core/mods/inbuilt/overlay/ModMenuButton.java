@@ -496,11 +496,13 @@ public class ModMenuButton {
         }
         // v477：菜单关闭后重启贴边隐藏链（3s 淡出 + 15s 深度隐藏）——
         // 此前 hideToEdge 只在吸附落定时触发，点开菜单再退出后球
-        // 一直全亮停在边缘（用户反馈）
+        // 一直全亮停在边缘（用户反馈）。
+        // 注意：dismiss 回调在 hide() 开头同步触发，此刻 isShowing
+        // 仍为 true（hide() 内部延迟才置 false）——不能再查
+        // isShowing，否则条件永远不成立（v477 首版实测不生效根因）
         menuOverlay.setOnDismissListener(() -> {
             handler.post(() -> {
-                if (isShowing && buttonView != null && edgeSide != 0
-                        && !menuOverlay.isShowing()) {
+                if (isShowing && buttonView != null && edgeSide != 0) {
                     hideToEdge();
                 }
             });
