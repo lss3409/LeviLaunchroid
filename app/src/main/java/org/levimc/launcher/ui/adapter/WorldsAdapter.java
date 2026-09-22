@@ -309,9 +309,6 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
                 new ContentActionPopup.Action(R.drawable.ic_pin, pinned ? R.string.unpin_world : R.string.pin_world, false, () -> {
                     if (onWorldActionListener != null) onWorldActionListener.onWorldTogglePin(world);
                 }),
-                new ContentActionPopup.Action(R.drawable.ic_export, R.string.export, false, () -> {
-                    if (onWorldActionListener != null) onWorldActionListener.onWorldExport(world);
-                }),
                 new ContentActionPopup.Action(R.drawable.ic_backup, R.string.backup, false, () -> {
                     if (onWorldActionListener != null) onWorldActionListener.onWorldBackup(world);
                 }),
