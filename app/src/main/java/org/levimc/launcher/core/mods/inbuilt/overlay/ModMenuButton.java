@@ -331,23 +331,23 @@ public class ModMenuButton {
             float distRight = screenW - centerX;
             float distTop = centerY;
             float distBottom = screenH - centerY;
-            int targetX = wmParams.x;
-            int targetY = wmParams.y;
+            int newEdgeSide;
             if (distLeft <= distRight && distLeft <= distTop && distLeft <= distBottom) {
-                edgeSide = -1;
-                targetX = 0;
+                newEdgeSide = -1;
             } else if (distRight <= distLeft && distRight <= distTop && distRight <= distBottom) {
-                edgeSide = 1;
-                targetX = screenW - size;
+                newEdgeSide = 1;
             } else if (distTop <= distLeft && distTop <= distRight && distTop <= distBottom) {
-                edgeSide = -2;
-                targetY = 0;
+                newEdgeSide = -2;
             } else {
-                edgeSide = 2;
-                targetY = screenH - size;
+                newEdgeSide = 2;
             }
-            targetX = Math.max(0, Math.min(targetX, screenW - size));
-            targetY = Math.max(0, Math.min(targetY, screenH - size));
+            edgeSide = newEdgeSide;
+            int rawX = Math.abs(newEdgeSide) == 1
+                    ? (newEdgeSide < 0 ? 0 : screenW - size) : wmParams.x;
+            int rawY = Math.abs(newEdgeSide) == 2
+                    ? (newEdgeSide < 0 ? 0 : screenH - size) : wmParams.y;
+            final int targetX = Math.max(0, Math.min(rawX, screenW - size));
+            final int targetY = Math.max(0, Math.min(rawY, screenH - size));
             snapAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f);
             snapAnimator.setDuration(250);
             snapAnimator.setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f));
