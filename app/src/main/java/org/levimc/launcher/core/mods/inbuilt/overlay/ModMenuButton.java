@@ -50,10 +50,13 @@ public class ModMenuButton {
     private static final long MENU_REHIDE_DELAY_MS = 3000;
     private android.animation.ValueAnimator snapAnimator;
     private boolean edgeHidden = false;
+    /** v480：深度隐藏标记（与半隐藏区分——深度隐藏单击恢复成
+     *  半隐藏，双击才打开菜单；半隐藏单击按原逻辑直接开菜单）。 */
+    private boolean deepHidden = false;
     private int edgeSide = 0; // -1 左 / 1 右 / 0 未贴边
-    /** v479：按下时球是否处于贴边隐藏态（隐藏态单击只恢复不打开
-     *  菜单——双击第二下才打开，避免摸边缘条误开菜单）。 */
-    private boolean hiddenOnDown = false;
+    /** v480：按下时球是否处于深度隐藏态（单击只恢复成半隐藏不
+     *  打开菜单——双击第二下才打开）。 */
+    private boolean deepOnDown = false;
     /** v479：菜单关闭后延迟重启隐藏链（给玩家留拖动窗口——
      *  关闭即吸附太小不好拖，用户要求留时间）。 */
     private final Runnable menuRehideRunnable = () -> {
@@ -81,6 +84,7 @@ public class ModMenuButton {
             return;
         }
         edgeHidden = true;
+        deepHidden = true;
         float offset = size * DEEP_HIDE_RATIO * (edgeSide < 0 ? -1f : 1f);
         if (Math.abs(edgeSide) == 1) {
             buttonView.animate().translationX(offset)
@@ -232,17 +236,41 @@ public class ModMenuButton {
                 // v443：触碰恢复——取消淡出、alpha 复原、贴边隐藏时
                 // 先滑出（150ms）；v476：同样取消深度隐藏；
                 // v479：取消菜单关闭后的延迟重隐藏（玩家开始拖动）
+                // v480：深度隐藏单击只恢复成半隐藏（不滑全出），
+                // 半隐藏单击按原逻辑滑全出（随后打开菜单）
                 handler.removeCallbacks(fadeOutRunnable);
                 handler.removeCallbacks(deepHideRunnable);
                 handler.removeCallbacks(menuRehideRunnable);
-                hiddenOnDown = edgeHidden;
+                deepOnDown = deepHidden;
                 if (buttonView != null) {
-                    buttonView.animate().alpha(applyBaseOpacity())
-                            .setDuration(150).start();
-                    if (edgeHidden) {
-                        buttonView.animate().translationX(0f)
-                                .translationY(0f)
+                    if (deepHidden) {
+                        int size = buttonView.getWidth();
+                        if (size <= 0) {
+                            size = wmParams != null ? wmParams.width : 0;
+                        }
+                        float half = size * EDGE_HIDE_RATIO
+                                * (edgeSide < 0 ? -1f : 1f);
+                        if (Math.abs(edgeSide) == 1) {
+                            buttonView.animate().translationX(half)
+                                    .alpha(applyBaseOpacity())
+                                    .setDuration(150).start();
+                        } else {
+                            buttonView.animate().translationY(half)
+                                    .alpha(applyBaseOpacity())
+                                    .setDuration(150).start();
+                        }
+                        deepHidden = false;
+                        // 半隐藏态重新武装淡出→深度隐藏链
+                        handler.postDelayed(fadeOutRunnable, FADE_OUT_DELAY_MS);
+                        handler.postDelayed(deepHideRunnable, DEEP_HIDE_DELAY_MS);
+                    } else {
+                        buttonView.animate().alpha(applyBaseOpacity())
                                 .setDuration(150).start();
+                        if (edgeHidden) {
+                            buttonView.animate().translationX(0f)
+                                    .translationY(0f)
+                                    .setDuration(150).start();
+                        }
                     }
                 }
                 initialX = wmParams.x;
@@ -273,10 +301,11 @@ public class ModMenuButton {
             case MotionEvent.ACTION_UP:
                 long elapsed = SystemClock.uptimeMillis() - touchDownTime;
                 if (!isDragging && elapsed < TAP_TIMEOUT) {
-                    // v479：隐藏态单击只恢复（ACTION_DOWN 已滑出），
-                    // 不打开菜单——双击第二下才打开，避免摸边缘条
-                    // 误开菜单（用户要求）
-                    if (!hiddenOnDown) {
+                    // v480：深度隐藏态单击只恢复成半隐藏（ACTION_DOWN
+                    // 已处理），不打开菜单——双击第二下（此时已是
+                    // 半隐藏，按原逻辑）才打开；半隐藏/可见态单击
+                    // 直接打开菜单
+                    if (!deepOnDown) {
                         handler.post(this::onButtonClick);
                     }
                 } else if (isDragging) {
@@ -300,6 +329,7 @@ public class ModMenuButton {
             return;
         }
         edgeHidden = true;
+        deepHidden = false;
         int size = buttonView.getWidth();
         if (size <= 0) {
             size = wmParams != null ? wmParams.width : 0;
