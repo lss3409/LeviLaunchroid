@@ -294,6 +294,16 @@ public class NbtViewerActivity extends BaseActivity {
             binding.nbtTitle.setTextColor(accentColor);
             // 个性化主题色贯通：FAB/维度高亮/抽屉图标高亮不再用默认主题深绿色
             binding.mapFab.setBackgroundTintList(ColorStateList.valueOf(accentColor));
+            // v481：图层勾选按钮（网格/群系/实体/结构/史莱姆/结构检测）
+            // 跟随个性化 accent——此前是主题默认深绿，与个性化浅绿
+            // 不一致（用户反馈"实体显示跟史莱姆区块的勾选按钮深绿"）
+            ColorStateList accentCsl = ColorStateList.valueOf(accentColor);
+            binding.layerGrid.setButtonTintList(accentCsl);
+            binding.layerBiome.setButtonTintList(accentCsl);
+            binding.layerEntity.setButtonTintList(accentCsl);
+            binding.layerStructure.setButtonTintList(accentCsl);
+            binding.layerSlime.setButtonTintList(accentCsl);
+            binding.layerStructDetect.setButtonTintList(accentCsl);
         }
 
         binding.nbtBack.setOnClickListener(v -> finish());
@@ -472,18 +482,8 @@ public class NbtViewerActivity extends BaseActivity {
         // 火把/灯笼等非固体光源俯视渲染视为空气穿透（黄色杂点问题）
         WorldMapRenderer.ignoreLightBlocks = true;
 
-        // v397：坡度阴影开关（渲染管线参数——v413 起阴影进缓存后缀
-        // _ns，切换 = 换缓存直接读，不再重烘焙）
-        // v420：先同步 UI 到全局静态状态——此前 XML 默认 true 而
-        // 静态变量被上个存档切过 false，"开关没效果/跨存档没阴影"
-        // 的根因（setChecked 若值变化会触发 reload，此时 currentWorldDir
-        // 尚未设置，reload 内部守卫直接返回，无害）
-        binding.layerShading.setChecked(WorldMapRenderer.enableShading);
-        binding.layerShading.setOnCheckedChangeListener((b, checked) -> {
-            WorldMapRenderer.enableShading = checked;
-            // 重新加载当前维度（读新后缀缓存秒生效；miss 则烘焙）
-            reloadMapForCurrentDimension();
-        });
+        // v480：坡度阴影开关已删除（用户要求）——阴影常开
+        WorldMapRenderer.enableShading = true;
 
         // v397：结构特征检测开关（palette 猜结构可能误报）
         // v427 修复：此前关闭时 removeIf 永久删除结构、再打开不恢复
@@ -953,7 +953,21 @@ public class NbtViewerActivity extends BaseActivity {
             }
             any = true;
             TextView item = new TextView(this);
-            item.setText("● " + p.name + "  (" + p.x + "," + p.z + ")");
+            // v481：标点总览的圆点按标点自定义颜色显示（此前文本
+            // "●" 永远是默认黑色——用户反馈）
+            String dotColor = p.color != null && !p.color.isEmpty()
+                    ? p.color : categoryColor(p.category);
+            int dotRgb;
+            try {
+                dotRgb = android.graphics.Color.parseColor(dotColor);
+            } catch (Exception e) {
+                dotRgb = 0xFFFFD54F;
+            }
+            android.text.SpannableString ss = new android.text.SpannableString(
+                    "● " + p.name + "  (" + p.x + "," + p.z + ")");
+            ss.setSpan(new android.text.style.ForegroundColorSpan(dotRgb),
+                    0, 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            item.setText(ss);
             item.setTextColor(ContextCompat.getColor(this, R.color.on_surface));
             item.setTextSize(12);
             item.setPadding(0, (int) (7 * getResources().getDisplayMetrics().density),

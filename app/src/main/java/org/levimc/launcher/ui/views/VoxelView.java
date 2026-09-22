@@ -220,15 +220,35 @@ public class VoxelView extends View {
             return null;
         }
         float unit = 8f;
-        float unitH = 10f;
+        // v481：方块高度 = 单位宽（标准等距立方体）——此前
+        // unitH*0.12 = 1.2px/块，块被压成纸片菱形（"渲染是菱形
+        // 不是方块"根因）。参考 bedrockmap 等距体素比例。
+        float blockH = unit;
+        // 先扫最高柱高定画布（此前固定 30 层 × 1.2px = 36px 高，
+        // 改成方块后 30 层 = 240px 会顶出画布）
+        int[][] order = drawOrder(cosA, sinA);
+        int maxN = 0;
+        for (int[] p : order) {
+            WorldMapRenderer.VoxelColumn col = data[p[1]][p[0]];
+            int n = 0;
+            for (int c : col.colors) {
+                if (c == 0) {
+                    break;
+                }
+                n++;
+            }
+            if (n > maxN) {
+                maxN = n;
+            }
+        }
         int bw = (int) (size * unit * 2.2f);
-        int bh = (int) (size * unit * 1.3f + 30 * unitH * 0.12f + 80);
+        int bh = (int) ((size * unit * 1.5f + (maxN + 2) * blockH) * 1.15f + 80);
         android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(
                 bw, bh, android.graphics.Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bmp);
         float cx = bw / 2f;
-        float cy = bh / 2f - size * 1.2f;
-        int[][] order = drawOrder(cosA, sinA);
+        // 场景（网格+柱高）垂直居中：基面在 cy，柱向上 maxN×blockH
+        float cy = bh / 2f + maxN * blockH / 4f;
         for (int[] p : order) {
             int dx = p[0];
             int dz = p[1];
@@ -246,17 +266,16 @@ public class VoxelView extends View {
             int baseY = col.ys[0];
             // 从低到高画（高层盖低层）。此前从高到低——最低块最后画把
             // 整列顶面全盖掉，只剩纸片菱形。侧面高度收到下一块顶面为止：
-            // 柱内间距 1 层（1.2px）只露细边，地表/悬空块画全高——标准
-            // 等距体素观感（方块有棱有面）
+            // 柱内相邻块露全高侧面——标准等距体素观感（方块有棱有面）
             for (int i = 0; i < n; i++) {
                 int y = col.ys[i];
                 float px = cx + (dx * cosA - dz * sinA) * unit;
                 float py = cy + (dx * sinA + dz * cosA) * unit * 0.5f
-                        - (y - baseY) * unitH * 0.12f;
-                float sideH = 10f;
+                        - (y - baseY) * blockH;
+                float sideH = blockH;
                 if (i > 0) {
-                    float gap = (y - col.ys[i - 1]) * unitH * 0.12f;
-                    sideH = Math.min(10f, Math.max(0f, gap));
+                    float gap = (y - col.ys[i - 1]) * blockH;
+                    sideH = Math.min(blockH, Math.max(0f, gap));
                 }
                 drawBlock(canvas, px, py, col.colors[i], (y - baseY) * 0.6f,
                         cosA, sinA, 8f, sideH, col.names[i], y - baseY);
@@ -330,20 +349,25 @@ public class VoxelView extends View {
         }
         // 多角度快照（每 15°）：旋转取最近角度快照 + 残余角微调——
         // 侧面明暗随角度变化，支持 720° 连续旋转（单张快照只能平面转）
+        // v481：残余角按位图实际角度（bmpIdx）算——此前按请求角算，
+        // 快照未生成回退到邻近角时残余角不符，场景随旋转跳变
         int idx = snapIdx(angle);
         android.graphics.Bitmap bmp = angleSnaps[idx];
+        int bmpIdx = idx;
         if (bmp == null) {
             requestSnap(idx);
-            bmp = nearestExistingSnap(idx);
+            bmpIdx = nearestExistingSnapIdx(idx);
+            bmp = angleSnaps[bmpIdx];
             if (bmp == null) {
                 bmp = sceneBmp;
+                bmpIdx = 0;
             }
         }
         canvas.save();
         float cx = getWidth() / 2f;
         float cy = getHeight() / 2f;
         canvas.translate(cx, cy);
-        canvas.rotate((float) Math.toDegrees(angle) - idx * 15f);
+        canvas.rotate((float) Math.toDegrees(angle) - bmpIdx * 15f);
         canvas.scale(zoom, zoom);
         canvas.drawBitmap(bmp, -bmp.getWidth() / 2f, -bmp.getHeight() / 2f, null);
         canvas.restore();
@@ -382,19 +406,20 @@ public class VoxelView extends View {
         });
     }
 
-    /** 最近已生成的快照（未生成时回退）。 */
-    private android.graphics.Bitmap nearestExistingSnap(int idx) {
+    /** 最近已生成快照的索引（未生成时回退 0）——
+     *  v481：调用方按返回索引算残余旋转角。 */
+    private int nearestExistingSnapIdx(int idx) {
         for (int d = 1; d < 24; d++) {
-            android.graphics.Bitmap a = angleSnaps[Math.floorMod(idx + d, 24)];
-            if (a != null) {
-                return a;
+            int ia = Math.floorMod(idx + d, 24);
+            if (angleSnaps[ia] != null) {
+                return ia;
             }
-            android.graphics.Bitmap b = angleSnaps[Math.floorMod(idx - d, 24)];
-            if (b != null) {
-                return b;
+            int ib = Math.floorMod(idx - d, 24);
+            if (angleSnaps[ib] != null) {
+                return ib;
             }
         }
-        return angleSnaps[0] != null ? angleSnaps[0] : null;
+        return 0;
     }
 
     /** 绘制顺序：投影深度降序。 */

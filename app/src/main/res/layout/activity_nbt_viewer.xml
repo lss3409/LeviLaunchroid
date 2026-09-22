@@ -498,15 +498,6 @@
                         android:fontFamily="@font/misans"
                         android:text="@string/layer_ore"
                         android:textColor="@color/on_surface"
-                        android:textSize="12sp" />                    <CheckBox
-                        android:id="@+id/layer_shading"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:checked="true"
-                        android:fontFamily="@font/misans"
-                        android:text="@string/layer_shading"
-                        android:textColor="@color/on_surface"
                         android:textSize="12sp" />
 
                     <CheckBox

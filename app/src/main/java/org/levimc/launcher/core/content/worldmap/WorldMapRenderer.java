@@ -6034,6 +6034,32 @@ public class WorldMapRenderer {
         } else {
             throw new IllegalStateException("无地图数据");
         }
+        // v481：透明像素合成到启动器背景色（R.color.background，
+        // 与 WorldMapView.onDraw 未渲染区块背景一致）——未生成
+        // 区域 colors 是透明的，视图里由 onDraw 单独铺背景；导出
+        // PNG 保持透明在浏览器/HTML 查看器里地图一片空白
+        // （"导出不显示图片"根因，v481 修复）
+        int exportBg = 0xFFF8FFF0;
+        try {
+            if (appContext != null) {
+                exportBg = 0xFF000000 | (appContext.getColor(R.color.background) & 0xFFFFFF);
+            }
+        } catch (Throwable ignored) {
+        }
+        int[] bgRow = new int[pngBmp.getWidth()];
+        for (int py = 0; py < pngBmp.getHeight(); py++) {
+            pngBmp.getPixels(bgRow, 0, bgRow.length, 0, py, bgRow.length, 1);
+            boolean dirty = false;
+            for (int px = 0; px < bgRow.length; px++) {
+                if ((bgRow[px] & 0xFF000000) == 0) {
+                    bgRow[px] = exportBg;
+                    dirty = true;
+                }
+            }
+            if (dirty) {
+                pngBmp.setPixels(bgRow, 0, bgRow.length, 0, py, bgRow.length, 1);
+            }
+        }
         // v425：PNG 超过 ~2MB 时降采样（HTML 查看器 WebView 的
         // data: URL 有大小限制）。修复 v421 隐患：createScaledBitmap
         // OOM 返回 null 导致 NPE 导出失败；recycle 逻辑统一在最后
