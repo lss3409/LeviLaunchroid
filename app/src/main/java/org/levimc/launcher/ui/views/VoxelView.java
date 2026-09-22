@@ -26,8 +26,9 @@ public class VoxelView extends View {
     private int size;
     /** 每列非空气方块数（渲染前算好；blockAt 二分查找用）。 */
     private int[][] counts;
-    /** 旋转角（弧度）。v486-2：初始 = π/4（经典 2:1 等距视角）。 */
-    private float angle = (float) (Math.PI / 4);
+    /** 旋转角（弧度）。v487：初始 = 0——刚体旋转晶格下 A=0 就是
+     *  经典 2:1 等距视角（π/4 是斜侧躺视角，"地形沿 Z 轴倒下去"根因）。 */
+    private float angle = 0f;
     /** 缩放倍率（0.5x - 4x）。 */
     private float zoom = 1f;
     /** 预渲染场景位图（数据加载后画一次；旋转/缩放只变换位图，
@@ -118,6 +119,53 @@ public class VoxelView extends View {
                 texCache.put(file, null); // negative cache：不存在的文件不再试
                 return null;
             }
+        }
+    }
+
+    /** v487：色调缓存（灰度模板纹理 × 色调——key = 方块名+颜色）。 */
+    private final java.util.Map<String, android.graphics.Bitmap> tintCache =
+            new java.util.HashMap<>();
+
+    /** v487：草/树叶/水等方块在纹理包里是灰度模板（均值 147 =
+     *  GRASS_TEMPLATE_COLOR）——必须乘上 tintColor 后的色调，
+     *  否则草顶显示灰白（配深色网格线 = "白色十字/颗粒"根因）。
+     *  texel × color/147（模板均值），缓存按 方块名+颜色。 */
+    private android.graphics.Bitmap tintedTexture(String blockName,
+                                                  android.graphics.Bitmap tex, int color) {
+        if (blockName == null || tex == null) {
+            return tex;
+        }
+        boolean tintable = blockName.contains("grass") || blockName.contains("leave")
+                || blockName.contains("leaf") || blockName.contains("fern")
+                || blockName.contains("vine") || blockName.contains("tallgrass")
+                || blockName.contains("water");
+        if (!tintable) {
+            return tex;
+        }
+        String key = blockName + "#" + Integer.toHexString(color);
+        synchronized (tintCache) {
+            android.graphics.Bitmap cached = tintCache.get(key);
+            if (cached != null) {
+                return cached;
+            }
+            int w = tex.getWidth();
+            int h = tex.getHeight();
+            int[] px = new int[w * h];
+            tex.getPixels(px, 0, w, 0, 0, w, h);
+            float fr = (((color >> 16) & 0xFF) + 8f) / 147f;
+            float fg = (((color >> 8) & 0xFF) + 8f) / 147f;
+            float fb = ((color & 0xFF) + 8f) / 147f;
+            for (int i = 0; i < px.length; i++) {
+                int p = px[i];
+                int r = Math.min(255, (int) (((p >> 16) & 0xFF) * fr));
+                int g = Math.min(255, (int) (((p >> 8) & 0xFF) * fg));
+                int b = Math.min(255, (int) ((p & 0xFF) * fb));
+                px[i] = (p & 0xFF000000) | (r << 16) | (g << 8) | b;
+            }
+            android.graphics.Bitmap tinted = android.graphics.Bitmap.createBitmap(
+                    px, w, h, android.graphics.Bitmap.Config.ARGB_8888);
+            tintCache.put(key, tinted);
+            return tinted;
         }
     }
 
@@ -304,18 +352,8 @@ public class VoxelView extends View {
         canvas.translate(0.5f, 0.5f);
         float cx = pad - hMin + m;
         float cy = pad + ySpan * blockH + dTop - gMin;
-        // 基座底盘 = 区域投影菱形（minY − 0.5 层，外扩半块）——
-        // 模型不悬空，空列/区域边缘露出的地面
-        float hx = (size - 1) / 2f + 0.5f;
-        float cy2 = cy + blockH * 0.5f;
-        Path plate = new Path();
-        plate.moveTo(cx + hx * sinA * unit, cy2 - hx * cosA * unit);
-        plate.lineTo(cx + 2 * hx * cosA * unit, cy2);
-        plate.lineTo(cx - hx * sinA * unit, cy2 + hx * cosA * unit);
-        plate.lineTo(cx - 2 * hx * cosA * unit, cy2);
-        plate.close();
-        fillPaint.setColor(0xFF262B33);
-        canvas.drawPath(plate, fillPaint);
+        // v487：基座底盘删除（用户反馈"悬浮深灰平面"伪影——实心
+        // 填充 + 空列基底已让模型自带平坦底面，无需额外底盘）
         // 画家算法：列按投影深度远→近；列内从低到高画（高层最后画
         // 盖住低层顶面）。每个块侧面全高 blockH——相邻块侧面严丝合缝
         // 拼成连续墙面。v486-3：按面剔除——每面的覆盖邻居是该面朝向
@@ -615,6 +653,8 @@ public class VoxelView extends View {
         // 无纹理回退纯色菱形
         if (showDiamond) {
             android.graphics.Bitmap tex = textureFor(blockName);
+            // v487：灰度模板纹理乘色调（草顶灰白"白色十字"根因）
+            tex = tintedTexture(blockName, tex, color);
             if (tex != null) {
                 android.graphics.Matrix mt = new android.graphics.Matrix();
                 float[] src = {0f, 0f, tex.getWidth(), 0f, 0f, tex.getHeight()};
@@ -643,8 +683,8 @@ public class VoxelView extends View {
         // v486-3：四个侧面——从菱形下边缘挂下（经典立方体）。
         // 每面独立 AO（该面朝向的邻居遮挡变暗）
         if (showSide1) {
-            float ao = 1f - 0.12f * (above ? 1 : 0)
-                    - 0.12f * (frontZ ? 1 : 0) - 0.06f * (below ? 1 : 0);
+            float ao = 1f - 0.16f * (above ? 1 : 0)
+                    - 0.16f * (frontZ ? 1 : 0) - 0.08f * (below ? 1 : 0);
             fillPaint.setColor(0xFF000000
                     | (clamp255((int) (r * (0.55f + 0.2f * side) * ao)) << 16)
                     | (clamp255((int) (g * (0.55f + 0.2f * side) * ao)) << 8)
@@ -658,8 +698,8 @@ public class VoxelView extends View {
             canvas.drawPath(s1, fillPaint);
         }
         if (showSide2) {
-            float ao = 1f - 0.12f * (above ? 1 : 0)
-                    - 0.12f * (frontX ? 1 : 0) - 0.06f * (below ? 1 : 0);
+            float ao = 1f - 0.16f * (above ? 1 : 0)
+                    - 0.16f * (frontX ? 1 : 0) - 0.08f * (below ? 1 : 0);
             fillPaint.setColor(0xFF000000
                     | (clamp255((int) (r * (0.35f + 0.2f * side) * ao)) << 16)
                     | (clamp255((int) (g * (0.35f + 0.2f * side) * ao)) << 8)
@@ -673,8 +713,8 @@ public class VoxelView extends View {
             canvas.drawPath(s2, fillPaint);
         }
         if (showSide3) {
-            float ao = 1f - 0.12f * (above ? 1 : 0)
-                    - 0.12f * (backZ ? 1 : 0) - 0.06f * (below ? 1 : 0);
+            float ao = 1f - 0.16f * (above ? 1 : 0)
+                    - 0.16f * (backZ ? 1 : 0) - 0.08f * (below ? 1 : 0);
             fillPaint.setColor(0xFF000000
                     | (clamp255((int) (r * (0.55f + 0.2f * side) * ao)) << 16)
                     | (clamp255((int) (g * (0.55f + 0.2f * side) * ao)) << 8)
@@ -688,8 +728,8 @@ public class VoxelView extends View {
             canvas.drawPath(s3, fillPaint);
         }
         if (showSide4) {
-            float ao = 1f - 0.12f * (above ? 1 : 0)
-                    - 0.12f * (backX ? 1 : 0) - 0.06f * (below ? 1 : 0);
+            float ao = 1f - 0.16f * (above ? 1 : 0)
+                    - 0.16f * (backX ? 1 : 0) - 0.08f * (below ? 1 : 0);
             fillPaint.setColor(0xFF000000
                     | (clamp255((int) (r * (0.35f + 0.2f * side) * ao)) << 16)
                     | (clamp255((int) (g * (0.35f + 0.2f * side) * ao)) << 8)

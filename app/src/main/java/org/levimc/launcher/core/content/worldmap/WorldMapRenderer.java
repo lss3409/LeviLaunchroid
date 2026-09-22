@@ -4140,7 +4140,7 @@ public class WorldMapRenderer {
     }
 
     /** 3D 体素实心填充深度：统一基底 = 区域最低地表 − 此值。 */
-    private static final int VOXEL_FILL_DEPTH = 20;
+    private static final int VOXEL_FILL_DEPTH = 32;
 
     /** (x,y,z) 处方块名（主层空气时查水层 storage 1——1.18+ 双 storage）。 */
     private static String blockNameAt(SubChunk sub, int lx, int localY, int lz) {
@@ -4336,6 +4336,14 @@ public class WorldMapRenderer {
                             ys[n] = y;
                             names[n] = name;
                             n++;
+                        }
+                        // v487：无数据的列（未生成区块/远海）填一层基底——
+                        // 选区跨未生成海域时黑洞变平坦地面，模型不再
+                        // 只剩陆地薄片（vb9 西侧大陆边缘的根因）
+                        if (n == 0 && floorY > Integer.MIN_VALUE) {
+                            colors[0] = 0xFF5F6268;
+                            ys[0] = floorY + 1;
+                            n = 1;
                         }
                         out[dz][dx] = new VoxelColumn(colors, ys, names);
                     }
