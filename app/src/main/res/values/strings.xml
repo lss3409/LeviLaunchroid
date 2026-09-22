@@ -1338,11 +1338,6 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="tool_point_list">Points</string>
     <string name="tool_blueprint">Export HTML</string>
     <string name="tool_voxel">3D View</string>
-    <string name="tool_goto">Jump to Coords</string>
-    <string name="goto_dialog_title">Jump to coordinates</string>
-    <string name="goto_x_hint">X</string>
-    <string name="goto_z_hint">Z</string>
-    <string name="goto_invalid">Enter valid X/Z numbers</string>
     <string name="voxel_size">Select region size (centered on viewport)</string>
     <string name="voxel_select_hint">Drag on the map to select 3D region</string>
     <string name="point_add_title">Add point</string>
@@ -1380,7 +1375,7 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="blueprint_import_ok">Imported: %1$d points, %2$d links</string>
     <string name="blueprint_copied">Copied</string>
     <string name="point_list_title">Points</string>
-    <string name="map_search_hint">Search points…</string>
+    <string name="map_search_hint">Search points or coords (50, 50)…</string>
     <string name="btn_data_panel">Data</string>
     <string name="lb_info">World Info</string>
     <string name="lb_layers">Layers</string>
@@ -1417,7 +1412,6 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="nbt_set_group_time">Time &amp; Weather</string>
     <string name="nbt_set_group_spawn">Spawn Point</string>
     <string name="nbt_set_group_rules">Game Rules</string>
-    <string name="nbt_set_group_permission">Permissions</string>
     <string name="nbt_set_group_player">Player (read-only)</string>
     <string name="nbt_set_cheats">Cheats Enabled</string>
     <string name="nbt_edit_time">World Time</string>
@@ -1438,12 +1432,6 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="nbt_set_mob_spawning">Mob Spawning</string>
     <string name="nbt_set_entity_drops">Entity Drops</string>
     <string name="nbt_set_tile_drops">Tile Drops</string>
-    <string name="nbt_set_permission_level">Permission Level</string>
-    <string name="nbt_set_player_permission">Player Permission Level</string>
-    <string name="nbt_perm_visitor">Visitor</string>
-    <string name="nbt_perm_member">Member</string>
-    <string name="nbt_perm_operator">Operator</string>
-    <string name="nbt_perm_custom">Custom</string>
     <string name="nbt_set_player_hint">Player data is stored in the world database (db) and updated by the game.</string>
     <string name="nbt_set_revert">Revert</string>
     <string name="nbt_set_unsaved_title">Unsaved Changes</string>
@@ -1452,11 +1440,5 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="nbt_gamemode_spectator">Spectator</string>
     <string name="nbt_summary_pos_label">Player position: </string>
 
-    <!-- v462：地图 FAB 菜单「世界数据」入口 -->
-    <string name="tool_world_data">World Data</string>
 
-    <!-- v463：权限编辑弹窗（⋮ 菜单「编辑」入口） -->
-    <string name="nbt_edit_permissions">Edit Permissions</string>
-    <string name="nbt_perm_level_hint">Controls what players joining this world can do.</string>
-    <string name="nbt_pperm_level_hint">Controls what the local player can do in this world.</string>
 </resources>

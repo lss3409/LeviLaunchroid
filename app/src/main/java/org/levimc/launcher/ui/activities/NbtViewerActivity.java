@@ -66,8 +66,6 @@ public class NbtViewerActivity extends BaseActivity {
 
     public static final String EXTRA_WORLD_DIR = "world_dir";
     public static final String EXTRA_WORLD_NAME = "world_name";
-    /** v462：「编辑世界」入口直达——打开后自动弹出数据面板世界设置 Tab。 */
-    public static final String EXTRA_OPEN_SETTINGS = "open_settings";
 
     /** v460：世界设置表单 Tab（表单化 NBT 编辑） */
     private static final int TAB_SETTINGS = 2;
@@ -240,8 +238,6 @@ public class NbtViewerActivity extends BaseActivity {
     private WorldMapRenderer.WorldMap currentMap;
     /** v460：世界设置表单引用（onDataLoaded 回填，玩家只读信息用）。 */
     private WorldItem loadedWorldItem;
-    /** v462：「编辑世界」入口直达——onDataLoaded 后自动弹设置表单。 */
-    private boolean pendingOpenSettings;
     private File currentWorldDir;
 
     // ---- 标点 / 连线 / 蓝图码（PRD 缝合功能） ----
@@ -287,8 +283,6 @@ public class NbtViewerActivity extends BaseActivity {
             return;
         }
         final String worldName = getIntent().getStringExtra(EXTRA_WORLD_NAME);
-        // v462：「编辑世界」入口直达——数据就绪后自动打开设置表单
-        pendingOpenSettings = getIntent().getBooleanExtra(EXTRA_OPEN_SETTINGS, false);
 
         PersonalizationManager pm = new PersonalizationManager(this);
         accentColor = pm.getAccentColor();
@@ -335,10 +329,21 @@ public class NbtViewerActivity extends BaseActivity {
             binding.topbarFull.setVisibility(expanded ? View.GONE : View.VISIBLE);
             binding.topbarChev.setText(expanded ? "▼" : "▲");
         });
-        // 顶栏全局搜索 → 联动左栏标点 Tab 搜索
+        // 顶栏全局搜索 → 联动左栏标点 Tab 搜索；坐标格式直接跳转
+        // （v474：跳到坐标并入搜索——支持 50，50 / 50 50 /（50，50），
+        // 半全角逗号/括号均可、支持负数）
         binding.mapSearch.addTextChangedListener(new android.text.TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (s == null) {
+                    return;
+                }
+                int[] coords = parseJumpCoords(s.toString());
+                if (coords != null && currentMap != null) {
+                    binding.worldMapImage.animateTo(coords[0], coords[1]);
+                    binding.mapSearch.setText("");
+                    return;
+                }
                 binding.pointSearchInput.setText(s);
             }
             @Override public void afterTextChanged(android.text.Editable s) {}
@@ -1008,64 +1013,6 @@ public class NbtViewerActivity extends BaseActivity {
             closeToolMenu();
             showVoxelDialog();
         });
-        // v462：世界数据面板入口（NBT 树 / db 条目 / 世界设置表单）
-        // ——v341 顶栏改造删掉了 btnDataPanel 后数据面板再也没有
-        // 打开入口，level.dat 树和 v460 的世界设置 Tab 永远不可见
-        binding.toolNbt.setOnClickListener(v -> {
-            closeToolMenu();
-            openDataPanel(TAB_SETTINGS);
-        });
-        // v438：跳到坐标（细节#9）——输入 X/Z 直接 flyTo 定位，
-        // 不用手拖（animateTo 平滑飞+自动放大到 4px/block）
-        binding.toolGoto.setOnClickListener(v -> {
-            closeToolMenu();
-            if (currentMap == null) {
-                return;
-            }
-            android.widget.LinearLayout box = new android.widget.LinearLayout(this);
-            box.setOrientation(android.widget.LinearLayout.HORIZONTAL);
-            float d = getResources().getDisplayMetrics().density;
-            box.setPadding((int) (4 * d), 0, (int) (4 * d), 0);
-            final android.widget.EditText xEdit = new android.widget.EditText(this);
-            final android.widget.EditText zEdit = new android.widget.EditText(this);
-            xEdit.setHint(R.string.goto_x_hint);
-            zEdit.setHint(R.string.goto_z_hint);
-            xEdit.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
-                    | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
-            zEdit.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
-                    | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
-            xEdit.setSingleLine(true);
-            zEdit.setSingleLine(true);
-            xEdit.setTextSize(14);
-            zEdit.setTextSize(14);
-            android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(
-                    0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-            lp.setMargins(0, 0, (int) (8 * d), 0);
-            xEdit.setLayoutParams(lp);
-            android.widget.LinearLayout.LayoutParams lp2 = new android.widget.LinearLayout.LayoutParams(
-                    0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-            zEdit.setLayoutParams(lp2);
-            box.addView(xEdit);
-            box.addView(zEdit);
-            new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this)
-                    .setTitleText(getString(R.string.goto_dialog_title))
-                    .setCustomView(box)
-                    .setPositiveButton(getString(R.string.confirm), v2 -> {
-                        String xs = xEdit.getText().toString().trim();
-                        String zs = zEdit.getText().toString().trim();
-                        try {
-                            int x = Integer.parseInt(xs);
-                            int z = Integer.parseInt(zs);
-                            binding.worldMapImage.animateTo(x, z);
-                        } catch (NumberFormatException e) {
-                            Toast.makeText(this, R.string.goto_invalid,
-                                    Toast.LENGTH_SHORT).show();
-                        }
-                    })
-                    .setNegativeButton(getString(R.string.nbt_edit_cancel), null)
-                    .show();
-        });
-
         // 维度切换
         setupDimensionSwitch();
 
@@ -1139,6 +1086,42 @@ public class NbtViewerActivity extends BaseActivity {
         binding.mapToolMenu.setVisibility(View.GONE);
         // 收起时 × 转回加号（若动画中途打断，直接复位）
         binding.mapFab.animate().rotation(0f).setDuration(180).start();
+    }
+
+    /** v474：解析坐标跳转输入——支持 50，50 / 50 50 /（50，50），
+     *  半全角逗号/括号均可、支持负数；非坐标返回 null（走标点搜索）。 */
+    private int[] parseJumpCoords(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String t = raw.trim();
+        if (t.isEmpty()) {
+            return null;
+        }
+        // 全角 → 半角
+        String norm = t.replace('，', ',').replace('（', '(').replace('）', ')');
+        // 逗号形式（可选括号）：(50,50) / 50，50
+        java.util.regex.Matcher m1 = java.util.regex.Pattern
+                .compile("^[\\(（]?\\s*([-+]?\\d+)\\s*[,，]\\s*([-+]?\\d+)\\s*[\\)）]?$")
+                .matcher(norm);
+        if (m1.matches()) {
+            try {
+                return new int[]{Integer.parseInt(m1.group(1)),
+                        Integer.parseInt(m1.group(2))};
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        // 空格形式：50 50
+        java.util.regex.Matcher m2 = java.util.regex.Pattern
+                .compile("^([-+]?\\d+)\\s+([-+]?\\d+)$").matcher(norm);
+        if (m2.matches()) {
+            try {
+                return new int[]{Integer.parseInt(m2.group(1)),
+                        Integer.parseInt(m2.group(2))};
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return null;
     }
 
     /** 维度切换：高亮当前维度、刷新地图数据与标点渲染。 */
@@ -2170,12 +2153,6 @@ public class NbtViewerActivity extends BaseActivity {
                 currentMap = worldMap;
         binding.nbtLoading.setVisibility(View.GONE);
 
-        // v462：「编辑世界」入口直达——数据就绪后自动弹设置表单
-        if (pendingOpenSettings) {
-            pendingOpenSettings = false;
-            openDataPanel(TAB_SETTINGS);
-        }
-
         // 世界地图：占满全屏（PRD 布局），缩放/平移时按比例重采样方块颜色
         if (worldMap != null) {
             // v418：骨架已显示则保留视图（不跳不闪）
@@ -2383,17 +2360,6 @@ public class NbtViewerActivity extends BaseActivity {
                 ? Math.max(0, Math.min(3, diffTag.getInt())) : 1);
         setCapsuleRowEnabled(capsDifficulty, p.hasDifficulty);
 
-        // 权限胶囊
-        NbtTag permTag = root.get("PermissionsLevel");
-        selectCapsule(capsPerm, permTag != null
-                ? Math.max(0, Math.min(2, permTag.getInt())) : 1);
-        setCapsuleRowEnabled(capsPerm, permTag != null);
-
-        NbtTag ppermTag = root.get("PlayerPermissionsLevel");
-        selectCapsule(capsPperm, ppermTag != null
-                ? Math.max(0, Math.min(3, ppermTag.getInt())) : 1);
-        setCapsuleRowEnabled(capsPperm, ppermTag != null);
-
         // 开关组（存在才启用）
         NbtTag hcTag = root.get("IsHardcore");
         p.hasHardcore = hcTag != null;
@@ -2435,8 +2401,6 @@ public class NbtViewerActivity extends BaseActivity {
     // ---- 控件引用（懒绑定一次） ----
     private TextView[] capsGamemode;
     private TextView[] capsDifficulty;
-    private TextView[] capsPerm;
-    private TextView[] capsPperm;
     private com.google.android.material.switchmaterial.SwitchMaterial swHardcore;
     private com.google.android.material.switchmaterial.SwitchMaterial swCheats;
     private com.google.android.material.switchmaterial.SwitchMaterial swDaylight;
@@ -2460,15 +2424,8 @@ public class NbtViewerActivity extends BaseActivity {
         capsDifficulty = new TextView[]{
                 binding.settingsForm.capsDiff0, binding.settingsForm.capsDiff1,
                 binding.settingsForm.capsDiff2, binding.settingsForm.capsDiff3};
-        capsPerm = new TextView[]{
-                binding.settingsForm.capsPerm0, binding.settingsForm.capsPerm1, binding.settingsForm.capsPerm2};
-        capsPperm = new TextView[]{
-                binding.settingsForm.capsPperm0, binding.settingsForm.capsPperm1,
-                binding.settingsForm.capsPperm2, binding.settingsForm.capsPperm3};
         bindCapsuleGroup(capsGamemode);
         bindCapsuleGroup(capsDifficulty);
-        bindCapsuleGroup(capsPerm);
-        bindCapsuleGroup(capsPperm);
 
         swHardcore = binding.settingsForm.swHardcore;
         swCheats = binding.settingsForm.swCheats;
@@ -2686,16 +2643,6 @@ public class NbtViewerActivity extends BaseActivity {
             putRuleSwitch(root, "Domobspawning", swMobspawn);
             putRuleSwitch(root, "Doentitydrops", swEntitydrops);
             putRuleSwitch(root, "Dotiledrops", swTiledrops);
-            // 权限（存在才写）
-            if (root.containsKey("PermissionsLevel")) {
-                root.put("PermissionsLevel", new NbtTag(NbtTag.TAG_INT, "PermissionsLevel",
-                        selectedCapsule(capsPerm)));
-            }
-            if (root.containsKey("PlayerPermissionsLevel")) {
-                root.put("PlayerPermissionsLevel",
-                        new NbtTag(NbtTag.TAG_INT, "PlayerPermissionsLevel",
-                                selectedCapsule(capsPperm)));
-            }
 
             BedrockNbtWriter writer = new BedrockNbtWriter();
             writer.setHeaderVersion(10);

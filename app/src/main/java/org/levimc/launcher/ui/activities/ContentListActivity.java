@@ -372,11 +372,6 @@ public class ContentListActivity extends BaseActivity {
             }
 
             @Override
-            public void onWorldEdit(WorldItem world) {
-                openWorldEditor(world);
-            }
-
-            @Override
             public void onWorldViewMap(WorldItem world) {
                 openNbtViewer(world);
             }
@@ -458,17 +453,6 @@ public class ContentListActivity extends BaseActivity {
         binding.contentRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         binding.contentRecyclerView.setAdapter(worldsAdapter);
         binding.contentRecyclerView.post(() -> DynamicAnim.staggerRecyclerChildren(binding.contentRecyclerView));
-    }
-
-    /** v463：⋮ 菜单「编辑」= 权限编辑弹窗（只做权限，用户定稿）——
-     *  直接读 level.dat 弹胶囊选择，保存写回，不跳地图页。 */
-    private void openWorldEditor(WorldItem world) {
-        File worldFile = world.getFile();
-        if (worldFile == null || !worldFile.exists()) {
-            Toast.makeText(this, R.string.world_directory_not_found, Toast.LENGTH_SHORT).show();
-            return;
-        }
-        org.levimc.launcher.ui.dialogs.PermissionEditDialog.show(this, worldFile);
     }
 
     // ---------------------------------------------------------------- v445 置顶/排序持久化

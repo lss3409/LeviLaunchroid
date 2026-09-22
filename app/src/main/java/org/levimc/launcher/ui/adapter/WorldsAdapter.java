@@ -44,7 +44,6 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
         void onWorldExport(WorldItem world);
         void onWorldDelete(WorldItem world);
         void onWorldBackup(WorldItem world);
-        void onWorldEdit(WorldItem world);
         void onWorldViewMap(WorldItem world);
         void onWorldExtractStructures(WorldItem world);
         void onWorldTransfer(WorldItem world);
@@ -304,9 +303,6 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
         // v445：置顶项（状态文案随当前置顶状态切换）
         boolean pinned = pinnedPaths.contains(pathOf(world));
         ContentActionPopup.show(anchor, world.getWorldName(), Arrays.asList(
-                new ContentActionPopup.Action(R.drawable.ic_edit, R.string.edit, false, () -> {
-                    if (onWorldActionListener != null) onWorldActionListener.onWorldEdit(world);
-                }),
                 new ContentActionPopup.Action(R.drawable.ic_export, R.string.export, false, () -> {
                     if (onWorldActionListener != null) onWorldActionListener.onWorldExport(world);
                 }),

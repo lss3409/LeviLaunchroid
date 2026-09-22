@@ -1288,11 +1288,6 @@
     <string name="tool_point_list">标点列表</string>
     <string name="tool_blueprint">导出世界为 HTML</string>
     <string name="tool_voxel">3D 视图</string>
-    <string name="tool_goto">跳到坐标</string>
-    <string name="goto_dialog_title">跳到坐标</string>
-    <string name="goto_x_hint">X</string>
-    <string name="goto_z_hint">Z</string>
-    <string name="goto_invalid">请输入有效的 X/Z 数字</string>
     <string name="voxel_size">选择区域大小（以视口中心渲染）</string>
     <string name="voxel_select_hint">拖动地图选择 3D 区域，松手生成</string>
     <string name="point_add_title">添加标点</string>
@@ -1330,7 +1325,7 @@
     <string name="blueprint_import_ok">导入成功：%1$d 个标点、%2$d 条连线</string>
     <string name="blueprint_copied">已复制</string>
     <string name="point_list_title">标点列表</string>
-    <string name="map_search_hint">全局搜索标点…</string>
+    <string name="map_search_hint">搜索标点或坐标（如 50，50）…</string>
     <string name="btn_data_panel">数据</string>
     <string name="lb_info">世界信息</string>
     <string name="lb_layers">图层</string>
@@ -1367,7 +1362,6 @@
     <string name="nbt_set_group_time">时间与天气</string>
     <string name="nbt_set_group_spawn">出生点</string>
     <string name="nbt_set_group_rules">游戏规则</string>
-    <string name="nbt_set_group_permission">权限</string>
     <string name="nbt_set_group_player">玩家（只读）</string>
     <string name="nbt_set_cheats">允许作弊</string>
     <string name="nbt_edit_time">世界时间</string>
@@ -1388,12 +1382,6 @@
     <string name="nbt_set_mob_spawning">生成生物</string>
     <string name="nbt_set_entity_drops">实体掉落</string>
     <string name="nbt_set_tile_drops">方块掉落</string>
-    <string name="nbt_set_permission_level">权限等级</string>
-    <string name="nbt_set_player_permission">玩家权限等级</string>
-    <string name="nbt_perm_visitor">访客</string>
-    <string name="nbt_perm_member">成员</string>
-    <string name="nbt_perm_operator">操作员</string>
-    <string name="nbt_perm_custom">自定义</string>
     <string name="nbt_set_player_hint">玩家数据保存在存档数据库（db）中，随游戏自动更新。</string>
     <string name="nbt_set_revert">撤销</string>
     <string name="nbt_set_unsaved_title">未保存的修改</string>
@@ -1402,11 +1390,5 @@
     <string name="nbt_gamemode_spectator">旁观</string>
     <string name="nbt_summary_pos_label">玩家坐标：</string>
 
-    <!-- v462：地图 FAB 菜单「世界数据」入口 -->
-    <string name="tool_world_data">世界数据</string>
 
-    <!-- v463：权限编辑弹窗（⋮ 菜单「编辑」入口） -->
-    <string name="nbt_edit_permissions">编辑权限</string>
-    <string name="nbt_perm_level_hint">控制加入此世界的玩家可执行的操作。</string>
-    <string name="nbt_pperm_level_hint">控制本地玩家在此世界可执行的操作。</string>
 </resources>

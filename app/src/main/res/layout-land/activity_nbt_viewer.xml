@@ -736,31 +736,6 @@
             android:textColor="@color/on_surface"
             android:textSize="12sp" />
 
-        <TextView
-            android:id="@+id/tool_goto"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="6dp"
-            android:background="@drawable/bg_rounded_card"
-            android:fontFamily="@font/misans"
-            android:paddingHorizontal="12dp"
-            android:paddingVertical="7dp"
-            android:text="@string/tool_goto"
-            android:textColor="@color/on_surface"
-            android:textSize="12sp" />
-
-        <TextView
-            android:id="@+id/tool_nbt"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="6dp"
-            android:background="@drawable/bg_rounded_card"
-            android:fontFamily="@font/misans"
-            android:paddingHorizontal="12dp"
-            android:paddingVertical="7dp"
-            android:text="@string/tool_world_data"
-            android:textColor="@color/on_surface"
-            android:textSize="12sp" />
     </LinearLayout>
 
     <TextView
