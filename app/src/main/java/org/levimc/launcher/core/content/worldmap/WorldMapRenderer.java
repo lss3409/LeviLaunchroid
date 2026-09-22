@@ -5243,6 +5243,15 @@ public class WorldMapRenderer {
         // 高度 > 0 的已生成 chunk 用 biome 色（BTR BiomeRenderer 风格）；
         // 高度 0 = 未生成区域 → 主世界渲染为海洋（BTR 对 0x2d 全 0 的行为）
         if (height > 0 && biomeColor != 0) {
+            // v466：海平面以下的回退列优先显示水色（用户要求"海的
+            // 颜色优先"）——1.26 存档海区大量列无方块数据（本地
+            // 模拟实测 ~9% 列走此回退），biome 草色在海里成绿色
+            // 纯色块。海里的列本应有水面覆盖，无数据时按水面渲染；
+            // 陆地回退仍走 biome 色不受影响。
+            if (dimension == DIM_OVERWORLD && height <= SEA_LEVEL) {
+                return 0xFF000000 | (DEFAULT_WATER_TINT[0] << 16)
+                        | (DEFAULT_WATER_TINT[1] << 8) | DEFAULT_WATER_TINT[2];
+            }
             return biomeColor;
         }
         if (dimension == DIM_NETHER) {
