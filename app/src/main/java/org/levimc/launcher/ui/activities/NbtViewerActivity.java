@@ -3713,7 +3713,7 @@ public class NbtViewerActivity extends BaseActivity {
         dialog.show();
         executor.execute(() -> {
             WorldMapRenderer.VoxelColumn[][] data = WorldMapRenderer.renderVoxelRegion(
-                    dbDir, fCenterX, fCenterZ, dim, size, 8);
+                    dbDir, fCenterX, fCenterZ, dim, size, 128);
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed()) {
                     return;

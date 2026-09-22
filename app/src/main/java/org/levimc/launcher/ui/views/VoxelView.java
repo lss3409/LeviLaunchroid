@@ -24,8 +24,10 @@ public class VoxelView extends View {
 
     private WorldMapRenderer.VoxelColumn[][] data;
     private int size;
-    /** 旋转角（弧度，0 = 北）。 */
-    private float angle;
+    /** 每列非空气方块数（渲染前算好；blockAt 二分查找用）。 */
+    private int[][] counts;
+    /** 旋转角（弧度）。v486-2：初始 = π/4（经典 2:1 等距视角）。 */
+    private float angle = (float) (Math.PI / 4);
     /** 缩放倍率（0.5x - 4x）。 */
     private float zoom = 1f;
     /** 预渲染场景位图（数据加载后画一次；旋转/缩放只变换位图，
@@ -242,10 +244,12 @@ public class VoxelView extends View {
         // 整柱像随机散落的碎块（"稀疏破碎"根因）
         int minY = Integer.MAX_VALUE;
         int maxY = Integer.MIN_VALUE;
+        counts = new int[size][size];
         for (int dz = 0; dz < size; dz++) {
             for (int dx = 0; dx < size; dx++) {
                 WorldMapRenderer.VoxelColumn col = data[dz][dx];
                 int n = colBlockCount(col);
+                counts[dz][dx] = n;
                 if (n == 0) {
                     continue;
                 }
@@ -275,51 +279,59 @@ public class VoxelView extends View {
             minY = maxY - 256;
         }
         int ySpan = maxY - minY;
-        // 网格投影范围（任意旋转角）：
-        // x = (dx·cosA − dz·sinA)·unit，y = (dx·sinA + dz·cosA)·unit·0.5
-        float gMin = (size - 1) * (Math.min(0f, sinA) + Math.min(0f, cosA)) * unit * 0.5f;
-        float gMax = (size - 1) * (Math.max(0f, sinA) + Math.max(0f, cosA)) * unit * 0.5f;
-        float hMin = (size - 1) * (Math.min(0f, cosA) - Math.max(0f, sinA)) * unit;
-        float hMax = (size - 1) * (Math.max(0f, cosA) - Math.min(0f, sinA)) * unit;
-        float m = Math.max(Math.abs(cosA), Math.abs(sinA)) * unit; // 方块自身半宽
+        // v486-2：经典 2:1 等距晶格整体刚体旋转（晶格与菱形一起转，
+        // 任意角度严格共边平铺——旧"晶格转、菱形定形"混合投影只在
+        // 45° 吻合，其他角度相邻顶面之间出现缺口楔形 = 黑缝根因）：
+        // bpx = (dx−dz)cosA·u − (dx+dz)sinA·u/2
+        // bpy = (dx−dz)sinA·u + (dx+dz)cosA·u/2 − (y−minY)·blockH
+        float gMin = (size - 1) * unit * (Math.min(0f, sinA + cosA * 0.5f)
+                + Math.min(0f, cosA * 0.5f - sinA));
+        float gMax = (size - 1) * unit * (Math.max(0f, sinA + cosA * 0.5f)
+                + Math.max(0f, cosA * 0.5f - sinA));
+        float hMin = (size - 1) * unit * (Math.min(0f, cosA) - Math.max(0f, sinA));
+        float hMax = (size - 1) * unit * (Math.max(0f, cosA) - Math.min(0f, sinA));
+        float dTop = Math.max(Math.abs(sinA), Math.abs(cosA) * 0.5f) * unit;
+        float m = Math.max(Math.abs(cosA), Math.abs(sinA) * 0.5f) * unit; // 方块自身半宽
         int pad = 12;
         int bw = (int) (2 * pad + (hMax - hMin) + 2 * m + 0.5f);
-        int bh = (int) (2 * pad + ySpan * blockH + unit * 0.5f
+        int bh = (int) (2 * pad + ySpan * blockH + 2 * dTop
                 + (gMax - gMin) + blockH + 0.5f);
         android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(
                 bw, bh, android.graphics.Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bmp);
+        // v486-3：绘制整体平移 0.5px——所有边落在像素中点之间，
+        // 像素中心永不落在共享边上，相邻面填充严格平铺无裂缝
+        canvas.translate(0.5f, 0.5f);
         float cx = pad - hMin + m;
-        float cy = pad + ySpan * blockH + unit * 0.5f - gMin;
-        // 基座底盘：minY 下半格的暗色大菱形——模型不悬空，
-        // 空列/区域边缘露出的地面
-        float plateCx = cx + (size - 1) / 2f * (cosA - sinA) * unit;
-        float plateCy = cy + (size - 1) / 2f * (sinA + cosA) * unit * 0.5f
-                + blockH * 0.5f;
-        float ph = (size + 1) * 0.5f;
+        float cy = pad + ySpan * blockH + dTop - gMin;
+        // 基座底盘 = 区域投影菱形（minY − 0.5 层，外扩半块）——
+        // 模型不悬空，空列/区域边缘露出的地面
+        float hx = (size - 1) / 2f + 0.5f;
+        float cy2 = cy + blockH * 0.5f;
         Path plate = new Path();
-        plate.moveTo(px(plateCx, plateCy, ph, 0, unit, cosA, sinA),
-                py(plateCx, plateCy, ph, 0, unit, cosA, sinA));
-        plate.lineTo(px(plateCx, plateCy, 0, ph, unit, cosA, sinA),
-                py(plateCx, plateCy, 0, ph, unit, cosA, sinA));
-        plate.lineTo(px(plateCx, plateCy, -ph, 0, unit, cosA, sinA),
-                py(plateCx, plateCy, -ph, 0, unit, cosA, sinA));
-        plate.lineTo(px(plateCx, plateCy, 0, -ph, unit, cosA, sinA),
-                py(plateCx, plateCy, 0, -ph, unit, cosA, sinA));
+        plate.moveTo(cx + hx * sinA * unit, cy2 - hx * cosA * unit);
+        plate.lineTo(cx + 2 * hx * cosA * unit, cy2);
+        plate.lineTo(cx - hx * sinA * unit, cy2 + hx * cosA * unit);
+        plate.lineTo(cx - 2 * hx * cosA * unit, cy2);
         plate.close();
         fillPaint.setColor(0xFF262B33);
         canvas.drawPath(plate, fillPaint);
         // 画家算法：列按投影深度远→近；列内从低到高画（高层最后画
         // 盖住低层顶面）。每个块侧面全高 blockH——相邻块侧面严丝合缝
-        // 拼成连续墙面
-        int fx = Math.round(sinA); // 视角前方邻居（AO 用）
-        int fz = Math.round(cosA);
+        // 拼成连续墙面。v486-3：按面剔除——每面的覆盖邻居是该面朝向
+        // 的相邻方块（刚体旋转晶格下严格共面，任意角度精确无缝隙）：
+        // 顶面 ← 上方同列（上方侧面底边 = 本菱形上边）；
+        // side1（L-B 边，+Z 墙）← (dx,dz+1)；
+        // side2（B-R 边，+X 墙）← (dx+1,dz)；
+        // side3（T-R 边，−Z 墙）← (dx,dz−1)；
+        // side4（T-L 边，−X 墙）← (dx−1,dz)。
+        // 四面墙全画——旋转到 75°~90° 时朝向观察者的墙不再缺失（空壳）
         int[][] order = drawOrder(cosA, sinA);
         for (int[] p : order) {
             int dx = p[0];
             int dz = p[1];
             WorldMapRenderer.VoxelColumn col = data[dz][dx];
-            int n = colBlockCount(col);
+            int n = counts[dz][dx];
             if (n == 0) {
                 continue;
             }
@@ -328,14 +340,28 @@ public class VoxelView extends View {
                 if (y < minY) {
                     break; // ys 从顶向下，更低的全在裁剪线以下
                 }
-                float px = cx + (dx * cosA - dz * sinA) * unit;
-                float py = cy + (dx * sinA + dz * cosA) * unit * 0.5f
+                float bpx = cx + ((dx - dz) * cosA - (dx + dz) * 0.5f * sinA) * unit;
+                float bpy = cy + ((dx - dz) * sinA + (dx + dz) * 0.5f * cosA) * unit
                         - (y - minY) * blockH;
                 boolean above = blockAt(dx, dz, y + 1);
                 boolean below = blockAt(dx, dz, y - 1);
-                boolean front = blockAt(dx + fx, dz + fz, y);
-                drawBlock(canvas, px, py, col.colors[i], cosA, sinA,
-                        unit, blockH, col.names[i], y - minY, above, below, front);
+                boolean frontZ = blockAt(dx, dz + 1, y);
+                boolean frontX = blockAt(dx + 1, dz, y);
+                boolean backZ = blockAt(dx, dz - 1, y);
+                boolean backX = blockAt(dx - 1, dz, y);
+                boolean showDiamond = !above;
+                boolean showSide1 = !(above && frontZ);
+                boolean showSide2 = !(above && frontX);
+                boolean showSide3 = !(above && backZ);
+                boolean showSide4 = !(above && backX);
+                if (!showDiamond && !showSide1 && !showSide2
+                        && !showSide3 && !showSide4) {
+                    continue;
+                }
+                drawBlock(canvas, bpx, bpy, col.colors[i], cosA, sinA,
+                        unit, blockH, col.names[i], y - minY,
+                        above, below, frontZ, frontX, backZ, backX,
+                        showDiamond, showSide1, showSide2, showSide3, showSide4);
             }
         }
         return bmp;
@@ -353,18 +379,25 @@ public class VoxelView extends View {
         return n;
     }
 
-    /** 区域网格内 (dx,dz,y) 是否有方块（AO 邻居查询；列深 ≤8，线性查找）。 */
+    /** 区域网格内 (dx,dz,y) 是否有方块（AO/剔除邻居查询）。
+     *  v486：列深可达 128——ys 降序，二分查找（此前线性扫全列）。 */
     private boolean blockAt(int dx, int dz, int y) {
-        if (dx < 0 || dx >= size || dz < 0 || dz >= size) {
+        if (dx < 0 || dx >= size || dz < 0 || dz >= size || counts == null) {
             return false;
         }
-        WorldMapRenderer.VoxelColumn col = data[dz][dx];
-        for (int i = 0; i < col.ys.length; i++) {
-            if (col.colors[i] == 0) {
-                break;
-            }
-            if (col.ys[i] == y) {
+        int[] ys = data[dz][dx].ys;
+        int lo = 0;
+        int hi = counts[dz][dx] - 1;
+        while (lo <= hi) {
+            int mid = (lo + hi) >>> 1;
+            int v = ys[mid];
+            if (v == y) {
                 return true;
+            }
+            if (v > y) {
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
             }
         }
         return false;
@@ -528,7 +561,9 @@ public class VoxelView extends View {
         return 0;
     }
 
-    /** 绘制顺序：投影深度降序。 */
+    /** 绘制顺序：投影深度降序（远→近）。
+     *  v486-2：深度 = 刚体旋转晶格 bpy 的网格项
+     *  (dx−dz)·sinA + (dx+dz)·cosA/2 = dx·(sinA+cosA/2) + dz·(cosA/2−sinA) */
     private int[][] drawOrder(float cosA, float sinA) {
         int[][] order = new int[size * size][2];
         int i = 0;
@@ -543,7 +578,7 @@ public class VoxelView extends View {
     }
 
     private float depth(int dx, int dz, float sinA, float cosA) {
-        return dx * sinA + dz * cosA;
+        return dx * (sinA + cosA * 0.5f) + dz * (cosA * 0.5f - sinA);
     }
 
     /** 画一个等距方块（顶面 MC 原版纹理/纯色 + 两个侧面明暗 + 简易 AO）。
@@ -553,78 +588,120 @@ public class VoxelView extends View {
      *  用的是视图字段 angle，快照在 15°/30°…渲染时网格按快照角度摆、
      *  方块却按视图当前角度画，贴图与方块错位重叠（"贴图对不上"根因）。
      *  v484：① relY 改绝对高度（此前每列 baseY 归零 → 抹平地形）；
-     *  ② 侧面 × 简易 AO（上方/前方/下方邻居遮挡变暗——体素环境
-     *  光遮蔽观感，被围的缝发暗）；③ 侧面不再描黑边（黑点来源）。 */
+     *  ② 侧面 × 简易 AO（上/前/下邻居遮挡变暗——体素环境光遮蔽观感）；
+     *  ③ 侧面不再描黑边（黑点来源）。
+     *  v486-3：④ 四面墙（此前只画 +Z/+X 两面——旋转到 75°~90° 时
+     *  朝向观察者的墙缺失变空壳）：side1 = L-B 边（+Z 墙）、
+     *  side2 = B-R 边（+X 墙）、side3 = T-R 边（−Z 墙）、
+     *  side4 = T-L 边（−X 墙）——经典等距立方体画法（侧面挂在下
+     *  边缘而非上边缘，顶面菱形完整可见、纹理正常显示）；⑤ 按面
+     *  绘制（由调用方传入各面可见性，见 renderSceneAtLocked 注释）。 */
     private void drawBlock(Canvas canvas, float cx, float topY, int color,
                            float cosA, float sinA, float u, float h, String blockName,
-                           int relY, boolean above, boolean below, boolean front) {
+                           int relY, boolean above, boolean below,
+                           boolean frontZ, boolean frontX, boolean backZ, boolean backX,
+                           boolean showDiamond, boolean showSide1, boolean showSide2,
+                           boolean showSide3, boolean showSide4) {
         int base = color;
         float hb = Math.max(-24f, Math.min(24f, relY * 0.5f));
         int r = clamp255(((base >> 16) & 0xFF) + (int) hb);
         int g = clamp255(((base >> 8) & 0xFF) + (int) hb);
         int b = clamp255((base & 0xFF) + (int) hb);
         int lit = 0xFF000000 | (r << 16) | (g << 8) | b;
-        // 简易体素 AO：被邻居围住的侧面变暗
-        float ao = 1f - 0.12f * (above ? 1 : 0)
-                - 0.12f * (front ? 1 : 0)
-                - 0.06f * (below ? 1 : 0);
-        // 两个侧面明暗随观察方向交替（等距视觉立体感）
+        // 两侧明暗随观察方向交替（等距视觉立体感）
         float side = Math.abs(sinA);
-        int leftC = 0xFF000000
-                | (clamp255((int) (r * (0.55f + 0.2f * side) * ao)) << 16)
-                | (clamp255((int) (g * (0.55f + 0.2f * side) * ao)) << 8)
-                | clamp255((int) (b * (0.55f + 0.2f * side) * ao));
-        int rightC = 0xFF000000
-                | (clamp255((int) (r * (0.35f + 0.2f * side) * ao)) << 16)
-                | (clamp255((int) (g * (0.35f + 0.2f * side) * ao)) << 8)
-                | clamp255((int) (b * (0.35f + 0.2f * side) * ao));
 
         // 顶面：有 MC 原版纹理 → 仿射贴图到菱形（结构方块渲染同款观感）；
         // 无纹理回退纯色菱形
-        android.graphics.Bitmap tex = textureFor(blockName);
-        if (tex != null) {
-            android.graphics.Matrix m = new android.graphics.Matrix();
-            float[] src = {0f, 0f, tex.getWidth(), 0f, 0f, tex.getHeight()};
-            float[] dst = {
-                    px(cx, topY, 0, -1, u, cosA, sinA), py(cx, topY, 0, -1, u, cosA, sinA),
-                    px(cx, topY, 1, 0, u, cosA, sinA), py(cx, topY, 1, 0, u, cosA, sinA),
-                    px(cx, topY, -1, 0, u, cosA, sinA), py(cx, topY, -1, 0, u, cosA, sinA)};
-            m.setPolyToPoly(src, 0, dst, 0, 3);
-            canvas.save();
-            canvas.concat(m);
-            canvas.drawBitmap(tex, 0f, 0f, texPaint);
-            canvas.restore();
-        } else {
-            Path top = new Path();
-            top.moveTo(px(cx, topY, 1, 0, u, cosA, sinA), py(cx, topY, 1, 0, u, cosA, sinA));
-            top.lineTo(px(cx, topY, 0, 1, u, cosA, sinA), py(cx, topY, 0, 1, u, cosA, sinA));
-            top.lineTo(px(cx, topY, -1, 0, u, cosA, sinA), py(cx, topY, -1, 0, u, cosA, sinA));
-            top.lineTo(px(cx, topY, 0, -1, u, cosA, sinA), py(cx, topY, 0, -1, u, cosA, sinA));
-            top.close();
-            fillPaint.setColor(lit);
-            canvas.drawPath(top, fillPaint);
-            canvas.drawPath(top, strokePaint);
+        if (showDiamond) {
+            android.graphics.Bitmap tex = textureFor(blockName);
+            if (tex != null) {
+                android.graphics.Matrix mt = new android.graphics.Matrix();
+                float[] src = {0f, 0f, tex.getWidth(), 0f, 0f, tex.getHeight()};
+                float[] dst = {
+                        px(cx, topY, 0, -1, u, cosA, sinA), py(cx, topY, 0, -1, u, cosA, sinA),
+                        px(cx, topY, 1, 0, u, cosA, sinA), py(cx, topY, 1, 0, u, cosA, sinA),
+                        px(cx, topY, -1, 0, u, cosA, sinA), py(cx, topY, -1, 0, u, cosA, sinA)};
+                mt.setPolyToPoly(src, 0, dst, 0, 3);
+                canvas.save();
+                canvas.concat(mt);
+                canvas.drawBitmap(tex, 0f, 0f, texPaint);
+                canvas.restore();
+            } else {
+                Path top = new Path();
+                top.moveTo(px(cx, topY, 1, 0, u, cosA, sinA), py(cx, topY, 1, 0, u, cosA, sinA));
+                top.lineTo(px(cx, topY, 0, 1, u, cosA, sinA), py(cx, topY, 0, 1, u, cosA, sinA));
+                top.lineTo(px(cx, topY, -1, 0, u, cosA, sinA), py(cx, topY, -1, 0, u, cosA, sinA));
+                top.lineTo(px(cx, topY, 0, -1, u, cosA, sinA), py(cx, topY, 0, -1, u, cosA, sinA));
+                top.close();
+                fillPaint.setColor(lit);
+                canvas.drawPath(top, fillPaint);
+                canvas.drawPath(top, strokePaint);
+            }
         }
 
-        // 侧面 1（左前：-X 与 -Z 边）——v484 去描边（黑点来源）
-        Path side1 = new Path();
-        side1.moveTo(px(cx, topY, 0, -1, u, cosA, sinA), py(cx, topY, 0, -1, u, cosA, sinA));
-        side1.lineTo(px(cx, topY, -1, 0, u, cosA, sinA), py(cx, topY, -1, 0, u, cosA, sinA));
-        side1.lineTo(px(cx, topY + h, -1, 0, u, cosA, sinA), py(cx, topY + h, -1, 0, u, cosA, sinA));
-        side1.lineTo(px(cx, topY + h, 0, -1, u, cosA, sinA), py(cx, topY + h, 0, -1, u, cosA, sinA));
-        side1.close();
-        fillPaint.setColor(leftC);
-        canvas.drawPath(side1, fillPaint);
-
-        // 侧面 2（右前：+X 与 -Z 边）
-        Path side2 = new Path();
-        side2.moveTo(px(cx, topY, 0, -1, u, cosA, sinA), py(cx, topY, 0, -1, u, cosA, sinA));
-        side2.lineTo(px(cx, topY, 1, 0, u, cosA, sinA), py(cx, topY, 1, 0, u, cosA, sinA));
-        side2.lineTo(px(cx, topY + h, 1, 0, u, cosA, sinA), py(cx, topY + h, 1, 0, u, cosA, sinA));
-        side2.lineTo(px(cx, topY + h, 0, -1, u, cosA, sinA), py(cx, topY + h, 0, -1, u, cosA, sinA));
-        side2.close();
-        fillPaint.setColor(rightC);
-        canvas.drawPath(side2, fillPaint);
+        // v486-3：四个侧面——从菱形下边缘挂下（经典立方体）。
+        // 每面独立 AO（该面朝向的邻居遮挡变暗）
+        if (showSide1) {
+            float ao = 1f - 0.12f * (above ? 1 : 0)
+                    - 0.12f * (frontZ ? 1 : 0) - 0.06f * (below ? 1 : 0);
+            fillPaint.setColor(0xFF000000
+                    | (clamp255((int) (r * (0.55f + 0.2f * side) * ao)) << 16)
+                    | (clamp255((int) (g * (0.55f + 0.2f * side) * ao)) << 8)
+                    | clamp255((int) (b * (0.55f + 0.2f * side) * ao)));
+            Path s1 = new Path();
+            s1.moveTo(px(cx, topY, -1, 0, u, cosA, sinA), py(cx, topY, -1, 0, u, cosA, sinA));
+            s1.lineTo(px(cx, topY, 0, 1, u, cosA, sinA), py(cx, topY, 0, 1, u, cosA, sinA));
+            s1.lineTo(px(cx, topY + h, 0, 1, u, cosA, sinA), py(cx, topY + h, 0, 1, u, cosA, sinA));
+            s1.lineTo(px(cx, topY + h, -1, 0, u, cosA, sinA), py(cx, topY + h, -1, 0, u, cosA, sinA));
+            s1.close();
+            canvas.drawPath(s1, fillPaint);
+        }
+        if (showSide2) {
+            float ao = 1f - 0.12f * (above ? 1 : 0)
+                    - 0.12f * (frontX ? 1 : 0) - 0.06f * (below ? 1 : 0);
+            fillPaint.setColor(0xFF000000
+                    | (clamp255((int) (r * (0.35f + 0.2f * side) * ao)) << 16)
+                    | (clamp255((int) (g * (0.35f + 0.2f * side) * ao)) << 8)
+                    | clamp255((int) (b * (0.35f + 0.2f * side) * ao)));
+            Path s2 = new Path();
+            s2.moveTo(px(cx, topY, 0, 1, u, cosA, sinA), py(cx, topY, 0, 1, u, cosA, sinA));
+            s2.lineTo(px(cx, topY, 1, 0, u, cosA, sinA), py(cx, topY, 1, 0, u, cosA, sinA));
+            s2.lineTo(px(cx, topY + h, 1, 0, u, cosA, sinA), py(cx, topY + h, 1, 0, u, cosA, sinA));
+            s2.lineTo(px(cx, topY + h, 0, 1, u, cosA, sinA), py(cx, topY + h, 0, 1, u, cosA, sinA));
+            s2.close();
+            canvas.drawPath(s2, fillPaint);
+        }
+        if (showSide3) {
+            float ao = 1f - 0.12f * (above ? 1 : 0)
+                    - 0.12f * (backZ ? 1 : 0) - 0.06f * (below ? 1 : 0);
+            fillPaint.setColor(0xFF000000
+                    | (clamp255((int) (r * (0.55f + 0.2f * side) * ao)) << 16)
+                    | (clamp255((int) (g * (0.55f + 0.2f * side) * ao)) << 8)
+                    | clamp255((int) (b * (0.55f + 0.2f * side) * ao)));
+            Path s3 = new Path();
+            s3.moveTo(px(cx, topY, 0, -1, u, cosA, sinA), py(cx, topY, 0, -1, u, cosA, sinA));
+            s3.lineTo(px(cx, topY, 1, 0, u, cosA, sinA), py(cx, topY, 1, 0, u, cosA, sinA));
+            s3.lineTo(px(cx, topY + h, 1, 0, u, cosA, sinA), py(cx, topY + h, 1, 0, u, cosA, sinA));
+            s3.lineTo(px(cx, topY + h, 0, -1, u, cosA, sinA), py(cx, topY + h, 0, -1, u, cosA, sinA));
+            s3.close();
+            canvas.drawPath(s3, fillPaint);
+        }
+        if (showSide4) {
+            float ao = 1f - 0.12f * (above ? 1 : 0)
+                    - 0.12f * (backX ? 1 : 0) - 0.06f * (below ? 1 : 0);
+            fillPaint.setColor(0xFF000000
+                    | (clamp255((int) (r * (0.35f + 0.2f * side) * ao)) << 16)
+                    | (clamp255((int) (g * (0.35f + 0.2f * side) * ao)) << 8)
+                    | clamp255((int) (b * (0.35f + 0.2f * side) * ao)));
+            Path s4 = new Path();
+            s4.moveTo(px(cx, topY, 0, -1, u, cosA, sinA), py(cx, topY, 0, -1, u, cosA, sinA));
+            s4.lineTo(px(cx, topY, -1, 0, u, cosA, sinA), py(cx, topY, -1, 0, u, cosA, sinA));
+            s4.lineTo(px(cx, topY + h, -1, 0, u, cosA, sinA), py(cx, topY + h, -1, 0, u, cosA, sinA));
+            s4.lineTo(px(cx, topY + h, 0, -1, u, cosA, sinA), py(cx, topY + h, 0, -1, u, cosA, sinA));
+            s4.close();
+            canvas.drawPath(s4, fillPaint);
+        }
     }
 
     private static int clamp255(int v) {
@@ -632,13 +709,17 @@ public class VoxelView extends View {
     }
 
     /** 单位菱形顶点投影（lx,ly 为逻辑角，u 为半宽；cosA/sinA 为
-     *  快照渲染角度——必须与网格摆放角度一致，否则贴图与方块错位）。 */
+     *  快照渲染角度——必须与网格摆放角度一致，否则贴图与方块错位）。
+     *  v486-2：经典 2:1 等距菱形（未旋转时 T=(0,−u/2)、R=(u,0)、
+     *  B=(0,u/2)、L=(−u,0)）随场景整体刚体旋转——晶格与菱形一起转，
+     *  任意角度严格保持共边平铺（旧"晶格转、菱形定形"混合投影只在
+     *  45° 吻合，其他角度相邻顶面之间出现缺口楔形 = 黑缝根因） */
     private float px(float cx, float topY, float lx, float ly, float u, float cosA, float sinA) {
-        return cx + (lx * cosA - ly * sinA) * u;
+        return cx + (lx * cosA - ly * sinA * 0.5f) * u;
     }
 
     private float py(float cx, float topY, float lx, float ly, float u, float cosA, float sinA) {
-        return topY + (lx * sinA + ly * cosA) * u * 0.5f;
+        return topY + (lx * sinA + ly * cosA * 0.5f) * u;
     }
 
     /** 左上角 XYZ 三色坐标轴（X 红 / Y 绿 / Z 蓝）。 */
@@ -648,12 +729,18 @@ public class VoxelView extends View {
         float len = 50;
         float cosA = (float) Math.cos(angle);
         float sinA = (float) Math.sin(angle);
-        // X 轴（红）：沿 (cosA, sinA·0.5) 方向
+        // v486-2：轴方向 = 刚体旋转晶格——X 轴 = rotate(u, u/2)、
+        // Z 轴 = rotate(−u, u/2)
+        float ax = cosA - sinA * 0.5f;
+        float ay = sinA + cosA * 0.5f;
+        float zx = -cosA - sinA * 0.5f;
+        float zy = -sinA + cosA * 0.5f;
+        // X 轴（红）
         axisPaint.setColor(0xFFE53935);
-        canvas.drawLine(ox, oy, ox + cosA * len, oy + sinA * len * 0.5f, axisPaint);
-        // Z 轴（蓝）：沿 (-sinA, cosA·0.5) 方向
+        canvas.drawLine(ox, oy, ox + ax * len, oy + ay * len, axisPaint);
+        // Z 轴（蓝）
         axisPaint.setColor(0xFF1E88E5);
-        canvas.drawLine(ox, oy, ox - sinA * len, oy + cosA * len * 0.5f, axisPaint);
+        canvas.drawLine(ox, oy, ox + zx * len, oy + zy * len, axisPaint);
         // Y 轴（绿）：垂直向上
         axisPaint.setColor(0xFF43A047);
         canvas.drawLine(ox, oy, ox, oy - len, axisPaint);
@@ -661,9 +748,9 @@ public class VoxelView extends View {
         text.setTextSize(18);
         text.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         text.setColor(0xFFE53935);
-        canvas.drawText("X", ox + cosA * (len + 12), oy + sinA * (len + 12) * 0.5f, text);
+        canvas.drawText("X", ox + ax * (len + 12), oy + ay * (len + 12), text);
         text.setColor(0xFF1E88E5);
-        canvas.drawText("Z", ox - sinA * (len + 12), oy + cosA * (len + 12) * 0.5f, text);
+        canvas.drawText("Z", ox + zx * (len + 12), oy + zy * (len + 12), text);
         text.setColor(0xFF43A047);
         canvas.drawText("Y", ox + 4, oy - len - 12, text);
     }

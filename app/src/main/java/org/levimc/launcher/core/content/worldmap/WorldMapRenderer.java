@@ -4139,9 +4139,28 @@ public class WorldMapRenderer {
         }
     }
 
+    /** 3D 体素实心填充深度：统一基底 = 区域最低地表 − 此值。 */
+    private static final int VOXEL_FILL_DEPTH = 20;
+
+    /** (x,y,z) 处方块名（主层空气时查水层 storage 1——1.18+ 双 storage）。 */
+    private static String blockNameAt(SubChunk sub, int lx, int localY, int lz) {
+        int idx = sub.getIndex(lx, localY, lz);
+        String name = idx < sub.palette.length ? sub.palette[idx] : null;
+        if ((name == null || isAirName(name)) && sub.waterLayer != null) {
+            int widx = sub.waterLayer.getIndex(lx, localY, lz);
+            String wname = widx < sub.waterLayer.palette.length
+                    ? sub.waterLayer.palette[widx] : null;
+            if (wname != null && !isAirName(wname)) {
+                name = wname;
+            }
+        }
+        return name;
+    }
+
     /**
-     * 渲染 3D 体素视图数据：以 (centerX, centerZ) 为中心的 size×size 方块区域，
-     * 每列从顶向下收集 depth 层非空气方块（等距投影用）。
+     * 渲染 3D 体素视图数据：以 (centerX, centerZ) 为中心的 size×size 方块区域。
+     * v486：每列从地表向下**实心收集到统一基底**（depth = 每列最大方块数上限，
+     * 由调用方传入）——实心板式地形实体（深度 8 层"地表壳"的教训见手册）。
      */
     public static VoxelColumn[][] renderVoxelRegion(File dbDir, int centerX, int centerZ,
                                                     int dimension, int size, int depth) {
@@ -4213,7 +4232,16 @@ public class WorldMapRenderer {
                 }
                 int startX = centerX - half;
                 int startZ = centerZ - half;
-                VoxelColumn[][] out = new VoxelColumn[size][size];
+                // v486：两遍遍历——第一遍找每列地表顶层定统一基底，
+                // 第二遍从地表向下**实心收集到基底**。此前只收 depth=8
+                // 层"地表壳"：悬崖壁（第 9 块以下）/底部岩层缺失 →
+                // 水平断层错位、锥形底、边缘钟乳石拉丝、壳内中空裸露
+                // 每列上下文（两遍共用）
+                int[][] colLx = new int[size][size];
+                int[][] colLz = new int[size][size];
+                int[][] colYStart = new int[size][size];
+                int[][] colBiome = new int[size][size];
+                Map<Integer, SubChunk>[][] colSubs = new Map[size][size];
                 for (int dz = 0; dz < size; dz++) {
                     for (int dx = 0; dx < size; dx++) {
                         int wx = startX + dx;
@@ -4221,15 +4249,15 @@ public class WorldMapRenderer {
                         int cx = Math.floorDiv(wx, 16);
                         int cz = Math.floorDiv(wz, 16);
                         long key = pack(cx, cz);
-                        int[] hmap = hmapByChunk.get(key);
                         Map<Integer, SubChunk> subs = subsByChunk.get(key);
+                        if (subs == null) {
+                            subs = java.util.Collections.emptyMap();
+                        }
                         int lx = wx - cx * 16;
                         int lz = wz - cz * 16;
-                        int[] colors = new int[depth];
-                        int[] ys = new int[depth];
-                        String[] names = new String[depth];
-                        java.util.Arrays.fill(colors, 0);
-                        int n = 0;
+                        colLx[dz][dx] = lx;
+                        colLz[dz][dx] = lz;
+                        colSubs[dz][dx] = subs;
                         // yStart 与 surfaceColor 同款：从实际最高 subchunk 顶
                         // 向下（y320 封顶）——不能用 hmap（生成器预测值 127~201，
                         // 实际方块只到地表/树冠，从预测值向下找会错过树冠/
@@ -4240,45 +4268,71 @@ public class WorldMapRenderer {
                                 maxSubTop = s;
                             }
                         }
-                        int yStart = maxSubTop > Integer.MIN_VALUE
+                        colYStart[dz][dx] = maxSubTop > Integer.MIN_VALUE
                                 ? Math.min(maxSubTop * 16 + 15, 320) : 319;
                         byte[] biomes = biomeByChunk.get(key);
-                        int biomeId = biomes != null ? biomes[(lz << 4) | lx] & 0xFF : -1;
-                        for (int y = yStart; y >= -64 && n < depth; y--) {
-                            SubChunk sub = subs.get(Math.floorDiv(y, 16));
+                        colBiome[dz][dx] = biomes != null ? biomes[(lz << 4) | lx] & 0xFF : -1;
+                    }
+                }
+                // 第一遍：每列地表（含水面）顶层
+                int[][] surfTops = new int[size][size];
+                int minTop = Integer.MAX_VALUE;
+                for (int dz = 0; dz < size; dz++) {
+                    for (int dx = 0; dx < size; dx++) {
+                        int top = Integer.MIN_VALUE;
+                        for (int y = colYStart[dz][dx]; y >= -64; y--) {
+                            SubChunk sub = colSubs[dz][dx].get(Math.floorDiv(y, 16));
                             if (sub == null) {
                                 continue;
                             }
-                            int localY = y - Math.floorDiv(y, 16) * 16;
-                            int idx = sub.getIndex(lx, localY, lz);
-                            String name = idx < sub.palette.length ? sub.palette[idx] : null;
-                            // v484：1.18+ 水面在 storage 1（水层）——主层空气时
-                            // 查水层（surfaceColor 同款），否则海洋列全空，
-                            // 3D 海上一个大洞
-                            if ((name == null || isAirName(name)) && sub.waterLayer != null) {
-                                int widx = sub.waterLayer.getIndex(lx, localY, lz);
-                                String wname = widx < sub.waterLayer.palette.length
-                                        ? sub.waterLayer.palette[widx] : null;
-                                if (wname != null && !isAirName(wname)) {
-                                    name = wname;
-                                }
+                            String name = blockNameAt(sub, colLx[dz][dx],
+                                    y - Math.floorDiv(y, 16) * 16, colLz[dz][dx]);
+                            if (name != null && !isAirName(name)) {
+                                top = y;
+                                break;
                             }
+                        }
+                        surfTops[dz][dx] = top;
+                        if (top > Integer.MIN_VALUE && top < minTop) {
+                            minTop = top;
+                        }
+                    }
+                }
+                // 统一基底 = 区域最低地表 − FILL_DEPTH：所有列同一底面，
+                // 实心板——无锥形底、无垂挂拉丝、悬崖壁完整
+                int floorY = minTop == Integer.MAX_VALUE
+                        ? Integer.MIN_VALUE : minTop - VOXEL_FILL_DEPTH;
+                // 第二遍：地表向下实心收集（空气跳过；水方块不阻断，
+                // 继续向下收海床——实心填充，水面立方悬在海床之上）
+                VoxelColumn[][] out = new VoxelColumn[size][size];
+                for (int dz = 0; dz < size; dz++) {
+                    for (int dx = 0; dx < size; dx++) {
+                        int[] colors = new int[depth];
+                        int[] ys = new int[depth];
+                        String[] names = new String[depth];
+                        java.util.Arrays.fill(colors, 0);
+                        int n = 0;
+                        for (int y = surfTops[dz][dx]; y >= floorY && n < depth; y--) {
+                            SubChunk sub = colSubs[dz][dx].get(Math.floorDiv(y, 16));
+                            if (sub == null) {
+                                continue;
+                            }
+                            String name = blockNameAt(sub, colLx[dz][dx],
+                                    y - Math.floorDiv(y, 16) * 16, colLz[dz][dx]);
                             if (name == null || isAirName(name)) {
                                 continue;
                             }
-                            boolean isWater = name.equals("minecraft:water")
-                                    || name.equals("minecraft:flowing_water");
-                            if (isWater) {
-                                // 水面：统一水色（色表灰度模板无 biome 会显示灰），
-                                // 收集后停止向下——否则海洋区域把海床 14 层
-                                // 全渲染成乱石堆（3D 视图错位的根因）
+                            if (name.equals("minecraft:water")
+                                    || name.equals("minecraft:flowing_water")) {
+                                // 水面：统一水色（色表灰度模板无 biome 会显示灰）
                                 colors[n] = 0xFF4B8CEB;
                                 ys[n] = y;
                                 names[n] = name;
                                 n++;
-                                break;
+                                continue;
                             }
-                            colors[n] = tintColor(name, colorForBlock(name), biomeId);
+                            colors[n] = tintColor(name, colorForBlock(name),
+                                    colBiome[dz][dx]);
                             ys[n] = y;
                             names[n] = name;
                             n++;
