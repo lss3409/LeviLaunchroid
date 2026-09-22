@@ -84,6 +84,15 @@ public class ModMenuButton {
                 PixelFormat.TRANSLUCENT
             );
             wmParams.gravity = Gravity.TOP | Gravity.START;
+            // v475：SHORT_EDGES——vivo 手机横屏时系统把刘海安全区
+            // （实测 126px）套到面板子窗口上，x=0 实际渲染在 126px
+            // 处（dumpsys: display=[126,0][2750,1260]）→ 吸左缘永远
+            // 留一条缝、右缘正常（右侧无安全区）。ModMenuOverlay
+            // 已有同款设置，这里补上。
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                wmParams.layoutInDisplayCutoutMode =
+                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            }
             // v442：恢复上次吸附的位置（重启/重进后球还在老地方）
             int[] saved = loadBallPosition();
             wmParams.x = saved != null ? saved[0] : startX;

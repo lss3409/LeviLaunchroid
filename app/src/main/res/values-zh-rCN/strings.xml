@@ -1326,6 +1326,9 @@
     <string name="blueprint_copied">已复制</string>
     <string name="point_list_title">标点列表</string>
     <string name="map_search_hint">搜索标点或坐标（如 50，50）…</string>
+    <string name="search_jump">跳转</string>
+    <string name="search_coord_hint">检测到坐标（%1$d，%2$d），按键盘「跳转」键确认</string>
+    <string name="goto_jump_toast">已跳转到 X:%1$d Z:%2$d</string>
     <string name="btn_data_panel">数据</string>
     <string name="lb_info">世界信息</string>
     <string name="lb_layers">图层</string>

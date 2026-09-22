@@ -239,6 +239,10 @@ public class NbtViewerActivity extends BaseActivity {
     /** v460：世界设置表单引用（onDataLoaded 回填，玩家只读信息用）。 */
     private WorldItem loadedWorldItem;
     private File currentWorldDir;
+    /** v475：顶栏搜索解析出的待跳坐标（按键盘「跳转」键确认后跳转）。 */
+    private int[] pendingJumpCoords;
+    /** v475：已提示过的坐标（同一坐标只提示一次"按跳转键确认"）。 */
+    private String lastJumpHint;
 
     // ---- 标点 / 连线 / 蓝图码（PRD 缝合功能） ----
     private BlueprintDb blueprintDb;
@@ -329,9 +333,9 @@ public class NbtViewerActivity extends BaseActivity {
             binding.topbarFull.setVisibility(expanded ? View.GONE : View.VISIBLE);
             binding.topbarChev.setText(expanded ? "▼" : "▲");
         });
-        // 顶栏全局搜索 → 联动左栏标点 Tab 搜索；坐标格式直接跳转
-        // （v474：跳到坐标并入搜索——支持 50，50 / 50 50 /（50，50），
-        // 半全角逗号/括号均可、支持负数）
+        // 顶栏全局搜索 → 联动左栏标点 Tab 搜索；坐标格式提示 + 按键盘
+        // 「跳转」键确认后 flyTo（v474 曾匹配即跳——"50 5"没写完就跳
+        // 到 (50,5)，用户反馈要确认按钮与跳转提示，v475 改为两段式）
         binding.mapSearch.addTextChangedListener(new android.text.TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
@@ -339,14 +343,52 @@ public class NbtViewerActivity extends BaseActivity {
                     return;
                 }
                 int[] coords = parseJumpCoords(s.toString());
-                if (coords != null && currentMap != null) {
-                    binding.worldMapImage.animateTo(coords[0], coords[1]);
-                    binding.mapSearch.setText("");
-                    return;
+                pendingJumpCoords = coords;
+                if (coords != null) {
+                    // 检测到完整坐标：提示按「跳转」键确认（同一坐标只提示一次）
+                    String key = coords[0] + "," + coords[1];
+                    if (!key.equals(lastJumpHint)) {
+                        lastJumpHint = key;
+                        Toast.makeText(NbtViewerActivity.this,
+                                getString(R.string.search_coord_hint, coords[0], coords[1]),
+                                Toast.LENGTH_SHORT).show();
+                    }
+                    return; // 坐标输入不同步到标点搜索
                 }
+                lastJumpHint = null;
                 binding.pointSearchInput.setText(s);
             }
             @Override public void afterTextChanged(android.text.Editable s) {}
+        });
+        // 键盘「跳转」键 = 确认：有坐标跳转 + 提示，无坐标走默认
+        binding.mapSearch.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_GO
+                    || actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+                    || actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+                    || actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEND
+                    || actionId == android.view.inputmethod.EditorInfo.IME_ACTION_NEXT) {
+                int[] coords = pendingJumpCoords;
+                if (coords == null && v.getText() != null) {
+                    coords = parseJumpCoords(v.getText().toString());
+                }
+                if (coords != null && currentMap != null) {
+                    binding.worldMapImage.animateTo(coords[0], coords[1]);
+                    Toast.makeText(NbtViewerActivity.this,
+                            getString(R.string.goto_jump_toast, coords[0], coords[1]),
+                            Toast.LENGTH_SHORT).show();
+                    binding.mapSearch.setText("");
+                    pendingJumpCoords = null;
+                    lastJumpHint = null;
+                    return true;
+                }
+                if (coords != null) {
+                    // 地图未加载：清掉 pending，不误跳
+                    pendingJumpCoords = null;
+                    lastJumpHint = null;
+                    return true;
+                }
+            }
+            return false;
         });
         binding.dataPanelClose.setOnClickListener(v -> closeDataPanel());
         DynamicAnim.applyPressScale(binding.dataPanelClose);
@@ -1089,7 +1131,8 @@ public class NbtViewerActivity extends BaseActivity {
     }
 
     /** v474：解析坐标跳转输入——支持 50，50 / 50 50 /（50，50），
-     *  半全角逗号/括号均可、支持负数；非坐标返回 null（走标点搜索）。 */
+     *  半全角逗号/括号均可、支持负数；非坐标返回 null（走标点搜索）。
+     *  v475：解析结果不再自动跳转——先提示，按键盘「跳转」键确认。 */
     private int[] parseJumpCoords(String raw) {
         if (raw == null) {
             return null;
@@ -1139,15 +1182,8 @@ public class NbtViewerActivity extends BaseActivity {
         DynamicAnim.applyPressScale(binding.worldDimOverworld);
         DynamicAnim.applyPressScale(binding.worldDimNether);
         DynamicAnim.applyPressScale(binding.worldDimEnd);
-        // 标题 = 维度切换：点击循环切换（主世界→下界→末地）
-        binding.nbtTitle.setOnClickListener(v -> {
-            String next;
-            if ("overworld".equals(mapDimension)) next = "nether";
-            else if ("nether".equals(mapDimension)) next = "end";
-            else next = "overworld";
-            switchToDimension(next);
-        });
-        DynamicAnim.applyPressScale(binding.nbtTitle);
+        // v475：标题点击循环切换维度已删除（用户反馈：顶栏收起时
+        // 点整个栏误触切维度）——维度只在三个维度文本上切换
     }
 
     /** 统一维度切换：按钮高亮 + 标题显示当前维度名 + 重载地图。 */

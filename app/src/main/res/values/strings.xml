@@ -1376,6 +1376,9 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="blueprint_copied">Copied</string>
     <string name="point_list_title">Points</string>
     <string name="map_search_hint">Search points or coords (50, 50)…</string>
+    <string name="search_jump">Jump</string>
+    <string name="search_coord_hint">Coords detected (%1$d, %2$d) — press the Jump key to confirm</string>
+    <string name="goto_jump_toast">Jumped to X:%1$d Z:%2$d</string>
     <string name="btn_data_panel">Data</string>
     <string name="lb_info">World Info</string>
     <string name="lb_layers">Layers</string>
