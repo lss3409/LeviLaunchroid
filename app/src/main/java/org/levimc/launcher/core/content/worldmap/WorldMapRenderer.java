@@ -5234,7 +5234,13 @@ public class WorldMapRenderer {
                 return color;
             }
             if (waterY >= 0) {
-                return waterColor; // 整列只有水（河床无数据）
+                // v469：整列只有水（河床无数据）——此前直接返回纯水色，
+                // 海边区块"海的纯色、没有海底的东西"（用户：少套了一层
+                // 滤镜）。模拟河床（沙色）+ 水覆盖混合（同款曲线），
+                // 与正常海列"海底+海滤镜"观感一致。
+                int depth = Math.max(1, SEA_LEVEL - height);
+                float op = Math.min(0.2f * depth + 0.35f, 0.9f);
+                return blendColors(waterColor, SAND_BED_COLOR, op);
             }
             if (glassY >= 0) {
                 // 玻璃下窗口内无固体（高塔/刷怪塔玻璃顶——下方悬空超过
