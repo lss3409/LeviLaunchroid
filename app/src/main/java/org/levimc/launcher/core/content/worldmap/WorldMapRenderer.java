@@ -1068,8 +1068,13 @@ public class WorldMapRenderer {
     /** v467：草地灰度模板（grass_block 色表色 147,147,147——
      *  陆地回退列与正常渲染列亮度统一用）。 */
     private static final int GRASS_TEMPLATE_COLOR = 0xFF939393;
-    /** v468：回退列模拟河床的沙色（与 colorForBlock 的 sand 一致）。 */
-    private static final int SAND_BED_COLOR = 0xFFDBD3A0;
+    /** v472：回退海列模拟河床的砾石色（与色表 gravel 126,124,122 一致）。
+     *  v468 曾用亮沙 0xFFDBD3A0——1.26 存档海区大量列无方块数据（未生成
+     *  区块：高度图=海面预测值 63 + 群系数据，但 subchunk 全 air），回退
+     *  列水深算不出（高度图存海面非海底）→ op 只能取 0.55 → 45% 亮沙透
+     *  出 = 浅蓝灰斑块，与旁边正常海（0.9×水色+0.1×砾石 #497ECB）对比
+     *  "太突兀"（用户反馈）。实际海床实测是砾石，统一砾石床+深海 op。 */
+    private static final int SEA_BED_COLOR = 0xFF7E7C7A;
 
     /** 水色（BTR 老版 water 0x802e43f4 半透明混黑底 50% 的观感） */
     private static final int COLOR_WATER = 0xFF17217A;
@@ -2083,7 +2088,9 @@ public class WorldMapRenderer {
     //      结果（末地 122 chunk 坏缓存）须失效
     // v18：缓存头加 db 文件指纹列表（"name:size:mtime"）——增量更新：
     //      打开时 diff 找出新文件只重渲染变化 chunk，db 变化不再全量失效
-    private static final int MAP_CACHE_VERSION = 20;
+    // v21：v466-v471 回退水色/河床混合修复（旧缓存是绿色回退/紫灰
+    //      COLOR_WATER/沙床浅蓝渲染结果，必须失效重渲）
+    private static final int MAP_CACHE_VERSION = 21;
 
     /** 缓存根目录（应用私有，卸载即清——缓存可再生）。null 时回退旧路径。 */
     private static java.io.File sCacheBase;
@@ -2256,7 +2263,9 @@ public class WorldMapRenderer {
     // ---------------------------------------------------------------- 小世界全图缓存
 
     private static final int SMALL_CACHE_MAGIC = 0x4D437653; // "MCvs"
-    private static final int SMALL_CACHE_VERSION = 1;
+    // v2：v466-v472 回退水色/河床混合修复（旧缓存是绿色回退/紫灰/
+    //      沙床浅蓝渲染结果，必须失效重渲）
+    private static final int SMALL_CACHE_VERSION = 2;
 
     /** 小世界全图缓存文件（v395 新结构：<世界>/<维度>/small.bin）。
      *  v413：阴影开关进文件名——切换后小世界缓存也作废。 */
@@ -5236,11 +5245,15 @@ public class WorldMapRenderer {
             if (waterY >= 0) {
                 // v469：整列只有水（河床无数据）——此前直接返回纯水色，
                 // 海边区块"海的纯色、没有海底的东西"（用户：少套了一层
-                // 滤镜）。模拟河床（沙色）+ 水覆盖混合（同款曲线），
-                // 与正常海列"海底+海滤镜"观感一致。
-                int depth = Math.max(1, SEA_LEVEL - height);
-                float op = Math.min(0.2f * depth + 0.35f, 0.9f);
-                return blendColors(waterColor, SAND_BED_COLOR, op);
+                // 滤镜）。模拟河床 + 水覆盖混合，与正常海列"海底+海滤
+                // 镜"观感一致。
+                // v472：扫描到 y=-64 都没找到河床 → 真实水深必然 ≥
+                // waterY+64，按 v434 定稿曲线（min(0.2×水深+0.35,0.9)）
+                // 直接封顶 0.9。此前用 SEA_LEVEL-height 算深度是错的
+                // （高度图存海面 63 非海底 → depth=1 → op=0.55），
+                // 45% 亮沙透出成浅蓝灰斑块，与深蓝海对比"太突兀"。
+                // 河床色用砾石（与实测海床一致）。
+                return blendColors(waterColor, SEA_BED_COLOR, 0.9f);
             }
             if (glassY >= 0) {
                 // 玻璃下窗口内无固体（高塔/刷怪塔玻璃顶——下方悬空超过
@@ -5267,11 +5280,14 @@ public class WorldMapRenderer {
                 // Levi 图标灰模板+自定义色）。v470 误用 COLOR_WATER
                 // (23,33,122) 深蓝紫 → 紫灰色；v468 误用 tint 原值。
                 // 这里调用与正常列一致的 tintColor 链。
+                // v472：水深不可知（1.26 未生成海区块高度图存海面 63
+                // 非海底，方块数据全 air）→ 按 v434 定稿曲线封顶 0.9
+                // 渲染成深海，河床用砾石色与实测海床一致。此前
+                // depth=max(1,63-63)=1 → op=0.55，45% 亮沙透出成浅
+                // 蓝灰斑块嵌在深蓝海里（用户：太突兀）。
                 int waterC = tintColor("minecraft:water",
                         colorForBlock("minecraft:water"), biomeId);
-                int depth = Math.max(1, SEA_LEVEL - height);
-                float op = Math.min(0.2f * depth + 0.35f, 0.9f);
-                return blendColors(waterC, SAND_BED_COLOR, op);
+                return blendColors(waterC, SEA_BED_COLOR, 0.9f);
             }
             // v467：陆地回退列按"草地灰度模板 × tint"输出——此前直接
             // 返回 tint 原值（如 extreme_hills (138,182,137)），比正常
@@ -5293,8 +5309,13 @@ public class WorldMapRenderer {
             return COLOR_BACKGROUND;
         }
         // 海平面以下无数据：bedrockmap 水色（灰度水模板 × 群系 water 色调）
+        // v472：与回退水/尾支统一——同样模拟砾石河床 + 深海 op 0.9，
+        // 否则此出口输出纯水色 (67,126,212)，与旁边正常海
+        // (74,126,203) 仍有色差边界。
         return height <= SEA_LEVEL
-                ? tintColor("minecraft:water", colorForBlock("minecraft:water"), biomeId)
+                ? blendColors(
+                        tintColor("minecraft:water", colorForBlock("minecraft:water"), biomeId),
+                        SEA_BED_COLOR, 0.9f)
                 : COLOR_BACKGROUND;
     }
 
