@@ -3287,19 +3287,6 @@ public class NbtViewerActivity extends BaseActivity {
         final int exportDim = "nether".equals(mapDimension) ? 1
                 : "end".equals(mapDimension) ? 2 : 0;
         final String dimName = exportDim == 1 ? "nether" : exportDim == 2 ? "end" : "overworld";
-        // v416：实体列表为空时现场解析（大世界实体延迟 6 秒解析——
-        // 打开地图马上导出会拿到空列表，"刷铁机区域没实体"的根因）
-        java.util.List<WorldMapRenderer.EntityPos> ents =
-                binding.worldMapImage.getEntities();
-        if ((ents == null || ents.isEmpty()) && currentWorldDir != null) {
-            try {
-                ents = WorldMapRenderer.parseEntitiesStreaming(
-                        new File(currentWorldDir, "db"), exportDim);
-            } catch (Throwable ignored) {
-                ents = new java.util.ArrayList<>();
-            }
-        }
-        final java.util.List<WorldMapRenderer.EntityPos> fEntities = ents;
         final String fVersion = readLevelVersion();
         final long fSeed = getWorldSeed();
         binding.nbtLoading.setVisibility(View.VISIBLE);
@@ -3334,35 +3321,21 @@ public class NbtViewerActivity extends BaseActivity {
                                 String.valueOf(p.z), categoryColor(p.category)});
                     }
                 }
-                java.util.List<String[]> lks = new java.util.ArrayList<>();
-                synchronized (mapLinks) {
-                    for (BlueprintDb.Link l : mapLinks) {
-                        BlueprintDb.Point a = findPoint(l.fromId);
-                        BlueprintDb.Point b = findPoint(l.toId);
-                        if (a != null && b != null) {
-                            lks.add(new String[]{String.valueOf(a.x), String.valueOf(a.z),
-                                    String.valueOf(b.x), String.valueOf(b.z), "#64b5f6"});
-                        }
-                    }
-                }
                 int px = fMap.playerBlockX;
                 int pz = fMap.playerBlockZ;
                 int sx = fMap.spawnBlockX;
                 int sz = fMap.spawnBlockZ;
-                java.util.List<WorldMapRenderer.StructureMarker> sts;
-                synchronized (currentStructures) {
-                    sts = new java.util.ArrayList<>(currentStructures);
-                }
                 File dir = new File("/sdcard/Download/LeviLauncher");
                 if (!dir.exists()) {
                     dir.mkdirs();
                 }
                 showExportNotification(80, "");
+                // v482：连线/结构/实体/史莱姆图层已删除——只导标点
                 // 文件名带维度后缀——不同维度的导出互不覆盖
                 File out = WorldMapRenderer.exportWorldHtml(exportMap, dir,
                         worldDir.getName() + "_map_" + dimName + ".html",
                         worldDir.getName() + " (" + dimName + ")", fSeed, fVersion,
-                        px, pz, sx, sz, pts, lks, sts, fEntities);
+                        px, pz, sx, sz, pts);
                 final File fOut = out;
                 runOnUiThread(() -> {
                     htmlExporting = false;

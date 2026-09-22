@@ -5959,10 +5959,7 @@ public class WorldMapRenderer {
     public static File exportWorldHtml(WorldMap map, File outDir, String fileName,
                                        String title, long seed, String versionStr,
                                        int playerX, int playerZ, int spawnX, int spawnZ,
-                                       java.util.List<String[]> points,
-                                       java.util.List<String[]> links,
-                                       java.util.List<StructureMarker> structures,
-                                       java.util.List<EntityPos> entities)
+                                       java.util.List<String[]> points)
             throws Exception {
         // 1) 卫星图 PNG（小世界全图方块级；大世界 chunk 每 chunk 4×4 采样 = 4 倍精度）
         Bitmap pngBmp;
@@ -6062,25 +6059,35 @@ public class WorldMapRenderer {
         }
         // v425：PNG 超过 ~2MB 时降采样（HTML 查看器 WebView 的
         // data: URL 有大小限制）。修复 v421 隐患：createScaledBitmap
-        // OOM 返回 null 导致 NPE 导出失败；recycle 逻辑统一在最后
+        // OOM 返回 null 导致 NPE 导出失败；recycle 逻辑统一在最后。
+        // v482：单次减半不够——大世界全图 PNG 减半后仍超 2MB，
+        // 图片在浏览器/HTML 查看器里不显示（用户反馈）。改成循环
+        // 降采样直到 ≤1.5MB（最小边长 256 停止，避免糊成色块）。
         android.graphics.Bitmap forPng = pngBmp;
         boolean downsampled = false;
         java.io.ByteArrayOutputStream outBos = new java.io.ByteArrayOutputStream();
         try {
             forPng.compress(Bitmap.CompressFormat.PNG, 75, outBos);
-            if (outBos.size() > 2 * 1024 * 1024) {
+            while (outBos.size() > 1536 * 1024
+                    && forPng.getWidth() > 512
+                    && forPng.getHeight() > 512) {
                 int sw = Math.max(1, forPng.getWidth() / 2);
                 int sh = Math.max(1, forPng.getHeight() / 2);
                 android.graphics.Bitmap down =
                         android.graphics.Bitmap.createScaledBitmap(forPng, sw, sh, true);
-                if (down != null) {
-                    forPng = down;
-                    downsampled = true;
-                    outBos.reset();
-                    forPng.compress(Bitmap.CompressFormat.PNG, 75, outBos);
-                    Log.i(TAG, "导出 PNG 降采样: " + pngBmp.getWidth() + "x"
-                            + pngBmp.getHeight() + " → " + sw + "x" + sh);
+                if (down == null) {
+                    break;
                 }
+                if (forPng != pngBmp) {
+                    forPng.recycle();
+                }
+                forPng = down;
+                downsampled = true;
+                outBos.reset();
+                forPng.compress(Bitmap.CompressFormat.PNG, 75, outBos);
+                Log.i(TAG, "导出 PNG 降采样: " + pngBmp.getWidth() + "x"
+                        + pngBmp.getHeight() + " → " + sw + "x" + sh
+                        + " (" + outBos.size() / 1024 + "KB)");
             }
         } finally {
             if (downsampled) {
@@ -6150,11 +6157,9 @@ public class WorldMapRenderer {
         html.append("<tr><td>地图范围</td><td class=\"v\">").append(map.width).append(" × ")
                 .append(map.height).append(" 方块</td></tr>")
                 .append("</table><div id=\"layers\">")
+                // v482：只保留标点图层（连线/结构/实体/史莱姆区块
+                // 已删除——用户要求）
                 .append("<label><input type=\"checkbox\" id=\"ck-p\" checked onchange=\"tg('p')\">标点</label>")
-                .append("<label><input type=\"checkbox\" id=\"ck-l\" checked onchange=\"tg('l')\">连线</label>")
-                .append("<label><input type=\"checkbox\" id=\"ck-s\" checked onchange=\"tg('s')\">结构</label>")
-                .append("<label><input type=\"checkbox\" id=\"ck-e\" onchange=\"tg('e')\">实体</label>")
-                .append("<label><input type=\"checkbox\" id=\"ck-sl\" onchange=\"tg('sl')\">史莱姆区块</label>")
                 .append("</div>")
                 .append("<button onclick=\"exportJson()\">导出标点 JSON</button>")
                 .append("<button onclick=\"clearSaved()\">清空新增标点</button>")
@@ -6179,8 +6184,7 @@ public class WorldMapRenderer {
                 .append("var up=function(){var s=Math.min(px,Math.max(3,px*Math.pow(2,map.getZoom()-FZ)));")
                 .append("c.setRadius(s/Math.pow(2,map.getZoom()));};")
                 .append("map.on('zoomend',up);up();return c;}")
-                .append("var groups={p:L.layerGroup(),l:L.layerGroup(),s:L.layerGroup(),")
-                .append("e:L.layerGroup(),sl:L.layerGroup()};")
+                .append("var groups={p:L.layerGroup()};")
                 .append("function tg(k){if(document.getElementById('ck-'+k).checked){groups[k].addTo(map);}")
                 .append("else{map.removeLayer(groups[k]);}}")
                 .append("function togglePanel(){var p=document.getElementById('panel');")
@@ -6195,123 +6199,7 @@ public class WorldMapRenderer {
                     .append("{px:8,color:p.c,weight:2,fillOpacity:.85})")
                     .append(".bindPopup('<b>'+p.n+'</b><br>X:'+p.x+' Z:'+p.z));});");
         }
-        // 连线（虚线 + 距离标注）
-        if (links != null && !links.isEmpty()) {
-            html.append("var lks=");
-            html.append(jsonArray(links));
-            html.append(";lks.forEach(function(l){groups.l.addLayer(L.polyline([[l.z1,l.x1],[l.z2,l.x2]],")
-                    .append("{color:l.c,dashArray:'6,8',weight:2}));")
-                    .append("var d=Math.round(Math.hypot(l.x2-l.x1,l.z2-l.z1));")
-                    .append("groups.l.addLayer(L.marker([(l.z1+l.z2)/2,(l.x1+l.x2)/2],{icon:L.divIcon({className:'dist-label',")
-                    .append("html:'<span>'+d+'m</span>',iconSize:[60,20]})}));});");
-        }
-        // 结构标记
-        if (structures != null && !structures.isEmpty()) {
-            html.append("var sts=");
-            StringBuilder sb = new StringBuilder("[");
-            for (int i = 0; i < structures.size(); i++) {
-                StructureMarker m = structures.get(i);
-                if (i > 0) {
-                    sb.append(',');
-                }
-                sb.append("{t:'").append(escapeHtml(m.type)).append("',x:")
-                        .append(m.x).append(",z:").append(m.z).append('}');
-            }
-            sb.append(']');
-            html.append(sb);
-            html.append(";sts.forEach(function(s){groups.s.addLayer(mkCircle(s.z,s.x,")
-                    .append("{px:10,color:'#f5a623',weight:2,fillOpacity:.85})")
-                    .append(".bindPopup('<b>'+s.t+'</b><br>X:'+s.x+' Z:'+s.z));});");
-        }
-        // 实体（数量大，默认关闭，上限 6000）
-        if (entities != null && !entities.isEmpty()) {
-            int n = Math.min(entities.size(), 6000);
-            StringBuilder eb = new StringBuilder("[");
-            boolean firstE = true;
-            for (int i = 0; i < n; i++) {
-                EntityPos ep = entities.get(i);
-                // v425：过滤地图范围外实体（"实体标点跑出地图外"的
-                // 根因——实体数据含未生成区域/死亡残留的坐标）
-                int ex = Math.round(ep.x);
-                int ez = Math.round(ep.z);
-                if (ex < minX || ex > maxX || ez < minZ || ez > maxZ) {
-                    continue;
-                }
-                if (!firstE) {
-                    eb.append(',');
-                }
-                firstE = false;
-                eb.append("{n:'").append(escapeHtml(entityLabelZh(ep.name))).append("',x:")
-                        .append(ex).append(",z:").append(ez).append('}');
-            }
-            eb.append(']');
-            html.append("var ents=").append(eb);
-            // v425：标点缩小（6px→4px，实体密堆更易区分）
-            html.append(";ents.forEach(function(e){groups.e.addLayer(mkCircle(e.z,e.x,")
-                    .append("{px:4,color:'#ff7043',weight:1,fillOpacity:.7})")
-                    .append(".bindPopup('<b>'+e.n+'</b><br>X:'+e.x+' Z:'+e.z));});");
-        }
-        // 史莱姆区块（只列有地形数据的 chunk：大世界查 chunkColors key，
-        // 小世界按 chunk 网格扫 colors 非透明像素——此前小世界 chunkColors==null
-        // 导致史莱姆开关无论开关都没数据）
-        StringBuilder sl = new StringBuilder("[");
-        boolean first = true;
-        if (map.chunkColors != null) {
-            for (Long key : map.chunkColors.keySet()) {
-                int cx = (int) (key >> 32);
-                int cz = (int) (long) key;
-                // v425：跳过 EMPTY 占位/全透明 chunk——史莱姆框不再
-                // 画在"没有地图的空白区域"（占位 chunk 是视口渲染的
-                // 未生成标记，不是地形）
-                int[] cc = map.chunkColors.get(key);
-                if (cc == null || !hasOpaque(cc)) {
-                    continue;
-                }
-                if (isSlimeChunk(cx, cz)) {
-                    if (!first) {
-                        sl.append(',');
-                    }
-                    first = false;
-                    sl.append('[').append(cz).append(',').append(cx).append(']');
-                }
-            }
-        } else if (map.colors != null) {
-            int cw = map.width / 16;
-            int ch = map.height / 16;
-            for (int cz = 0; cz < ch; cz++) {
-                for (int cx = 0; cx < cw; cx++) {
-                    if (!isSlimeChunk(map.minBlockX / 16 + cx, map.minBlockZ / 16 + cz)) {
-                        continue;
-                    }
-                    boolean has = false;
-                    int yEnd = Math.min((cz + 1) * 16, map.height);
-                    int xEnd = Math.min((cx + 1) * 16, map.width);
-                    for (int y = cz * 16; y < yEnd && !has; y++) {
-                        int base = y * map.width + cx * 16;
-                        for (int x = 0; x < xEnd - cx * 16; x++) {
-                            if ((map.colors[base + x] & 0xFF000000) != 0) {
-                                has = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (has) {
-                        if (!first) {
-                            sl.append(',');
-                        }
-                        first = false;
-                        sl.append('[').append(map.minBlockZ / 16 + cz).append(',')
-                                .append(map.minBlockX / 16 + cx).append(']');
-                    }
-                }
-            }
-        }
-        sl.append(']');
-        html.append("var sls=").append(sl);
-        // v416：rectangle 的 lat 同样取反（z 轴方向）
-        html.append(";sls.forEach(function(s){groups.sl.addLayer(L.rectangle(")
-                .append("[[-(s[0]*16+16),s[1]*16],[-(s[0]*16),s[1]*16+16]],")
-                .append("{color:'#4ade80',weight:1,fillOpacity:.18}));});");
+        // v482：连线/结构/实体/史莱姆图层已删除（用户要求只保留标点）
         // 玩家/出生点
         if (playerX != Integer.MIN_VALUE) {
             html.append("mkCircle(").append(playerZ).append(',').append(playerX)
