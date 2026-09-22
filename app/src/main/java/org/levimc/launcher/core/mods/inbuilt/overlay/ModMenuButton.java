@@ -70,9 +70,15 @@ public class ModMenuButton {
         }
         edgeHidden = true;
         float offset = size * DEEP_HIDE_RATIO * (edgeSide < 0 ? -1f : 1f);
-        buttonView.animate().translationX(offset)
-                .alpha(applyBaseOpacity() * DEEP_HIDE_ALPHA_SCALE)
-                .setDuration(250).start();
+        if (Math.abs(edgeSide) == 1) {
+            buttonView.animate().translationX(offset)
+                    .alpha(applyBaseOpacity() * DEEP_HIDE_ALPHA_SCALE)
+                    .setDuration(250).start();
+        } else {
+            buttonView.animate().translationY(offset)
+                    .alpha(applyBaseOpacity() * DEEP_HIDE_ALPHA_SCALE)
+                    .setDuration(250).start();
+        }
     };
     
     private ModMenuOverlay menuOverlay;
@@ -121,11 +127,46 @@ public class ModMenuButton {
             wmParams.x = saved != null ? saved[0] : startX;
             wmParams.y = saved != null ? saved[1] : startY;
             wmParams.token = activity.getWindow().getDecorView().getWindowToken();
-            
+            // v477：恢复的位置若已在屏幕边缘——重新进入贴边半隐藏
+            // +淡出链（v476 恢复时球全亮停在边缘，用户以为"吸附
+            // 隐藏失效"）。等布局完成后再半隐藏（getWidth 需要）。
+            // 四边判断：-1 左 / 1 右 / -2 顶 / 2 底
+            final boolean restoredAtEdge;
+            final int restoredEdgeSide;
+            if (saved != null) {
+                int w = activity.getResources().getDisplayMetrics().widthPixels;
+                int h = activity.getResources().getDisplayMetrics().heightPixels;
+                if (saved[0] <= 0) {
+                    restoredAtEdge = true;
+                    restoredEdgeSide = -1;
+                } else if (saved[0] >= w - buttonSize) {
+                    restoredAtEdge = true;
+                    restoredEdgeSide = 1;
+                } else if (saved[1] <= 0) {
+                    restoredAtEdge = true;
+                    restoredEdgeSide = -2;
+                } else if (saved[1] >= h - buttonSize) {
+                    restoredAtEdge = true;
+                    restoredEdgeSide = 2;
+                } else {
+                    restoredAtEdge = false;
+                    restoredEdgeSide = 0;
+                }
+            } else {
+                restoredAtEdge = false;
+                restoredEdgeSide = 0;
+            }
+            if (restoredAtEdge) {
+                edgeSide = restoredEdgeSide;
+            }
+
             btn.setOnTouchListener(this::handleTouch);
             windowManager.addView(buttonView, wmParams);
             isShowing = true;
             applyOpacity();
+            if (restoredAtEdge) {
+                buttonView.post(this::hideToEdge);
+            }
         } catch (Exception e) {
             showFallback(startX, startY);
         }
@@ -185,6 +226,7 @@ public class ModMenuButton {
                             .setDuration(150).start();
                     if (edgeHidden) {
                         buttonView.animate().translationX(0f)
+                                .translationY(0f)
                                 .setDuration(150).start();
                     }
                 }
@@ -206,6 +248,7 @@ public class ModMenuButton {
                         // 拖动时滑出全显再跟手
                         edgeHidden = false;
                         buttonView.setTranslationX(0f);
+                        buttonView.setTranslationY(0f);
                     }
                     wmParams.x = (int) (initialX + dx);
                     wmParams.y = (int) (initialY + dy);
@@ -230,7 +273,8 @@ public class ModMenuButton {
     }
 
     /** v443：贴边半隐藏（谷歌方案）——内容向屏外平移一半被窗口
-     *  Surface 裁剪，视觉只剩半个球；3 秒不操作淡到半透明。 */
+     *  Surface 裁剪，视觉只剩半个球；3 秒不操作淡到半透明。
+     *  v477：支持四边（edgeSide -1 左 / 1 右 / -2 顶 / 2 底）。 */
     private void hideToEdge() {
         if (buttonView == null || edgeSide == 0) {
             return;
@@ -241,10 +285,17 @@ public class ModMenuButton {
             size = wmParams != null ? wmParams.width : 0;
         }
         float offset = size * EDGE_HIDE_RATIO * (edgeSide < 0 ? -1f : 1f);
-        buttonView.animate().translationX(offset)
-                .setDuration(200)
-                .setInterpolator(new android.view.animation.DecelerateInterpolator())
-                .start();
+        if (Math.abs(edgeSide) == 1) {
+            buttonView.animate().translationX(offset)
+                    .setDuration(200)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                    .start();
+        } else {
+            buttonView.animate().translationY(offset)
+                    .setDuration(200)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                    .start();
+        }
         handler.removeCallbacks(fadeOutRunnable);
         handler.postDelayed(fadeOutRunnable, FADE_OUT_DELAY_MS);
         // v476：贴边后长时间没人动 → 深度隐藏（只露边缘条）
@@ -272,12 +323,31 @@ public class ModMenuButton {
             }
             int fromX = wmParams.x;
             int fromY = wmParams.y;
-            // 球心判断左右：球心在屏幕左半 → 吸左边缘
+            // v477：四边吸附——球心到四条边的距离取最近（用户要求
+            // 顶部/底部也能吸附）；edgeSide: -1 左 / 1 右 / -2 顶 / 2 底
             float centerX = wmParams.x + size / 2f;
-            boolean snapLeft = centerX < screenW / 2f;
-            edgeSide = snapLeft ? -1 : 1;
-            int targetX = snapLeft ? 0 : screenW - size;
-            int targetY = Math.max(0, Math.min(wmParams.y, screenH - size));
+            float centerY = wmParams.y + size / 2f;
+            float distLeft = centerX;
+            float distRight = screenW - centerX;
+            float distTop = centerY;
+            float distBottom = screenH - centerY;
+            int targetX = wmParams.x;
+            int targetY = wmParams.y;
+            if (distLeft <= distRight && distLeft <= distTop && distLeft <= distBottom) {
+                edgeSide = -1;
+                targetX = 0;
+            } else if (distRight <= distLeft && distRight <= distTop && distRight <= distBottom) {
+                edgeSide = 1;
+                targetX = screenW - size;
+            } else if (distTop <= distLeft && distTop <= distRight && distTop <= distBottom) {
+                edgeSide = -2;
+                targetY = 0;
+            } else {
+                edgeSide = 2;
+                targetY = screenH - size;
+            }
+            targetX = Math.max(0, Math.min(targetX, screenW - size));
+            targetY = Math.max(0, Math.min(targetY, screenH - size));
             snapAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f);
             snapAnimator.setDuration(250);
             snapAnimator.setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f));
@@ -424,6 +494,17 @@ public class ModMenuButton {
         if (menuOverlay == null) {
             menuOverlay = new ModMenuOverlay(activity);
         }
+        // v477：菜单关闭后重启贴边隐藏链（3s 淡出 + 15s 深度隐藏）——
+        // 此前 hideToEdge 只在吸附落定时触发，点开菜单再退出后球
+        // 一直全亮停在边缘（用户反馈）
+        menuOverlay.setOnDismissListener(() -> {
+            handler.post(() -> {
+                if (isShowing && buttonView != null && edgeSide != 0
+                        && !menuOverlay.isShowing()) {
+                    hideToEdge();
+                }
+            });
+        });
         menuOverlay.show();
     }
     

@@ -1,17 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v476：悬浮球图标 = Levi 树 logo 简化单色版（树冠圆 + 树干）。
-     v475 的 2×2 网格被用户误认成微软窗口图标；ic_leaf_logo 原图
-     双色树枝纹理在小尺寸下像二维码。单色极简树形在任何尺寸都清晰。 -->
+<!-- v476/v477：悬浮球图标 = Levi 树 logo 简化单色版（树冠圆 + 树干）。
+     v475 的 2×2 网格被用户认成微软窗口图标；ic_leaf_logo 原图双色
+     树枝纹理在小尺寸下像二维码。单色极简树形在任何尺寸都清晰。
+     v477：树冠改用标准双半圆圆弧写法——v476 的"近全圆劣弧"
+     （端点差 0.001 的 a 指令）在部分 Android 版本渲染成一个点。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
 
-    <!-- 树冠 -->
+    <!-- 树冠（圆：圆心(12,8) 半径 6.2，标准两段半圆弧） -->
     <path
         android:fillColor="#294C2D"
-        android:pathData="M12,1.8 a6.4,6.4 0 1 0 0.001,0 z M12,1.8 a6.4,6.4 0 1 1 -0.001,0 z" />
+        android:pathData="M12,1.8 a6.2,6.2 0 1 1 0,12.4 a6.2,6.2 0 1 1 0,-12.4 z" />
     <!-- 树干 -->
     <path
         android:fillColor="#294C2D"

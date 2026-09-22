@@ -51,7 +51,9 @@ public class ModMenuOverlay {
     private WindowManager.LayoutParams wmParams;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean isShowing = false;
-    
+    /** v477：菜单关闭回调（hide() 时触发一次后清空）。 */
+    private Runnable onDismissListener;
+
     private RecyclerView modsRecycler;
     private final android.os.Handler searchHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable searchRunnable = this::applyFilters;
@@ -803,6 +805,14 @@ public class ModMenuOverlay {
     public void hide() {
         if (!isShowing || overlayView == null) return;
 
+        // v477：关闭回调（悬浮球据此重启贴边淡出/深度隐藏链——
+        // 用户反馈：打开菜单再退出后 3s 淡出与 15s 深度隐藏都不生效）
+        Runnable dismiss = onDismissListener;
+        onDismissListener = null;
+        if (dismiss != null) {
+            dismiss.run();
+        }
+
         InbuiltOverlayManager overlayManager = InbuiltOverlayManager.getInstance();
         if (overlayManager != null) {
             overlayManager.setHudEditorMode(false);
@@ -837,6 +847,11 @@ public class ModMenuOverlay {
     
     public boolean isShowing() {
         return isShowing;
+    }
+
+    /** v477：菜单关闭回调（hide() 时触发一次后清空）。 */
+    public void setOnDismissListener(Runnable listener) {
+        this.onDismissListener = listener;
     }
 
     private static class GroupedMods {
