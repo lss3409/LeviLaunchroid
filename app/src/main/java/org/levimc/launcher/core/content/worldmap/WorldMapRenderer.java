@@ -5261,11 +5261,12 @@ public class WorldMapRenderer {
             // 混合（与正常渲染列同款曲线），保持"海底+海滤镜"观感
             // （纯水色没有海底内容，用户反馈像一块色）。
             if (dimension == DIM_OVERWORLD && height <= SEA_LEVEL) {
+                // v470：水色必须与正常渲染列一致（COLOR_WATER 深蓝——
+                // 手册定稿的水覆盖方案水色；此前误用 DEFAULT_WATER_TINT
+                // (75,140,235) 亮蓝，滤镜颜色与周围海明显不同）
                 int depth = Math.max(1, SEA_LEVEL - height);
                 float op = Math.min(0.2f * depth + 0.35f, 0.9f);
-                int waterC = 0xFF000000 | (DEFAULT_WATER_TINT[0] << 16)
-                        | (DEFAULT_WATER_TINT[1] << 8) | DEFAULT_WATER_TINT[2];
-                return blendColors(waterC, SAND_BED_COLOR, op);
+                return blendColors(COLOR_WATER, SAND_BED_COLOR, op);
             }
             // v467：陆地回退列按"草地灰度模板 × tint"输出——此前直接
             // 返回 tint 原值（如 extreme_hills (138,182,137)），比正常
