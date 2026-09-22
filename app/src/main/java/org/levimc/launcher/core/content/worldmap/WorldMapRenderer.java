@@ -4196,13 +4196,18 @@ public class WorldMapRenderer {
                                 }
                             }
                         }
+                        // v484：subchunk 不依赖高度图（3D 只查方块数据）。
+                        // 下界/末地大量 chunk 无高度图 key（v381 结论）——
+                        // 挂在 hmap 门下会整块 3D 空洞
+                        if (!subs.isEmpty()) {
+                            subsByChunk.put(pack(cx, cz), subs);
+                        }
                         if (hmap != null) {
                             long key = pack(cx, cz);
                             hmapByChunk.put(key, hmap);
                             if (biomes != null) {
                                 biomeByChunk.put(key, biomes);
                             }
-                            subsByChunk.put(key, subs);
                         }
                     }
                 }
@@ -4247,6 +4252,17 @@ public class WorldMapRenderer {
                             int localY = y - Math.floorDiv(y, 16) * 16;
                             int idx = sub.getIndex(lx, localY, lz);
                             String name = idx < sub.palette.length ? sub.palette[idx] : null;
+                            // v484：1.18+ 水面在 storage 1（水层）——主层空气时
+                            // 查水层（surfaceColor 同款），否则海洋列全空，
+                            // 3D 海上一个大洞
+                            if ((name == null || isAirName(name)) && sub.waterLayer != null) {
+                                int widx = sub.waterLayer.getIndex(lx, localY, lz);
+                                String wname = widx < sub.waterLayer.palette.length
+                                        ? sub.waterLayer.palette[widx] : null;
+                                if (wname != null && !isAirName(wname)) {
+                                    name = wname;
+                                }
+                            }
                             if (name == null || isAirName(name)) {
                                 continue;
                             }

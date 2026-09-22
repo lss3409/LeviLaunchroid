@@ -40,11 +40,15 @@ public class VoxelView extends View {
     private final java.util.concurrent.ExecutorService snapPool =
             java.util.concurrent.Executors.newSingleThreadExecutor();
 
-    private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    // v484：填充/描边去抗锯齿——相邻面 AA 混色会透出背景色形成
+    // "破损黑点/裂缝"（0x33 黑边密布所有面也是黑点来源）。
+    // 纹理最近邻采样（像素风）——此前 FILTER_BITMAP 糊成一片
+    private final Paint fillPaint = new Paint();
+    private final Paint strokePaint = new Paint();
     private final Paint axisPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint texPaint = new Paint(Paint.ANTI_ALIAS_FLAG
-            | Paint.FILTER_BITMAP_FLAG);
+    private final Paint texPaint = new Paint();
+    /** 渲染锁：初始场景线程与快照线程共用 Paint 字段，串行化防脏色。 */
+    private final Object renderLock = new Object();
 
     /** minecraft 方块名 → assets/voxel_textures 文件名（原版纹理优先）。 */
     private static final java.util.Map<String, String> TEX_MAP = new java.util.HashMap<>();
@@ -144,7 +148,8 @@ public class VoxelView extends View {
     private void init() {
         strokePaint.setStyle(Paint.Style.STROKE);
         strokePaint.setStrokeWidth(1f);
-        strokePaint.setColor(0x33000000);
+        // v484：只给顶面描淡边（方块网格观感）——侧面描边是黑点来源
+        strokePaint.setColor(0x22000000);
         axisPaint.setStyle(Paint.Style.STROKE);
         axisPaint.setStrokeWidth(3f);
         setBackgroundColor(0xFF12141A);
@@ -216,6 +221,12 @@ public class VoxelView extends View {
 
     /** 指定角度渲染场景位图（多角度快照用）。 */
     private android.graphics.Bitmap renderSceneAt(float cosA, float sinA) {
+        synchronized (renderLock) {
+            return renderSceneAtLocked(cosA, sinA);
+        }
+    }
+
+    private android.graphics.Bitmap renderSceneAtLocked(float cosA, float sinA) {
         if (data == null || size <= 0) {
             return null;
         }
@@ -224,64 +235,139 @@ public class VoxelView extends View {
         // unitH*0.12 = 1.2px/块，块被压成纸片菱形（"渲染是菱形
         // 不是方块"根因）。参考 bedrockmap 等距体素比例。
         float blockH = unit;
-        // 先扫最高柱高定画布（此前固定 30 层 × 1.2px = 36px 高，
-        // 改成方块后 30 层 = 240px 会顶出画布）
-        int[][] order = drawOrder(cosA, sinA);
-        int maxN = 0;
-        for (int[] p : order) {
-            WorldMapRenderer.VoxelColumn col = data[p[1]][p[0]];
-            int n = 0;
-            for (int c : col.colors) {
-                if (c == 0) {
-                    break;
+        // v484：全局 min/max y 锚定地形。此前 baseY = 每列自己的顶块——
+        // 所有列的顶块画在同一屏高，地形起伏被抹平成"悬空平板"，
+        // 底部只剩锯齿状悬挂碎块；且 sideH 用 ys[i]-ys[i-1]（上一块
+        // 在上方）算出负值恒为 0——顶块以下全是没侧面的纸片菱形，
+        // 整柱像随机散落的碎块（"稀疏破碎"根因）
+        int minY = Integer.MAX_VALUE;
+        int maxY = Integer.MIN_VALUE;
+        for (int dz = 0; dz < size; dz++) {
+            for (int dx = 0; dx < size; dx++) {
+                WorldMapRenderer.VoxelColumn col = data[dz][dx];
+                int n = colBlockCount(col);
+                if (n == 0) {
+                    continue;
                 }
-                n++;
-            }
-            if (n > maxN) {
-                maxN = n;
+                if (col.ys[0] > maxY) {
+                    maxY = col.ys[0];
+                }
+                if (col.ys[n - 1] < minY) {
+                    minY = col.ys[n - 1];
+                }
             }
         }
-        int bw = (int) (size * unit * 2.2f);
-        int bh = (int) ((size * unit * 1.5f + (maxN + 2) * blockH) * 1.15f + 80);
+        if (minY > maxY) {
+            // 区域没有任何非空气方块：画占位提示（返回 null 会让
+            // onDraw 永远卡在"生成中…"）
+            android.graphics.Bitmap empty = android.graphics.Bitmap.createBitmap(
+                    320, 80, android.graphics.Bitmap.Config.ARGB_8888);
+            Canvas ec = new Canvas(empty);
+            Paint tp = new Paint(Paint.ANTI_ALIAS_FLAG);
+            tp.setColor(0xFF8A93A3);
+            tp.setTextSize(26);
+            tp.setTextAlign(Paint.Align.CENTER);
+            ec.drawText("该区域无方块数据", 160, 46, tp);
+            return empty;
+        }
+        // 极端高差（悬崖+深谷选区）裁剪底部，防位图过高
+        if (maxY - minY > 256) {
+            minY = maxY - 256;
+        }
+        int ySpan = maxY - minY;
+        // 网格投影范围（任意旋转角）：
+        // x = (dx·cosA − dz·sinA)·unit，y = (dx·sinA + dz·cosA)·unit·0.5
+        float gMin = (size - 1) * (Math.min(0f, sinA) + Math.min(0f, cosA)) * unit * 0.5f;
+        float gMax = (size - 1) * (Math.max(0f, sinA) + Math.max(0f, cosA)) * unit * 0.5f;
+        float hMin = (size - 1) * (Math.min(0f, cosA) - Math.max(0f, sinA)) * unit;
+        float hMax = (size - 1) * (Math.max(0f, cosA) - Math.min(0f, sinA)) * unit;
+        float m = Math.max(Math.abs(cosA), Math.abs(sinA)) * unit; // 方块自身半宽
+        int pad = 12;
+        int bw = (int) (2 * pad + (hMax - hMin) + 2 * m + 0.5f);
+        int bh = (int) (2 * pad + ySpan * blockH + unit * 0.5f
+                + (gMax - gMin) + blockH + 0.5f);
         android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(
                 bw, bh, android.graphics.Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bmp);
-        float cx = bw / 2f;
-        // 场景（网格+柱高）垂直居中：基面在 cy，柱向上 maxN×blockH
-        float cy = bh / 2f + maxN * blockH / 4f;
+        float cx = pad - hMin + m;
+        float cy = pad + ySpan * blockH + unit * 0.5f - gMin;
+        // 基座底盘：minY 下半格的暗色大菱形——模型不悬空，
+        // 空列/区域边缘露出的地面
+        float plateCx = cx + (size - 1) / 2f * (cosA - sinA) * unit;
+        float plateCy = cy + (size - 1) / 2f * (sinA + cosA) * unit * 0.5f
+                + blockH * 0.5f;
+        float ph = (size + 1) * 0.5f;
+        Path plate = new Path();
+        plate.moveTo(px(plateCx, plateCy, ph, 0, unit, cosA, sinA),
+                py(plateCx, plateCy, ph, 0, unit, cosA, sinA));
+        plate.lineTo(px(plateCx, plateCy, 0, ph, unit, cosA, sinA),
+                py(plateCx, plateCy, 0, ph, unit, cosA, sinA));
+        plate.lineTo(px(plateCx, plateCy, -ph, 0, unit, cosA, sinA),
+                py(plateCx, plateCy, -ph, 0, unit, cosA, sinA));
+        plate.lineTo(px(plateCx, plateCy, 0, -ph, unit, cosA, sinA),
+                py(plateCx, plateCy, 0, -ph, unit, cosA, sinA));
+        plate.close();
+        fillPaint.setColor(0xFF262B33);
+        canvas.drawPath(plate, fillPaint);
+        // 画家算法：列按投影深度远→近；列内从低到高画（高层最后画
+        // 盖住低层顶面）。每个块侧面全高 blockH——相邻块侧面严丝合缝
+        // 拼成连续墙面
+        int fx = Math.round(sinA); // 视角前方邻居（AO 用）
+        int fz = Math.round(cosA);
+        int[][] order = drawOrder(cosA, sinA);
         for (int[] p : order) {
             int dx = p[0];
             int dz = p[1];
             WorldMapRenderer.VoxelColumn col = data[dz][dx];
-            int n = 0;
-            for (int c : col.colors) {
-                if (c == 0) {
-                    break;
-                }
-                n++;
-            }
+            int n = colBlockCount(col);
             if (n == 0) {
                 continue;
             }
-            int baseY = col.ys[0];
-            // 从低到高画（高层盖低层）。此前从高到低——最低块最后画把
-            // 整列顶面全盖掉，只剩纸片菱形。侧面高度收到下一块顶面为止：
-            // 柱内相邻块露全高侧面——标准等距体素观感（方块有棱有面）
-            for (int i = 0; i < n; i++) {
+            for (int i = n - 1; i >= 0; i--) {
                 int y = col.ys[i];
+                if (y < minY) {
+                    break; // ys 从顶向下，更低的全在裁剪线以下
+                }
                 float px = cx + (dx * cosA - dz * sinA) * unit;
                 float py = cy + (dx * sinA + dz * cosA) * unit * 0.5f
-                        - (y - baseY) * blockH;
-                float sideH = blockH;
-                if (i > 0) {
-                    float gap = (y - col.ys[i - 1]) * blockH;
-                    sideH = Math.min(blockH, Math.max(0f, gap));
-                }
-                drawBlock(canvas, px, py, col.colors[i], (y - baseY) * 0.6f,
-                        cosA, sinA, 8f, sideH, col.names[i], y - baseY);
+                        - (y - minY) * blockH;
+                boolean above = blockAt(dx, dz, y + 1);
+                boolean below = blockAt(dx, dz, y - 1);
+                boolean front = blockAt(dx + fx, dz + fz, y);
+                drawBlock(canvas, px, py, col.colors[i], cosA, sinA,
+                        unit, blockH, col.names[i], y - minY, above, below, front);
             }
         }
         return bmp;
+    }
+
+    /** 列内非空气方块数（colors 遇 0 即终止）。 */
+    private static int colBlockCount(WorldMapRenderer.VoxelColumn col) {
+        int n = 0;
+        for (int c : col.colors) {
+            if (c == 0) {
+                break;
+            }
+            n++;
+        }
+        return n;
+    }
+
+    /** 区域网格内 (dx,dz,y) 是否有方块（AO 邻居查询；列深 ≤8，线性查找）。 */
+    private boolean blockAt(int dx, int dz, int y) {
+        if (dx < 0 || dx >= size || dz < 0 || dz >= size) {
+            return false;
+        }
+        WorldMapRenderer.VoxelColumn col = data[dz][dx];
+        for (int i = 0; i < col.ys.length; i++) {
+            if (col.colors[i] == 0) {
+                break;
+            }
+            if (col.ys[i] == y) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void rotateClockwise() {
@@ -395,6 +481,26 @@ public class VoxelView extends View {
                 if (b != null) {
                     post(() -> {
                         angleSnaps[idx] = b;
+                        // v484：快照位图内存上限——高差大的场景单张
+                        // 可达 2.6MB，24 张全生成会爆手机 heap
+                        // （536MB 上限设备）；只留 8 张，回收离当前
+                        // 角最远的（0 号基础场景常驻）
+                        int kept = 0;
+                        for (android.graphics.Bitmap s : angleSnaps) {
+                            if (s != null) {
+                                kept++;
+                            }
+                        }
+                        if (kept > 8) {
+                            for (int d = 1; d < 24; d++) {
+                                int ia = Math.floorMod(idx - d, 24);
+                                if (ia != 0 && angleSnaps[ia] != null) {
+                                    angleSnaps[ia].recycle();
+                                    angleSnaps[ia] = null;
+                                    break;
+                                }
+                            }
+                        }
                         invalidate();
                     });
                 }
@@ -440,31 +546,38 @@ public class VoxelView extends View {
         return dx * sinA + dz * cosA;
     }
 
-    /** 画一个等距方块（顶面 MC 原版纹理/纯色 + 两个侧面明暗）。
+    /** 画一个等距方块（顶面 MC 原版纹理/纯色 + 两个侧面明暗 + 简易 AO）。
      *  v421：高度着色（bedrockmap 3D 同款——相对高度越高越亮，
      *  地形起伏更立体；±24 亮度差封顶）。
      *  v427：菱形顶点改用传入的 cosA/sinA（快照角度）——此前走 px()/py()
      *  用的是视图字段 angle，快照在 15°/30°…渲染时网格按快照角度摆、
-     *  方块却按视图当前角度画，贴图与方块错位重叠（"贴图对不上"根因）。 */
-    private void drawBlock(Canvas canvas, float cx, float topY, int color, float shade,
+     *  方块却按视图当前角度画，贴图与方块错位重叠（"贴图对不上"根因）。
+     *  v484：① relY 改绝对高度（此前每列 baseY 归零 → 抹平地形）；
+     *  ② 侧面 × 简易 AO（上方/前方/下方邻居遮挡变暗——体素环境
+     *  光遮蔽观感，被围的缝发暗）；③ 侧面不再描黑边（黑点来源）。 */
+    private void drawBlock(Canvas canvas, float cx, float topY, int color,
                            float cosA, float sinA, float u, float h, String blockName,
-                           int relY) {
+                           int relY, boolean above, boolean below, boolean front) {
         int base = color;
         float hb = Math.max(-24f, Math.min(24f, relY * 0.5f));
-        int r = Math.max(0, Math.min(255, ((base >> 16) & 0xFF) + (int) shade + (int) hb));
-        int g = Math.max(0, Math.min(255, ((base >> 8) & 0xFF) + (int) shade + (int) hb));
-        int b = Math.max(0, Math.min(255, (base & 0xFF) + (int) shade + (int) hb));
+        int r = clamp255(((base >> 16) & 0xFF) + (int) hb);
+        int g = clamp255(((base >> 8) & 0xFF) + (int) hb);
+        int b = clamp255((base & 0xFF) + (int) hb);
         int lit = 0xFF000000 | (r << 16) | (g << 8) | b;
+        // 简易体素 AO：被邻居围住的侧面变暗
+        float ao = 1f - 0.12f * (above ? 1 : 0)
+                - 0.12f * (front ? 1 : 0)
+                - 0.06f * (below ? 1 : 0);
         // 两个侧面明暗随观察方向交替（等距视觉立体感）
         float side = Math.abs(sinA);
         int leftC = 0xFF000000
-                | ((int) (r * (0.55f + 0.2f * side)) << 16)
-                | ((int) (g * (0.55f + 0.2f * side)) << 8)
-                | (int) (b * (0.55f + 0.2f * side));
+                | (clamp255((int) (r * (0.55f + 0.2f * side) * ao)) << 16)
+                | (clamp255((int) (g * (0.55f + 0.2f * side) * ao)) << 8)
+                | clamp255((int) (b * (0.55f + 0.2f * side) * ao));
         int rightC = 0xFF000000
-                | ((int) (r * (0.35f + 0.2f * side)) << 16)
-                | ((int) (g * (0.35f + 0.2f * side)) << 8)
-                | (int) (b * (0.35f + 0.2f * side));
+                | (clamp255((int) (r * (0.35f + 0.2f * side) * ao)) << 16)
+                | (clamp255((int) (g * (0.35f + 0.2f * side) * ao)) << 8)
+                | clamp255((int) (b * (0.35f + 0.2f * side) * ao));
 
         // 顶面：有 MC 原版纹理 → 仿射贴图到菱形（结构方块渲染同款观感）；
         // 无纹理回退纯色菱形
@@ -493,7 +606,7 @@ public class VoxelView extends View {
             canvas.drawPath(top, strokePaint);
         }
 
-        // 侧面 1（左前：-X 与 -Z 边）
+        // 侧面 1（左前：-X 与 -Z 边）——v484 去描边（黑点来源）
         Path side1 = new Path();
         side1.moveTo(px(cx, topY, 0, -1, u, cosA, sinA), py(cx, topY, 0, -1, u, cosA, sinA));
         side1.lineTo(px(cx, topY, -1, 0, u, cosA, sinA), py(cx, topY, -1, 0, u, cosA, sinA));
@@ -502,7 +615,6 @@ public class VoxelView extends View {
         side1.close();
         fillPaint.setColor(leftC);
         canvas.drawPath(side1, fillPaint);
-        canvas.drawPath(side1, strokePaint);
 
         // 侧面 2（右前：+X 与 -Z 边）
         Path side2 = new Path();
@@ -513,7 +625,10 @@ public class VoxelView extends View {
         side2.close();
         fillPaint.setColor(rightC);
         canvas.drawPath(side2, fillPaint);
-        canvas.drawPath(side2, strokePaint);
+    }
+
+    private static int clamp255(int v) {
+        return v < 0 ? 0 : Math.min(v, 255);
     }
 
     /** 单位菱形顶点投影（lx,ly 为逻辑角，u 为半宽；cosA/sinA 为
