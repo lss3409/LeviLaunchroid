@@ -41,6 +41,11 @@ public class ModMenuButton {
      *  淡到半透明，触碰恢复）。 */
     private static final float FADE_OUT_ALPHA_SCALE = 0.55f;
     private static final long FADE_OUT_DELAY_MS = 3000;
+    /** v476：贴边长时间没人动 → 深度隐藏（只露 15% 边缘条 + 更淡）。
+     *  用户要求"屏幕边缘长时间没人动也自动隐藏"；触碰边缘条即恢复。 */
+    private static final float DEEP_HIDE_RATIO = 0.85f;
+    private static final float DEEP_HIDE_ALPHA_SCALE = 0.25f;
+    private static final long DEEP_HIDE_DELAY_MS = 15000;
     private android.animation.ValueAnimator snapAnimator;
     private boolean edgeHidden = false;
     private int edgeSide = 0; // -1 左 / 1 右 / 0 未贴边
@@ -50,6 +55,24 @@ public class ModMenuButton {
         }
         buttonView.animate().alpha(applyBaseOpacity() * FADE_OUT_ALPHA_SCALE)
                 .setDuration(300).start();
+    };
+    /** v476：深度隐藏——贴边后 15 秒没人动，内容只露 15% + 淡到 25%。 */
+    private final Runnable deepHideRunnable = () -> {
+        if (buttonView == null || edgeSide == 0) {
+            return;
+        }
+        int size = buttonView.getWidth();
+        if (size <= 0) {
+            size = wmParams != null ? wmParams.width : 0;
+        }
+        if (size <= 0) {
+            return;
+        }
+        edgeHidden = true;
+        float offset = size * DEEP_HIDE_RATIO * (edgeSide < 0 ? -1f : 1f);
+        buttonView.animate().translationX(offset)
+                .alpha(applyBaseOpacity() * DEEP_HIDE_ALPHA_SCALE)
+                .setDuration(250).start();
     };
     
     private ModMenuOverlay menuOverlay;
@@ -154,8 +177,9 @@ public class ModMenuButton {
                     snapAnimator.cancel();
                 }
                 // v443：触碰恢复——取消淡出、alpha 复原、贴边隐藏时
-                // 先滑出（150ms）
+                // 先滑出（150ms）；v476：同样取消深度隐藏
                 handler.removeCallbacks(fadeOutRunnable);
+                handler.removeCallbacks(deepHideRunnable);
                 if (buttonView != null) {
                     buttonView.animate().alpha(applyBaseOpacity())
                             .setDuration(150).start();
@@ -223,6 +247,9 @@ public class ModMenuButton {
                 .start();
         handler.removeCallbacks(fadeOutRunnable);
         handler.postDelayed(fadeOutRunnable, FADE_OUT_DELAY_MS);
+        // v476：贴边后长时间没人动 → 深度隐藏（只露边缘条）
+        handler.removeCallbacks(deepHideRunnable);
+        handler.postDelayed(deepHideRunnable, DEEP_HIDE_DELAY_MS);
     }
 
     /** v442：吸附到最近左右边缘（窗口位置保持屏内——负 x 出屏会
@@ -415,6 +442,8 @@ public class ModMenuButton {
             menuOverlay = null;
         }
         if (!isShowing || buttonView == null) return;
+        handler.removeCallbacks(fadeOutRunnable);
+        handler.removeCallbacks(deepHideRunnable);
         handler.post(() -> {
             try {
                 if (wmParams != null && windowManager != null) {

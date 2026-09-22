@@ -1,22 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v475：悬浮球图标——2×2 圆角方块网格（模组菜单语义），
-     替换 ic_leaf_logo（双色树枝纹理在小尺寸下像二维码）。 -->
+<!-- v476：悬浮球图标 = Levi 树 logo 简化单色版（树冠圆 + 树干）。
+     v475 的 2×2 网格被用户误认成微软窗口图标；ic_leaf_logo 原图
+     双色树枝纹理在小尺寸下像二维码。单色极简树形在任何尺寸都清晰。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
 
+    <!-- 树冠 -->
     <path
         android:fillColor="#294C2D"
-        android:pathData="M4,3.2 h6.8 a0.8,0.8 0 0 1 0.8,0.8 v6.8 a0.8,0.8 0 0 1 -0.8,0.8 h-6.8 a0.8,0.8 0 0 1 -0.8,-0.8 v-6.8 a0.8,0.8 0 0 1 0.8,-0.8 z" />
+        android:pathData="M12,1.8 a6.4,6.4 0 1 0 0.001,0 z M12,1.8 a6.4,6.4 0 1 1 -0.001,0 z" />
+    <!-- 树干 -->
     <path
         android:fillColor="#294C2D"
-        android:pathData="M13.2,3.2 h6.8 a0.8,0.8 0 0 1 0.8,0.8 v6.8 a0.8,0.8 0 0 1 -0.8,0.8 h-6.8 a0.8,0.8 0 0 1 -0.8,-0.8 v-6.8 a0.8,0.8 0 0 1 0.8,-0.8 z" />
-    <path
-        android:fillColor="#294C2D"
-        android:pathData="M4,13.2 h6.8 a0.8,0.8 0 0 1 0.8,0.8 v6.8 a0.8,0.8 0 0 1 -0.8,0.8 h-6.8 a0.8,0.8 0 0 1 -0.8,-0.8 v-6.8 a0.8,0.8 0 0 1 0.8,-0.8 z" />
-    <path
-        android:fillColor="#294C2D"
-        android:pathData="M13.2,13.2 h6.8 a0.8,0.8 0 0 1 0.8,0.8 v6.8 a0.8,0.8 0 0 1 -0.8,0.8 h-6.8 a0.8,0.8 0 0 1 -0.8,-0.8 v-6.8 a0.8,0.8 0 0 1 0.8,-0.8 z" />
+        android:pathData="M10.6,13 h2.8 v6.6 a1,1 0 0 1 -1,1 h-0.8 a1,1 0 0 1 -1,-1 z" />
 </vector>
