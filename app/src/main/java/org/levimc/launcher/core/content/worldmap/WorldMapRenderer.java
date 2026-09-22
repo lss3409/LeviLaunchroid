@@ -5261,12 +5261,17 @@ public class WorldMapRenderer {
             // 混合（与正常渲染列同款曲线），保持"海底+海滤镜"观感
             // （纯水色没有海底内容，用户反馈像一块色）。
             if (dimension == DIM_OVERWORLD && height <= SEA_LEVEL) {
-                // v470：水色必须与正常渲染列一致（COLOR_WATER 深蓝——
-                // 手册定稿的水覆盖方案水色；此前误用 DEFAULT_WATER_TINT
-                // (75,140,235) 亮蓝，滤镜颜色与周围海明显不同）
+                // v471：水色必须与正常渲染列完全同一条计算链——水是
+                // 灰色模板（色表 water_still_grey 230,230,230）× 群系
+                // 水色 tint（用户指出：灰模板套群系色才显示颜色，同
+                // Levi 图标灰模板+自定义色）。v470 误用 COLOR_WATER
+                // (23,33,122) 深蓝紫 → 紫灰色；v468 误用 tint 原值。
+                // 这里调用与正常列一致的 tintColor 链。
+                int waterC = tintColor("minecraft:water",
+                        colorForBlock("minecraft:water"), biomeId);
                 int depth = Math.max(1, SEA_LEVEL - height);
                 float op = Math.min(0.2f * depth + 0.35f, 0.9f);
-                return blendColors(COLOR_WATER, SAND_BED_COLOR, op);
+                return blendColors(waterC, SAND_BED_COLOR, op);
             }
             // v467：陆地回退列按"草地灰度模板 × tint"输出——此前直接
             // 返回 tint 原值（如 extreme_hills (138,182,137)），比正常
