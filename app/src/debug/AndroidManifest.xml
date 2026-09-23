@@ -9,6 +9,7 @@
             <intent-filter>
                 <action android:name="org.levimc.launcher.DEBUG_JOIN" />
                 <action android:name="org.levimc.launcher.DEBUG_STOP" />
+                <action android:name="org.levimc.launcher.DEBUG_SET_RELAY" />
             </intent-filter>
         </receiver>
     </application>

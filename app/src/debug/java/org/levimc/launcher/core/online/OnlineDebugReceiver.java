@@ -17,6 +17,8 @@ public final class OnlineDebugReceiver extends BroadcastReceiver {
 
     public static final String ACTION_JOIN = "org.levimc.launcher.DEBUG_JOIN";
     public static final String ACTION_STOP = "org.levimc.launcher.DEBUG_STOP";
+    /** 设置中转（逗号分隔可多个；空串清除）。 */
+    public static final String ACTION_SET_RELAY = "org.levimc.launcher.DEBUG_SET_RELAY";
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -48,6 +50,19 @@ public final class OnlineDebugReceiver extends BroadcastReceiver {
             }
         } else if (ACTION_STOP.equals(action)) {
             EasyTierManager.get().stop(context);
+        } else if (ACTION_SET_RELAY.equals(action)) {
+            String raw = intent.getStringExtra("uri");
+            java.util.List<String> uris = new java.util.ArrayList<>();
+            if (raw != null && !raw.isEmpty()) {
+                for (String part : raw.split(",")) {
+                    String u = RelayStore.normalize(part);
+                    if (!u.isEmpty()) {
+                        uris.add(u);
+                    }
+                }
+            }
+            RelayStore.save(context, uris);
+            Log.i("OnlineDebug", "中转已设置: " + uris);
         }
     }
 }
