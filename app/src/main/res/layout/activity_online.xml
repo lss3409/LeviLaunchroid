@@ -442,16 +442,26 @@
                     android:orientation="horizontal"
                     android:gravity="center_vertical">
 
-                    <TextView
-                        android:id="@+id/online_host_avatar"
+                    <FrameLayout
                         android:layout_width="34dp"
-                        android:layout_height="34dp"
-                        android:background="@drawable/bg_avatar"
-                        android:fontFamily="@font/misans"
-                        android:gravity="center"
-                        android:textColor="@color/on_primary"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
+                        android:layout_height="34dp">
+
+                        <TextView
+                            android:id="@+id/online_host_avatar"
+                            android:layout_width="34dp"
+                            android:layout_height="34dp"
+                            android:background="@drawable/bg_avatar"
+                            android:fontFamily="@font/misans"
+                            android:gravity="center"
+                            android:textColor="@color/on_primary"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+
+                        <ImageView
+                            android:id="@+id/online_host_avatar_img"
+                            android:layout_width="34dp"
+                            android:layout_height="34dp" />
+                    </FrameLayout>
 
                     <TextView
                         android:id="@+id/online_host_name"

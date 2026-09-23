@@ -24,6 +24,7 @@ import org.levimc.launcher.core.online.EasyTierManager;
 import org.levimc.launcher.core.online.InviteCode;
 import org.levimc.launcher.core.online.LanDiscovery;
 import org.levimc.launcher.core.online.PlayerIdentity;
+import org.levimc.launcher.core.online.QrUtils;
 import org.levimc.launcher.core.online.RelayStore;
 import org.levimc.launcher.core.online.RoomCenter;
 
@@ -101,8 +102,7 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         findViewById(R.id.online_room_copy_button).setOnClickListener(v -> copyCurrentCode());
         findViewById(R.id.online_share_button).setOnClickListener(v -> shareCurrentCode());
         findViewById(R.id.online_room_share_button).setOnClickListener(v -> shareCurrentCode());
-        findViewById(R.id.online_qr_button).setOnClickListener(v ->
-                Toast.makeText(this, "二维码即将推出", Toast.LENGTH_SHORT).show());
+        findViewById(R.id.online_qr_button).setOnClickListener(v -> showQrDialog());
         findViewById(R.id.online_back_home_button).setOnClickListener(v -> showHome());
         findViewById(R.id.online_join_game_button).setOnClickListener(v -> {
             if (hostAddress != null) {
@@ -162,6 +162,15 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
             hostAvatar.setText("房");
             hostName.setText(getString(R.string.online_host_unknown));
         }
+        // Xbox 头像覆盖（有 URL 时）
+        String avatarUrl = PlayerIdentity.getAvatarUrl(this);
+        android.widget.ImageView hostImg = findViewById(R.id.online_host_avatar_img);
+        if (hostImg != null) {
+            hostImg.setImageDrawable(null);
+            if (avatarUrl != null && !avatarUrl.isEmpty()) {
+                com.bumptech.glide.Glide.with(this).load(avatarUrl).circleCrop().into(hostImg);
+            }
+        }
         hostAddress = (isHost ? EasyTierManager.get().getVirtualIp() : HOST_IPV4) + ":" + GAME_PORT;
         if (hostAddress.startsWith("null")) {
             hostAddress = HOST_IPV4 + ":" + GAME_PORT;
@@ -176,6 +185,49 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         return s == null || s.isEmpty() ? "?" : s.substring(0, 1);
     }
 
+    /** 邀请码二维码弹窗（v505）。 */
+    private void showQrDialog() {
+        if (currentCode == null) {
+            return;
+        }
+        android.graphics.Bitmap qr = QrUtils.generate("P/" + currentCode, 480);
+        if (qr == null) {
+            Toast.makeText(this, "二维码生成失败", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+        wrap.setGravity(Gravity.CENTER_HORIZONTAL);
+        wrap.setPadding(48, 32, 48, 16);
+        android.widget.ImageView iv = new android.widget.ImageView(this);
+        iv.setImageBitmap(qr);
+        wrap.addView(iv);
+        TextView label = new TextView(this);
+        label.setText("P/" + currentCode);
+        label.setTextSize(14);
+        label.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        label.setTextColor(getResources().getColor(R.color.on_surface, getTheme()));
+        label.setPadding(0, 12, 0, 0);
+        wrap.addView(label);
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.online_qr)
+                .setView(wrap)
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
+    }
+
+    /** 更新连接模式徽章（v505：P2P 直连绿 / 中继模式黄）。 */
+    private void updateConnModeBadge() {
+        EasyTierManager.ConnMode m = EasyTierManager.get().getConnMode();
+        if (m == EasyTierManager.ConnMode.RELAY) {
+            roomState.setText(getString(R.string.online_step_relay));
+            roomState.setTextColor(getResources().getColor(R.color.warning, getTheme()));
+        } else {
+            roomState.setText(getString(R.string.online_step_p2p));
+            roomState.setTextColor(getResources().getColor(R.color.primary, getTheme()));
+        }
+    }
+
     /** 玩家行（v502）：首字头像 + 昵称 + 房主皇冠 + 自己高亮。 */
     private void addPlayerRow(String name, boolean isSelf, boolean isRoomHost) {
         LinearLayout row = new LinearLayout(this);
@@ -183,6 +235,8 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(0, 10, 0, 10);
 
+        int avatarSize = (int) (34 * getResources().getDisplayMetrics().density);
+        android.widget.FrameLayout avatarFrame = new android.widget.FrameLayout(this);
         TextView avatar = new TextView(this);
         avatar.setText(firstChar(name));
         avatar.setGravity(Gravity.CENTER);
@@ -190,10 +244,18 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         avatar.setTextSize(13);
         avatar.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         avatar.setBackgroundResource(R.drawable.bg_avatar);
-        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(
-                (int) (34 * getResources().getDisplayMetrics().density),
-                (int) (34 * getResources().getDisplayMetrics().density));
-        row.addView(avatar, alp);
+        avatarFrame.addView(avatar, new android.widget.FrameLayout.LayoutParams(
+                avatarSize, avatarSize));
+        // Xbox 头像（有 URL 时 Glide 覆盖首字底）
+        String avatarUrl = PlayerIdentity.getAvatarUrl(this);
+        if (avatarUrl != null && !avatarUrl.isEmpty()) {
+            android.widget.ImageView iv = new android.widget.ImageView(this);
+            com.bumptech.glide.Glide.with(this).load(avatarUrl).circleCrop().into(iv);
+            avatarFrame.addView(iv, new android.widget.FrameLayout.LayoutParams(
+                    avatarSize, avatarSize));
+        }
+        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(avatarSize, avatarSize);
+        row.addView(avatarFrame, alp);
 
         TextView label = new TextView(this);
         label.setText(name);
@@ -223,6 +285,7 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
             if (rttMs > 0) {
                 roomLatency.setText(getString(R.string.online_room_latency_fmt, rttMs));
             }
+            updateConnModeBadge();
             String selfId = PlayerIdentity.getClientId(this);
             String nick = PlayerIdentity.getNickname(this);
             playersContainer.removeAllViews();
