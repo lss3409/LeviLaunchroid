@@ -47,7 +47,16 @@ public final class OnlineDebugReceiver extends BroadcastReceiver {
                 new Thread(() -> {
                     java.util.List<String> found = LanDiscovery.discover(net, 3000);
                     Log.i("OnlineDebug", "局域网发现房主: " + found);
-                    EasyTierManager.get().join(context, net, secret, null, found);
+                    EasyTierManager.get().join(context, net, secret,
+                            (state, detail) -> {
+                                if (state == EasyTierManager.State.CONNECTED) {
+                                    // 调试路径无 UI，组网成功后直接启动房间中心心跳
+                                    String nick = PlayerIdentity.getNickname(context);
+                                    String cid = PlayerIdentity.getClientId(context);
+                                    RoomCenter.startClient("10.144.144.144", nick, cid, null);
+                                    Log.i("OnlineDebug", "房间中心客户端已启动: " + nick);
+                                }
+                            }, found);
                 }, "lan-discover").start();
             }
         } else if (ACTION_STOP.equals(action)) {
