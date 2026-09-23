@@ -429,13 +429,16 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
 
     private void refreshRecent() {
         LinearLayout container = findViewById(R.id.online_recent_container);
+        View title = findViewById(R.id.online_recent_title);
         container.removeAllViews();
         List<String> recents = loadRecent();
         if (recents.isEmpty()) {
             container.setVisibility(View.GONE);
+            title.setVisibility(View.GONE);
             return;
         }
         container.setVisibility(View.VISIBLE);
+        title.setVisibility(View.VISIBLE);
         for (String code : recents) {
             TextView row = new TextView(this);
             row.setText("P/" + code);
