@@ -159,7 +159,7 @@ public final class RoomCenter {
     }
 
     /** 房主侧玩家列表（含房主自己 + 清理超时成员）。 */
-    private static JSONArray buildPlayerListJson() {
+    private static JSONArray buildPlayerListJson() throws org.json.JSONException {
         long now = System.currentTimeMillis();
         for (Map.Entry<String, Long> e : lastSeen.entrySet()) {
             if (now - e.getValue() > TIMEOUT_MS) {
