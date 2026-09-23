@@ -59,11 +59,13 @@ public final class RoomCenter {
     private static final Map<String, Long> lastSeen = new ConcurrentHashMap<>();
     private static String hostName;
     private static String hostClientId;
+    private static volatile Listener hostListener;
 
     public static synchronized void startHost(String name, String clientId, Listener l) {
         stopHost();
         hostName = name;
         hostClientId = clientId;
+        hostListener = l;
         hostRunning = true;
         try {
             hostSocket = new DatagramSocket(null);
@@ -136,6 +138,11 @@ public final class RoomCenter {
                     resp.put("returnTime", System.currentTimeMillis());
                     resp.put("players", buildPlayerListJson());
                     send(hostSocket, resp.toString(), p.getAddress(), p.getPort());
+                    // 通知房主 UI 刷新玩家列表
+                    Listener l = hostListener;
+                    if (l != null) {
+                        l.onPlayers(snapshot(), -1);
+                    }
                 }
             } catch (java.net.SocketTimeoutException e) {
                 // 超时：顺带清理过期成员
@@ -268,6 +275,16 @@ public final class RoomCenter {
                 }
             }
         } catch (Exception ignored) {
+        }
+        return out;
+    }
+
+    /** 当前玩家快照（含房主）。 */
+    private static List<Player> snapshot() {
+        List<Player> out = new ArrayList<>();
+        out.add(new Player(hostName, hostClientId, true));
+        for (Player p : players.values()) {
+            out.add(p);
         }
         return out;
     }
