@@ -36,10 +36,20 @@ public final class OnlineDebugReceiver extends BroadcastReceiver {
                 Log.e("OnlineDebug", "调试码无效: " + code);
                 return;
             }
+            // 调试路径无 UI：组网成功后直接启动房间中心心跳
+            EasyTierManager.Listener afterJoin = (state, detail) -> {
+                if (state == EasyTierManager.State.CONNECTED) {
+                    String nick = PlayerIdentity.getNickname(context);
+                    String cid = PlayerIdentity.getClientId(context);
+                    RoomCenter.startClient("10.144.144.144", nick, cid, null);
+                    Log.i("OnlineDebug", "房间中心客户端已启动: " + nick);
+                }
+            };
             java.util.List<String> peers;
             if (peer != null && !peer.isEmpty()) {
                 peers = java.util.Collections.singletonList(peer);
-                EasyTierManager.get().join(context, r.parsed.networkName, r.parsed.networkSecret, null, peers);
+                EasyTierManager.get().join(context, r.parsed.networkName, r.parsed.networkSecret,
+                        afterJoin, peers);
             } else {
                 // 与 UI 加入流程一致：先局域网发现房主
                 String net = r.parsed.networkName;
@@ -47,16 +57,7 @@ public final class OnlineDebugReceiver extends BroadcastReceiver {
                 new Thread(() -> {
                     java.util.List<String> found = LanDiscovery.discover(net, 3000);
                     Log.i("OnlineDebug", "局域网发现房主: " + found);
-                    EasyTierManager.get().join(context, net, secret,
-                            (state, detail) -> {
-                                if (state == EasyTierManager.State.CONNECTED) {
-                                    // 调试路径无 UI，组网成功后直接启动房间中心心跳
-                                    String nick = PlayerIdentity.getNickname(context);
-                                    String cid = PlayerIdentity.getClientId(context);
-                                    RoomCenter.startClient("10.144.144.144", nick, cid, null);
-                                    Log.i("OnlineDebug", "房间中心客户端已启动: " + nick);
-                                }
-                            }, found);
+                    EasyTierManager.get().join(context, net, secret, afterJoin, found);
                 }, "lan-discover").start();
             }
         } else if (ACTION_STOP.equals(action)) {
