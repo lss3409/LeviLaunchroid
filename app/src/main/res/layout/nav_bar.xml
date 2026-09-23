@@ -103,9 +103,11 @@
                     android:gravity="center"
                     android:paddingHorizontal="12dp"
                     android:fontFamily="@font/misans"
-                    android:text="@string/nav_online_placeholder"
+                    android:text="@string/nav_online"
                     android:textColor="@color/text_secondary"
                     android:textSize="13sp"
+                    android:drawableStart="@drawable/ic_nav_online"
+                    android:drawablePadding="5dp"
                     android:background="?attr/selectableItemBackground" />
 
                 <TextView

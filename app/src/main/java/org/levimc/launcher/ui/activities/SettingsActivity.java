@@ -791,7 +791,8 @@ public class SettingsActivity extends BaseActivity {
             navSignInBtn.setTextColor(Color.WHITE);
         }
         
-        int[] navTabIds = {R.id.nav_tab_launch, R.id.nav_tab_instances, R.id.nav_tab_settings};
+        int[] navTabIds = {R.id.nav_tab_launch, R.id.nav_tab_instances,
+                R.id.nav_tab_online, R.id.nav_tab_settings};
         for (int id : navTabIds) {
             TextView navTab = findViewById(id);
             if (navTab != null && id == R.id.nav_tab_settings && accent != 0) {
