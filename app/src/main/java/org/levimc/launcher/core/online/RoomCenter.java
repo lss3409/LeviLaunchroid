@@ -31,6 +31,8 @@ public final class RoomCenter {
     private static final long HEARTBEAT_MS = 5000;
     private static final long TIMEOUT_MS = 10_000;
     public static final int GAME_PORT = 19132;
+    /** 房间成员上限（含房主）。 */
+    public static final int MAX_PLAYERS = 8;
 
     public static class Player {
         public final String name;
@@ -121,8 +123,12 @@ public final class RoomCenter {
                         String pname = q.optString("playerName", cid);
                         lastSeen.put(cid, System.currentTimeMillis());
                         if (!players.containsKey(cid)) {
-                            players.put(cid, new Player(pname, cid, false));
-                            Log.i(TAG, "玩家加入: " + pname + " (" + cid + ")");
+                            if (players.size() + 1 >= MAX_PLAYERS) {
+                                Log.w(TAG, "房间已满，拒绝: " + pname);
+                            } else {
+                                players.put(cid, new Player(pname, cid, false));
+                                Log.i(TAG, "玩家加入: " + pname + " (" + cid + ")");
+                            }
                         }
                     } catch (Exception ignored) {
                     }

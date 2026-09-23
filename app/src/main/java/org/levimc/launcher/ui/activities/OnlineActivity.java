@@ -97,8 +97,6 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         findViewById(R.id.online_join_card).setOnClickListener(v -> showJoinDialog());
         findViewById(R.id.online_disconnect_button).setOnClickListener(v -> onLeaveClicked());
         findViewById(R.id.online_leave_button).setOnClickListener(v -> onLeaveClicked());
-        findViewById(R.id.online_relay_row).setOnClickListener(v ->
-                startActivity(new Intent(this, OnlineRelayActivity.class)));
         findViewById(R.id.online_copy_button).setOnClickListener(v -> copyCurrentCode());
         findViewById(R.id.online_room_copy_button).setOnClickListener(v -> copyCurrentCode());
         findViewById(R.id.online_share_button).setOnClickListener(v -> shareCurrentCode());
@@ -168,7 +166,8 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         if (hostAddress.startsWith("null")) {
             hostAddress = HOST_IPV4 + ":" + GAME_PORT;
         }
-        joinGameHint.setText(getString(R.string.online_join_game_hint, hostAddress));
+        joinGameHint.setText(getString(R.string.online_join_game_steps)
+                + "\n\n" + getString(R.string.online_join_game_hint, hostAddress));
         playersContainer.removeAllViews();
         addPlayerRow(nick, true, false);
     }
@@ -227,19 +226,19 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
             String selfId = PlayerIdentity.getClientId(this);
             String nick = PlayerIdentity.getNickname(this);
             playersContainer.removeAllViews();
+            int memberCount = 1;
             if (isHost) {
                 addPlayerRow(nick, true, true);
                 for (RoomCenter.Player p : list) {
                     if (!p.isRoomHost) {
                         addPlayerRow(p.name, false, false);
+                        memberCount++;
                     }
                 }
             } else {
                 // 成员视角：房主行更新为真实昵称
-                String hostNick = null;
                 for (RoomCenter.Player p : list) {
                     if (p.isRoomHost) {
-                        hostNick = p.name;
                         hostAvatar.setText(firstChar(p.name));
                         hostName.setText(p.name);
                     }
@@ -248,8 +247,14 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                 for (RoomCenter.Player p : list) {
                     if (!p.isRoomHost && !p.clientId.equals(selfId)) {
                         addPlayerRow(p.name, false, false);
+                        memberCount++;
                     }
                 }
+            }
+            TextView label = findViewById(R.id.online_players_label);
+            if (label != null) {
+                label.setText(getString(R.string.online_players_count_fmt,
+                        memberCount, RoomCenter.MAX_PLAYERS));
             }
         });
     }
@@ -538,6 +543,22 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                 // 点击最近房间：预填弹窗输入框
                 showJoinDialogWithCode(code);
             });
+            // 长按删除记录
+            row.setOnLongClickListener(v -> {
+                new android.app.AlertDialog.Builder(this)
+                        .setTitle(R.string.online_recent_delete)
+                        .setMessage("P/" + code)
+                        .setPositiveButton(android.R.string.ok, (d, w) -> {
+                            List<String> recents = loadRecent();
+                            recents.remove(code);
+                            getSharedPreferences(PREFS_RECENT, MODE_PRIVATE).edit()
+                                    .putString(KEY_RECENT, String.join(",", recents)).apply();
+                            refreshRecent();
+                        })
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show();
+                return true;
+            });
             container.addView(row);
         }
     }
@@ -601,12 +622,28 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
     }
 
     private void updateRelayView() {
-        List<String> uris = RelayStore.load(this);
-        if (uris.isEmpty()) {
-            relayValue.setText(getString(R.string.online_relay_none));
-        } else {
-            relayValue.setText(uris.get(0) + (uris.size() > 1 ? " …" : ""));
-        }
+        RelayStore.cleanupLegacy(this);
+        relayValue.setText(getString(R.string.online_relay_support_fmt, RelayStore.SUPPORTED_BY));
+        // 异步测试固定中转连通性（角标：绿=在线 / 灰=离线）
+        new Thread(() -> {
+            boolean ok = false;
+            try (java.net.Socket s = new java.net.Socket()) {
+                s.connect(new java.net.InetSocketAddress("192.168.1.167", 11010), 2000);
+                ok = true;
+            } catch (Exception ignored) {
+            }
+            boolean reachable = ok;
+            runOnUiThread(() -> {
+                View dot = findViewById(R.id.online_relay_dot);
+                if (dot != null) {
+                    dot.setBackgroundResource(reachable
+                            ? R.drawable.bg_state_dot_ok : R.drawable.bg_state_dot_idle);
+                }
+                relayValue.setText(getString(reachable
+                        ? R.string.online_relay_support_fmt : R.string.online_relay_offline,
+                        RelayStore.SUPPORTED_BY));
+            });
+        }, "relay-check").start();
     }
 
     private void onLeaveClicked() {

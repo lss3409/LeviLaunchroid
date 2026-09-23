@@ -179,55 +179,29 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical" />
 
-            <!-- 中转入口 -->
+            <!-- 服务器支持（固定中转，不可配置） -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:padding="14dp"
-                android:background="@drawable/bg_rounded_card"
-                android:clickable="true"
-                android:focusable="true"
-                android:id="@+id/online_relay_row">
+                android:padding="12dp">
 
-                <ImageView
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:src="@drawable/ic_online_server"
-                    android:contentDescription="@string/online_relay_section"
-                    app:tint="@color/primary" />
+                <View
+                    android:id="@+id/online_relay_dot"
+                    android:layout_width="8dp"
+                    android:layout_height="8dp"
+                    android:background="@drawable/bg_state_dot_idle" />
 
                 <TextView
+                    android:id="@+id/online_relay_value"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
                     android:fontFamily="@font/misans"
-                    android:text="@string/online_relay_section"
-                    android:textColor="@color/on_surface"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/online_relay_value"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1"
-                    android:ellipsize="middle"
-                    android:fontFamily="@font/misans"
-                    android:singleLine="true"
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="@font/misans"
-                    android:text="›"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="18sp" />
             </LinearLayout>
         </LinearLayout>
 
@@ -499,6 +473,7 @@
 
                 <!-- 玩家列表 -->
                 <TextView
+                    android:id="@+id/online_players_label"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="14dp"

@@ -1162,7 +1162,7 @@
     <string name="online_join_game_button">复制房主地址</string>
     <string name="online_leave">退出房间</string>
     <string name="online_relay_add">添加</string>
-    <string name="online_relay_presets">公益节点（点选添加）</string>
+    <string name="online_relay_support_fmt">服务器支持：%1$s</string>
     <string name="online_relay_mine">我的服务器</string>
     <string name="online_relay_added">已添加</string>
     <string name="online_relay_test">测试</string>
@@ -1181,6 +1181,13 @@
     <string name="online_host_you">%1$s（你）</string>
     <string name="online_host_unknown">房主</string>
     <string name="online_players_empty">等待玩家加入…</string>
+    <string name="online_players_count_fmt">玩家 %1$d/%2$d</string>
+    <string name="online_recent_delete">删除此记录</string>
+    <string name="online_relay_online">中转在线</string>
+    <string name="online_relay_offline">中转离线（异地联机不可用）</string>
+    <string name="online_join_game_steps">① 打开游戏，进入你想加入的世界（或创建局域网世界）
+② 游戏内「服务器」页添加服务器
+③ 填入房主地址并加入</string>
     <string name="online_state_idle">未连接</string>
     <string name="online_state_connected_fmt">已连接 · 虚拟 IP %1$s</string>
     <string name="online_share_text">来我的世界联机！邀请码：P/%1$s</string>
