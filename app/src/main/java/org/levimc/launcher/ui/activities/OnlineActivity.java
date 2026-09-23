@@ -34,6 +34,10 @@ public final class OnlineActivity extends BaseActivity {
         statusText = findViewById(R.id.online_status_text);
         findViewById(R.id.online_join_button).setOnClickListener(v -> onJoinClicked());
 
+        // P/ 前缀由 TextView 渲染（API 21+ setPrefix），不参与文本——手输前缀
+        // 不会再与数据位混淆；无 XML 属性（android:prefix 不存在），只能代码设置。
+        codeInput.setPrefix("P/");
+
         codeInput.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {

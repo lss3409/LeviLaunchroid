@@ -70,7 +70,6 @@
                 android:hint="@string/online_code_hint"
                 android:inputType="textCapCharacters"
                 android:maxLength="21"
-                android:prefix="P/"
                 android:paddingHorizontal="14dp"
                 android:textColor="@color/on_surface"
                 android:textColorHint="@color/text_secondary"
