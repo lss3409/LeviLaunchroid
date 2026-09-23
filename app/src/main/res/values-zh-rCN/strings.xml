@@ -1149,6 +1149,25 @@
     <string name="online_vpn_notif_title">联机组网运行中</string>
     <string name="online_vpn_notif_text">正在维持联机网络连接</string>
     <string name="online_create_coming">创建房间</string>
+    <string name="online_state_idle">未连接</string>
+    <string name="online_state_connected_fmt">已连接 · 虚拟 IP %1$s</string>
+    <string name="online_share_text">来我的世界联机！邀请码：P/%1$s</string>
+    <string name="online_state_discovering">正在局域网内寻找房主…</string>
+    <string name="online_my_room">我的房间</string>
+    <string name="online_room_hint">同 WiFi（或已配置中转）的好友输入此码即可加入</string>
+    <string name="online_paste">粘贴</string>
+    <string name="online_create_section">创建房间</string>
+    <string name="online_create_desc">生成邀请码，成为房主</string>
+    <string name="online_relay_section">中转服务器</string>
+    <string name="online_relay_edit">设置</string>
+    <string name="online_relay_none">未配置（仅同网段可用）</string>
+    <string name="online_relay_value_fmt">%1$s</string>
+    <string name="online_relay_dialog_title">中转服务器</string>
+    <string name="online_relay_dialog_msg">跨网段联机需要中转服务器（官方公共节点已下线）。填写服务器地址，多个用逗号分隔，例如 tcp://1.2.3.4:11010</string>
+    <string name="online_relay_dialog_hint">tcp://1.2.3.4:11010</string>
+    <string name="online_relay_saved">中转配置已保存</string>
+    <string name="online_code_progress_fmt">%1$d/16</string>
+    <string name="online_code_valid">✓ 邀请码有效</string>
     <string name="online_room_created_fmt">房间已创建 ✓
 邀请码：P/%1$s
 （同 WiFi 的好友输入此码即可加入）</string>
