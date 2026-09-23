@@ -178,7 +178,12 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         joinGameHint.setText(getString(R.string.online_join_game_steps)
                 + "\n\n" + getString(R.string.online_join_game_hint, hostAddress));
         playersContainer.removeAllViews();
-        addPlayerRow(nick, true, false);
+        // 初始占位（心跳回调后重建）：房主行已展示自己，列表不再重复
+        TextView empty = new TextView(this);
+        empty.setText(R.string.online_players_empty);
+        empty.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+        empty.setTextSize(12);
+        playersContainer.addView(empty);
     }
 
     private static String firstChar(String s) {
@@ -291,27 +296,40 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
             playersContainer.removeAllViews();
             int memberCount = 1;
             if (isHost) {
-                addPlayerRow(nick, true, true);
+                // 房主视角：房主行已展示自己，玩家列表只列成员
                 for (RoomCenter.Player p : list) {
                     if (!p.isRoomHost) {
                         addPlayerRow(p.name, false, false);
                         memberCount++;
                     }
                 }
+                if (memberCount == 1) {
+                    TextView empty = new TextView(this);
+                    empty.setText(R.string.online_players_empty);
+                    empty.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+                    empty.setTextSize(12);
+                    playersContainer.addView(empty);
+                }
             } else {
-                // 成员视角：房主行更新为真实昵称
+                // 成员视角：房主行更新为真实昵称，玩家列表含房主+其他成员+自己
                 for (RoomCenter.Player p : list) {
                     if (p.isRoomHost) {
                         hostAvatar.setText(firstChar(p.name));
                         hostName.setText(p.name);
                     }
                 }
-                addPlayerRow(nick, true, false);
                 for (RoomCenter.Player p : list) {
                     if (!p.isRoomHost && !p.clientId.equals(selfId)) {
                         addPlayerRow(p.name, false, false);
                         memberCount++;
                     }
+                }
+                if (memberCount == 1) {
+                    TextView empty = new TextView(this);
+                    empty.setText(R.string.online_players_empty);
+                    empty.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+                    empty.setTextSize(12);
+                    playersContainer.addView(empty);
                 }
             }
             TextView label = findViewById(R.id.online_players_label);

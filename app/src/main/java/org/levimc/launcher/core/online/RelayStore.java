@@ -14,18 +14,29 @@ import java.util.List;
  */
 public final class RelayStore {
 
-    /** 服务器支持：lss3409（用户电脑中转；当前为局域网地址，公网映射后更新）。 */
+    /** 服务器支持：lss3409。 */
     public static final String SUPPORTED_BY = "lss3409";
 
-    /** 固定中转 peer（同网段直连；异地联机需公网映射后改这里）。 */
-    public static final String FIXED_RELAY = "tcp://192.168.1.167:11010";
+    /**
+     * 固定中转 peers（lss3409 电脑，公共中继模式）：
+     * ① IPv4 局域网（同网段直连）② IPv6 公网（异地/流量跨网联机，EUI-64
+     * 稳定地址 2409:8a55:10a0:1050:ba31:b290:4870:9d8e——电脑重启不变）。
+     * 注意：IPv6 前缀 2409:8a55:10a0:1050 由运营商分配，若路由器重启后
+     * 前缀变化需同步更新这里；且需路由器/光猫放行 IPv6 入站（防火墙）。
+     */
+    public static final String[] FIXED_RELAYS = {
+            "tcp://192.168.1.167:11010",
+            "tcp://[2409:8a55:10a0:1050:ba31:b290:4870:9d8e]:11010",
+    };
 
     private RelayStore() {
     }
 
-    /** 组网时合并的中转列表（当前即固定中转）。 */
+    /** 组网时合并的中转列表。 */
     public static List<String> load(Context ctx) {
-        return Collections.singletonList(FIXED_RELAY);
+        List<String> out = new ArrayList<>(FIXED_RELAYS.length);
+        Collections.addAll(out, FIXED_RELAYS);
+        return out;
     }
 
     /** 兼容旧版本存储迁移：清理已无用的用户自建配置。 */
