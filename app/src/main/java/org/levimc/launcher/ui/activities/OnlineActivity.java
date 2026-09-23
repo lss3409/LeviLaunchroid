@@ -11,8 +11,11 @@ import android.text.Editable;
 import android.text.Selection;
 import android.text.Spanned;
 import android.text.TextWatcher;
+import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -20,32 +23,50 @@ import org.levimc.launcher.R;
 import org.levimc.launcher.core.online.EasyTierManager;
 import org.levimc.launcher.core.online.InviteCode;
 import org.levimc.launcher.core.online.LanDiscovery;
+import org.levimc.launcher.core.online.PlayerIdentity;
 import org.levimc.launcher.core.online.RelayStore;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 联机页（v498 重设计）：状态卡 / 房间卡 / 加入卡 / 创建卡 / 中转设置。
- * 加入交互：粘贴按钮 + 实时校验反馈 + 连接阶段进度。
+ * 联机页（v500 按提示词重设计）：
+ * 首页（状态条+创建/加入并排卡片+最近房间+中转入口）/ 创建视图 / 房间视图；
+ * 加入房间为弹窗（输入+实时校验+连接步骤条动画 解析→组网→发现房主→握手）。
  */
 public final class OnlineActivity extends BaseActivity implements EasyTierManager.Listener {
 
     private static final int REQ_VPN = 1001;
     private static final String HOST_IPV4 = "10.144.144.144";
+    private static final int GAME_PORT = 19132;
+    private static final String PREFS_RECENT = "levimc_recent";
+    private static final String KEY_RECENT = "rooms";
 
-    private EditText codeInput;
+    private View homeView;
+    private View createView;
+    private View roomView;
     private TextView stateText;
-    private TextView roomCode;
     private TextView relayValue;
-    private TextView codeFeedback;
     private View stateDot;
     private View stateProgress;
     private View disconnectButton;
-    private View roomCard;
+    private TextView roomCodeText;
+    private TextView roomCodeText2;
+    private TextView roomState;
+    private TextView roomLatency;
+    private TextView hostAvatar;
+    private TextView hostName;
+    private TextView joinGameHint;
+    private LinearLayout playersContainer;
+    private TextView createStatus;
+
     private boolean formatting;
     private InviteCode.Parsed pendingJoin;
-    private String hostedCode;
+    private String currentCode; // 当前房间码（房主生成/成员加入）
+    private String hostAddress; // 房主虚拟 IP:游戏端口
+    private AlertDialog joinDialog;
+    private boolean isHost;
+    private final List<InviteCode.Parsed> pendingParsed = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -53,56 +74,152 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         setContentView(R.layout.activity_online);
         setActiveNavTab(R.id.nav_tab_online);
 
-        codeInput = findViewById(R.id.online_code_input);
+        homeView = findViewById(R.id.online_home_view);
+        createView = findViewById(R.id.online_create_view);
+        roomView = findViewById(R.id.online_room_view);
         stateText = findViewById(R.id.online_state_text);
-        roomCode = findViewById(R.id.online_room_code);
         relayValue = findViewById(R.id.online_relay_value);
-        codeFeedback = findViewById(R.id.online_code_feedback);
         stateDot = findViewById(R.id.online_state_dot);
         stateProgress = findViewById(R.id.online_state_progress);
         disconnectButton = findViewById(R.id.online_disconnect_button);
-        roomCard = findViewById(R.id.online_room_card);
+        roomCodeText = findViewById(R.id.online_room_code);
+        roomCodeText2 = findViewById(R.id.online_room_code2);
+        roomState = findViewById(R.id.online_room_state);
+        roomLatency = findViewById(R.id.online_room_latency);
+        hostAvatar = findViewById(R.id.online_host_avatar);
+        hostName = findViewById(R.id.online_host_name);
+        joinGameHint = findViewById(R.id.online_join_game_hint);
+        playersContainer = findViewById(R.id.online_players_container);
+        createStatus = findViewById(R.id.online_create_status);
 
-        findViewById(R.id.online_join_button).setOnClickListener(v -> onJoinClicked());
-        disconnectButton.setOnClickListener(v -> onDisconnectClicked());
-        findViewById(R.id.online_create_button).setOnClickListener(v -> onCreateRoomClicked());
-        findViewById(R.id.online_copy_button).setOnClickListener(v -> {
-            if (hostedCode == null) {
-                return;
+        findViewById(R.id.online_create_card).setOnClickListener(v -> onCreateRoomClicked());
+        findViewById(R.id.online_join_card).setOnClickListener(v -> showJoinDialog());
+        findViewById(R.id.online_disconnect_button).setOnClickListener(v -> onLeaveClicked());
+        findViewById(R.id.online_leave_button).setOnClickListener(v -> onLeaveClicked());
+        findViewById(R.id.online_relay_row).setOnClickListener(v ->
+                startActivity(new Intent(this, OnlineRelayActivity.class)));
+        findViewById(R.id.online_copy_button).setOnClickListener(v -> copyCurrentCode());
+        findViewById(R.id.online_room_copy_button).setOnClickListener(v -> copyCurrentCode());
+        findViewById(R.id.online_share_button).setOnClickListener(v -> shareCurrentCode());
+        findViewById(R.id.online_room_share_button).setOnClickListener(v -> shareCurrentCode());
+        findViewById(R.id.online_qr_button).setOnClickListener(v ->
+                Toast.makeText(this, "二维码即将推出", Toast.LENGTH_SHORT).show());
+        findViewById(R.id.online_back_home_button).setOnClickListener(v -> showHome());
+        findViewById(R.id.online_join_game_button).setOnClickListener(v -> {
+            if (hostAddress != null) {
+                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                cm.setPrimaryClip(ClipData.newPlainText("host", hostAddress));
+                Toast.makeText(this, getString(R.string.online_copied), Toast.LENGTH_SHORT).show();
             }
-            ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            cm.setPrimaryClip(ClipData.newPlainText("invite", "P/" + hostedCode));
-            Toast.makeText(this, R.string.online_copied, Toast.LENGTH_SHORT).show();
         });
-        findViewById(R.id.online_share_button).setOnClickListener(v -> {
-            if (hostedCode == null) {
-                return;
+
+        updateRelayView();
+        refreshRecent();
+        setHomeState(EasyTierManager.State.IDLE, null);
+    }
+
+    // ---------- 视图切换 ----------
+
+    private void showHome() {
+        homeView.setVisibility(View.VISIBLE);
+        createView.setVisibility(View.GONE);
+        roomView.setVisibility(View.GONE);
+    }
+
+    private void showCreate() {
+        homeView.setVisibility(View.GONE);
+        createView.setVisibility(View.VISIBLE);
+        roomView.setVisibility(View.GONE);
+    }
+
+    private void showRoom() {
+        homeView.setVisibility(View.GONE);
+        createView.setVisibility(View.GONE);
+        roomView.setVisibility(View.VISIBLE);
+        roomView.setAlpha(0f);
+        roomView.animate().alpha(1f).setDuration(220).start();
+        populateRoom();
+    }
+
+    /** 房间视图数据填充。 */
+    private void populateRoom() {
+        roomCodeText2.setText(currentCode == null ? "" : "P/" + currentCode);
+        String nick = PlayerIdentity.getNickname(this);
+        hostAvatar.setText(nick.substring(0, Math.min(1, nick.length())));
+        hostName.setText(isHost ? getString(R.string.online_host_you, nick) : nick);
+        hostAddress = (isHost ? EasyTierManager.get().getVirtualIp() : HOST_IPV4) + ":" + GAME_PORT;
+        if (hostAddress.startsWith("null")) {
+            hostAddress = HOST_IPV4 + ":" + GAME_PORT;
+        }
+        joinGameHint.setText(getString(R.string.online_join_game_hint, hostAddress));
+        playersContainer.removeAllViews();
+        TextView empty = new TextView(this);
+        empty.setText(R.string.online_players_empty);
+        empty.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+        empty.setTextSize(12);
+        playersContainer.addView(empty);
+    }
+
+    // ---------- 创建房间 ----------
+
+    private void onCreateRoomClicked() {
+        EasyTierManager.get().stop(this);
+        InviteCode.Generated g;
+        try {
+            g = InviteCode.generate();
+        } catch (RuntimeException e) {
+            setHomeState(EasyTierManager.State.FAILED, e.getMessage());
+            return;
+        }
+        currentCode = g.code;
+        isHost = true;
+        roomCodeText.setText("P/" + g.code);
+        createStatus.setText(getString(R.string.online_connecting_kernel));
+        showCreate();
+        LanDiscovery.startHost(g.parsed.networkName);
+        List<String> relayPeers = RelayStore.load(this);
+        EasyTierManager.get().host(this, g.parsed.networkName, g.parsed.networkSecret, this,
+                HOST_IPV4, relayPeers);
+    }
+
+    // ---------- 加入房间弹窗 ----------
+
+    private void showJoinDialog() {
+        View v = getLayoutInflater().inflate(R.layout.dialog_join, null);
+        EditText input = v.findViewById(R.id.join_code_input);
+        TextView feedback = v.findViewById(R.id.join_feedback);
+        LinearLayout steps = v.findViewById(R.id.join_steps_container);
+        TextView status = v.findViewById(R.id.join_status);
+
+        v.findViewById(R.id.join_paste_button).setOnClickListener(x -> {
+            try {
+                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                if (cm != null && cm.hasPrimaryClip()) {
+                    CharSequence clip = cm.getPrimaryClip().getItemAt(0).getText();
+                    if (clip != null) {
+                        input.setText(InviteCode.formatInput(clip.toString()));
+                        input.setSelection(input.length());
+                        updateJoinFeedback(input, feedback);
+                    }
+                }
+            } catch (Exception ignored) {
             }
-            Intent send = new Intent(Intent.ACTION_SEND);
-            send.setType("text/plain");
-            send.putExtra(Intent.EXTRA_TEXT, getString(R.string.online_share_text, "P/" + hostedCode));
-            startActivity(Intent.createChooser(send, getString(R.string.online_share_code)));
         });
-        findViewById(R.id.online_paste_button).setOnClickListener(v -> onPasteClicked());
-        findViewById(R.id.online_relay_button).setOnClickListener(v -> onRelayClicked());
 
-        codeInput.addTextChangedListener(new TextWatcher() {
+        input.addTextChangedListener(new TextWatcher() {
             @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            public void beforeTextChanged(CharSequence s, int a, int b, int c) {
             }
 
             @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            public void onTextChanged(CharSequence s, int a, int b, int c) {
             }
 
             @Override
             public void afterTextChanged(Editable s) {
-                // 输入法组合（composing）期间整段 replace 会破坏组合区，
-                // 导致字符错位/重复/输入法会话卡死——组合中一律不动文本。
                 if (formatting || isComposing(s)) {
                     return;
                 }
-                // 只在光标位于末尾（追加输入）时整理，避免与中间编辑打架。
                 if (Selection.getSelectionEnd(s) != s.length()) {
                     return;
                 }
@@ -116,104 +233,274 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                         formatting = false;
                     }
                 }
-                updateCodeFeedback();
+                updateJoinFeedback(input, feedback);
             }
         });
 
-        updateRelayView();
-        setStateView(EasyTierManager.State.IDLE, null);
-    }
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(v)
+                .setCancelable(false)
+                .create();
+        joinDialog = dialog;
 
-    /** 是否存在输入法组合区（拼音/联想等尚未提交的文本）。 */
-    private static boolean isComposing(Editable s) {
-        for (Object span : s.getSpans(0, s.length(), Object.class)) {
-            if ((s.getSpanFlags(span) & Spanned.SPAN_COMPOSING) != 0) {
-                return true;
+        v.findViewById(R.id.join_cancel_button).setOnClickListener(x -> dialog.dismiss());
+        v.findViewById(R.id.join_confirm_button).setOnClickListener(x -> {
+            String raw = input.getText() == null ? "" : input.getText().toString();
+            InviteCode.Result r = InviteCode.parse(InviteCode.formatInput(raw));
+            if (!r.ok()) {
+                feedback.setVisibility(View.VISIBLE);
+                feedback.setTextColor(getResources().getColor(R.color.error, getTheme()));
+                feedback.setText(errorText(r.error));
+                return;
             }
-        }
-        return false;
+            // 校验通过：进入连接步骤动画
+            feedback.setVisibility(View.GONE);
+            input.setEnabled(false);
+            v.findViewById(R.id.join_paste_button).setEnabled(false);
+            v.findViewById(R.id.join_confirm_button).setVisibility(View.GONE);
+            v.findViewById(R.id.join_cancel_button).setVisibility(View.GONE);
+            buildSteps(steps);
+            setStepState(0, true);
+            pendingParsed.clear();
+            pendingParsed.add(r.parsed);
+            Intent vpnIntent = VpnService.prepare(this);
+            if (vpnIntent != null) {
+                status.setVisibility(View.VISIBLE);
+                status.setText(getString(R.string.online_vpn_needed));
+                startActivityForResult(vpnIntent, REQ_VPN);
+            } else {
+                doJoinFromDialog(r.parsed);
+            }
+        });
+        dialog.setOnDismissListener(d -> {
+            joinDialog = null;
+            if (!pendingParsed.isEmpty()) {
+                // 连接中关闭弹窗 = 取消（停止组网）
+                pendingParsed.clear();
+                EasyTierManager.get().stop(this);
+                showHome();
+                setHomeState(EasyTierManager.State.IDLE, null);
+            }
+        });
+        dialog.show();
     }
 
-    /** 实时校验反馈：x/16 进度 → 完整时校验结果。 */
-    private void updateCodeFeedback() {
-        String text = codeInput.getText() == null ? "" : codeInput.getText().toString();
+    private void doJoinFromDialog(InviteCode.Parsed parsed) {
+        currentCode = rawToCode(parsed);
+        isHost = false;
+        setStepState(1, true);
+        new Thread(() -> {
+            List<String> peers = LanDiscovery.discover(parsed.networkName, 3000);
+            runOnUiThread(() -> {
+                if (joinDialog == null) {
+                    return;
+                }
+                setStepState(2, true);
+                EasyTierManager.get().join(this, parsed.networkName, parsed.networkSecret,
+                        this, peers);
+            });
+        }, "lan-discover").start();
+    }
+
+    private String rawToCode(InviteCode.Parsed p) {
+        String name = p.networkName; // paper-connect-NNNN-NNNN
+        String code = name.substring("paper-connect-".length()).replace("-", "");
+        return code.substring(0, 4) + "-" + code.substring(4, 8) + "-"
+                + p.networkSecret.substring(0, 4) + "-" + p.networkSecret.substring(5);
+    }
+
+    private String errorText(InviteCode.Error e) {
+        switch (e) {
+            case CHARSET:
+                return getString(R.string.online_err_charset);
+            case CHECKSUM:
+                return getString(R.string.online_err_checksum);
+            default:
+                return getString(R.string.online_err_format);
+        }
+    }
+
+    private void updateJoinFeedback(EditText input, TextView feedback) {
+        String text = input.getText() == null ? "" : input.getText().toString();
         int rawLen = 0;
         for (char ch : text.toUpperCase().toCharArray()) {
             if (InviteCode.CHARSET.indexOf(ch) >= 0) {
                 rawLen++;
             }
         }
-        codeFeedback.setVisibility(View.VISIBLE);
         if (rawLen == 0) {
-            codeFeedback.setVisibility(View.GONE);
+            feedback.setVisibility(View.GONE);
             return;
         }
+        feedback.setVisibility(View.VISIBLE);
         if (rawLen < 16) {
-            codeFeedback.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
-            codeFeedback.setText(getString(R.string.online_code_progress_fmt, rawLen));
+            feedback.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+            feedback.setText(getString(R.string.online_code_progress_fmt, rawLen));
             return;
         }
         InviteCode.Result r = InviteCode.parse(InviteCode.formatInput(text));
         if (r.ok()) {
-            codeFeedback.setTextColor(getResources().getColor(R.color.primary, getTheme()));
-            codeFeedback.setText(getString(R.string.online_code_valid));
+            feedback.setTextColor(getResources().getColor(R.color.primary, getTheme()));
+            feedback.setText(getString(R.string.online_code_valid));
         } else {
-            codeFeedback.setTextColor(getResources().getColor(R.color.error, getTheme()));
-            switch (r.error) {
-                case CHARSET:
-                    codeFeedback.setText(getString(R.string.online_err_charset));
-                    break;
-                case CHECKSUM:
-                    codeFeedback.setText(getString(R.string.online_err_checksum));
-                    break;
-                default:
-                    codeFeedback.setText(getString(R.string.online_err_format));
-                    break;
+            feedback.setTextColor(getResources().getColor(R.color.error, getTheme()));
+            feedback.setText(errorText(r.error));
+        }
+    }
+
+    // ---------- 连接步骤条 ----------
+
+    private TextView[] stepViews;
+
+    private void buildSteps(LinearLayout container) {
+        container.removeAllViews();
+        container.setVisibility(View.VISIBLE);
+        int[] labels = {
+                R.string.online_step_parse,
+                R.string.online_step_connect,
+                R.string.online_step_discover,
+                R.string.online_step_handshake
+        };
+        stepViews = new TextView[labels.length];
+        float d = getResources().getDisplayMetrics().density;
+        for (int i = 0; i < labels.length; i++) {
+            LinearLayout step = new LinearLayout(this);
+            step.setOrientation(LinearLayout.HORIZONTAL);
+            step.setGravity(Gravity.CENTER_VERTICAL);
+            LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            step.setLayoutParams(slp);
+            View dot = new View(this);
+            dot.setBackgroundResource(R.drawable.bg_state_dot_idle);
+            LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(
+                    (int) (9 * d), (int) (9 * d));
+            step.addView(dot, dlp);
+            dot.setTag("dot");
+            TextView label = new TextView(this);
+            label.setText(labels[i]);
+            label.setTextSize(11);
+            label.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+            LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            llp.leftMargin = (int) (5 * d);
+            step.addView(label, llp);
+            label.setTag("label");
+            container.addView(step);
+            stepViews[i] = label;
+        }
+        setStepState(0, false);
+    }
+
+    /** 步骤状态：done=true 的前 N 步完成（绿点），active 为当前步（高亮）。 */
+    private void setStepState(int active, boolean done) {
+        if (stepViews == null) {
+            return;
+        }
+        for (int i = 0; i < stepViews.length; i++) {
+            View step = (View) stepViews[i].getParent();
+            View dot = step.findViewWithTag("dot");
+            TextView label = (TextView) step.findViewWithTag("label");
+            boolean isDone = i < active || done && i <= active && i != active;
+            boolean isActive = i == active;
+            if (isDone) {
+                dot.setBackgroundResource(R.drawable.bg_state_dot_ok);
+                label.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+            } else if (isActive) {
+                dot.setBackgroundResource(R.drawable.bg_state_dot_ok);
+                label.setTextColor(getResources().getColor(R.color.primary, getTheme()));
+            } else {
+                dot.setBackgroundResource(R.drawable.bg_state_dot_idle);
+                label.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
             }
         }
     }
 
-    private void onPasteClicked() {
+    // ---------- 最近房间 ----------
+
+    private void refreshRecent() {
+        LinearLayout container = findViewById(R.id.online_recent_container);
+        container.removeAllViews();
+        List<String> recents = loadRecent();
+        if (recents.isEmpty()) {
+            container.setVisibility(View.GONE);
+            return;
+        }
+        container.setVisibility(View.VISIBLE);
+        for (String code : recents) {
+            TextView row = new TextView(this);
+            row.setText("P/" + code);
+            row.setTextColor(getResources().getColor(R.color.primary, getTheme()));
+            row.setTextSize(14);
+            row.setPadding(24, 14, 24, 14);
+            row.setBackgroundResource(R.drawable.bg_rounded_card);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            lp.bottomMargin = (int) (6 * getResources().getDisplayMetrics().density);
+            row.setLayoutParams(lp);
+            row.setOnClickListener(v -> {
+                // 点击最近房间：预填弹窗输入框
+                showJoinDialogWithCode(code);
+            });
+            container.addView(row);
+        }
+    }
+
+    private void showJoinDialogWithCode(String code) {
+        showJoinDialog();
+        if (joinDialog != null) {
+            EditText input = joinDialog.findViewById(R.id.join_code_input);
+            input.setText(InviteCode.formatInput(code));
+            input.setSelection(input.length());
+        }
+    }
+
+    private List<String> loadRecent() {
+        List<String> out = new ArrayList<>();
         try {
-            ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            if (cm == null || !cm.hasPrimaryClip()) {
-                return;
+            String raw = getSharedPreferences(PREFS_RECENT, MODE_PRIVATE)
+                    .getString(KEY_RECENT, "");
+            if (raw != null && !raw.isEmpty()) {
+                for (String c : raw.split(",")) {
+                    if (!c.isEmpty() && !out.contains(c)) {
+                        out.add(c);
+                    }
+                }
             }
-            CharSequence clip = cm.getPrimaryClip().getItemAt(0).getText();
-            if (clip == null || clip.length() == 0) {
-                return;
-            }
-            codeInput.setText(InviteCode.formatInput(clip.toString()));
-            codeInput.setSelection(codeInput.length());
-            updateCodeFeedback();
         } catch (Exception ignored) {
         }
+        return out;
     }
 
-    private void onRelayClicked() {
-        List<String> current = RelayStore.load(this);
-        EditText input = new EditText(this);
-        input.setHint(R.string.online_relay_dialog_hint);
-        input.setSingleLine(false);
-        input.setText(String.join(", ", current));
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.online_relay_dialog_title)
-                .setMessage(R.string.online_relay_dialog_msg)
-                .setView(input)
-                .setPositiveButton(android.R.string.ok, (d, w) -> {
-                    List<String> uris = new ArrayList<>();
-                    for (String part : input.getText().toString().split("[,\\n]")) {
-                        String u = RelayStore.normalize(part);
-                        if (!u.isEmpty()) {
-                            uris.add(u);
-                        }
-                    }
-                    RelayStore.save(this, uris);
-                    updateRelayView();
-                    Toast.makeText(this, R.string.online_relay_saved, Toast.LENGTH_SHORT).show();
-                })
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
+    private void saveRecent(String code) {
+        List<String> recents = loadRecent();
+        recents.remove(code);
+        recents.add(0, code);
+        while (recents.size() > 5) {
+            recents.remove(recents.size() - 1);
+        }
+        getSharedPreferences(PREFS_RECENT, MODE_PRIVATE).edit()
+                .putString(KEY_RECENT, String.join(",", recents)).apply();
+    }
+
+    // ---------- 通用 ----------
+
+    private void copyCurrentCode() {
+        if (currentCode == null) {
+            return;
+        }
+        ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        cm.setPrimaryClip(ClipData.newPlainText("invite", "P/" + currentCode));
+        Toast.makeText(this, R.string.online_copied, Toast.LENGTH_SHORT).show();
+    }
+
+    private void shareCurrentCode() {
+        if (currentCode == null) {
+            return;
+        }
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_TEXT, getString(R.string.online_share_text, "P/" + currentCode));
+        startActivity(Intent.createChooser(send, getString(R.string.online_share_code)));
     }
 
     private void updateRelayView() {
@@ -225,75 +512,52 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         }
     }
 
-    private void onJoinClicked() {
-        String raw = codeInput.getText() == null ? "" : codeInput.getText().toString();
-        InviteCode.Result result = InviteCode.parse(InviteCode.formatInput(raw));
-        if (!result.ok()) {
-            codeFeedback.setVisibility(View.VISIBLE);
-            codeFeedback.setTextColor(getResources().getColor(R.color.error, getTheme()));
-            switch (result.error) {
-                case CHARSET:
-                    codeFeedback.setText(getString(R.string.online_err_charset));
-                    break;
-                case CHECKSUM:
-                    codeFeedback.setText(getString(R.string.online_err_checksum));
-                    break;
-                default:
-                    codeFeedback.setText(getString(R.string.online_err_format));
-                    break;
-            }
-            return;
-        }
-        pendingJoin = result.parsed;
-        Intent vpnIntent = VpnService.prepare(this);
-        if (vpnIntent != null) {
-            setStateText(getString(R.string.online_vpn_needed), R.color.text_secondary);
-            startActivityForResult(vpnIntent, REQ_VPN);
-        } else {
-            doJoin(result.parsed);
-        }
-    }
-
-    /** 创建房间（v497）：生成邀请码 → 房主固定 IP 组网 → 局域网广播应答。 */
-    private void onCreateRoomClicked() {
-        EasyTierManager.get().stop(this);
-        InviteCode.Generated g;
-        try {
-            g = InviteCode.generate();
-        } catch (RuntimeException e) {
-            setStateText(getString(R.string.online_err_connect_fmt, e.getMessage()), R.color.error);
-            return;
-        }
-        hostedCode = g.code;
-        roomCode.setText("P/" + g.code);
-        roomCard.setVisibility(View.VISIBLE);
-        LanDiscovery.startHost(g.parsed.networkName);
-        // 房主也必须连中转——跨网段成员经中转才能找到房主
-        List<String> relayPeers = RelayStore.load(this);
-        EasyTierManager.get().host(this, g.parsed.networkName, g.parsed.networkSecret, this,
-                HOST_IPV4, relayPeers);
-    }
-
-    /** 已授权，启动组网（成员：局域网发现房主 + 合并中转配置）。 */
-    private void doJoin(InviteCode.Parsed parsed) {
-        String net = parsed.networkName;
-        String secret = parsed.networkSecret;
-        setStateText(getString(R.string.online_state_discovering), R.color.primary);
-        stateProgress.setVisibility(View.VISIBLE);
-        new Thread(() -> {
-            List<String> peers = LanDiscovery.discover(net, 3000);
-            peers.addAll(RelayStore.load(this));
-            runOnUiThread(() -> EasyTierManager.get().join(this, net, secret, this, peers));
-        }, "lan-discover").start();
-    }
-
-    private void onDisconnectClicked() {
+    private void onLeaveClicked() {
         EasyTierManager.get().stop(this);
         LanDiscovery.stopHost();
-        hostedCode = null;
-        roomCard.setVisibility(View.GONE);
-        setStateView(EasyTierManager.State.IDLE, null);
-        setStateText(getString(R.string.online_disconnected), R.color.text_secondary);
+        currentCode = null;
+        isHost = false;
+        hostAddress = null;
+        showHome();
+        setHomeState(EasyTierManager.State.IDLE, null);
+    }
+
+    private void setHomeState(EasyTierManager.State state, String detail) {
+        switch (state) {
+            case STARTING:
+            case WAIT_IP:
+                stateDot.setBackgroundResource(R.drawable.bg_state_dot_idle);
+                stateText.setTextColor(getResources().getColor(R.color.primary, getTheme()));
+                stateText.setText(state == EasyTierManager.State.STARTING
+                        ? getString(R.string.online_connecting_kernel)
+                        : getString(R.string.online_wait_ip));
+                stateProgress.setVisibility(View.VISIBLE);
+                disconnectButton.setVisibility(View.GONE);
+                break;
+            case CONNECTED:
+                stateDot.setBackgroundResource(R.drawable.bg_state_dot_ok);
+                stateText.setTextColor(getResources().getColor(R.color.primary, getTheme()));
+                stateText.setText(getString(R.string.online_state_connected_fmt,
+                        detail == null ? "?" : detail));
+                stateProgress.setVisibility(View.GONE);
+                disconnectButton.setVisibility(View.VISIBLE);
+                break;
+            case FAILED:
+                stateDot.setBackgroundResource(R.drawable.bg_state_dot_err);
+                stateText.setTextColor(getResources().getColor(R.color.error, getTheme()));
+                stateText.setText(getString(R.string.online_err_connect_fmt,
+                        detail == null ? "?" : detail));
+                stateProgress.setVisibility(View.GONE);
+                disconnectButton.setVisibility(View.GONE);
+                break;
+            default:
+                stateDot.setBackgroundResource(R.drawable.bg_state_dot_idle);
+                stateText.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+                stateText.setText(getString(R.string.online_state_idle));
+                stateProgress.setVisibility(View.GONE);
+                disconnectButton.setVisibility(View.GONE);
+                break;
+        }
     }
 
     @Override
@@ -302,18 +566,22 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         if (requestCode != REQ_VPN) {
             return;
         }
-        InviteCode.Parsed p = pendingJoin;
-        pendingJoin = null;
-        if (resultCode == RESULT_OK && p != null) {
-            doJoin(p);
+        if (resultCode == RESULT_OK && !pendingParsed.isEmpty()) {
+            doJoinFromDialog(pendingParsed.remove(0));
         } else {
-            setStateText(getString(R.string.online_vpn_cancelled), R.color.error);
+            pendingParsed.clear();
+            if (joinDialog != null) {
+                joinDialog.dismiss();
+            }
+            Toast.makeText(this, R.string.online_vpn_cancelled, Toast.LENGTH_SHORT).show();
         }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        updateRelayView();
+        refreshRecent();
         EasyTierManager.get().setListener(this);
         EasyTierManager.State s = EasyTierManager.get().getState();
         if (s == EasyTierManager.State.CONNECTED) {
@@ -321,54 +589,48 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         }
     }
 
-    private void setStateText(String text, int colorRes) {
-        stateText.setText(text);
-        stateText.setTextColor(getResources().getColor(colorRes, getTheme()));
-    }
-
-    private void setStateDot(int drawableRes) {
-        stateDot.setBackgroundResource(drawableRes);
-    }
-
-    private void setStateView(EasyTierManager.State state, String detail) {
-        switch (state) {
-            case STARTING:
-                setStateDot(R.drawable.bg_state_dot_idle);
-                setStateText(getString(R.string.online_connecting_kernel), R.color.primary);
-                stateProgress.setVisibility(View.VISIBLE);
-                disconnectButton.setVisibility(View.GONE);
-                break;
-            case WAIT_IP:
-                setStateDot(R.drawable.bg_state_dot_idle);
-                setStateText(getString(R.string.online_wait_ip), R.color.primary);
-                stateProgress.setVisibility(View.VISIBLE);
-                disconnectButton.setVisibility(View.GONE);
-                break;
-            case CONNECTED:
-                setStateDot(R.drawable.bg_state_dot_ok);
-                setStateText(getString(R.string.online_state_connected_fmt, detail == null ? "?" : detail),
-                        R.color.primary);
-                stateProgress.setVisibility(View.GONE);
-                disconnectButton.setVisibility(View.VISIBLE);
-                break;
-            case FAILED:
-                setStateDot(R.drawable.bg_state_dot_err);
-                setStateText(getString(R.string.online_err_connect_fmt, detail == null ? "?" : detail),
-                        R.color.error);
-                stateProgress.setVisibility(View.GONE);
-                disconnectButton.setVisibility(View.GONE);
-                break;
-            default:
-                setStateDot(R.drawable.bg_state_dot_idle);
-                setStateText(getString(R.string.online_state_idle), R.color.text_secondary);
-                stateProgress.setVisibility(View.GONE);
-                disconnectButton.setVisibility(View.GONE);
-                break;
-        }
-    }
-
     @Override
     public void onState(EasyTierManager.State state, String detail) {
-        setStateView(state, detail);
+        switch (state) {
+            case STARTING:
+                if (joinDialog != null) {
+                    setStepState(1, true);
+                } else {
+                    setHomeState(state, detail);
+                }
+                break;
+            case WAIT_IP:
+                if (joinDialog != null) {
+                    setStepState(3, true);
+                } else {
+                    setHomeState(state, detail);
+                }
+                break;
+            case CONNECTED:
+                if (joinDialog != null) {
+                    setStepState(3, true);
+                    // 延迟关闭弹窗展示完成态
+                    joinDialog.setOnDismissListener(null);
+                    joinDialog.dismiss();
+                    joinDialog = null;
+                    pendingParsed.clear();
+                }
+                if (currentCode != null) {
+                    saveRecent(currentCode);
+                }
+                roomState.setText(getString(R.string.online_step_p2p));
+                roomState.setTextColor(getResources().getColor(R.color.primary, getTheme()));
+                showRoom();
+                break;
+            case FAILED:
+                if (joinDialog != null) {
+                    joinDialog.dismiss();
+                }
+                setHomeState(state, detail);
+                break;
+            default:
+                setHomeState(state, detail);
+                break;
+        }
     }
 }

@@ -25,6 +25,8 @@ public final class EasyTierManager {
 
     private static final String TAG = "EasyTierMgr";
     private static final String INSTANCE_NAME = "paper-connect";
+    /** 房主房间中心 TCP 端口（PaperConnect 协议：hostname = paper-connect-server-<port>）。 */
+    public static final int ROOM_CENTER_PORT = 8090;
     private static final long POLL_INTERVAL_MS = 3000;
     private static final long IP_TIMEOUT_MS = 60_000;
     private static final String FALLBACK_CIDR = "10.144.0.0/16";
@@ -134,6 +136,9 @@ public final class EasyTierManager {
         String toml = "instance_name = \"" + INSTANCE_NAME + "\"\n"
                 + "dhcp = " + (fixedIpv4 == null ? "true" : "false") + "\n"
                 + (fixedIpv4 != null ? "ipv4 = \"" + fixedIpv4 + "\"\n" : "")
+                // 房主节点带协议主机名，房客 RPC 匹配 paper-connect-server-* 发现房间中心
+                + (fixedIpv4 != null
+                        ? "hostname = \"paper-connect-server-" + ROOM_CENTER_PORT + "\"\n" : "")
                 + "log_level = \"info\"\n"
                 // Android 内核默认不监听 11010（poll listeners 只有 ring://），
                 // 必须显式开启监听，局域网直连/中转才能连进本机。
