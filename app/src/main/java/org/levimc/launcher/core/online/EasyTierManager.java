@@ -91,7 +91,13 @@ public final class EasyTierManager {
     /** 创建房间（房主）：固定虚拟 IP + DHCP 关闭，成员 dhcp 以本机 IP 为网段基准分配。 */
     public void host(Context ctx, String networkName, String networkSecret, Listener l,
                      String fixedIpv4) {
-        start(ctx, networkName, networkSecret, l, null, fixedIpv4);
+        host(ctx, networkName, networkSecret, l, fixedIpv4, null);
+    }
+
+    /** 创建房间，extraPeers 合并中转服务器（房主也必须连中转，否则成员经中转找不到房主）。 */
+    public void host(Context ctx, String networkName, String networkSecret, Listener l,
+                     String fixedIpv4, java.util.List<String> extraPeers) {
+        start(ctx, networkName, networkSecret, l, extraPeers, fixedIpv4);
     }
 
     private void start(Context ctx, String networkName, String networkSecret, Listener l,

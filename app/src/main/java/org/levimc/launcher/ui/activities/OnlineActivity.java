@@ -268,7 +268,10 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         roomCode.setText("P/" + g.code);
         roomCard.setVisibility(View.VISIBLE);
         LanDiscovery.startHost(g.parsed.networkName);
-        EasyTierManager.get().host(this, g.parsed.networkName, g.parsed.networkSecret, this, HOST_IPV4);
+        // 房主也必须连中转——跨网段成员经中转才能找到房主
+        List<String> relayPeers = RelayStore.load(this);
+        EasyTierManager.get().host(this, g.parsed.networkName, g.parsed.networkSecret, this,
+                HOST_IPV4, relayPeers);
     }
 
     /** 已授权，启动组网（成员：局域网发现房主 + 合并中转配置）。 */
