@@ -1162,6 +1162,9 @@
     <string name="online_join_game_button">复制房主地址</string>
     <string name="online_leave">退出房间</string>
     <string name="online_relay_add">添加</string>
+    <string name="online_relay_presets">公益节点（点选添加）</string>
+    <string name="online_relay_mine">我的服务器</string>
+    <string name="online_relay_added">已添加</string>
     <string name="online_relay_test">测试</string>
     <string name="online_relay_untested">未测试</string>
     <string name="online_relay_testing">测试中…</string>

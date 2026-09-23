@@ -96,7 +96,7 @@
                     <ImageView
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:src="@drawable/ic_nav_online"
+                        android:src="@drawable/ic_online_create"
                         android:contentDescription="@string/online_create_coming"
                         app:tint="@color/primary" />
 
@@ -135,7 +135,7 @@
                     <ImageView
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:src="@drawable/ic_nav_online"
+                        android:src="@drawable/ic_online_join"
                         android:contentDescription="@string/online_join_section"
                         app:tint="@color/primary" />
 
@@ -192,9 +192,17 @@
                 android:focusable="true"
                 android:id="@+id/online_relay_row">
 
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_online_server"
+                    android:contentDescription="@string/online_relay_section"
+                    app:tint="@color/primary" />
+
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
                     android:fontFamily="@font/misans"
                     android:text="@string/online_relay_section"
                     android:textColor="@color/on_surface"

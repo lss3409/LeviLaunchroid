@@ -19,6 +19,7 @@ import java.util.List;
 public final class OnlineRelayActivity extends BaseActivity {
 
     private LinearLayout listContainer;
+    private LinearLayout presetContainer;
     private EditText addInput;
 
     @Override
@@ -26,9 +27,62 @@ public final class OnlineRelayActivity extends BaseActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_online_relay);
         listContainer = findViewById(R.id.relay_list_container);
+        presetContainer = findViewById(R.id.relay_preset_container);
         addInput = findViewById(R.id.relay_add_input);
         findViewById(R.id.relay_add_button).setOnClickListener(v -> onAddClicked());
+        refreshPresets();
         refreshList();
+    }
+
+    /** 公益节点区块：点选即加入我的服务器列表。 */
+    private void refreshPresets() {
+        presetContainer.removeAllViews();
+        for (String[] preset : RelayStore.PRESET_RELAYS) {
+            final String name = preset[0];
+            final String uri = preset[1];
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            row.setPadding(24, 14, 24, 14);
+            row.setBackgroundResource(R.drawable.bg_rounded_card);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            lp.bottomMargin = (int) (6 * getResources().getDisplayMetrics().density);
+            row.setLayoutParams(lp);
+
+            TextView nameView = new TextView(this);
+            nameView.setText(name);
+            nameView.setTextSize(13);
+            nameView.setTextColor(getResources().getColor(R.color.on_surface, getTheme()));
+            row.addView(nameView, new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+            TextView addrView = new TextView(this);
+            addrView.setText(uri.replaceFirst("://.*", "://…"));
+            addrView.setTextSize(11);
+            addrView.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+            row.addView(addrView);
+
+            TextView addBtn = new TextView(this);
+            boolean added = RelayStore.load(this).contains(uri);
+            addBtn.setText(added ? R.string.online_relay_added : R.string.online_relay_add);
+            addBtn.setTextSize(12);
+            addBtn.setTextColor(getResources().getColor(
+                    added ? R.color.text_secondary : R.color.primary, getTheme()));
+            addBtn.setPadding(24, 8, 0, 8);
+            addBtn.setOnClickListener(v -> {
+                if (RelayStore.load(this).contains(uri)) {
+                    return;
+                }
+                List<String> uris = new ArrayList<>(RelayStore.load(this));
+                uris.add(uri);
+                RelayStore.save(this, uris);
+                refreshPresets();
+                refreshList();
+            });
+            row.addView(addBtn);
+            presetContainer.addView(row);
+        }
     }
 
     private void onAddClicked() {

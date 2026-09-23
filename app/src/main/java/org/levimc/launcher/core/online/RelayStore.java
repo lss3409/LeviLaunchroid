@@ -16,6 +16,17 @@ public final class RelayStore {
     private static final String PREFS = "levimc_relay";
     private static final String KEY_URIS = "uris";
 
+    /**
+     * 内置公益中转节点（2026-09 社区活跃维护：风起社公益平台 EasyTier Public Relay，
+     * 日本 2Gbps，公益免费，上限 100Mbps；来源 EasyTier Discussions #2429）。
+     * 公益节点可能随时变动/下线——UI 提供连通测试与自建入口兜底。
+     */
+    public static final String[][] PRESET_RELAYS = {
+            {"风起社公益节点 · 日本", "tcp://161.33.207.13:51010"},
+            {"风起社公益节点 · 日本 (UDP)", "udp://161.33.207.13:51010"},
+            {"风起社公益节点 · 日本 (WS)", "ws://161.33.207.13:51011"},
+    };
+
     private RelayStore() {
     }
 

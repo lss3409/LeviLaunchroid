@@ -1170,6 +1170,9 @@ Virtual IP: %1$s
     <string name="online_join_game_button">Copy host address</string>
     <string name="online_leave">Leave Room</string>
     <string name="online_relay_add">Add</string>
+    <string name="online_relay_presets">Public relays (tap to add)</string>
+    <string name="online_relay_mine">My servers</string>
+    <string name="online_relay_added">Added</string>
     <string name="online_relay_test">Test</string>
     <string name="online_relay_untested">Untested</string>
     <string name="online_relay_testing">Testing…</string>

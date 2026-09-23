@@ -39,6 +39,35 @@
             android:orientation="vertical"
             android:paddingHorizontal="36dp">
 
+            <!-- 公益节点（点选添加） -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:fontFamily="@font/misans"
+                android:text="@string/online_relay_presets"
+                android:textColor="@color/on_surface"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:id="@+id/relay_preset_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <!-- 我的服务器 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="8dp"
+                android:fontFamily="@font/misans"
+                android:text="@string/online_relay_mine"
+                android:textColor="@color/on_surface"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
             <LinearLayout
                 android:id="@+id/relay_list_container"
                 android:layout_width="match_parent"
