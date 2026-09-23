@@ -97,12 +97,16 @@ public final class InviteCode {
                 raw.substring(8, 12) + "-" + raw.substring(12, 16)));
     }
 
-    /** 输入自动格式化：去非法字符、转大写、补 P/ 前缀与短横线。 */
+    /**
+     * 输入自动格式化：去非法字符、转大写、剥前置 P//U/ 前缀、补短横线。
+     * 注意：P/ 前缀由输入框 android:prefix 渲染，不属于文本（v494）——
+     * 文本里只放 16 位码本体，避免手输前缀时 P 混入数据位造成码移位。
+     */
     public static String formatInput(String input) {
         if (input == null) {
-            return "P/";
+            return "";
         }
-        // 粘贴/手输带前缀的完整码时先剥掉前缀，避免 P/ 与数据位重复（"P/P..."）
+        // 粘贴带前缀的完整码时先剥掉前缀，避免 P 混入数据位
         String upper = input.toUpperCase(Locale.ROOT);
         if (upper.length() >= 2 && (upper.startsWith("P/") || upper.startsWith("U/"))) {
             upper = upper.substring(2);
@@ -116,7 +120,7 @@ public final class InviteCode {
         if (s.length() > 16) {
             s.setLength(16);
         }
-        StringBuilder out = new StringBuilder("P/");
+        StringBuilder out = new StringBuilder();
         for (int i = 0; i < s.length(); i++) {
             if (i > 0 && i % 4 == 0) {
                 out.append('-');

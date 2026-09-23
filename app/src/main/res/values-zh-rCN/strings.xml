@@ -1132,7 +1132,7 @@
     <string name="online_title">联机</string>
     <string name="online_subtitle">输入好友分享的联机码，即可加入 TA 的房间</string>
     <string name="online_join_section">加入房间</string>
-    <string name="online_code_hint">P/XXXX-XXXX-XXXX-XXXX</string>
+    <string name="online_code_hint">XXXX-XXXX-XXXX-XXXX</string>
     <string name="online_join_button">加入房间</string>
     <string name="online_create_coming">创建房间（即将推出）</string>
     <string name="online_err_format">邀请码格式不对，应为 P/XXXX-XXXX-XXXX-XXXX</string>
