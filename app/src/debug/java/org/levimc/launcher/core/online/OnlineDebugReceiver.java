@@ -32,11 +32,20 @@ public final class OnlineDebugReceiver extends BroadcastReceiver {
                 Log.e("OnlineDebug", "调试码无效: " + code);
                 return;
             }
-            java.util.List<String> peers = null;
+            java.util.List<String> peers;
             if (peer != null && !peer.isEmpty()) {
                 peers = java.util.Collections.singletonList(peer);
+                EasyTierManager.get().join(context, r.parsed.networkName, r.parsed.networkSecret, null, peers);
+            } else {
+                // 与 UI 加入流程一致：先局域网发现房主
+                String net = r.parsed.networkName;
+                String secret = r.parsed.networkSecret;
+                new Thread(() -> {
+                    java.util.List<String> found = LanDiscovery.discover(net, 3000);
+                    Log.i("OnlineDebug", "局域网发现房主: " + found);
+                    EasyTierManager.get().join(context, net, secret, null, found);
+                }, "lan-discover").start();
             }
-            EasyTierManager.get().join(context, r.parsed.networkName, r.parsed.networkSecret, null, peers);
         } else if (ACTION_STOP.equals(action)) {
             EasyTierManager.get().stop(context);
         }
