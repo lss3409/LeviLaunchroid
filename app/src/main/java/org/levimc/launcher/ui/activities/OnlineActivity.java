@@ -311,11 +311,13 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                     playersContainer.addView(empty);
                 }
             } else {
-                // 成员视角：房主行更新为真实昵称，玩家列表含房主+其他成员+自己
+                // 成员视角：玩家列表 = 房主(👑) + 其他成员 + 自己（高亮）
                 for (RoomCenter.Player p : list) {
                     if (p.isRoomHost) {
                         hostAvatar.setText(firstChar(p.name));
                         hostName.setText(p.name);
+                        addPlayerRow(p.name, false, true);
+                        memberCount++;
                     }
                 }
                 for (RoomCenter.Player p : list) {
@@ -324,6 +326,7 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                         memberCount++;
                     }
                 }
+                addPlayerRow(nick, true, false);
                 if (memberCount == 1) {
                     TextView empty = new TextView(this);
                     empty.setText(R.string.online_players_empty);
