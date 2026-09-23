@@ -77,6 +77,12 @@ public final class EasyTierManager {
 
     /** 加入网络。调用前必须已完成 VpnService.prepare 授权（由 Activity 把关）。 */
     public void join(Context ctx, String networkName, String networkSecret, Listener l) {
+        join(ctx, networkName, networkSecret, l, null);
+    }
+
+    /** 加入网络。extraPeers 为附加的直连 peer（局域网/自建中转，如 tcp://192.168.1.2:11010）。 */
+    public void join(Context ctx, String networkName, String networkSecret, Listener l,
+                     java.util.List<String> extraPeers) {
         synchronized (lock) {
             stopInternal();
             appContext = ctx.getApplicationContext();
@@ -91,23 +97,35 @@ public final class EasyTierManager {
                     EasyTierJNI.stopAllInstances();
                 } catch (Throwable ignored) {
                 }
-                runJoin(networkName, networkSecret);
+                runJoin(networkName, networkSecret, extraPeers);
             }, "easytier-mgr");
             worker.setDaemon(true);
             worker.start();
         }
     }
 
-    private void runJoin(String networkName, String networkSecret) {
+    private void runJoin(String networkName, String networkSecret, java.util.List<String> extraPeers) {
         // dhcp=true：IP 由网络内其他节点（房主固定 IP）决定网段后自动分配；
         // 单机（无对端）时 EasyTier 不分配虚拟 IP，60s 后提示超时属预期。
+        // 注意：EasyTier 官方公共节点已于 2026-05 全部下线（GitHub #2242，
+        // 维护者确认"官方已经不提供公共节点了"）——组网必须靠直连 peer
+        // （同一局域网对方的 IP）或自建中转（后续中转配置页提供）。
         String toml = "instance_name = \"" + INSTANCE_NAME + "\"\n"
                 + "dhcp = true\n"
+                + "log_level = \"info\"\n"
+                // Android 内核默认不监听 11010（poll listeners 只有 ring://），
+                // 必须显式开启监听，局域网直连/中转才能连进本机。
+                + "listeners = [\"tcp://0.0.0.0:11010\", \"udp://0.0.0.0:11010\"]\n"
                 + "[network_identity]\n"
                 + "network_name = \"" + networkName + "\"\n"
-                + "network_secret = \"" + networkSecret + "\"\n"
-                + "[[peer]]\n"
-                + "uri = \"tcp://public.easytier.top:11010\"\n";
+                + "network_secret = \"" + networkSecret + "\"\n";
+        if (extraPeers != null) {
+            for (String uri : extraPeers) {
+                if (uri != null && !uri.isEmpty()) {
+                    toml += "[[peer]]\n" + "uri = \"" + uri + "\"\n";
+                }
+            }
+        }
         Log.d(TAG, "TOML 配置:\n" + toml);
         int rc;
         try {
@@ -211,7 +229,7 @@ public final class EasyTierManager {
             if (json == null || json.isEmpty()) {
                 return null;
             }
-            Log.i(TAG, "poll json: " + (json.length() > 600 ? json.substring(0, 600) : json));
+            Log.i(TAG, "poll json: " + (json.length() > 3800 ? json.substring(0, 3800) : json));
             JSONObject root = new JSONObject(json);
             JSONObject map = root.optJSONObject("map");
             if (map == null) {

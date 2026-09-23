@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- debug 构建专用：联机调试广播后门（release 不含） -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <receiver
+            android:name="org.levimc.launcher.core.online.OnlineDebugReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="org.levimc.launcher.DEBUG_JOIN" />
+                <action android:name="org.levimc.launcher.DEBUG_STOP" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>
