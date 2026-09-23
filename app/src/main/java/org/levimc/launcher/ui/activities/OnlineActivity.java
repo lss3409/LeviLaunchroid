@@ -189,7 +189,7 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         avatar.setGravity(Gravity.CENTER);
         avatar.setTextColor(getResources().getColor(R.color.on_primary, getTheme()));
         avatar.setTextSize(13);
-        avatar.setTextStyle(android.graphics.Typeface.BOLD);
+        avatar.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         avatar.setBackgroundResource(R.drawable.bg_avatar);
         LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(
                 (int) (34 * getResources().getDisplayMetrics().density),
