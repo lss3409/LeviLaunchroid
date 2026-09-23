@@ -31,12 +31,23 @@ public final class EasyTierVpnService extends VpnService {
     public static final String EXTRA_IPV4 = "ipv4";
     /** EasyTier 虚拟网段路由（决定哪些流量进 TUN）。 */
     public static final String EXTRA_CIDRS = "cidrs";
+    /** 停止信号：VpnService 被系统 binder 绑定，stopService 不会销毁——
+     *  必须再次 startService 带本 action，服务内主动关 tun 才能终止 VPN。 */
+    public static final String ACTION_STOP = "org.levimc.launcher.action.STOP_VPN";
 
     private ParcelFileDescriptor tun;
     private volatile boolean running;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && ACTION_STOP.equals(intent.getAction())) {
+            Log.i(TAG, "收到停止信号，关闭 TUN");
+            running = false;
+            closeTun();
+            stopForeground(STOP_FOREGROUND_REMOVE);
+            stopSelf();
+            return START_NOT_STICKY;
+        }
         String instance = intent == null ? null : intent.getStringExtra(EXTRA_INSTANCE);
         String ipv4 = intent == null ? null : intent.getStringExtra(EXTRA_IPV4);
         String[] cidrs = intent == null ? null : intent.getStringArrayExtra(EXTRA_CIDRS);
@@ -141,6 +152,12 @@ public final class EasyTierVpnService extends VpnService {
     @Override
     public void onDestroy() {
         running = false;
+        closeTun();
+        Log.i(TAG, "VPN 服务销毁");
+        super.onDestroy();
+    }
+
+    private void closeTun() {
         if (tun != null) {
             try {
                 tun.close();
@@ -148,7 +165,5 @@ public final class EasyTierVpnService extends VpnService {
             }
             tun = null;
         }
-        Log.i(TAG, "VPN 服务销毁");
-        super.onDestroy();
     }
 }

@@ -85,13 +85,22 @@ public final class EasyTierManager {
             active = true;
             state = State.STARTING;
             notifyState(State.STARTING, null);
-            worker = new Thread(() -> runJoin(networkName, networkSecret), "easytier-mgr");
+            worker = new Thread(() -> {
+                // 清理旧实例（上次加入失败/断开后内核实例可能仍在运行）
+                try {
+                    EasyTierJNI.stopAllInstances();
+                } catch (Throwable ignored) {
+                }
+                runJoin(networkName, networkSecret);
+            }, "easytier-mgr");
             worker.setDaemon(true);
             worker.start();
         }
     }
 
     private void runJoin(String networkName, String networkSecret) {
+        // dhcp=true：IP 由网络内其他节点（房主固定 IP）决定网段后自动分配；
+        // 单机（无对端）时 EasyTier 不分配虚拟 IP，60s 后提示超时属预期。
         String toml = "instance_name = \"" + INSTANCE_NAME + "\"\n"
                 + "dhcp = true\n"
                 + "[network_identity]\n"
@@ -142,15 +151,19 @@ public final class EasyTierManager {
         postFail("等待虚拟 IP 超时（DHCP 未分配）");
     }
 
-    /** 停止组网：停 VpnService + 停内核实例。 */
+    /** 停止组网：发停止信号给 VpnService（服务内关 tun）+ 停内核实例。 */
     public void stop(Context ctx) {
         synchronized (lock) {
             stopInternal();
             if (ctx != null) {
                 try {
-                    ctx.stopService(new Intent(ctx, EasyTierVpnService.class));
+                    // VpnService 被系统 binder 绑定，stopService 不会销毁——
+                    // 用 ACTION_STOP 信号让服务内主动关闭 tun 终止 VPN。
+                    Intent s = new Intent(ctx, EasyTierVpnService.class);
+                    s.setAction(EasyTierVpnService.ACTION_STOP);
+                    ctx.startService(s);
                 } catch (Exception e) {
-                    Log.w(TAG, "停 VPN 服务失败", e);
+                    Log.w(TAG, "发 VPN 停止信号失败", e);
                 }
             }
             new Thread(() -> {
@@ -198,6 +211,7 @@ public final class EasyTierManager {
             if (json == null || json.isEmpty()) {
                 return null;
             }
+            Log.i(TAG, "poll json: " + (json.length() > 600 ? json.substring(0, 600) : json));
             JSONObject root = new JSONObject(json);
             JSONObject map = root.optJSONObject("map");
             if (map == null) {
@@ -253,10 +267,8 @@ public final class EasyTierManager {
             if (info.cidrs.isEmpty()) {
                 info.cidrs.add(FALLBACK_CIDR);
             }
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Log.d(TAG, "poll: running=" + info.running + " ip=" + info.virtualIp
-                        + " cidrs=" + info.cidrs + " err=" + info.errorMsg);
-            }
+            Log.i(TAG, "poll: running=" + info.running + " ip=" + info.virtualIp
+                    + " cidrs=" + info.cidrs + " err=" + info.errorMsg);
             return info;
         } catch (Throwable t) {
             Log.w(TAG, "解析网络信息失败", t);

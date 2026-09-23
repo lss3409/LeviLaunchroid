@@ -569,7 +569,11 @@
         <service
             android:name="org.levimc.launcher.core.online.EasyTierVpnService"
             android:exported="false"
+            android:foregroundServiceType="specialUse"
             android:permission="android.permission.BIND_VPN_SERVICE">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Maintains the EasyTier virtual network TUN interface for online multiplayer while the game runs." />
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
