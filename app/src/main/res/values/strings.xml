@@ -1156,7 +1156,14 @@ Virtual IP: %1$s
     <string name="online_vpn_notif_channel">Online network</string>
     <string name="online_vpn_notif_title">Online network active</string>
     <string name="online_vpn_notif_text">Maintaining the online network connection</string>
-    <string name="online_create_coming">Create Room (Coming Soon)</string>
+    <string name="online_create_coming">Create Room</string>
+    <string name="online_room_created_fmt">Room created ✓
+Invite code: P/%1$s
+(Friends on the same Wi-Fi can join with this code)</string>
+    <string name="online_copy_code">Copy code</string>
+    <string name="online_copied">Copied to clipboard</string>
+    <string name="online_share_code">Share code</string>
+    <string name="online_discovering">Looking for host on the local network…</string>
     <string name="online_err_format">Invalid code format. Expected P/XXXX-XXXX-XXXX-XXXX</string>
     <string name="online_err_charset">Code contains invalid characters (I and O are never used)</string>
     <string name="online_err_checksum">Checksum failed. Please check the code</string>

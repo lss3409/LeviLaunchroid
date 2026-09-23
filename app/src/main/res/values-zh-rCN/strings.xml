@@ -1148,7 +1148,14 @@
     <string name="online_vpn_notif_channel">联机组网</string>
     <string name="online_vpn_notif_title">联机组网运行中</string>
     <string name="online_vpn_notif_text">正在维持联机网络连接</string>
-    <string name="online_create_coming">创建房间（即将推出）</string>
+    <string name="online_create_coming">创建房间</string>
+    <string name="online_room_created_fmt">房间已创建 ✓
+邀请码：P/%1$s
+（同 WiFi 的好友输入此码即可加入）</string>
+    <string name="online_copy_code">复制邀请码</string>
+    <string name="online_copied">已复制到剪贴板</string>
+    <string name="online_share_code">分享邀请码</string>
+    <string name="online_discovering">正在局域网内寻找房主…</string>
     <string name="online_err_format">邀请码格式不对，应为 P/XXXX-XXXX-XXXX-XXXX</string>
     <string name="online_err_charset">邀请码包含非法字符（字母 I 和 O 不会出现在邀请码里）</string>
     <string name="online_err_checksum">校验失败，请确认邀请码输入正确</string>

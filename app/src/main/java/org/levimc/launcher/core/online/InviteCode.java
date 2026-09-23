@@ -53,6 +53,48 @@ public final class InviteCode {
         }
     }
 
+    /** 生成的房间（v497）：邀请码 + 解析结果。 */
+    public static final class Generated {
+        /** 邀请码（4-4-4-4 分组，不带 P/ 前缀）。 */
+        public final String code;
+        /** 网络名/密钥。 */
+        public final Parsed parsed;
+
+        Generated(String code, Parsed parsed) {
+            this.code = code;
+            this.parsed = parsed;
+        }
+    }
+
+    /**
+     * 生成新房间邀请码（v497）：随机 15 位 + 推导校验位。
+     * 校验：Σ v_i·34^i ≡ 0 (mod 7)。第 16 位权值 34^15 ≡ 6 (mod 7)，
+     * 6v ≡ −total → v = (7 − 6·total mod 7) mod 7（v<7 必在字符集内）。
+     */
+    public static Generated generate() {
+        java.security.SecureRandom r = new java.security.SecureRandom();
+        char[] cs = new char[16];
+        long total = 0;
+        long pow = 1;
+        for (int i = 0; i < 15; i++) {
+            int v = r.nextInt(CHARSET.length());
+            cs[i] = CHARSET.charAt(v);
+            total = (total + v * pow) % 7;
+            pow = (pow * 34) % 7;
+        }
+        int v = (int) ((7 - (6 * total) % 7) % 7);
+        cs[15] = CHARSET.charAt(v);
+        String raw = new String(cs);
+        String code = raw.substring(0, 4) + "-" + raw.substring(4, 8) + "-"
+                + raw.substring(8, 12) + "-" + raw.substring(12, 16);
+        // 用 parse 自校验（防御生成逻辑回归）
+        Result check = parse("P/" + code);
+        if (!check.ok()) {
+            throw new IllegalStateException("邀请码生成自校验失败: " + code);
+        }
+        return new Generated(code, check.parsed);
+    }
+
     private InviteCode() {
     }
 

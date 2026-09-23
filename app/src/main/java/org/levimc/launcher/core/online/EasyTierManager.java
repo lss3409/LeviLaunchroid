@@ -83,6 +83,17 @@ public final class EasyTierManager {
     /** 加入网络。extraPeers 为附加的直连 peer（局域网/自建中转，如 tcp://192.168.1.2:11010）。 */
     public void join(Context ctx, String networkName, String networkSecret, Listener l,
                      java.util.List<String> extraPeers) {
+        start(ctx, networkName, networkSecret, l, extraPeers, null);
+    }
+
+    /** 创建房间（房主）：固定虚拟 IP + DHCP 关闭，成员 dhcp 以本机 IP 为网段基准分配。 */
+    public void host(Context ctx, String networkName, String networkSecret, Listener l,
+                     String fixedIpv4) {
+        start(ctx, networkName, networkSecret, l, null, fixedIpv4);
+    }
+
+    private void start(Context ctx, String networkName, String networkSecret, Listener l,
+                       java.util.List<String> extraPeers, String fixedIpv4) {
         synchronized (lock) {
             stopInternal();
             appContext = ctx.getApplicationContext();
@@ -97,21 +108,24 @@ public final class EasyTierManager {
                     EasyTierJNI.stopAllInstances();
                 } catch (Throwable ignored) {
                 }
-                runJoin(networkName, networkSecret, extraPeers);
+                runStart(networkName, networkSecret, extraPeers, fixedIpv4);
             }, "easytier-mgr");
             worker.setDaemon(true);
             worker.start();
         }
     }
 
-    private void runJoin(String networkName, String networkSecret, java.util.List<String> extraPeers) {
+    private void runStart(String networkName, String networkSecret,
+                          java.util.List<String> extraPeers, String fixedIpv4) {
         // dhcp=true：IP 由网络内其他节点（房主固定 IP）决定网段后自动分配；
         // 单机（无对端）时 EasyTier 不分配虚拟 IP，60s 后提示超时属预期。
+        // fixedIpv4 != null = 房主模式（dhcp=false + 固定虚拟 IP）。
         // 注意：EasyTier 官方公共节点已于 2026-05 全部下线（GitHub #2242，
         // 维护者确认"官方已经不提供公共节点了"）——组网必须靠直连 peer
-        // （同一局域网对方的 IP）或自建中转（后续中转配置页提供）。
+        // （局域网自动发现/自建中转）。
         String toml = "instance_name = \"" + INSTANCE_NAME + "\"\n"
-                + "dhcp = true\n"
+                + "dhcp = " + (fixedIpv4 == null ? "true" : "false") + "\n"
+                + (fixedIpv4 != null ? "ipv4 = \"" + fixedIpv4 + "\"\n" : "")
                 + "log_level = \"info\"\n"
                 // Android 内核默认不监听 11010（poll listeners 只有 ring://），
                 // 必须显式开启监听，局域网直连/中转才能连进本机。
