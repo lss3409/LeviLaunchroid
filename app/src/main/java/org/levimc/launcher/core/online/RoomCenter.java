@@ -6,22 +6,21 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * PaperConnect 房间中心（v502，TCP，端口 8090）：
- * 房主端 ServerSocket 维护玩家列表（c:player 心跳 10s 超时踢出，c:ping 测延迟）；
- * 成员端 5s 心跳客户端，回调玩家列表与延迟。
- * 协议（\0 分隔 UTF-8 JSON）：
+ * PaperConnect 房间中心（v503，UDP 8090）：
+ * 房主端 DatagramSocket 维护玩家列表（c:player 心跳 10s 超时踢出，
+ * c:ping 测延迟）；成员端 5s 心跳客户端，回调玩家列表与延迟。
+ * 注：不用 TCP——Android 上 EasyTier 的 TCP 端到端需要 Wireguard
+ * VPN Portal（未启动），UDP 由宿主内核栈直接转发（ping 通即证明）。
+ * 协议（UTF-8 JSON 单包）：
  *   c:ping\0{"time":<long>} → {"time","returnTime","gameType":"MinecraftBedrock","gameProtocolType":"UDP","gamePort":19132}
  *   c:player\0{"clientId","playerName"} → {"returnTime","players":[{"player","clientId","isRoomHost"}]}
  */
@@ -51,72 +50,52 @@ public final class RoomCenter {
     }
 
     // ---- 房主端 ----
-    private static ServerSocket server;
-    private static Thread acceptThread;
+    private static DatagramSocket hostSocket;
+    private static Thread hostThread;
     private static volatile boolean hostRunning;
     private static final Map<String, Player> players = new ConcurrentHashMap<>();
     private static final Map<String, Long> lastSeen = new ConcurrentHashMap<>();
     private static String hostName;
     private static String hostClientId;
-    private static volatile Listener hostListener;
 
     public static synchronized void startHost(String name, String clientId, Listener l) {
         stopHost();
         hostName = name;
         hostClientId = clientId;
-        hostListener = l;
         hostRunning = true;
         try {
-            server = new ServerSocket();
-            server.setReuseAddress(true);
-            server.bind(new InetSocketAddress("0.0.0.0", PORT));
+            hostSocket = new DatagramSocket(null);
+            hostSocket.setReuseAddress(true);
+            hostSocket.bind(new InetSocketAddress("0.0.0.0", PORT));
+            hostSocket.setSoTimeout(2000);
         } catch (IOException e) {
             Log.e(TAG, "房间中心启动失败", e);
             hostRunning = false;
             return;
         }
-        acceptThread = new Thread(RoomCenter::acceptLoop, "room-center");
-        acceptThread.setDaemon(true);
-        acceptThread.start();
+        hostThread = new Thread(RoomCenter::hostLoop, "room-center");
+        hostThread.setDaemon(true);
+        hostThread.start();
         Log.i(TAG, "房间中心已启动（房主）: " + name);
     }
 
     public static synchronized void stopHost() {
         hostRunning = false;
-        if (server != null) {
-            try {
-                server.close();
-            } catch (IOException ignored) {
-            }
-            server = null;
+        if (hostSocket != null) {
+            hostSocket.close();
+            hostSocket = null;
         }
         players.clear();
         lastSeen.clear();
     }
 
-    private static void acceptLoop() {
+    private static void hostLoop() {
+        byte[] buf = new byte[4096];
+        DatagramPacket p = new DatagramPacket(buf, buf.length);
         while (hostRunning) {
             try {
-                Socket s = server.accept();
-                new Thread(() -> handleHostConn(s), "room-conn").start();
-            } catch (IOException e) {
-                if (hostRunning) {
-                    Log.w(TAG, "accept 异常", e);
-                }
-            }
-        }
-    }
-
-    private static void handleHostConn(Socket s) {
-        try (Socket sock = s) {
-            sock.setSoTimeout((int) TIMEOUT_MS);
-            InputStream in = sock.getInputStream();
-            OutputStream out = sock.getOutputStream();
-            while (hostRunning) {
-                String req = readPacket(in);
-                if (req == null) {
-                    break;
-                }
+                hostSocket.receive(p);
+                String req = new String(p.getData(), 0, p.getLength(), "UTF-8");
                 int sep = req.indexOf('\0');
                 if (sep < 0) {
                     continue;
@@ -134,7 +113,7 @@ public final class RoomCenter {
                     resp.put("gameType", "MinecraftBedrock");
                     resp.put("gameProtocolType", "UDP");
                     resp.put("gamePort", GAME_PORT);
-                    writePacket(out, resp.toString());
+                    send(hostSocket, resp.toString(), p.getAddress(), p.getPort());
                 } else if ("c:player".equals(cmd)) {
                     try {
                         JSONObject q = new JSONObject(body);
@@ -150,16 +129,21 @@ public final class RoomCenter {
                     JSONObject resp = new JSONObject();
                     resp.put("returnTime", System.currentTimeMillis());
                     resp.put("players", buildPlayerListJson());
-                    writePacket(out, resp.toString());
+                    send(hostSocket, resp.toString(), p.getAddress(), p.getPort());
+                }
+            } catch (java.net.SocketTimeoutException e) {
+                // 超时：顺带清理过期成员
+                cleanupStale();
+            } catch (Exception e) {
+                if (hostRunning) {
+                    Log.w(TAG, "房主循环异常", e);
                 }
             }
-        } catch (Exception e) {
-            Log.w(TAG, "连接处理异常", e);
         }
+        Log.i(TAG, "房间中心已停止");
     }
 
-    /** 房主侧玩家列表（含房主自己 + 清理超时成员）。 */
-    private static JSONArray buildPlayerListJson() throws org.json.JSONException {
+    private static void cleanupStale() {
         long now = System.currentTimeMillis();
         for (Map.Entry<String, Long> e : lastSeen.entrySet()) {
             if (now - e.getValue() > TIMEOUT_MS) {
@@ -167,6 +151,11 @@ public final class RoomCenter {
                 lastSeen.remove(e.getKey());
             }
         }
+    }
+
+    /** 房主侧玩家列表（含房主自己）。 */
+    private static JSONArray buildPlayerListJson() throws org.json.JSONException {
+        cleanupStale();
         JSONArray arr = new JSONArray();
         JSONObject host = new JSONObject();
         host.put("player", hostName);
@@ -205,33 +194,38 @@ public final class RoomCenter {
 
     private static void clientLoop(String hostIp, String name, String clientId, Listener l) {
         while (clientRunning) {
-            try (Socket s = new Socket()) {
-                s.connect(new InetSocketAddress(hostIp, PORT), 4000);
-                s.setSoTimeout(4000);
-                InputStream in = s.getInputStream();
-                OutputStream out = s.getOutputStream();
+            try (DatagramSocket s = new DatagramSocket()) {
+                s.setSoTimeout(2500);
+                InetSocketAddress target = new InetSocketAddress(hostIp, PORT);
                 while (clientRunning) {
                     // 延迟探测
                     long pingRtt = -1;
                     try {
                         long t0 = System.currentTimeMillis();
-                        writePacket(out, "c:ping\0{\"time\":" + t0 + "}");
-                        String resp = readPacket(in);
-                        if (resp != null && !resp.isEmpty()) {
+                        String req = "c:ping\0{\"time\":" + t0 + "}";
+                        byte[] out = req.getBytes("UTF-8");
+                        s.send(new DatagramPacket(out, out.length, target));
+                        String resp = recv(s);
+                        if (resp != null && resp.contains("returnTime")) {
                             pingRtt = System.currentTimeMillis() - t0;
                         }
-                    } catch (Exception e) {
-                        throw e;
+                    } catch (Exception ignored) {
                     }
                     // 心跳 + 玩家列表
-                    writePacket(out, "c:player\0{\"clientId\":\"" + clientId
-                            + "\",\"playerName\":\"" + escape(name) + "\"}");
-                    String resp = readPacket(in);
-                    if (resp != null && !resp.isEmpty()) {
-                        List<Player> list = parsePlayers(resp);
-                        if (l != null) {
-                            l.onPlayers(list, pingRtt);
+                    List<Player> list = new ArrayList<>();
+                    try {
+                        String req = "c:player\0{\"clientId\":\"" + clientId
+                                + "\",\"playerName\":\"" + escape(name) + "\"}";
+                        byte[] out = req.getBytes("UTF-8");
+                        s.send(new DatagramPacket(out, out.length, target));
+                        String resp = recv(s);
+                        if (resp != null) {
+                            list = parsePlayers(resp);
                         }
+                    } catch (Exception ignored) {
+                    }
+                    if (l != null && (pingRtt > 0 || !list.isEmpty())) {
+                        l.onPlayers(list, pingRtt);
                     }
                     try {
                         Thread.sleep(HEARTBEAT_MS);
@@ -243,7 +237,7 @@ public final class RoomCenter {
                 if (!clientRunning) {
                     return;
                 }
-                Log.w(TAG, "房间中心连接失败（3s 后重试）: " + e);
+                Log.w(TAG, "房间中心不可达（3s 后重试）: " + e.getMessage());
                 try {
                     Thread.sleep(3000);
                 } catch (InterruptedException ie) {
@@ -272,27 +266,23 @@ public final class RoomCenter {
         return out;
     }
 
-    // ---- IO 工具 ----
+    // ---- UDP 工具 ----
 
-    private static String readPacket(InputStream in) throws IOException {
-        java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
-        int c;
-        while ((c = in.read()) != -1) {
-            if (c == 0) {
-                break;
-            }
-            buf.write(c);
-        }
-        if (buf.size() == 0 && c == -1) {
-            return null;
-        }
-        return buf.toString("UTF-8");
+    private static void send(DatagramSocket s, String msg, java.net.InetAddress addr, int port)
+            throws IOException {
+        byte[] out = msg.getBytes("UTF-8");
+        s.send(new DatagramPacket(out, out.length, addr, port));
     }
 
-    private static void writePacket(OutputStream out, String s) throws IOException {
-        out.write(s.getBytes("UTF-8"));
-        out.write(0);
-        out.flush();
+    private static String recv(DatagramSocket s) {
+        try {
+            byte[] buf = new byte[4096];
+            DatagramPacket p = new DatagramPacket(buf, buf.length);
+            s.receive(p);
+            return new String(p.getData(), 0, p.getLength(), "UTF-8");
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static String escape(String s) {
