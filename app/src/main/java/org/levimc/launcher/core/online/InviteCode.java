@@ -102,8 +102,13 @@ public final class InviteCode {
         if (input == null) {
             return "P/";
         }
+        // 粘贴/手输带前缀的完整码时先剥掉前缀，避免 P/ 与数据位重复（"P/P..."）
+        String upper = input.toUpperCase(Locale.ROOT);
+        if (upper.length() >= 2 && (upper.startsWith("P/") || upper.startsWith("U/"))) {
+            upper = upper.substring(2);
+        }
         StringBuilder s = new StringBuilder();
-        for (char ch : input.toUpperCase(Locale.ROOT).toCharArray()) {
+        for (char ch : upper.toCharArray()) {
             if (CHARSET.indexOf(ch) >= 0) {
                 s.append(ch);
             }

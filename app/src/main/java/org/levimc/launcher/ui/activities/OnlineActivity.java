@@ -2,6 +2,8 @@ package org.levimc.launcher.ui.activities;
 
 import android.os.Bundle;
 import android.text.Editable;
+import android.text.Selection;
+import android.text.Spanned;
 import android.text.TextWatcher;
 import android.view.View;
 import android.widget.EditText;
@@ -43,17 +45,37 @@ public final class OnlineActivity extends BaseActivity {
 
             @Override
             public void afterTextChanged(Editable s) {
-                if (formatting) {
+                // 输入法组合（composing）期间整段 replace 会破坏组合区，
+                // 导致字符错位/重复/输入法会话卡死——组合中一律不动文本。
+                if (formatting || isComposing(s)) {
+                    return;
+                }
+                // 只在光标位于末尾（追加输入）时整理，避免与中间编辑打架。
+                if (Selection.getSelectionEnd(s) != s.length()) {
                     return;
                 }
                 String formatted = InviteCode.formatInput(s.toString());
                 if (!formatted.contentEquals(s)) {
                     formatting = true;
-                    s.replace(0, s.length(), formatted);
-                    formatting = false;
+                    try {
+                        s.replace(0, s.length(), formatted);
+                        Selection.setSelection(s, s.length());
+                    } finally {
+                        formatting = false;
+                    }
                 }
             }
         });
+    }
+
+    /** 是否存在输入法组合区（拼音/联想等尚未提交的文本）。 */
+    private static boolean isComposing(Editable s) {
+        for (Object span : s.getSpans(0, s.length(), Object.class)) {
+            if ((s.getSpanFlags(span) & Spanned.SPAN_COMPOSING) != 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void onJoinClicked() {
