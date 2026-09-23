@@ -99,7 +99,7 @@ public final class InviteCode {
 
     /**
      * 输入自动格式化：去非法字符、转大写、剥前置 P//U/ 前缀、补短横线。
-     * 注意：P/ 前缀由输入框 android:prefix 渲染，不属于文本（v494）——
+     * 注意：P/ 前缀由布局层 TextView 渲染，不属于文本（v494）——
      * 文本里只放 16 位码本体，避免手输前缀时 P 混入数据位造成码移位。
      */
     public static String formatInput(String input) {
