@@ -120,6 +120,16 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
 
     // ---------- 视图切换 ----------
 
+    /** 是否存在输入法组合区（拼音/联想等尚未提交的文本）。 */
+    private static boolean isComposing(Editable s) {
+        for (Object span : s.getSpans(0, s.length(), Object.class)) {
+            if ((s.getSpanFlags(span) & Spanned.SPAN_COMPOSING) != 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void showHome() {
         homeView.setVisibility(View.VISIBLE);
         createView.setVisibility(View.GONE);
