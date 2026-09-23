@@ -105,7 +105,9 @@ public final class EasyTierManager {
             rc = EasyTierJNI.runNetworkInstance(toml);
         } catch (Throwable t) {
             Log.e(TAG, "内核调用异常", t);
-            postFail("组网内核调用异常: " + t.getClass().getSimpleName());
+            String msg = t.getMessage();
+            postFail("组网内核调用异常: " + t.getClass().getSimpleName()
+                    + (msg == null || msg.isEmpty() ? "" : " " + msg));
             return;
         }
         Log.i(TAG, "runNetworkInstance = " + rc);

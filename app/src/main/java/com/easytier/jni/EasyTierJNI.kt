@@ -7,7 +7,10 @@ fun interface ConfigServerEventCallback {
 /** EasyTier JNI 接口类 提供 Android 应用调用 EasyTier 核心网络功能的接口 */
 object EasyTierJNI {
     init {
-        // 加载本地库
+        // 必须先加载 ffi：jni 库的 run_network_instance 等符号未定义在自身
+        // DT_NEEDED 里（官方构建产物），依赖先加载 ffi 让符号全局可见，
+        // 否则 loadLibrary("easytier_android_jni") 抛 UnsatisfiedLinkError。
+        System.loadLibrary("easytier_ffi")
         System.loadLibrary("easytier_android_jni")
     }
 
