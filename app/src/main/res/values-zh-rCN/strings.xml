@@ -1127,6 +1127,18 @@
     <string name="nav_instances">实例</string>
     <string name="nav_online">联机</string>
     <string name="nav_online_placeholder">虚位以待</string>
+
+    <!-- Online (联机) -->
+    <string name="online_title">联机</string>
+    <string name="online_subtitle">输入好友分享的联机码，即可加入 TA 的房间</string>
+    <string name="online_join_section">加入房间</string>
+    <string name="online_code_hint">P/XXXX-XXXX-XXXX-XXXX</string>
+    <string name="online_join_button">加入房间</string>
+    <string name="online_create_coming">创建房间（即将推出）</string>
+    <string name="online_err_format">邀请码格式不对，应为 P/XXXX-XXXX-XXXX-XXXX</string>
+    <string name="online_err_charset">邀请码包含非法字符（字母 I 和 O 不会出现在邀请码里）</string>
+    <string name="online_err_checksum">校验失败，请确认邀请码输入正确</string>
+    <string name="online_join_ok">校验通过 ✓\n网络：%1$s\n密钥：%2$s\n（组网连接功能开发中，即将接入）</string>
     <string name="nav_about">关于</string>
     <string name="nav_settings">设置</string>
     <string name="search_instances_hint">搜索…</string>

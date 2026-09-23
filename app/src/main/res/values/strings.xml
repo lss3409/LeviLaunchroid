@@ -1135,6 +1135,18 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="nav_instances">Instances</string>
     <string name="nav_online">Online</string>
     <string name="nav_online_placeholder">虚位以待</string>
+
+    <!-- Online (联机) -->
+    <string name="online_title">Online</string>
+    <string name="online_subtitle">Enter an invite code from a friend to join their room</string>
+    <string name="online_join_section">Join Room</string>
+    <string name="online_code_hint">P/XXXX-XXXX-XXXX-XXXX</string>
+    <string name="online_join_button">Join</string>
+    <string name="online_create_coming">Create Room (Coming Soon)</string>
+    <string name="online_err_format">Invalid code format. Expected P/XXXX-XXXX-XXXX-XXXX</string>
+    <string name="online_err_charset">Code contains invalid characters (I and O are never used)</string>
+    <string name="online_err_checksum">Checksum failed. Please check the code</string>
+    <string name="online_join_ok">Verified ✓\nNetwork: %1$s\nSecret: %2$s\n(Connection coming soon)</string>
     <string name="nav_about">About</string>
     <string name="nav_settings">Settings</string>
 
