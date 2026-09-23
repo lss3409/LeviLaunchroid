@@ -28,6 +28,8 @@ public final class EasyTierManager {
     private static final long POLL_INTERVAL_MS = 3000;
     private static final long IP_TIMEOUT_MS = 60_000;
     private static final String FALLBACK_CIDR = "10.144.0.0/16";
+    /** 内核 DHCP 默认网段（OSPF 路由未同步时成员会拿到 10.126.126.x）。 */
+    private static final String FALLBACK_CIDR_DHCP = "10.126.126.0/24";
 
     public enum State {
         IDLE,        // 未连接
@@ -298,6 +300,7 @@ public final class EasyTierManager {
             }
             if (info.cidrs.isEmpty()) {
                 info.cidrs.add(FALLBACK_CIDR);
+                info.cidrs.add(FALLBACK_CIDR_DHCP);
             }
             Log.i(TAG, "poll: running=" + info.running + " ip=" + info.virtualIp
                     + " cidrs=" + info.cidrs + " err=" + info.errorMsg);

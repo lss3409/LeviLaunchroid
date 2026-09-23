@@ -93,7 +93,11 @@ public final class EasyTierVpnService extends VpnService {
                     }
                 }
             } else {
+                // 虚拟网段覆盖：10.144.0.0/16（房主固定网段）+
+                // 10.126.126.0/24（内核 DHCP 默认网段，OSPF 未同步时的分配结果）——
+                // 成员可能拿到任一网段，两边 TUN 都要路由才能双向互通。
                 builder.addRoute("10.144.0.0", 16);
+                builder.addRoute("10.126.126.0", 24);
             }
             tun = builder.establish();
             if (tun == null) {
