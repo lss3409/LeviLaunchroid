@@ -19,6 +19,8 @@ public final class OnlineDebugReceiver extends BroadcastReceiver {
     public static final String ACTION_STOP = "org.levimc.launcher.DEBUG_STOP";
     /** 设置中转（逗号分隔可多个；空串清除）。 */
     public static final String ACTION_SET_RELAY = "org.levimc.launcher.DEBUG_SET_RELAY";
+    /** UDP 广播探测（验证 allowBypass：VPN 挂载后新 socket 的广播能否走真实网络）。 */
+    public static final String ACTION_PROBE = "org.levimc.launcher.DEBUG_PROBE";
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -63,6 +65,12 @@ public final class OnlineDebugReceiver extends BroadcastReceiver {
             }
             RelayStore.save(context, uris);
             Log.i("OnlineDebug", "中转已设置: " + uris);
+        } else if (ACTION_PROBE.equals(action)) {
+            new Thread(() -> {
+                // 空网络名 = 不过滤，收所有应答（验证广播链路本身）
+                java.util.List<String> found = LanDiscovery.discover("", 3000);
+                Log.i("OnlineDebug", "广播探测结果（allowBypass 验证）: " + found);
+            }, "bcast-probe").start();
         }
     }
 }

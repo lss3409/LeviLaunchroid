@@ -77,6 +77,11 @@ public final class EasyTierVpnService extends VpnService {
             }
             Builder builder = new Builder()
                     .setSession(getString(R.string.online_vpn_session))
+                    // 关键：允许非 VPN 网段流量回落真实网络。Android VPN 建立后
+                    // 成为默认网络，之后启动的应用（如 MC）socket 绑 VPN 网络，
+                    // 无 allowBypass 时局域网广播/组播被静默丢弃——同网段
+                    // 局域网联机入口消失。回落不影响虚拟网段流量（照走 VPN）。
+                    .allowBypass()
                     .addAddress(ip, len)
                     .addDnsServer("223.5.5.5")
                     .addDnsServer("114.114.114.114");
