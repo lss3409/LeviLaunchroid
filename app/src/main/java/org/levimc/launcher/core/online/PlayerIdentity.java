@@ -85,18 +85,35 @@ public final class PlayerIdentity {
 
     /** 读取启动器已登录的 Xbox gamertag（无则返回 null）。 */
     private static String loadGamertag(Context ctx) {
+        String[] profile = loadXboxProfile(ctx);
+        return profile[0];
+    }
+
+    /** 读取 Xbox 账号头像 URL（无则 null）。 */
+    public static String getAvatarUrl(Context ctx) {
+        return loadXboxProfile(ctx)[1];
+    }
+
+    /** 从 MsftAccountStore 读 active 账号的 [gamertag, avatarUrl]。 */
+    private static String[] loadXboxProfile(Context ctx) {
         try {
-            // 优先共享存储的账号信息（其他模块写入），多 key 兜底
-            SharedPreferences acc = ctx.getApplicationContext()
-                    .getSharedPreferences("levimc_account", Context.MODE_PRIVATE);
-            for (String key : new String[]{"gamertag", "display_name", "xbox_gamertag"}) {
-                String v = acc.getString(key, null);
-                if (v != null && !v.isEmpty()) {
-                    return v;
+            for (org.levimc.launcher.core.auth.MsftAccountStore.MsftAccount acc
+                    : org.levimc.launcher.core.auth.MsftAccountStore.list(ctx)) {
+                if (acc.active && acc.xboxGamertag != null && !acc.xboxGamertag.isEmpty()) {
+                    return new String[]{acc.xboxGamertag,
+                            acc.xboxAvatarUrl == null ? "" : acc.xboxAvatarUrl};
                 }
             }
-        } catch (Exception ignored) {
+            // 无 active 标记时用第一个有昵称的账号
+            for (org.levimc.launcher.core.auth.MsftAccountStore.MsftAccount acc
+                    : org.levimc.launcher.core.auth.MsftAccountStore.list(ctx)) {
+                if (acc.xboxGamertag != null && !acc.xboxGamertag.isEmpty()) {
+                    return new String[]{acc.xboxGamertag,
+                            acc.xboxAvatarUrl == null ? "" : acc.xboxAvatarUrl};
+                }
+            }
+        } catch (Exception | NoClassDefFoundError ignored) {
         }
-        return null;
+        return new String[]{null, ""};
     }
 }

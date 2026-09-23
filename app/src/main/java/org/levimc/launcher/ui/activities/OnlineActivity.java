@@ -25,6 +25,7 @@ import org.levimc.launcher.core.online.InviteCode;
 import org.levimc.launcher.core.online.LanDiscovery;
 import org.levimc.launcher.core.online.PlayerIdentity;
 import org.levimc.launcher.core.online.RelayStore;
+import org.levimc.launcher.core.online.RoomCenter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -155,19 +156,102 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
     private void populateRoom() {
         roomCodeText2.setText(currentCode == null ? "" : "P/" + currentCode);
         String nick = PlayerIdentity.getNickname(this);
-        hostAvatar.setText(nick.substring(0, Math.min(1, nick.length())));
-        hostName.setText(isHost ? getString(R.string.online_host_you, nick) : nick);
+        if (isHost) {
+            hostAvatar.setText(firstChar(nick));
+            hostName.setText(getString(R.string.online_host_you, nick));
+        } else {
+            // 成员视角：房主昵称由玩家列表心跳获取（isRoomHost），未获取前占位
+            hostAvatar.setText("房");
+            hostName.setText(getString(R.string.online_host_unknown));
+        }
         hostAddress = (isHost ? EasyTierManager.get().getVirtualIp() : HOST_IPV4) + ":" + GAME_PORT;
         if (hostAddress.startsWith("null")) {
             hostAddress = HOST_IPV4 + ":" + GAME_PORT;
         }
         joinGameHint.setText(getString(R.string.online_join_game_hint, hostAddress));
         playersContainer.removeAllViews();
-        TextView empty = new TextView(this);
-        empty.setText(R.string.online_players_empty);
-        empty.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
-        empty.setTextSize(12);
-        playersContainer.addView(empty);
+        addPlayerRow(nick, true, false);
+    }
+
+    private static String firstChar(String s) {
+        return s == null || s.isEmpty() ? "?" : s.substring(0, 1);
+    }
+
+    /** 玩家行（v502）：首字头像 + 昵称 + 房主皇冠 + 自己高亮。 */
+    private void addPlayerRow(String name, boolean isSelf, boolean isRoomHost) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, 10, 0, 10);
+
+        TextView avatar = new TextView(this);
+        avatar.setText(firstChar(name));
+        avatar.setGravity(Gravity.CENTER);
+        avatar.setTextColor(getResources().getColor(R.color.on_primary, getTheme()));
+        avatar.setTextSize(13);
+        avatar.setTextStyle(android.graphics.Typeface.BOLD);
+        avatar.setBackgroundResource(R.drawable.bg_avatar);
+        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(
+                (int) (34 * getResources().getDisplayMetrics().density),
+                (int) (34 * getResources().getDisplayMetrics().density));
+        row.addView(avatar, alp);
+
+        TextView label = new TextView(this);
+        label.setText(name);
+        label.setTextSize(14);
+        label.setTextColor(getResources().getColor(
+                isSelf ? R.color.primary : R.color.on_surface, getTheme()));
+        LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        llp.leftMargin = (int) (10 * getResources().getDisplayMetrics().density);
+        row.addView(label, llp);
+
+        if (isRoomHost) {
+            TextView crown = new TextView(this);
+            crown.setText("👑");
+            crown.setTextSize(14);
+            row.addView(crown);
+        }
+        playersContainer.addView(row);
+    }
+
+    /** 玩家列表心跳回调（工作线程）。 */
+    private void onRoomPlayers(List<RoomCenter.Player> list, long rttMs) {
+        runOnUiThread(() -> {
+            if (!roomView.isShown() && joinDialog == null) {
+                return;
+            }
+            if (rttMs > 0) {
+                roomLatency.setText(getString(R.string.online_room_latency_fmt, rttMs));
+            }
+            String selfId = PlayerIdentity.getClientId(this);
+            String nick = PlayerIdentity.getNickname(this);
+            playersContainer.removeAllViews();
+            if (isHost) {
+                addPlayerRow(nick, true, true);
+                for (RoomCenter.Player p : list) {
+                    if (!p.isRoomHost) {
+                        addPlayerRow(p.name, false, false);
+                    }
+                }
+            } else {
+                // 成员视角：房主行更新为真实昵称
+                String hostNick = null;
+                for (RoomCenter.Player p : list) {
+                    if (p.isRoomHost) {
+                        hostNick = p.name;
+                        hostAvatar.setText(firstChar(p.name));
+                        hostName.setText(p.name);
+                    }
+                }
+                addPlayerRow(nick, true, false);
+                for (RoomCenter.Player p : list) {
+                    if (!p.isRoomHost && !p.clientId.equals(selfId)) {
+                        addPlayerRow(p.name, false, false);
+                    }
+                }
+            }
+        });
     }
 
     // ---------- 创建房间 ----------
@@ -528,6 +612,8 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
     private void onLeaveClicked() {
         EasyTierManager.get().stop(this);
         LanDiscovery.stopHost();
+        RoomCenter.stopHost();
+        RoomCenter.stopClient();
         currentCode = null;
         isHost = false;
         hostAddress = null;
@@ -634,6 +720,14 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                 roomState.setText(getString(R.string.online_step_p2p));
                 roomState.setTextColor(getResources().getColor(R.color.primary, getTheme()));
                 showRoom();
+                // 房间中心：房主开 TCP 服务，成员连房主心跳（玩家列表+延迟）
+                String nick = PlayerIdentity.getNickname(this);
+                String cid = PlayerIdentity.getClientId(this);
+                if (isHost) {
+                    RoomCenter.startHost(nick, cid, this::onRoomPlayers);
+                } else {
+                    RoomCenter.startClient(HOST_IPV4, nick, cid, this::onRoomPlayers);
+                }
                 break;
             case FAILED:
                 if (joinDialog != null) {
