@@ -549,10 +549,10 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                         .setTitle(R.string.online_recent_delete)
                         .setMessage("P/" + code)
                         .setPositiveButton(android.R.string.ok, (d, w) -> {
-                            List<String> recents = loadRecent();
-                            recents.remove(code);
+                            List<String> recentList = loadRecent();
+                            recentList.remove(code);
                             getSharedPreferences(PREFS_RECENT, MODE_PRIVATE).edit()
-                                    .putString(KEY_RECENT, String.join(",", recents)).apply();
+                                    .putString(KEY_RECENT, String.join(",", recentList)).apply();
                             refreshRecent();
                         })
                         .setNegativeButton(android.R.string.cancel, null)

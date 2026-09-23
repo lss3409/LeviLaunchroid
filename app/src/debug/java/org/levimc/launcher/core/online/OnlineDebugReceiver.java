@@ -63,18 +63,8 @@ public final class OnlineDebugReceiver extends BroadcastReceiver {
         } else if (ACTION_STOP.equals(action)) {
             EasyTierManager.get().stop(context);
         } else if (ACTION_SET_RELAY.equals(action)) {
-            String raw = intent.getStringExtra("uri");
-            java.util.List<String> uris = new java.util.ArrayList<>();
-            if (raw != null && !raw.isEmpty()) {
-                for (String part : raw.split(",")) {
-                    String u = RelayStore.normalize(part);
-                    if (!u.isEmpty()) {
-                        uris.add(u);
-                    }
-                }
-            }
-            RelayStore.save(context, uris);
-            Log.i("OnlineDebug", "中转已设置: " + uris);
+            // v504 起中转固定（RelayStore.FIXED_RELAY），不再可配置
+            Log.i("OnlineDebug", "中转已固定: " + RelayStore.FIXED_RELAY);
         } else if (ACTION_PROBE.equals(action)) {
             new Thread(() -> {
                 // 空网络名 = 不过滤，收所有应答（验证广播链路本身）
