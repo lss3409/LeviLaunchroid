@@ -1,5 +1,7 @@
 package org.levimc.launcher.ui.activities;
 
+import android.content.Intent;
+import android.net.VpnService;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.Selection;
@@ -10,19 +12,22 @@ import android.widget.EditText;
 import android.widget.TextView;
 
 import org.levimc.launcher.R;
+import org.levimc.launcher.core.online.EasyTierManager;
 import org.levimc.launcher.core.online.InviteCode;
 
 /**
- * 联机页（v492 第一版）：邀请码加入房间。
- * 输入自动格式化（P/ 前缀 + 短横线分组 + 去非法字符），点击加入校验
- * 模 7 校验位，通过后展示解析出的 EasyTier 网络名/密钥（连接功能
- * 待组网内核接入后实现）。
+ * 联机页：邀请码加入房间（v492）+ EasyTier 真实组网（v495）。
+ * 校验通过 → VPN 授权 → 内核组网（DHCP）→ VpnService 挂 TUN → 显示虚拟 IP。
  */
-public final class OnlineActivity extends BaseActivity {
+public final class OnlineActivity extends BaseActivity implements EasyTierManager.Listener {
+
+    private static final int REQ_VPN = 1001;
 
     private EditText codeInput;
     private TextView statusText;
+    private View disconnectButton;
     private boolean formatting;
+    private InviteCode.Parsed pendingJoin;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -32,7 +37,9 @@ public final class OnlineActivity extends BaseActivity {
 
         codeInput = findViewById(R.id.online_code_input);
         statusText = findViewById(R.id.online_status_text);
+        disconnectButton = findViewById(R.id.online_disconnect_button);
         findViewById(R.id.online_join_button).setOnClickListener(v -> onJoinClicked());
+        disconnectButton.setOnClickListener(v -> onDisconnectClicked());
 
         codeInput.addTextChangedListener(new TextWatcher() {
             @Override
@@ -96,9 +103,88 @@ public final class OnlineActivity extends BaseActivity {
                 statusText.setText(getString(R.string.online_err_checksum));
                 break;
             default:
+                pendingJoin = result.parsed;
+                Intent vpnIntent = VpnService.prepare(this);
+                if (vpnIntent != null) {
+                    // 首次联机：请求系统 VPN 授权
+                    statusText.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+                    statusText.setText(getString(R.string.online_vpn_needed));
+                    startActivityForResult(vpnIntent, REQ_VPN);
+                } else {
+                    doJoin(result.parsed);
+                }
+                break;
+        }
+    }
+
+    /** 已授权，启动组网。 */
+    private void doJoin(InviteCode.Parsed parsed) {
+        statusText.setTextColor(getResources().getColor(R.color.primary, getTheme()));
+        statusText.setText(getString(R.string.online_connecting_kernel));
+        EasyTierManager.get().join(this, parsed.networkName, parsed.networkSecret, this);
+    }
+
+    private void onDisconnectClicked() {
+        EasyTierManager.get().stop(this);
+        disconnectButton.setVisibility(View.GONE);
+        statusText.setVisibility(View.VISIBLE);
+        statusText.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+        statusText.setText(getString(R.string.online_disconnected));
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQ_VPN) {
+            return;
+        }
+        InviteCode.Parsed p = pendingJoin;
+        pendingJoin = null;
+        statusText.setVisibility(View.VISIBLE);
+        if (resultCode == RESULT_OK && p != null) {
+            doJoin(p);
+        } else {
+            statusText.setTextColor(getResources().getColor(R.color.error, getTheme()));
+            statusText.setText(getString(R.string.online_vpn_cancelled));
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        EasyTierManager.get().setListener(this);
+        EasyTierManager.State s = EasyTierManager.get().getState();
+        if (s == EasyTierManager.State.CONNECTED) {
+            onState(s, EasyTierManager.get().getVirtualIp());
+        }
+    }
+
+    @Override
+    public void onState(EasyTierManager.State state, String detail) {
+        statusText.setVisibility(View.VISIBLE);
+        switch (state) {
+            case STARTING:
                 statusText.setTextColor(getResources().getColor(R.color.primary, getTheme()));
-                statusText.setText(getString(R.string.online_join_ok,
-                        result.parsed.networkName, result.parsed.networkSecret));
+                statusText.setText(getString(R.string.online_connecting_kernel));
+                disconnectButton.setVisibility(View.GONE);
+                break;
+            case WAIT_IP:
+                statusText.setTextColor(getResources().getColor(R.color.primary, getTheme()));
+                statusText.setText(getString(R.string.online_wait_ip));
+                disconnectButton.setVisibility(View.GONE);
+                break;
+            case CONNECTED:
+                statusText.setTextColor(getResources().getColor(R.color.primary, getTheme()));
+                statusText.setText(getString(R.string.online_connected_fmt, detail));
+                disconnectButton.setVisibility(View.VISIBLE);
+                break;
+            case FAILED:
+                statusText.setTextColor(getResources().getColor(R.color.error, getTheme()));
+                statusText.setText(getString(R.string.online_err_connect_fmt,
+                        detail == null ? "?" : detail));
+                disconnectButton.setVisibility(View.GONE);
+                break;
+            default:
                 break;
         }
     }

@@ -1134,6 +1134,20 @@
     <string name="online_join_section">加入房间</string>
     <string name="online_code_hint">XXXX-XXXX-XXXX-XXXX</string>
     <string name="online_join_button">加入房间</string>
+    <string name="online_disconnect">断开连接</string>
+    <string name="online_connecting_kernel">正在启动组网内核…</string>
+    <string name="online_wait_ip">组网内核已启动，正在分配虚拟 IP…</string>
+    <string name="online_connected_fmt">已连接 ✓
+虚拟 IP：%1$s
+（房间列表与一键加入开发中）</string>
+    <string name="online_disconnected">已断开连接</string>
+    <string name="online_vpn_needed">联机需要系统 VPN 授权，请允许</string>
+    <string name="online_vpn_cancelled">已取消 VPN 授权，未加入网络</string>
+    <string name="online_err_connect_fmt">连接失败：%1$s</string>
+    <string name="online_vpn_session">LeviLaunchroid 联机</string>
+    <string name="online_vpn_notif_channel">联机组网</string>
+    <string name="online_vpn_notif_title">联机组网运行中</string>
+    <string name="online_vpn_notif_text">正在维持联机网络连接</string>
     <string name="online_create_coming">创建房间（即将推出）</string>
     <string name="online_err_format">邀请码格式不对，应为 P/XXXX-XXXX-XXXX-XXXX</string>
     <string name="online_err_charset">邀请码包含非法字符（字母 I 和 O 不会出现在邀请码里）</string>

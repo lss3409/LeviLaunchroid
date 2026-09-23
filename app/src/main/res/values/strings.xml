@@ -1142,6 +1142,20 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="online_join_section">Join Room</string>
     <string name="online_code_hint">XXXX-XXXX-XXXX-XXXX</string>
     <string name="online_join_button">Join</string>
+    <string name="online_disconnect">Disconnect</string>
+    <string name="online_connecting_kernel">Starting network kernel…</string>
+    <string name="online_wait_ip">Kernel started, waiting for virtual IP…</string>
+    <string name="online_connected_fmt">Connected ✓
+Virtual IP: %1$s
+(Room list and one-click join coming soon)</string>
+    <string name="online_disconnected">Disconnected</string>
+    <string name="online_vpn_needed">Online play requires VPN permission. Please allow it.</string>
+    <string name="online_vpn_cancelled">VPN permission cancelled, not joined</string>
+    <string name="online_err_connect_fmt">Connection failed: %1$s</string>
+    <string name="online_vpn_session">LeviLaunchroid Online</string>
+    <string name="online_vpn_notif_channel">Online network</string>
+    <string name="online_vpn_notif_title">Online network active</string>
+    <string name="online_vpn_notif_text">Maintaining the online network connection</string>
     <string name="online_create_coming">Create Room (Coming Soon)</string>
     <string name="online_err_format">Invalid code format. Expected P/XXXX-XXXX-XXXX-XXXX</string>
     <string name="online_err_charset">Code contains invalid characters (I and O are never used)</string>
