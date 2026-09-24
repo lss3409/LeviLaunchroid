@@ -2,6 +2,7 @@ package org.levimc.launcher.ui.activities;
 
 import android.app.AlertDialog;
 import android.content.ClipData;
+import android.graphics.Color;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
@@ -994,10 +995,12 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         } else {
             qrView.setVisibility(View.GONE);
         }
-        // v535：分享卡弹窗同样换 Levi 风格
+        // v535：分享卡弹窗同样换 Levi 风格；v536：点外部空白即可关闭
         org.levimc.launcher.ui.dialogs.CustomAlertDialog dialog =
                 new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this);
         dialog.setCustomView(v);
+        dialog.setCancelable(true);
+        dialog.setCanceledOnTouchOutside(true);
         dialog.show();
         // v533：分享卡弹窗同样应用个性化强调色
         try {
@@ -1028,13 +1031,14 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         startActivity(Intent.createChooser(send, getString(R.string.online_share_code)));
     }
 
-    /** v535：primary 主按钮手动应用个性化强调色（防御 applyToActivity 遗漏）。 */
+    /** v535/v536：primary 主按钮手动应用个性化强调色。
+     *  v536：不再检查原 tint（MaterialButton 的 getBackgroundTintList 可能为 null
+     *  导致漏染）——主操作按钮一律染成用户强调色。 */
     private void applyAccentToPrimaryButtons() {
         try {
             org.levimc.launcher.util.PersonalizationManager pm =
                     new org.levimc.launcher.util.PersonalizationManager(this);
             int accent = pm.getAccentColor();
-            int primary = androidx.core.content.ContextCompat.getColor(this, R.color.primary);
             int[] ids = {R.id.online_copy_button, R.id.online_share_button, R.id.online_qr_button,
                     R.id.online_room_copy_button, R.id.online_room_share_button};
             for (int id : ids) {
@@ -1042,10 +1046,8 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                 if (v instanceof com.google.android.material.button.MaterialButton) {
                     com.google.android.material.button.MaterialButton b =
                             (com.google.android.material.button.MaterialButton) v;
-                    if (b.getBackgroundTintList() != null
-                            && b.getBackgroundTintList().getDefaultColor() == primary) {
-                        b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(accent));
-                    }
+                    b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(accent));
+                    b.setTextColor(Color.WHITE);
                 }
             }
         } catch (Throwable ignored) {
