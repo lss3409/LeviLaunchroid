@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v537：PTT 对讲机图标——用户提供贴图复刻（圆头天线 + 圆角机身 + 右上侧键），
-     加同色描边（与麦克风图标观感统一），运行时 setColorFilter 整体染色。 -->
+<!-- v538：PTT 对讲机图标——瘦身版（机身窄 8.4 单位）+ 同色描边。
+     白色（与麦克风图标统一，不再单独染黄），运行时 tint。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -9,8 +9,8 @@
     <path
         android:fillColor="#FFFFFFFF"
         android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="1.3"
-        android:pathData="M11,2.2h2c0.9,0 1.7,0.5 2.1,1.3c0.4,0.8 0.3,1.7 -0.2,2.4C14.4,6.6 13.8,7 13,7h-2c-0.8,0 -1.4,-0.4 -1.9,-1.1C8.6,5.2 8.5,4.3 8.9,3.5C9.3,2.7 10.1,2.2 11,2.2z
-            M7,9h10c1.8,0 3.2,1.4 3.2,3.2v6.6c0,1.8 -1.4,3.2 -3.2,3.2H7c-1.8,0 -3.2,-1.4 -3.2,-3.2v-6.6C3.8,10.4 5.2,9 7,9z
-            M16.4,6.8h2.1v3h-2.1z" />
+        android:strokeWidth="1.2"
+        android:pathData="M11,2.4h2v2.2c1.2,0.2 2.1,1.2 2.1,2.5H8.9c0,-1.3 0.9,-2.3 2.1,-2.5V2.4z
+            M7.8,9h8.4c1.7,0 3,1.3 3,3v6.2c0,1.7 -1.3,3 -3,3H7.8c-1.7,0 -3,-1.3 -3,-3v-6.2c0,-1.7 1.3,-3 3,-3z
+            M15.8,6.6h2v3h-2z" />
 </vector>

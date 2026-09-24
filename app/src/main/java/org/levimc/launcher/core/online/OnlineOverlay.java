@@ -596,8 +596,9 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
                 mic.setImageResource(R.drawable.ic_mic_on);
                 mic.setColorFilter(accent);
             } else if (m == VoiceEngine.MODE_PTT) {
+                // v538：对讲机颜色统一白色（与麦克风图标一致，不再染黄）
                 mic.setImageResource(R.drawable.ic_mic_ptt);
-                mic.setColorFilter(0xFFFFB74D);
+                mic.setColorFilter(Color.WHITE);
             } else {
                 mic.setImageResource(R.drawable.ic_mic_off);
                 mic.setColorFilter(0xAAFFFFFF);

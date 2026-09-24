@@ -50,27 +50,29 @@
             android:textColorHint="@color/text_secondary"
             android:textSize="16sp" />
 
+        <!-- v538 粘贴按钮：剪贴板贴图，透明背景只留图案 -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/join_paste_button"
             style="@style/Widget.MaterialComponents.Button"
-            android:layout_width="wrap_content"
-            android:layout_height="32dp"
-            android:backgroundTint="@color/divider"
-            android:fontFamily="@font/misans"
-            android:paddingHorizontal="10dp"
-            android:text="@string/online_paste"
-            android:textAllCaps="false"
-            android:textColor="@color/on_surface"
-            android:textSize="12sp" />
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:backgroundTint="@android:color/transparent"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:padding="0dp"
+            app:icon="@drawable/ic_paste"
+            app:iconGravity="textStart"
+            app:iconSize="20dp"
+            app:iconTint="@color/on_surface" />
 
-        <!-- v533 扫码按钮（相册选图 / 相机面对面扫） -->
+        <!-- v533/v538 扫码按钮：透明背景只留图案（相册选图 / 相机面对面扫） -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/join_scan_button"
             style="@style/Widget.MaterialComponents.Button"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:layout_marginStart="4dp"
-            android:backgroundTint="@color/divider"
+            android:layout_marginStart="2dp"
+            android:backgroundTint="@android:color/transparent"
             android:insetTop="0dp"
             android:insetBottom="0dp"
             android:padding="0dp"
@@ -116,18 +118,18 @@
         android:layout_marginTop="14dp"
         android:orientation="horizontal">
 
+        <!-- v538：取消按钮 TextButton 风格（透明背景），文字运行时染个性化强调色 -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/join_cancel_button"
-            style="@style/Widget.MaterialComponents.Button"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
             android:layout_width="0dp"
             android:layout_height="40dp"
             android:layout_marginEnd="6dp"
             android:layout_weight="1"
-            android:backgroundTint="@color/divider"
             android:fontFamily="@font/misans"
             android:text="@android:string/cancel"
             android:textAllCaps="false"
-            android:textColor="@color/on_surface"
+            android:textColor="@color/primary"
             android:textSize="13sp" />
 
         <com.google.android.material.button.MaterialButton

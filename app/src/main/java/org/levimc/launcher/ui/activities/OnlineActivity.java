@@ -696,9 +696,11 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         dialog.setCancelable(false);
         dialog.show();
         joinDialog = dialog;
-        // v537：弹窗内主按钮染个性化强调色（AccentStyler 无条件染色）
+        // v537/v538：弹窗内按钮染个性化强调色（加入=主按钮，取消=文字染 accent）
         org.levimc.launcher.util.AccentStyler.stylePrimary(this,
                 v.findViewById(R.id.join_confirm_button));
+        org.levimc.launcher.util.AccentStyler.styleSecondary(this,
+                v.findViewById(R.id.join_cancel_button));
 
         v.findViewById(R.id.join_cancel_button).setOnClickListener(x -> dialog.dismiss());
         v.findViewById(R.id.join_confirm_button).setOnClickListener(x -> {
@@ -997,16 +999,17 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         dialog.setCustomView(v);
         dialog.setCancelable(true);
         dialog.setCanceledOnTouchOutside(true);
-        dialog.show();
         // v537：分享卡按钮染个性化强调色
         org.levimc.launcher.util.AccentStyler.stylePrimary(this,
                 v.findViewById(R.id.share_copy_button),
                 v.findViewById(R.id.share_send_button));
         v.findViewById(R.id.share_copy_button).setOnClickListener(x -> {
+            android.util.Log.i("OnlineActivity", "分享卡: 复制点击");
             copyCurrentCode();
             dialog.dismiss();
         });
         v.findViewById(R.id.share_send_button).setOnClickListener(x -> {
+            android.util.Log.i("OnlineActivity", "分享卡: 系统分享点击");
             dialog.dismiss();
             systemShareCode();
         });

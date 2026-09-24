@@ -41,6 +41,22 @@ public final class AccentStyler {
         }
     }
 
+    /** 次要按钮（TextButton）：文字染强调色，背景透明。 */
+    public static void styleSecondary(Context ctx, View... buttons) {
+        if (buttons == null) {
+            return;
+        }
+        int accent = new PersonalizationManager(ctx).getAccentColor();
+        for (View v : buttons) {
+            if (v instanceof MaterialButton) {
+                MaterialButton b = (MaterialButton) v;
+                b.setTextColor(accent);
+            } else if (v instanceof android.widget.TextView) {
+                ((android.widget.TextView) v).setTextColor(accent);
+            }
+        }
+    }
+
     private static int darken(int color, float factor) {
         int r = (int) (Color.red(color) * factor);
         int g = (int) (Color.green(color) * factor);
