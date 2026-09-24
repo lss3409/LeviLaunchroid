@@ -743,8 +743,8 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         // v535：改用 Levi 风格弹窗（CustomAlertDialog），统一背景与启动器一致
         org.levimc.launcher.ui.dialogs.CustomAlertDialog dialog =
                 new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this);
-        // v548：加入弹窗内容窄，背景收窄（默认 400dp 太宽留白大）
-        dialog.setMaxWidthDp(320);
+        // v548：加入弹窗背景收窄；v557：380dp——横版比例（用户反馈太窄内容竖堆）
+        dialog.setMaxWidthDp(380);
         dialog.setCustomView(v);
         dialog.setCancelable(false);
         dialog.show();

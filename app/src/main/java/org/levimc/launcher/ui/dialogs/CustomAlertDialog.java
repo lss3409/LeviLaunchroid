@@ -45,8 +45,8 @@ public class CustomAlertDialog extends Dialog {
     /** v539：点外部关闭开关（onCreate 里硬编码 false 会覆盖外部设置，改用字段）。 */
     private boolean mCanceledOnTouchOutside = false;
     /** v548：弹窗最大宽度（dp），内容少的弹窗可调小让背景"刚刚好"。
-     *  v552：默认 340dp（平板规范值），手机自动按 DialogSizer 缩小。 */
-    private int mMaxWidthDp = 340;
+     *  v557：默认 360dp（横版比例——用户反馈 340 太窄导致内容竖堆）。 */
+    private int mMaxWidthDp = 360;
 
     public CustomAlertDialog(Context context) {
         // v549：固定 LeviDialogTheme——游戏进程（MinecraftActivity 非 AppCompat）

@@ -19,14 +19,15 @@ public final class DialogSizer {
     private DialogSizer() {
     }
 
-    /** 按规范计算弹窗宽度（px）。idealDp：平板上的理想内容宽度。 */
+    /** 按规范计算弹窗宽度（px）。idealDp：平板上的理想内容宽度。
+     *  v557：设备缩放（手机 0.85 autoScale + 用户 ui_scale）已由
+     *  UiScaleManager.applyScale 写进 densityDpi——弹窗 dp 自动联动，
+     *  不再叠加固定 0.85（此前双重缩小导致弹窗过窄）；
+     *  用户把个性化缩放调小 = densityDpi 变小 = 弹窗物理变小、
+     *  屏占比更接近平板布局。 */
     public static int dialogWidth(Context ctx, int idealDp) {
         DisplayMetrics dm = ctx.getResources().getDisplayMetrics();
-        float density = dm.density;
-        int smallestDp = (int) (Math.min(dm.widthPixels, dm.heightPixels) / density);
-        float phoneScale = smallestDp >= UiScaleManager.TABLET_MIN_SW_DP
-                ? 1.0f : UiScaleManager.PHONE_SCALE;
-        int ideal = (int) (idealDp * density * phoneScale);
+        int ideal = (int) (idealDp * dm.density);
         int screenCap = (int) (dm.widthPixels * 0.9f);
         return Math.min(screenCap, ideal);
     }
