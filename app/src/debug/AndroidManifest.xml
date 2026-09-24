@@ -3,6 +3,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application>
+        <activity
+            android:name="org.levimc.launcher.core.online.OnlineDebugActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <receiver
             android:name="org.levimc.launcher.core.online.OnlineDebugReceiver"
             android:exported="true">
