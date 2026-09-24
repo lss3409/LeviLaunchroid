@@ -931,10 +931,17 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                 String nick = PlayerIdentity.getNickname(this);
                 String cid = PlayerIdentity.getClientId(this);
                 if (isHost) {
+                    // 切换身份时清理对端角色（房主→成员或成员→房主，v518）
+                    RoomCenter.stopClient();
                     RoomCenter.startHost(nick, cid, this::onRoomPlayers);
                     // v517 局域网公告桥：合成 MC 公告单播给成员，异地好友页可见房主世界
                     LanBridge.startHost(nick);
                 } else {
+                    // v518 修复：手动加入时停掉旧的房主中心，否则心跳发往
+                    // 10.144.144.144:8090 会被自己残留的房主 socket 接住，
+                    // 玩家列表出现自己的房主 ID
+                    RoomCenter.stopHost();
+                    LanBridge.stopHost();
                     RoomCenter.startClient(HOST_IPV4, nick, cid, this::onRoomPlayers);
                 }
                 break;

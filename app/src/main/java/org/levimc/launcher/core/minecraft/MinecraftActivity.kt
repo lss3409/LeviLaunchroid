@@ -34,6 +34,9 @@ import org.levimc.pojavcontrols.PojavControls
 import org.levimc.pojavcontrols.PojavControlsHost
 import java.io.File
 
+/** 后台久置阈值：超过此时长回前台视为渲染不可恢复（v518 自愈）。 */
+private const val LONG_PAUSE_HEAL_MS = 5 * 60_000L
+
 class MinecraftActivity : MainActivity(), PojavControlsHost {
 
     private lateinit var gameManager: GamePackageManager
@@ -47,6 +50,8 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
 
     private val hardcoreBackupHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var hardcoreBackupRunning = false
+    /** v518 久置自愈：后台久置后回前台，基岩版 EGL surface 不恢复（黑屏）。 */
+    private var lastPauseElapsed = 0L
     private val hardcoreBackupRunnable = object : Runnable {
         override fun run() {
             runHardcoreBackupCheck()
@@ -239,6 +244,16 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
 
     override fun onResume() {
         super.onResume()
+        // v518 久置自愈：后台久置（>5 分钟）后回前台，基岩版渲染面不会恢复——
+        // 实测黑屏。直接结束会话走正常退出流程（静默重启进程回启动器，
+        // 世界进度由游戏自动存档兜底），避免把黑屏甩给用户。
+        if (lastPauseElapsed > 0
+            && android.os.SystemClock.elapsedRealtime() - lastPauseElapsed > LONG_PAUSE_HEAL_MS
+        ) {
+            android.util.Log.i("MinecraftActivity", "后台久置后恢复，主动结束会话防黑屏")
+            finish()
+            return
+        }
         if (!isFinishing) {
             normalExitPrepared = false
             normalExitRestartScheduled = false
@@ -493,6 +508,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun onPause() {
+        lastPauseElapsed = android.os.SystemClock.elapsedRealtime()
         stopHardcoreBackupScheduler()
         backupOnPauseIfNeeded()
         val shouldRestartAfterNormalExit = shouldRestartAfterNormalExit()

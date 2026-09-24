@@ -35,6 +35,7 @@ import androidx.lifecycle.ViewModelProvider;
 
 import org.levimc.launcher.R;
 import org.levimc.launcher.core.minecraft.MinecraftActivityState;
+import org.levimc.launcher.core.minecraft.MinecraftProcessRestarter;
 import org.levimc.launcher.core.minecraft.MinecraftImportIntents;
 import org.levimc.launcher.core.minecraft.PendingLaunchManager;
 import org.levimc.launcher.core.minecraft.LaunchTrace;
@@ -127,6 +128,10 @@ import okhttp3.OkHttpClient;
 
     /** 主页是否在前台（游戏后台被退出时据此决定是否静默重启，避免弹出多余过渡 UI）。 */
     public static volatile boolean sForeground = false;
+
+    /** v518 久置自愈：后台久置后回前台，同进程渲染可能整体停摆（游戏黑屏+主页只剩背景色）。 */
+    private long lastPauseElapsed = 0L;
+    private static final long LONG_PAUSE_HEAL_MS = 5 * 60_000L;
 
 
     @Override
@@ -838,6 +843,19 @@ import okhttp3.OkHttpClient;
     protected void onResume() {
         super.onResume();
         sForeground = true;
+        // v518 久置自愈：后台久置后回前台只显示背景色（实测）——
+        // 游戏也在后台时同进程渲染整体停摆，整进程静默重启自愈
+        // （游戏靠自动存档兜底）；无游戏时仅重建本窗口。
+        if (lastPauseElapsed > 0
+                && android.os.SystemClock.elapsedRealtime() - lastPauseElapsed > LONG_PAUSE_HEAL_MS) {
+            if (MinecraftActivityState.isRunning()) {
+                MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this, true);
+                finish();
+                return;
+            }
+            recreate();
+            return;
+        }
         refreshAccountHeaderUI();
         if (versionManager != null) {
             versionManager.loadAllVersions();
@@ -935,6 +953,7 @@ import okhttp3.OkHttpClient;
     protected void onStop() {
         super.onStop();
         sForeground = false;
+        lastPauseElapsed = android.os.SystemClock.elapsedRealtime();
     }
 
 
