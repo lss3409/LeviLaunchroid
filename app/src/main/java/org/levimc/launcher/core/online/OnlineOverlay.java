@@ -64,6 +64,15 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
     private TextView pttButton;
     private LinearLayout pttWave;
     private final View[] pttBars = new View[5];
+    // v534：悬浮窗内加入/离开提示行
+    private TextView playerBanner;
+    private final java.util.Set<String> lastOverlayIds = new java.util.HashSet<>();
+    private final java.util.Map<String, String> lastOverlayNames = new java.util.HashMap<>();
+    private final Runnable hidePlayerBannerRunnable = () -> {
+        if (playerBanner != null) {
+            playerBanner.setVisibility(View.GONE);
+        }
+    };
     private boolean waveRunning;
     private int waveTick;
     private final Runnable waveRunnable = new Runnable() {
@@ -198,8 +207,12 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         cardView = null;
         waveRunning = false;
         ui.removeCallbacks(waveRunnable);
+        ui.removeCallbacks(hidePlayerBannerRunnable);
         pttButton = null;
         pttWave = null;
+        playerBanner = null;
+        lastOverlayIds.clear();
+        lastOverlayNames.clear();
         playerRows.clear();
         playerMicViews.clear();
         playerMicStates.clear();
@@ -277,6 +290,13 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         collapse.setOnClickListener(v -> toggleCard());
         card.addView(header);
 
+        // v534：加入/离开提示行（游戏内悬浮窗也提示，不只启动器联机页）
+        playerBanner = new TextView(activity);
+        playerBanner.setTextSize(11);
+        playerBanner.setVisibility(View.GONE);
+        card.addView(playerBanner, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
         TextView code = new TextView(activity);
         code.setTextColor(0xFF8AB4F8);
         code.setTextSize(12);
@@ -318,6 +338,19 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         ptLp.topMargin = dp(10);
         card.addView(pttButton, ptLp);
         pttButton.setVisibility(View.GONE);
+        // v534：文字按钮本身也要接收按住事件（v533 漏挂监听导致按住无反应）
+        pttButton.setOnTouchListener((v, e) -> {
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    startWave();
+                    return true;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    stopWave();
+                    return true;
+            }
+            return false;
+        });
         // 声纹容器：按钮背景 + 波形条
         pttWave = new LinearLayout(activity);
         pttWave.setOrientation(LinearLayout.HORIZONTAL);
@@ -580,6 +613,54 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         }
     }
 
+    /** v534：悬浮窗内玩家名单 diff → 加入/离开提示行。 */
+    private void detectOverlayChanges(List<RoomCenter.Player> players, String selfId) {
+        if (players == null || playerBanner == null) {
+            return;
+        }
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        java.util.Map<String, String> names = new java.util.HashMap<>();
+        for (RoomCenter.Player p : players) {
+            if (!p.clientId.equals(selfId)) {
+                ids.add(p.clientId);
+                names.put(p.clientId, p.name);
+            }
+        }
+        java.util.List<String> joins = new java.util.ArrayList<>();
+        java.util.List<String> leaves = new java.util.ArrayList<>();
+        if (!lastOverlayIds.isEmpty()) {
+            for (String id : ids) {
+                if (!lastOverlayIds.contains(id)) {
+                    joins.add(names.get(id));
+                }
+            }
+            for (String id : lastOverlayIds) {
+                if (!ids.contains(id)) {
+                    leaves.add(lastOverlayNames.get(id));
+                }
+            }
+        }
+        lastOverlayIds.clear();
+        lastOverlayIds.addAll(ids);
+        lastOverlayNames.clear();
+        lastOverlayNames.putAll(names);
+        if (!joins.isEmpty()) {
+            showPlayerBanner(activity.getString(R.string.online_join_banner_fmt,
+                    String.join("」「", joins)), 0xFF9BE29B);
+        } else if (!leaves.isEmpty()) {
+            showPlayerBanner(activity.getString(R.string.online_leave_banner_fmt,
+                    String.join("」「", leaves)), 0xFFAAAAAA);
+        }
+    }
+
+    private void showPlayerBanner(String text, int color) {
+        playerBanner.setText(text);
+        playerBanner.setTextColor(color);
+        playerBanner.setVisibility(View.VISIBLE);
+        ui.removeCallbacks(hidePlayerBannerRunnable);
+        ui.postDelayed(hidePlayerBannerRunnable, 2500);
+    }
+
     /** 说话人/模式变化：重涂玩家行（高亮正在说话的人）+ 刷新麦克风图标。 */
     @Override
     public void onVoiceChanged() {
@@ -729,12 +810,15 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
                 return;
             }
             if (playersContainer != null) {
+                String selfId2 = PlayerIdentity.getClientId(activity);
+                // v534：悬浮窗内加入/离开提示（名单 diff）
+                detectOverlayChanges(players, selfId2);
                 playersContainer.removeAllViews();
                 playerRows.clear();
                 playerMicViews.clear();
                 playerMicStates.clear();
                 if (players != null) {
-                    String selfId = PlayerIdentity.getClientId(activity);
+                    String selfId = selfId2;
                     for (RoomCenter.Player p : players) {
                         boolean self = p.clientId.equals(selfId);
                         LinearLayout row = new LinearLayout(activity);

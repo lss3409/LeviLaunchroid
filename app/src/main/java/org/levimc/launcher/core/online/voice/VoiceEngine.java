@@ -156,6 +156,11 @@ public final class VoiceEngine implements RoomCenter.Listener {
             }
         }
         lastMode = mode;
+        // v534：开麦状态即时同步对端（成员 kick 心跳 / 房主推送名单）
+        try {
+            RoomCenter.notifyLocalStateChanged();
+        } catch (Throwable ignored) {
+        }
         notifyChanged();
         return next;
     }
@@ -195,6 +200,11 @@ public final class VoiceEngine implements RoomCenter.Listener {
             }
             lastMode = mode;
             Log.i(TAG, "被房主禁麦");
+            // v534：被禁麦后状态即时同步（心跳 kick）
+            try {
+                RoomCenter.notifyLocalStateChanged();
+            } catch (Throwable ignored) {
+            }
             notifyChanged();
         } else {
             Log.i(TAG, "房主已解除禁麦");

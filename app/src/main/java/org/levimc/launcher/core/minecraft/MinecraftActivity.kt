@@ -35,7 +35,9 @@ import org.levimc.pojavcontrols.PojavControlsHost
 import java.io.File
 
 /** 后台久置阈值：超过此时长回前台视为渲染不可恢复（v518 自愈）。 */
-private const val LONG_PAUSE_HEAL_MS = 5 * 60_000L
+// v534：黑屏自愈阈值 5 分钟→90 秒（开了前台服务保活时渲染面丢失黑屏高发，
+// 缩短等待——切后台超过 90 秒回来直接结束会话回启动器，世界自动存档兜底）
+private const val LONG_PAUSE_HEAL_MS = 90_000L
 
 class MinecraftActivity : MainActivity(), PojavControlsHost {
 

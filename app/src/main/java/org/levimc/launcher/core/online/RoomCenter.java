@@ -30,7 +30,8 @@ public final class RoomCenter {
     private static final String TAG = "RoomCenter";
     /** 房间中心端口（v522：8090 与联想系统服务冲突，改 18090）。 */
     public static final int PORT = 18090;
-    private static final long HEARTBEAT_MS = 5000;
+    /** v534：心跳 5s→2s（开麦/人数状态同步提速），状态变更另有 kick 即时推送。 */
+    private static final long HEARTBEAT_MS = 2000;
     private static final long TIMEOUT_MS = 10_000;
     public static final int GAME_PORT = 19132;
     /** 房间成员上限（含房主）。 */
@@ -178,6 +179,22 @@ public final class RoomCenter {
                     resp.put("gameProtocolType", "UDP");
                     resp.put("gamePort", GAME_PORT);
                     send(hostSocket, resp.toString(), p.getAddress(), p.getPort());
+                } else if ("c:bye".equals(cmd)) {
+                    // v534：成员主动退出——立即移除并广播（不等 10s 超时）
+                    try {
+                        JSONObject q = new JSONObject(body);
+                        String cid = q.optString("clientId", null);
+                        if (cid != null && players.remove(cid) != null) {
+                            lastSeen.remove(cid);
+                            memberAddrs.remove(cid);
+                            memberMic.remove(cid);
+                            memberAvatar.remove(cid);
+                            hostMuted.remove(cid);
+                            Log.i(TAG, "成员主动退出: " + cid);
+                            notifyListeners(snapshot(), -1);
+                        }
+                    } catch (Exception ignored) {
+                    }
                 } else if ("c:player".equals(cmd)) {
                     try {
                         JSONObject q = new JSONObject(body);
@@ -216,6 +233,11 @@ public final class RoomCenter {
                 if (cleanupStale()) {
                     notifyListeners(snapshot(), -1);
                 }
+                // v534：房主本地状态变化（麦克风模式等）→ 主动推送玩家列表给成员
+                if (hostPushRequested) {
+                    hostPushRequested = false;
+                    pushPlayerListToMembers();
+                }
             } catch (Exception e) {
                 if (hostRunning) {
                     Log.w(TAG, "房主循环异常", e);
@@ -246,6 +268,25 @@ public final class RoomCenter {
     /** 成员虚拟地址列表（供 LanBridge 公告桥单播转发与房主 ping，v525 含端口）。 */
     public static java.util.List<InetSocketAddress> getMemberAddresses() {
         return new java.util.ArrayList<>(memberAddrs.values());
+    }
+
+    /** v534：房主向全体成员主动推送玩家列表（开麦状态等即时同步）。 */
+    private static void pushPlayerListToMembers() {
+        DatagramSocket s = hostSocket;
+        if (s == null || s.isClosed()) {
+            return;
+        }
+        try {
+            String json = buildPlayerListJson().toString();
+            byte[] out = json.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            for (InetSocketAddress addr : memberAddrs.values()) {
+                try {
+                    s.send(new DatagramPacket(out, out.length, addr.getAddress(), addr.getPort()));
+                } catch (Exception ignored) {
+                }
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     /** 本机 MC 是否开启了世界（UDP 19132 监听；/proc/net/udp 端口为 LE hex）。 */
@@ -339,6 +380,12 @@ public final class RoomCenter {
     private static volatile boolean clientRunning;
     private static Thread clientThread;
     private static volatile Listener clientListener;
+    /** v534：成员端"状态变更即时推送"——置位后心跳循环提前发送。 */
+    private static volatile boolean heartbeatKick;
+    /** v534：最近房主地址（退出时发 c:bye 即时通知房主）。 */
+    private static volatile InetSocketAddress lastHostTarget;
+    /** 房主端自己的麦克风/状态变化时向成员即时推送玩家列表（v534）。 */
+    private static volatile boolean hostPushRequested;
 
     public static synchronized void startClient(String hostIp, String name, String clientId, Listener l) {
         stopClient();
@@ -353,7 +400,30 @@ public final class RoomCenter {
         clientThread.start();
     }
 
+    /**
+     * v534：本地联机状态变化（麦克风模式等）→ 即时同步对端：
+     * 成员端置 kick 让心跳立即发出；房主端向全体成员主动推送玩家列表。
+     */
+    public static void notifyLocalStateChanged() {
+        if (isHost) {
+            hostPushRequested = true;
+        } else {
+            heartbeatKick = true;
+        }
+    }
+
     public static synchronized void stopClient() {
+        // v534：退出前即时通知房主（c:bye），房主端立刻刷新玩家列表
+        InetSocketAddress host = lastHostTarget;
+        String cid = currentClientId;
+        if (host != null && cid != null) {
+            try (DatagramSocket s = new DatagramSocket()) {
+                byte[] out = ("c:bye\0{\"clientId\":\"" + cid + "\"}")
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                s.send(new DatagramPacket(out, out.length, host.getAddress(), host.getPort()));
+            } catch (Exception ignored) {
+            }
+        }
         clientRunning = false;
         if (clientThread != null) {
             clientThread.interrupt();
@@ -363,12 +433,20 @@ public final class RoomCenter {
             removeListener(clientListener);
             clientListener = null;
         }
+        lastHostTarget = null;
+        currentClientId = null;
     }
+
+    /** v534：最近成员端 clientId（c:bye 用）。 */
+    private static volatile String currentClientId;
 
     private static void clientLoop(String hostIp, String name, String clientId, Listener l) {
         while (clientRunning) {
             try (DatagramSocket s = new DatagramSocket()) {
                 InetSocketAddress target = new InetSocketAddress(hostIp, PORT);
+                // v534：记录房主地址与本机 clientId（退出时发 c:bye）
+                lastHostTarget = target;
+                currentClientId = clientId;
                 // v525 接收线程：常驻 socket 应答房主的反向 c:ping（房主才能测到
                 // 成员延迟/丢包），并解析心跳响应（RTT 用响应回显的 time 计算）。
                 Thread receiver = new Thread(() -> {
@@ -436,8 +514,15 @@ public final class RoomCenter {
                         s.send(new DatagramPacket(out2, out2.length, target));
                     } catch (Exception ignored) {
                     }
+                    // v534：kick 机制——状态变更时提前结束等待立即发心跳
                     try {
-                        Thread.sleep(HEARTBEAT_MS);
+                        for (int i = 0; i < HEARTBEAT_MS / 500 && clientRunning; i++) {
+                            Thread.sleep(500);
+                            if (heartbeatKick) {
+                                heartbeatKick = false;
+                                break;
+                            }
+                        }
                     } catch (InterruptedException e) {
                         return;
                     }

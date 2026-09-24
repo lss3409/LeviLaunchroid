@@ -1232,6 +1232,12 @@
     <string name="online_scan_failed">未能识别二维码</string>
     <string name="online_scan_unavailable">相机不可用</string>
     <string name="online_self_suffix">（我）</string>
+    <!-- v534：覆盖 zxing-android-embedded 扫码界面文案（库默认英文） -->
+    <string name="zxing_app_name">扫码</string>
+    <string name="zxing_button_ok">确定</string>
+    <string name="zxing_button_cancel">取消</string>
+    <string name="zxing_msg_default_status">将二维码放入取景框内即可自动扫描</string>
+    <string name="zxing_msg_camera_framework_bug">相机出现异常，请尝试从相册选择二维码图片</string>
     <string name="online_join_banner_fmt">「%1$s」加入了房间</string>
     <string name="online_leave_banner_fmt">「%1$s」离开了房间</string>
     <string name="online_copy_code">复制邀请码</string>
