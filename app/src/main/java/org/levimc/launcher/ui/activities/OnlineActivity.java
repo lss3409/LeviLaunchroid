@@ -22,6 +22,7 @@ import android.widget.Toast;
 import org.levimc.launcher.R;
 import org.levimc.launcher.core.online.EasyTierManager;
 import org.levimc.launcher.core.online.InviteCode;
+import org.levimc.launcher.core.online.LanBridge;
 import org.levimc.launcher.core.online.LanDiscovery;
 import org.levimc.launcher.core.online.PlayerIdentity;
 import org.levimc.launcher.core.online.QrUtils;
