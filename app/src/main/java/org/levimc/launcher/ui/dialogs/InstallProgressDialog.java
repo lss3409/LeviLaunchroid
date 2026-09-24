@@ -57,10 +57,9 @@ public class InstallProgressDialog extends Dialog {
         if (window != null) {
             window.setBackgroundDrawableResource(android.R.color.transparent);
             WindowManager.LayoutParams params = window.getAttributes();
-            float density = getContext().getResources().getDisplayMetrics().density;
-            int screenWidth = getContext().getResources().getDisplayMetrics().widthPixels;
-            int maxWidth = (int) (400 * density);
-            params.width = Math.min((int) (screenWidth * 0.9f), maxWidth);
+            // v552：统一弹窗尺寸规范（平板比例为主，手机自动缩小）
+            params.width = org.levimc.launcher.util.DialogSizer.dialogWidth(
+                    getContext(), 340);
             params.height = WindowManager.LayoutParams.WRAP_CONTENT;
             params.dimAmount = 0.6f;
             window.setAttributes(params);

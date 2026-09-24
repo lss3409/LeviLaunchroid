@@ -126,7 +126,6 @@
     <string name="version_ignored">此版本已被忽略</string>
     <string name="downloading_update">正在下载更新…</string>
 
-    <string name="repair_libs_in_progress">修复游戏库文件中…</string>
     <string name="repair_completed">修复完成</string>
     <string name="repair_libs_success_message">游戏库文件已成功修复，现在可以启动游戏</string>
     <string name="repair_failed">修复失败</string>
@@ -136,11 +135,7 @@
     <string name="missing_libs_title">缺少游戏库文件 - %s</string>
     <string name="missing_libs_message">检测到缺少必要的游戏库文件，是否立即修复？</string>
     <string name="repair">修复</string>
-    <string name="repair_libs_dialog_title">修复游戏库文件</string>
     <string name="repair_libs_dialog_subtitle">正在准备游戏库文件</string>
-    <string name="repair_preparing">准备中…</string>
-    <string name="repair_processing">正在提取库文件…</string>
-    <string name="repair_finalizing">正在完成修复…</string>
     <string name="storage_migration_title">需要迁移存储目录</string>
     <string name="storage_migration_message">LeviLauncher 必须先将数据从 games/org.levimc 迁移到 %1$s，才能继续使用。
 

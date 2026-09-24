@@ -16,7 +16,6 @@ import org.levimc.launcher.core.minecraft.MinecraftLauncher;
 import org.levimc.launcher.core.mods.ModManager;
 import org.levimc.launcher.ui.activities.MainActivity;
 import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
-import org.levimc.launcher.ui.dialogs.LibsRepairDialog;
 import org.levimc.launcher.util.ApkInstaller;
 import org.levimc.launcher.util.ApkUtils;
 import org.levimc.launcher.util.LauncherStorage;
@@ -668,65 +667,41 @@ public class VersionManager {
             return;
         }
         libsRepairFlowActive = true;
-        LibsRepairDialog repairDialog = new LibsRepairDialog(activity);
+        // v552：删除 LibsRepairDialog 进度弹窗（用户要求——手机上弹窗过大
+        // 且不可关闭会卡死），修复流程静默后台执行，完成后弹结果提示。
         Handler mainHandler = new Handler(Looper.getMainLooper());
 
         VersionManager.LibsRepairCallback callback = new VersionManager.LibsRepairCallback() {
             @Override
             public void onRepairStarted() {
-                activity.runOnUiThread(() -> {
-                    repairDialog.setTitleText(activity.getString(R.string.repair_libs_in_progress));
-                    repairDialog.setStatusText(activity.getString(R.string.repair_preparing));
-                    repairDialog.setIndeterminate(true);
-                    repairDialog.updateProgress(0);
-                });
             }
 
             @Override
             public void onRepairProgress(int progress) {
-                activity.runOnUiThread(() -> {
-                    if (progress > 0) {
-                        repairDialog.setStatusText(activity.getString(
-                                progress >= PROGRESS_FINALIZING
-                                        ? R.string.repair_finalizing
-                                        : R.string.repair_processing
-                        ));
-                        repairDialog.setIndeterminate(false);
-                    }
-                    repairDialog.updateProgress(progress);
-                });
             }
 
             @Override
             public void onRepairCompleted(boolean success) {
                 activity.runOnUiThread(() -> {
                     libsRepairFlowActive = false;
-                    Runnable showResult = () -> {
-                        if (activity.isFinishing()) {
-                            return;
+                    if (activity.isFinishing()) {
+                        return;
+                    }
+                    if (success) {
+                        new CustomAlertDialog(activity)
+                                .setTitleText(activity.getString(R.string.repair_completed))
+                                .setMessage(activity.getString(R.string.repair_libs_success_message))
+                                .setPositiveButton(activity.getString(R.string.confirm), null)
+                                .show();
+                        if (activity instanceof MainActivity) {
+                            ((MainActivity) activity).setTextMinecraftVersion();
                         }
-                        if (success) {
-                            new CustomAlertDialog(activity)
-                                    .setTitleText(activity.getString(R.string.repair_completed))
-                                    .setMessage(activity.getString(R.string.repair_libs_success_message))
-                                    .setPositiveButton(activity.getString(R.string.confirm), null)
-                                    .show();
-                            if (activity instanceof MainActivity) {
-                                ((MainActivity) activity).setTextMinecraftVersion();
-                            }
-                        } else {
-                            new CustomAlertDialog(activity)
-                                    .setTitleText(activity.getString(R.string.repair_failed))
-                                    .setMessage(activity.getString(R.string.repair_libs_failed_message))
-                                    .setPositiveButton(activity.getString(R.string.confirm), null)
-                                    .show();
-                        }
-                    };
-                    repairDialog.setOnDismissAnimationEndListener(showResult);
-                    if (repairDialog.isShowing()) {
-                        repairDialog.dismiss();
                     } else {
-                        showResult.run();
+                        new CustomAlertDialog(activity)
+                                .setTitleText(activity.getString(R.string.repair_failed))
+                                .setMessage(activity.getString(R.string.repair_libs_failed_message))
+                                .setPositiveButton(activity.getString(R.string.confirm), null)
+                                .show();
                     }
                 });
             }
@@ -735,22 +710,14 @@ public class VersionManager {
             public void onRepairFailed(Exception e) {
                 activity.runOnUiThread(() -> {
                     libsRepairFlowActive = false;
-                    Runnable showError = () -> {
-                        if (activity.isFinishing()) {
-                            return;
-                        }
-                        new CustomAlertDialog(activity)
-                                .setTitleText(activity.getString(R.string.repair_error))
-                                .setMessage(String.format(activity.getString(R.string.repair_libs_error_message), e.getMessage()))
-                                .setPositiveButton(activity.getString(R.string.confirm), null)
-                                .show();
-                    };
-                    repairDialog.setOnDismissAnimationEndListener(showError);
-                    if (repairDialog.isShowing()) {
-                        repairDialog.dismiss();
-                    } else {
-                        showError.run();
+                    if (activity.isFinishing()) {
+                        return;
                     }
+                    new CustomAlertDialog(activity)
+                            .setTitleText(activity.getString(R.string.repair_error))
+                            .setMessage(String.format(activity.getString(R.string.repair_libs_error_message), e.getMessage()))
+                            .setPositiveButton(activity.getString(R.string.confirm), null)
+                            .show();
                 });
             }
         };
@@ -772,9 +739,6 @@ public class VersionManager {
                 if (activity.isFinishing()) {
                     libsRepairFlowActive = false;
                     return;
-                }
-                if (!repairDialog.isShowing()) {
-                    repairDialog.show();
                 }
                 VersionManager.get(activity).repairLibsAsync(version, callback);
             });

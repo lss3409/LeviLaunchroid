@@ -44,8 +44,9 @@ public class CustomAlertDialog extends Dialog {
     private Runnable mDismissAnimationEndListener;
     /** v539：点外部关闭开关（onCreate 里硬编码 false 会覆盖外部设置，改用字段）。 */
     private boolean mCanceledOnTouchOutside = false;
-    /** v548：弹窗最大宽度（dp），内容少的弹窗可调小让背景"刚刚好"。 */
-    private int mMaxWidthDp = 400;
+    /** v548：弹窗最大宽度（dp），内容少的弹窗可调小让背景"刚刚好"。
+     *  v552：默认 340dp（平板规范值），手机自动按 DialogSizer 缩小。 */
+    private int mMaxWidthDp = 340;
 
     public CustomAlertDialog(Context context) {
         // v549：固定 LeviDialogTheme——游戏进程（MinecraftActivity 非 AppCompat）
@@ -254,9 +255,10 @@ public class CustomAlertDialog extends Dialog {
         if (window != null) {
             window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
             float density = getContext().getResources().getDisplayMetrics().density;
-            int screenWidth = getContext().getResources().getDisplayMetrics().widthPixels;
-            int maxWidth = (int) (mMaxWidthDp * density);
-            int dialogWidth = Math.min((int) (screenWidth * 0.9), maxWidth);
+            // v552：统一弹窗尺寸规范（DialogSizer：平板比例为主，手机自动
+            // 缩小 0.85，个性化 ui_scale 已通过 densityDpi 联动）
+            int dialogWidth = org.levimc.launcher.util.DialogSizer.dialogWidth(
+                    getContext(), mMaxWidthDp);
             // v550：主题的 windowMinWidthMajor（Alert 主题默认 ~65% 屏幕）会在
             // 某些设备上覆盖 setLayout 的宽度——显式写 attributes 强制生效
             WindowManager.LayoutParams lp = window.getAttributes();
@@ -264,9 +266,11 @@ public class CustomAlertDialog extends Dialog {
             lp.height = WindowManager.LayoutParams.WRAP_CONTENT;
             window.setAttributes(lp);
             window.setLayout(dialogWidth, WindowManager.LayoutParams.WRAP_CONTENT);
-            android.util.Log.i("CustomAlertDialog", "弹窗宽度: " + dialogWidth
-                    + "px (" + mMaxWidthDp + "dp, density=" + density
-                    + ", screen=" + screenWidth + ")");
+            // v552：高度上限 = 屏幕 78%（根布局 maxHeight 兜底，防按钮被挤出屏）
+            View root = findViewById(R.id.dialog_root);
+            if (root != null) {
+                root.setMinimumHeight(0);
+            }
 
             if (mBlurBackground) {
                 window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);

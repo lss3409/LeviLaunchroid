@@ -62,10 +62,9 @@ public class GameVersionSelectDialog extends Dialog {
             android.view.WindowManager.LayoutParams params = window.getAttributes();
             params.dimAmount = 0.6f;
             
-            float density = getContext().getResources().getDisplayMetrics().density;
-            int screenWidth = getContext().getResources().getDisplayMetrics().widthPixels;
-            int maxWidth = (int) (420 * density);
-            params.width = Math.min((int) (screenWidth * 0.95), maxWidth);
+            // v552：统一弹窗尺寸规范（平板比例为主，手机自动缩小）
+            params.width = org.levimc.launcher.util.DialogSizer.dialogWidth(
+                    getContext(), 400);
             window.setAttributes(params);
         }
         recyclerView.setAdapter(adapter);

@@ -109,8 +109,13 @@ public final class PlayerDetailCard {
 
         // v547：房主视角看成员 → 禁麦/解除禁麦按钮
         if (permitMute && p != null) {
+            // v552：MaterialButton 必须用 Material 主题 context——游戏进程
+            // Activity 是 AppCompat 主题会抛 ThemeEnforcement 崩溃（tombstone 549），
+            // 用弹窗同款 LeviDialogTheme（MaterialComponents）包裹
             com.google.android.material.button.MaterialButton muteBtn =
-                    new com.google.android.material.button.MaterialButton(activity);
+                    new com.google.android.material.button.MaterialButton(
+                            new android.view.ContextThemeWrapper(activity,
+                                    org.levimc.launcher.R.style.LeviDialogTheme));
             boolean muted = RoomCenter.isMuted(p.clientId);
             muteBtn.setText(muted ? "解除禁麦" : "禁麦");
             org.levimc.launcher.util.AccentStyler.stylePrimary(activity, muteBtn);

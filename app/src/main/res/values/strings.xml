@@ -163,7 +163,6 @@
     <string name="version_ignored">This version has been ignored</string>
     <string name="downloading_update">Downloading update…</string>
 
-    <string name="repair_libs_in_progress">Repairing game library files…</string>
     <string name="repair_completed">Repair Completed</string>
     <string name="repair_libs_success_message">Game library files have been successfully repaired. You can now launch the game.</string>
     <string name="repair_failed">Repair Failed</string>
@@ -173,11 +172,7 @@
     <string name="missing_libs_title">Missing game library files - %s</string>
     <string name="missing_libs_message">Required game library files are missing. Do you want to repair them now?</string>
     <string name="repair">Repair</string>
-    <string name="repair_libs_dialog_title">Repairing Game Libraries</string>
     <string name="repair_libs_dialog_subtitle">Preparing game library files</string>
-    <string name="repair_preparing">Preparing…</string>
-    <string name="repair_processing">Extracting libraries…</string>
-    <string name="repair_finalizing">Finalizing repair…</string>
 
     <string name="storage_migration_title">Storage Migration Required</string>
     <string name="storage_migration_message">LeviLauncher must migrate data from games/org.levimc to %1$s before continuing.

@@ -440,7 +440,7 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         TextView noiseLabel = new TextView(activity);
         noiseLabel.setText(R.string.online_settings_noise);
         noiseLabel.setTextSize(13);
-        noiseLabel.setTextColor(0xFFDDDDDD);
+        noiseLabel.setTextColor(0xFFF5F5F5);
         v.addView(noiseLabel);
         final boolean[] ns = {VoiceEngine.isNoiseSuppressionOn()};
         TextView noiseToggle = new TextView(activity);
@@ -459,7 +459,7 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         TextView levelLabel = new TextView(activity);
         levelLabel.setText(R.string.online_settings_noise_level);
         levelLabel.setTextSize(13);
-        levelLabel.setTextColor(0xFFDDDDDD);
+        levelLabel.setTextColor(0xFFF5F5F5);
         LinearLayout.LayoutParams llLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         llLp.topMargin = dp(14);
@@ -498,7 +498,7 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         TextView permLabel = new TextView(activity);
         permLabel.setText(R.string.online_settings_view_perm);
         permLabel.setTextSize(13);
-        permLabel.setTextColor(0xFFDDDDDD);
+        permLabel.setTextColor(0xFFF5F5F5);
         LinearLayout.LayoutParams plLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         plLp.topMargin = dp(14);
@@ -539,23 +539,25 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         dialog.show();
     }
 
-    /** 开关胶囊样式刷新（开=强调色底白字，关=暗底灰字）。 */
+    /** 开关胶囊样式刷新（开=强调色底白字，关=暗底亮字）。 */
     private void refreshToggle(TextView t, boolean on) {
         t.setText(on ? "开" : "关");
         t.setTextSize(13);
         t.setGravity(Gravity.CENTER);
-        t.setTextColor(on ? Color.WHITE : 0xAAFFFFFF);
+        // v552：文字颜色提亮——绿色强调色底上银色半透明字看不清
+        t.setTextColor(on ? Color.WHITE : 0xFFF2F2F2);
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(on ? accent : 0x22FFFFFF);
+        bg.setColor(on ? accent : 0x33FFFFFF);
         bg.setCornerRadius(dp(9));
         t.setBackground(bg);
     }
 
-    /** 选项胶囊样式刷新（选中=强调色底白字，未选=暗底灰字）。 */
+    /** 选项胶囊样式刷新（选中=强调色底白字，未选=暗底亮字）。 */
     private void refreshCapsule(TextView t, boolean selected) {
-        t.setTextColor(selected ? Color.WHITE : 0xAAFFFFFF);
+        // v552：文字颜色提亮（0xAAFFFFFF 银色在强调色底上不可见）
+        t.setTextColor(selected ? Color.WHITE : 0xFFF2F2F2);
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(selected ? accent : 0x22FFFFFF);
+        bg.setColor(selected ? accent : 0x33FFFFFF);
         bg.setCornerRadius(dp(9));
         t.setBackground(bg);
     }

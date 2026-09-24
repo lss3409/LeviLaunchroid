@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- v552：根布局加 id（代码动态限制高度用） -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/dialog_root"
     android:orientation="vertical"
     android:padding="24dp"
     android:background="@drawable/bg_rounded_card"
@@ -38,13 +40,23 @@
         android:layout_marginTop="12dp"
         android:visibility="gone" />
 
-    <LinearLayout
-        android:id="@+id/custom_view_container"
+    <!-- v552：custom view 包进 ScrollView——内容超高时窗口被根 maxHeight 压缩，
+         内容可滚动，按钮永远不溢出屏幕 -->
+    <ScrollView
+        android:id="@+id/custom_scroll_view"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:layout_marginTop="12dp"
-        android:orientation="vertical"
-        android:visibility="gone" />
+        android:fillViewport="true"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/custom_view_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </ScrollView>
 
     <LinearLayout
         android:id="@+id/btn_container"

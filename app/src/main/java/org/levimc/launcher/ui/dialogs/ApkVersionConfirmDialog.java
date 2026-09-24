@@ -119,10 +119,9 @@ public class ApkVersionConfirmDialog extends DialogFragment {
             WindowManager.LayoutParams params = window.getAttributes();
             params.dimAmount = 0.6f;
             
-            float density = context.getResources().getDisplayMetrics().density;
-            int screenWidth = context.getResources().getDisplayMetrics().widthPixels;
-            int maxWidth = (int) (400 * density);
-            params.width = Math.min((int) (screenWidth * 0.9), maxWidth);
+            // v552：统一弹窗尺寸规范（平板比例为主，手机自动缩小）
+            params.width = org.levimc.launcher.util.DialogSizer.dialogWidth(
+                    context, 340);
             window.setAttributes(params);
         }
 
