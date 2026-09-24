@@ -344,9 +344,11 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         }
     }
 
-    /** 玩家行（v502/v529）：首字头像（有 URL 时 Glide 覆盖）+ 昵称 + 房主皇冠 + 自己高亮。
-     *  v529：avatarUrl 按玩家传入（跨设备同步），不再用本机账号头像。 */
-    private void addPlayerRow(String name, boolean isSelf, boolean isRoomHost, String avatarUrl) {
+    /** 玩家行（v502/v529/v544）：首字头像（有 URL 时 Glide 覆盖）+ 昵称 + 房主皇冠 + 自己高亮。
+     *  v529：avatarUrl 按玩家传入（跨设备同步），不再用本机账号头像。
+     *  v544：点击行弹出玩家详情卡（Xbox 详情/游玩时长/皮肤/权限）。 */
+    private void addPlayerRow(String name, boolean isSelf, boolean isRoomHost, String avatarUrl,
+                              RoomCenter.Player player) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -394,6 +396,10 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
             crown.setTextSize(14);
             row.addView(crown);
         }
+        // v544：点击玩家行弹详情卡
+        if (player != null) {
+            row.setOnClickListener(v -> showPlayerDetailCard(player));
+        }
         playersContainer.addView(row);
     }
 
@@ -421,7 +427,7 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                 // 房主视角：房主行已展示自己，玩家列表只列成员
                 for (RoomCenter.Player p : list) {
                     if (!p.isRoomHost) {
-                        addPlayerRow(p.name, false, false, p.avatarUrl);
+                        addPlayerRow(p.name, false, false, p.avatarUrl, p);
                         memberCount++;
                     }
                 }
@@ -449,11 +455,11 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                 }
                 for (RoomCenter.Player p : list) {
                     if (!p.isRoomHost && !p.clientId.equals(selfId)) {
-                        addPlayerRow(p.name, false, false, p.avatarUrl);
+                        addPlayerRow(p.name, false, false, p.avatarUrl, p);
                         memberCount++;
                     }
                 }
-                addPlayerRow(nick, true, false, null);
+                addPlayerRow(nick, true, false, null, null);
                 if (memberCount == 1) {
                     TextView empty = new TextView(this);
                     empty.setText(R.string.online_players_empty);
@@ -1057,6 +1063,154 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                     findViewById(R.id.online_room_share_button));
         } catch (Throwable ignored) {
         }
+    }
+
+    /**
+     * v544：玩家详情卡——点击玩家行弹出。
+     * 内容：头像/名字/Xbox XUID/微软账号（邮箱）/Levi 游玩时长/皮肤预览/游戏内权限胶囊。
+     */
+    private void showPlayerDetailCard(RoomCenter.Player p) {
+        String name = p != null ? p.name : PlayerIdentity.getNickname(this);
+        String avatarUrl = p != null ? p.avatarUrl : PlayerIdentity.getAvatarUrl(this);
+        String xuid = p != null ? p.xuid : PlayerIdentity.getCurrentXuid();
+        String msUser = p != null ? p.msUser : PlayerIdentity.getCurrentMsUser();
+        long playMinutes = p != null ? p.playMinutes : PlayerIdentity.getPlayMinutes(this);
+
+        float d = getResources().getDisplayMetrics().density;
+        LinearLayout v = new LinearLayout(this);
+        v.setOrientation(LinearLayout.VERTICAL);
+        v.setPadding((int) (20 * d), (int) (18 * d), (int) (20 * d), (int) (18 * d));
+
+        // 头部：头像 + 名字 + 房主皇冠
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        android.widget.FrameLayout avFrame = new android.widget.FrameLayout(this);
+        TextView avChar = new TextView(this);
+        avChar.setText(name == null || name.isEmpty() ? "?" : name.substring(0, 1));
+        avChar.setGravity(Gravity.CENTER);
+        avChar.setTextColor(Color.WHITE);
+        avChar.setTextSize(16);
+        avChar.setBackground(accentAvatarBg());
+        avFrame.addView(avChar, new android.widget.FrameLayout.LayoutParams((int) (44 * d), (int) (44 * d)));
+        if (avatarUrl != null && !avatarUrl.isEmpty()) {
+            android.widget.ImageView avImg = new android.widget.ImageView(this);
+            com.bumptech.glide.Glide.with(this).load(avatarUrl).circleCrop().into(avImg);
+            avFrame.addView(avImg, new android.widget.FrameLayout.LayoutParams((int) (44 * d), (int) (44 * d)));
+        }
+        header.addView(avFrame);
+        TextView nameTv = new TextView(this);
+        nameTv.setText((p != null && p.isRoomHost ? "👑 " : "") + name);
+        nameTv.setTextSize(16);
+        nameTv.setTypeface(null, android.graphics.Typeface.BOLD);
+        nameTv.setTextColor(getResources().getColor(R.color.on_surface, getTheme()));
+        LinearLayout.LayoutParams nLp = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        nLp.leftMargin = (int) (12 * d);
+        header.addView(nameTv, nLp);
+        v.addView(header);
+
+        // Xbox 详情
+        TextView detail = new TextView(this);
+        StringBuilder sb = new StringBuilder();
+        sb.append("XUID: ").append(xuid == null || xuid.isEmpty() ? "—" : xuid).append('\n');
+        sb.append("微软账号: ").append(msUser == null || msUser.isEmpty() ? "—" : msUser).append('\n');
+        sb.append("Levi 游玩时长: ").append(formatPlayMinutes(playMinutes));
+        detail.setText(sb.toString());
+        detail.setTextSize(13);
+        detail.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+        LinearLayout.LayoutParams dLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        dLp.topMargin = (int) (12 * d);
+        v.addView(detail, dLp);
+
+        // 皮肤预览（mc-heads.net 按 gamertag 渲染）
+        android.widget.ImageView skin = new android.widget.ImageView(this);
+        skin.setAdjustViewBounds(true);
+        try {
+            String skinUrl = "https://mc-heads.net/body/"
+                    + java.net.URLEncoder.encode(name, "UTF-8") + ".png";
+            com.bumptech.glide.Glide.with(this).load(skinUrl).into(skin);
+        } catch (Exception ignored) {
+        }
+        LinearLayout.LayoutParams sLp = new LinearLayout.LayoutParams(
+                (int) (90 * d), (int) (160 * d));
+        sLp.topMargin = (int) (10 * d);
+        sLp.gravity = Gravity.CENTER_HORIZONTAL;
+        v.addView(skin, sLp);
+
+        // 游戏内权限胶囊（访客/成员/管理员）
+        TextView permLabel = new TextView(this);
+        permLabel.setText("游戏内权限");
+        permLabel.setTextSize(12);
+        permLabel.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+        LinearLayout.LayoutParams plLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        plLp.topMargin = (int) (12 * d);
+        v.addView(permLabel, plLp);
+
+        LinearLayout permRow = new LinearLayout(this);
+        permRow.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams prLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        prLp.topMargin = (int) (6 * d);
+        v.addView(permRow, prLp);
+        String[] permNames = {"访客", "成员", "管理员"};
+        String key = p != null ? p.clientId : "self";
+        final int[] current = {getSavedPermission(key)};
+        for (int i = 0; i < permNames.length; i++) {
+            final int level = i;
+            TextView cap = new TextView(this);
+            cap.setText(permNames[i]);
+            cap.setTextSize(12);
+            cap.setGravity(Gravity.CENTER);
+            android.graphics.drawable.GradientDrawable capBg = new android.graphics.drawable.GradientDrawable();
+            capBg.setCornerRadius(16 * d);
+            if (current[0] == level) {
+                capBg.setColor(accentColor());
+                cap.setTextColor(Color.WHITE);
+            } else {
+                capBg.setColor(0x22FFFFFF);
+                cap.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+            }
+            cap.setBackground(capBg);
+            LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(
+                    0, (int) (32 * d), 1f);
+            if (i > 0) {
+                cLp.leftMargin = (int) (6 * d);
+            }
+            permRow.addView(cap, cLp);
+            cap.setOnClickListener(x -> {
+                savePermission(key, level);
+                Toast.makeText(this, "权限已记录: " + permNames[level]
+                        + "（写入存档将在后续版本接入）", Toast.LENGTH_SHORT).show();
+                current[0] = level;
+            });
+        }
+
+        org.levimc.launcher.ui.dialogs.CustomAlertDialog dialog =
+                new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this);
+        dialog.setCustomView(v);
+        dialog.show();
+    }
+
+    private static final String PREFS_PERM = "levimc_permissions";
+
+    private int getSavedPermission(String clientId) {
+        return getSharedPreferences(PREFS_PERM, MODE_PRIVATE).getInt(clientId, 1);
+    }
+
+    private void savePermission(String clientId, int level) {
+        getSharedPreferences(PREFS_PERM, MODE_PRIVATE).edit().putInt(clientId, level).apply();
+    }
+
+    private String formatPlayMinutes(long minutes) {
+        if (minutes < 60) {
+            return minutes + " 分钟";
+        }
+        long h = minutes / 60;
+        long m = minutes % 60;
+        return h + " 小时 " + m + " 分钟";
     }
 
     private void onLeaveClicked() {

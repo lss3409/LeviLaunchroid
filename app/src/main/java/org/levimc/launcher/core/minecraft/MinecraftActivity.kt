@@ -54,6 +54,8 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     private var hardcoreBackupRunning = false
     /** v518 久置自愈：后台久置后回前台，基岩版 EGL surface 不恢复（黑屏）。 */
     private var lastPauseElapsed = 0L
+    /** v544：本次会话起点（累计游玩时长统计）。 */
+    private var sessionStartElapsed = 0L
     private val hardcoreBackupRunnable = object : Runnable {
         override fun run() {
             runHardcoreBackupCheck()
@@ -171,6 +173,8 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         initializePreloaderTextInput()
         PreloaderInput.setActivity(this)
         MinecraftActivityState.onCreated(this)
+        // v544：会话起点（onDestroy 累加游玩时长）
+        sessionStartElapsed = android.os.SystemClock.elapsedRealtime()
 
         trace.mark("MinecraftActivity onCreate finished")
     }
@@ -566,6 +570,16 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun onDestroy() {
+        // v544：累计游玩时长（分钟，联机玩家详情卡展示）
+        try {
+            if (sessionStartElapsed > 0) {
+                val mins = (android.os.SystemClock.elapsedRealtime() - sessionStartElapsed) / 60_000L
+                if (mins > 0) {
+                    org.levimc.launcher.core.online.PlayerIdentity.addPlayMinutes(this, mins)
+                }
+            }
+        } catch (t: Throwable) {
+        }
         stopHardcoreBackupScheduler()
         ModManager.disableAndUnloadLoadedMods()
         val shouldPrepareNormalExit = shouldRestartAfterNormalExit()

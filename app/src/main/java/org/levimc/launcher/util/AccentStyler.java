@@ -37,6 +37,8 @@ public final class AccentStyler {
                 MaterialButton b = (MaterialButton) v;
                 b.setBackgroundTintList(csl);
                 b.setTextColor(Color.WHITE);
+                // v544：圆角与启动器按钮一致（MaterialButton 默认 4dp 几乎直角）
+                b.setCornerRadius((int) (12 * ctx.getResources().getDisplayMetrics().density));
             }
         }
     }
