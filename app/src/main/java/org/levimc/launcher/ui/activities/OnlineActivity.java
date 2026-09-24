@@ -130,6 +130,28 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         if (intent == null) {
             return;
         }
+        // v516 调试建房：固定邀请码 TEST-TEST-TEST-TES5（免 OCR 读码）
+        if (intent.getBooleanExtra("debug_host", false)) {
+            InviteCode.Result hr = InviteCode.parse(InviteCode.formatInput("TESTTESTTESTTES5"));
+            if (!hr.ok()) {
+                hr = InviteCode.parse(InviteCode.formatInput("TESTTESTTESTTESC"));
+            }
+            if (!hr.ok()) {
+                Toast.makeText(this, "debug_host 固定码解析失败", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            EasyTierManager.get().stop(this);
+            currentCode = rawToCode(hr.parsed);
+            isHost = true;
+            roomCodeText.setText("P/" + currentCode);
+            createStatus.setText(getString(R.string.online_connecting_kernel));
+            showCreate();
+            LanDiscovery.startHost(hr.parsed.networkName);
+            List<String> relayPeers = RelayStore.load(this);
+            EasyTierManager.get().host(this, hr.parsed.networkName, hr.parsed.networkSecret, this,
+                    HOST_IPV4, relayPeers);
+            return;
+        }
         String code = intent.getStringExtra("debug_join_code");
         if (code == null || code.isEmpty()) {
             return;
