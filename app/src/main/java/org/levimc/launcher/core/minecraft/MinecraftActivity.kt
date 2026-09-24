@@ -269,6 +269,8 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             if (org.levimc.launcher.core.online.EasyTierManager.get().state
                 == org.levimc.launcher.core.online.EasyTierManager.State.CONNECTED) {
                 org.levimc.launcher.core.online.OnlineOverlay.get(this).show()
+                // v527：回前台恢复语音采集
+                org.levimc.launcher.core.online.voice.VoiceEngine.get(this).resume()
             }
         } catch (t: Throwable) {
             android.util.Log.w("MinecraftActivity", "online overlay failed", t)
@@ -519,6 +521,11 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
 
     override fun onPause() {
         lastPauseElapsed = android.os.SystemClock.elapsedRealtime()
+        // v527：退后台停语音采集（不再收麦），回前台自动恢复
+        try {
+            org.levimc.launcher.core.online.voice.VoiceEngine.get(this).suspend()
+        } catch (t: Throwable) {
+        }
         org.levimc.launcher.core.online.OnlineOverlay.hideIfShown()
         stopHardcoreBackupScheduler()
         backupOnPauseIfNeeded()
@@ -530,6 +537,30 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         }
         MinecraftActivityState.onPaused(this)
         super.onPause()
+    }
+
+    // v527：麦克风权限结果转发给联机悬浮窗
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        try {
+            if (requestCode == 100) {
+                var granted = false
+                for (i in permissions.indices) {
+                    if (permissions[i] == android.Manifest.permission.RECORD_AUDIO
+                        && i < grantResults.size
+                        && grantResults[i] == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    ) {
+                        granted = true
+                    }
+                }
+                org.levimc.launcher.core.online.OnlineOverlay.forwardMicPermissionResult(this, granted)
+            }
+        } catch (t: Throwable) {
+        }
     }
 
     override fun onDestroy() {

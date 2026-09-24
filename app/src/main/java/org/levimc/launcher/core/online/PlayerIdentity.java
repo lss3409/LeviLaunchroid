@@ -19,6 +19,8 @@ public final class PlayerIdentity {
 
     private static volatile String cachedNick;
     private static volatile String cachedUuid;
+    /** 最近一次解析出的昵称（无 Context 读取，RoomCenter 心跳用，v527）。 */
+    private static volatile String currentNick;
 
     private PlayerIdentity() {
     }
@@ -31,6 +33,7 @@ public final class PlayerIdentity {
         String gamertag = loadGamertag(ctx);
         if (gamertag != null && !gamertag.isEmpty()) {
             cachedNick = gamertag;
+            currentNick = gamertag;
             return cachedNick;
         }
         SharedPreferences sp = ctx.getApplicationContext()
@@ -46,7 +49,28 @@ public final class PlayerIdentity {
             sp.edit().putString(KEY_NICK, nick).apply();
         }
         cachedNick = nick;
+        currentNick = nick;
         return nick;
+    }
+
+    /** 无 Context 读取最近一次解析出的昵称（心跳等热路径用）。 */
+    public static String getCurrentNick() {
+        return currentNick;
+    }
+
+    /**
+     * v527：Xbox 登录/切换账号后刷新身份（MsftAccountStore 回调）。
+     * 清缓存并立即用新 gamertag 更新 currentNick——进程内登录后
+     * 联机 ID 马上换成 Xbox 的，不用重启进程。
+     */
+    public static void refresh(Context ctx) {
+        String gamertag = loadGamertag(ctx);
+        if (gamertag != null && !gamertag.isEmpty()) {
+            cachedNick = gamertag;
+            currentNick = gamertag;
+        } else {
+            cachedNick = null; // 登出后回落到随机昵称
+        }
     }
 
     /** 用户自定义昵称。 */

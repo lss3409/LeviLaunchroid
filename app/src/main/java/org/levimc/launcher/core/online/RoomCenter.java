@@ -45,11 +45,14 @@ public final class RoomCenter {
         public final String name;
         public final String clientId;
         public final boolean isRoomHost;
+        /** 虚拟 IP（v527 语音模块用；房主条目也有，null = 未知）。 */
+        public final String addr;
 
-        Player(String name, String clientId, boolean isRoomHost) {
+        Player(String name, String clientId, boolean isRoomHost, String addr) {
             this.name = name;
             this.clientId = clientId;
             this.isRoomHost = isRoomHost;
+            this.addr = addr;
         }
     }
 
@@ -169,7 +172,7 @@ public final class RoomCenter {
                             if (players.size() + 1 >= MAX_PLAYERS) {
                                 Log.w(TAG, "房间已满，拒绝: " + pname);
                             } else {
-                                players.put(cid, new Player(pname, cid, false));
+                                players.put(cid, new Player(pname, cid, false, null));
                                 Log.i(TAG, "玩家加入: " + pname + " (" + cid + ")");
                             }
                         }
@@ -235,18 +238,48 @@ public final class RoomCenter {
         cleanupStale();
         JSONArray arr = new JSONArray();
         JSONObject host = new JSONObject();
-        host.put("player", hostName);
+        host.put("player", displayName(hostName));
         host.put("clientId", hostClientId);
         host.put("isRoomHost", true);
+        host.put("addr", hostAddr());
         arr.put(host);
         for (Player p : players.values()) {
             JSONObject o = new JSONObject();
             o.put("player", p.name);
             o.put("clientId", p.clientId);
             o.put("isRoomHost", false);
+            String ip = addrOf(p.clientId);
+            if (ip != null) {
+                o.put("addr", ip);
+            }
             arr.put(o);
         }
         return arr;
+    }
+
+    /** 成员虚拟 IP（供语音模块等直接寻址）。 */
+    private static String addrOf(String clientId) {
+        InetSocketAddress a = memberAddrs.get(clientId);
+        return a == null ? null : a.getAddress().getHostAddress();
+    }
+
+    /** 房主虚拟 IP（固定 10.144.144.144；内核侧 IP 优先）。 */
+    private static String hostAddr() {
+        try {
+            String vip = EasyTierManager.get().getVirtualIp();
+            if (vip != null && !vip.isEmpty()) {
+                int slash = vip.indexOf('/');
+                return slash > 0 ? vip.substring(0, slash) : vip;
+            }
+        } catch (Throwable ignored) {
+        }
+        return "10.144.144.144";
+    }
+
+    /** v527：Xbox 登录后心跳动态换名（PlayerIdentity 刷新后自动生效）。 */
+    private static String displayName(String fallback) {
+        String nick = PlayerIdentity.getCurrentNick();
+        return (nick == null || nick.isEmpty()) ? fallback : nick;
     }
 
     // ---- 成员端 ----
@@ -325,8 +358,9 @@ public final class RoomCenter {
                         String req = "c:ping\0{\"time\":" + t0 + "}";
                         byte[] out = req.getBytes("UTF-8");
                         s.send(new DatagramPacket(out, out.length, target));
+                        // v527：心跳动态读当前昵称（Xbox 登录后自动换名）
                         String hb = "c:player\0{\"clientId\":\"" + clientId
-                                + "\",\"playerName\":\"" + escape(name) + "\"}";
+                                + "\",\"playerName\":\"" + escape(displayName(name)) + "\"}";
                         byte[] out2 = hb.getBytes("UTF-8");
                         s.send(new DatagramPacket(out2, out2.length, target));
                     } catch (Exception ignored) {
@@ -381,8 +415,10 @@ public final class RoomCenter {
                 for (int i = 0; i < arr.length(); i++) {
                     JSONObject p = arr.optJSONObject(i);
                     if (p != null) {
+                        String addr = p.optString("addr", null);
                         out.add(new Player(p.optString("player", "?"),
-                                p.optString("clientId", "?"), p.optBoolean("isRoomHost", false)));
+                                p.optString("clientId", "?"), p.optBoolean("isRoomHost", false),
+                                addr == null || addr.isEmpty() ? null : addr));
                     }
                 }
             }
@@ -394,9 +430,9 @@ public final class RoomCenter {
     /** 当前玩家快照（含房主）。 */
     private static List<Player> snapshot() {
         List<Player> out = new ArrayList<>();
-        out.add(new Player(hostName, hostClientId, true));
+        out.add(new Player(displayName(hostName), hostClientId, true, hostAddr()));
         for (Player p : players.values()) {
-            out.add(p);
+            out.add(new Player(p.name, p.clientId, false, addrOf(p.clientId)));
         }
         return out;
     }

@@ -867,6 +867,7 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         RoomCenter.stopHost();
         RoomCenter.stopClient();
         LanBridge.stopHost();
+        org.levimc.launcher.core.online.voice.VoiceEngine.get(this).stop();
         RoomCenter.roomCode = null;
         RoomCenter.hostGameOpen = false;
         currentCode = null;

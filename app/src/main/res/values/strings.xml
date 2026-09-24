@@ -1222,6 +1222,11 @@ Open Levi Launcher → Online → Join, then paste the code</string>
     <string name="online_room_created_fmt">Room created ✓
 Invite code: P/%1$s
 (Friends on the same Wi-Fi can join with this code)</string>
+    <string name="voice_mute">Muted</string>
+    <string name="voice_open">Mic on</string>
+    <string name="voice_ptt">PTT</string>
+    <string name="voice_ptt_hold">Hold to talk</string>
+    <string name="voice_perm_denied">Microphone permission required</string>
     <string name="online_copy_code">Copy code</string>
     <string name="online_copied">Copied to clipboard</string>
     <string name="online_share_code">Share code</string>

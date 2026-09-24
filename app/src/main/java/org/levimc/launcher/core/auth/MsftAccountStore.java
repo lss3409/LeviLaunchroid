@@ -107,6 +107,11 @@ public class MsftAccountStore {
         }
         save(ctx, list);
         org.levimc.launcher.core.auth.storage.XalExporter.exportActiveAccount(ctx);
+        // v527：登录/更新账号后刷新联机身份（昵称/头像立即换成 Xbox 的）
+        try {
+            org.levimc.launcher.core.online.PlayerIdentity.refresh(ctx);
+        } catch (Throwable ignored) {
+        }
         return target;
     }
 
@@ -125,6 +130,11 @@ public class MsftAccountStore {
         if (!hasActive && !list.isEmpty()) list.get(0).active = true;
         save(ctx, list);
         org.levimc.launcher.core.auth.storage.XalExporter.exportActiveAccount(ctx);
+        // v527：删账号后刷新联机身份
+        try {
+            org.levimc.launcher.core.online.PlayerIdentity.refresh(ctx);
+        } catch (Throwable ignored) {
+        }
     }
 
     public static synchronized void setActive(Context ctx, String id) {
@@ -134,6 +144,11 @@ public class MsftAccountStore {
         }
         save(ctx, list);
         org.levimc.launcher.core.auth.storage.XalExporter.exportActiveAccount(ctx);
+        // v527：切换账号后刷新联机身份
+        try {
+            org.levimc.launcher.core.online.PlayerIdentity.refresh(ctx);
+        } catch (Throwable ignored) {
+        }
     }
 
     public static synchronized MsftAccount find(Context ctx, String id) {
