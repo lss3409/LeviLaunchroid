@@ -696,13 +696,9 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         dialog.setCancelable(false);
         dialog.show();
         joinDialog = dialog;
-        // v533：弹窗视图不在 Activity 内容树内，个性化强调色需手动应用
-        try {
-            org.levimc.launcher.util.PersonalizationManager pm =
-                    new org.levimc.launcher.util.PersonalizationManager(this);
-            pm.applyAccentColorRecursive(v, pm.getAccentColor(), this);
-        } catch (Throwable ignored) {
-        }
+        // v537：弹窗内主按钮染个性化强调色（AccentStyler 无条件染色）
+        org.levimc.launcher.util.AccentStyler.stylePrimary(this,
+                v.findViewById(R.id.join_confirm_button));
 
         v.findViewById(R.id.join_cancel_button).setOnClickListener(x -> dialog.dismiss());
         v.findViewById(R.id.join_confirm_button).setOnClickListener(x -> {
@@ -750,7 +746,7 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         isHost = false;
         setStepState(1, true);
         new Thread(() -> {
-            List<String> peers = new ArrayList<>(LanDiscovery.discover(parsed.networkName, 3000));
+            List<String> peers = new ArrayList<>(LanDiscovery.discover(parsed.networkName, 1500)); // v537：局域网发现 3s→1.5s
             // 合并固定中转：异地/流量联机时局域网发现不到房主，必须靠中转牵线（v511 修复）
             for (String p : RelayStore.load(this)) {
                 if (!peers.contains(p)) {
@@ -1002,13 +998,10 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         dialog.setCancelable(true);
         dialog.setCanceledOnTouchOutside(true);
         dialog.show();
-        // v533：分享卡弹窗同样应用个性化强调色
-        try {
-            org.levimc.launcher.util.PersonalizationManager pm =
-                    new org.levimc.launcher.util.PersonalizationManager(this);
-            pm.applyAccentColorRecursive(v, pm.getAccentColor(), this);
-        } catch (Throwable ignored) {
-        }
+        // v537：分享卡按钮染个性化强调色
+        org.levimc.launcher.util.AccentStyler.stylePrimary(this,
+                v.findViewById(R.id.share_copy_button),
+                v.findViewById(R.id.share_send_button));
         v.findViewById(R.id.share_copy_button).setOnClickListener(x -> {
             copyCurrentCode();
             dialog.dismiss();
@@ -1031,25 +1024,15 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         startActivity(Intent.createChooser(send, getString(R.string.online_share_code)));
     }
 
-    /** v535/v536：primary 主按钮手动应用个性化强调色。
-     *  v536：不再检查原 tint（MaterialButton 的 getBackgroundTintList 可能为 null
-     *  导致漏染）——主操作按钮一律染成用户强调色。 */
+    /** v537：主按钮统一走 AccentStyler（无条件染强调色 + 按压态加深）。 */
     private void applyAccentToPrimaryButtons() {
         try {
-            org.levimc.launcher.util.PersonalizationManager pm =
-                    new org.levimc.launcher.util.PersonalizationManager(this);
-            int accent = pm.getAccentColor();
-            int[] ids = {R.id.online_copy_button, R.id.online_share_button, R.id.online_qr_button,
-                    R.id.online_room_copy_button, R.id.online_room_share_button};
-            for (int id : ids) {
-                View v = findViewById(id);
-                if (v instanceof com.google.android.material.button.MaterialButton) {
-                    com.google.android.material.button.MaterialButton b =
-                            (com.google.android.material.button.MaterialButton) v;
-                    b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(accent));
-                    b.setTextColor(Color.WHITE);
-                }
-            }
+            org.levimc.launcher.util.AccentStyler.stylePrimary(this,
+                    findViewById(R.id.online_copy_button),
+                    findViewById(R.id.online_share_button),
+                    findViewById(R.id.online_qr_button),
+                    findViewById(R.id.online_room_copy_button),
+                    findViewById(R.id.online_room_share_button));
         } catch (Throwable ignored) {
         }
     }

@@ -28,7 +28,8 @@ public final class EasyTierManager {
     /** 房主房间中心 TCP 端口（PaperConnect 协议：hostname = paper-connect-server-<port>）。 */
     /** 房间中心端口（v522：8090 与联想系统服务冲突，改 18090）。 */
     public static final int ROOM_CENTER_PORT = 18090;
-    private static final long POLL_INTERVAL_MS = 3000;
+    /** v537：IP 轮询 3s→1s（加入房间提速）。 */
+    private static final long POLL_INTERVAL_MS = 1000;
     private static final long IP_TIMEOUT_MS = 60_000;
     private static final String FALLBACK_CIDR = "10.144.0.0/16";
     /** 内核 DHCP 默认网段（OSPF 路由未同步时成员会拿到 10.126.126.x）。 */

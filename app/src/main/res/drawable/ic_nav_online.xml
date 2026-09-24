@@ -1,42 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v537：联机 tab 图标——用户提供的"分支"贴图复刻（顶部节点三分叉组网拓扑）。
+     白色 fill，运行时 tint 兼容个性化颜色。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-
-  <!-- 联机图标：简笔网络拓扑——中间一台电脑（上方方格），
-       左右两台电脑（下方方格）经连线互联（交换机式概念） -->
-  <path
-      android:pathData="M9,3L15,3L15,7L9,7Z"
-      android:strokeColor="#000000"
-      android:strokeWidth="2"
-      android:strokeLineJoin="round"
-      android:fillColor="@android:color/transparent" />
-
-  <path
-      android:pathData="M3,15L7,15L7,19L3,19Z"
-      android:strokeColor="#000000"
-      android:strokeWidth="2"
-      android:strokeLineJoin="round"
-      android:fillColor="@android:color/transparent" />
-
-  <path
-      android:pathData="M17,15L21,15L21,19L17,19Z"
-      android:strokeColor="#000000"
-      android:strokeWidth="2"
-      android:strokeLineJoin="round"
-      android:fillColor="@android:color/transparent" />
-
-  <path
-      android:pathData="M11,7L5.5,14.5"
-      android:strokeColor="#000000"
-      android:strokeWidth="2"
-      android:strokeLineCap="round" />
-
-  <path
-      android:pathData="M13,7L18.5,14.5"
-      android:strokeColor="#000000"
-      android:strokeWidth="2"
-      android:strokeLineCap="round" />
-
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M9.9,2.2h4.2v3h-4.2z
+            M11,5.2h2v7h-2z
+            M4.6,12.2h14.8v1.8H4.6z
+            M4.6,14h2.6v3.2H4.6z
+            M17,14h2.4v3.2H17z
+            M10.1,14h2.7v3.2h-2.7z" />
 </vector>
