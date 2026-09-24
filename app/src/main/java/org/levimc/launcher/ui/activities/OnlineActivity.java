@@ -115,6 +115,48 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         updateRelayView();
         refreshRecent();
         setHomeState(EasyTierManager.State.IDLE, null);
+
+        handleDebugJoinIntent(getIntent());
+    }
+
+    /**
+     * 调试后门（v511）：部分设备（vivo OriginOS）系统拦截调试广播且 adb 输入乱码，
+     * 改用 Activity 启动参数直接触发加入流程（Activity 启动不受广播拦截影响）：
+     * adb shell am start -n org.levimc.launcher/.ui.activities.OnlineActivity \
+     *   --es debug_join_code 8ZOZMCJDZFFAL450 --es debug_join_peer tcp://111.230.150.198:11010
+     * debug_join_peer 可选；不传则走局域网发现 + 固定中转。
+     */
+    private void handleDebugJoinIntent(Intent intent) {
+        if (intent == null) {
+            return;
+        }
+        String code = intent.getStringExtra("debug_join_code");
+        if (code == null || code.isEmpty()) {
+            return;
+        }
+        InviteCode.Result r = InviteCode.parse(InviteCode.formatInput(code));
+        if (!r.ok()) {
+            Toast.makeText(this, "debug_join_code 无效", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String peer = intent.getStringExtra("debug_join_peer");
+        currentCode = rawToCode(r.parsed);
+        isHost = false;
+        new Thread(() -> {
+            List<String> peers = new ArrayList<>();
+            if (peer != null && !peer.isEmpty()) {
+                peers.add(peer);
+            } else {
+                peers.addAll(LanDiscovery.discover(r.parsed.networkName, 3000));
+            }
+            for (String p : RelayStore.load(this)) {
+                if (!peers.contains(p)) {
+                    peers.add(p);
+                }
+            }
+            runOnUiThread(() -> EasyTierManager.get().join(this,
+                    r.parsed.networkName, r.parsed.networkSecret, this, peers));
+        }, "debug-join").start();
     }
 
     // ---------- 视图切换 ----------
@@ -473,7 +515,13 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         isHost = false;
         setStepState(1, true);
         new Thread(() -> {
-            List<String> peers = LanDiscovery.discover(parsed.networkName, 3000);
+            List<String> peers = new ArrayList<>(LanDiscovery.discover(parsed.networkName, 3000));
+            // 合并固定中转：异地/流量联机时局域网发现不到房主，必须靠中转牵线（v511 修复）
+            for (String p : RelayStore.load(this)) {
+                if (!peers.contains(p)) {
+                    peers.add(p);
+                }
+            }
             runOnUiThread(() -> {
                 if (joinDialog == null) {
                     return;
