@@ -62,6 +62,8 @@ public final class VoiceEngine implements RoomCenter.Listener {
     private static volatile int lastMode = MODE_MUTED;
     /** 是否被房主禁麦（v530：禁麦期间点击自己麦克风被拒，解除后恢复自由）。 */
     private static volatile boolean mutedByHost;
+    /** 当前采集音量电平 0-100（v533 PTT 声波动效用）。 */
+    private static volatile int currentLevel;
     private final Context app;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
@@ -118,6 +120,11 @@ public final class VoiceEngine implements RoomCenter.Listener {
     /** 无 Context 读取最近模式（RoomCenter 心跳同步用，v528）。 */
     public static int getLastMode() {
         return lastMode;
+    }
+
+    /** 当前采集音量电平 0-100（v533：PTT 按住说话的声波动效）。 */
+    public static int getCurrentLevel() {
+        return currentLevel;
     }
 
     public Set<String> getSpeakingClients() {
@@ -315,6 +322,11 @@ public final class VoiceEngine implements RoomCenter.Listener {
                 }
                 // 降噪：系统 NS/AEC（applyEffects）+ 软件噪声门限 VAD
                 boolean voice = vad.process(buf);
+                // v533：电平映射 0-100（静音≈0，正常说话 40-70，大声≈100）
+                double e = vad.getLastRms();
+                double db = 10 * Math.log10(e + 1);
+                int lv = (int) Math.round((db - 22) * 100 / 48);
+                currentLevel = Math.max(0, Math.min(100, lv));
                 // v528：开麦走 VAD 门；PTT 按住就发（对讲机语义，静音帧也发）
                 boolean send = mode == MODE_OPEN ? voice : pttPressed;
                 if (send) {

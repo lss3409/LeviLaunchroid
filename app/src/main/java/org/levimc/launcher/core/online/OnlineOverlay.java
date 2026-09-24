@@ -62,6 +62,49 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
 
     // v527/v528 麦克风 UI：每玩家行一个图标（自己=可点三态按钮，他人=状态显示）
     private TextView pttButton;
+    private LinearLayout pttWave;
+    private final View[] pttBars = new View[5];
+    private boolean waveRunning;
+    private int waveTick;
+    private final Runnable waveRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!waveRunning) {
+                return;
+            }
+            waveTick++;
+            int level = VoiceEngine.getCurrentLevel();
+            for (int i = 0; i < pttBars.length; i++) {
+                View bar = pttBars[i];
+                if (bar == null) {
+                    continue;
+                }
+                // 微信式：条高 = 基础 + 电平调制 + 条间相位差伪随机起伏
+                float phase = (float) Math.sin(i * 1.9 + waveTick * 0.85);
+                int h = dp(5) + (int) (dp(13) * (level / 100f) * (0.55f + 0.45f * phase));
+                bar.setLayoutParams(new LinearLayout.LayoutParams(dp(3), Math.max(dp(4), h)));
+            }
+            ui.postDelayed(this, 60);
+        }
+    };
+
+    private void startWave() {
+        VoiceEngine.get(activity).pttDown();
+        waveRunning = true;
+        waveTick = 0;
+        pttButton.setVisibility(View.INVISIBLE);
+        pttWave.setVisibility(View.VISIBLE);
+        ui.post(waveRunnable);
+    }
+
+    private void stopWave() {
+        VoiceEngine.get(activity).pttUp();
+        waveRunning = false;
+        ui.removeCallbacks(waveRunnable);
+        pttWave.setVisibility(View.GONE);
+        pttButton.setVisibility(View.VISIBLE);
+    }
+
     private boolean micPending;
     private final Map<String, TextView> playerRows = new HashMap<>();
     private final Map<String, android.widget.ImageView> playerMicViews = new HashMap<>();
@@ -153,7 +196,10 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         }
         barView = null;
         cardView = null;
+        waveRunning = false;
+        ui.removeCallbacks(waveRunnable);
         pttButton = null;
+        pttWave = null;
         playerRows.clear();
         playerMicViews.clear();
         playerMicStates.clear();
@@ -256,7 +302,7 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         plLp.topMargin = dp(6);
         card.addView(playersContainer, plLp);
 
-        // v528：PTT 按住说话大按钮（仅对讲机模式显示，全宽好按）
+        // v533：PTT 按住说话大按钮——微信式声波动效（按住时文字淡出、声纹条随音量起伏）
         pttButton = new TextView(activity);
         pttButton.setText(R.string.voice_ptt_hold);
         pttButton.setTextColor(Color.WHITE);
@@ -268,20 +314,41 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         pbg.setCornerRadius(dp(8));
         pttButton.setBackground(pbg);
         LinearLayout.LayoutParams ptLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(36));
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(40));
         ptLp.topMargin = dp(10);
         card.addView(pttButton, ptLp);
         pttButton.setVisibility(View.GONE);
-        pttButton.setOnTouchListener((v, e) -> {
+        // 声纹容器：按钮背景 + 波形条
+        pttWave = new LinearLayout(activity);
+        pttWave.setOrientation(LinearLayout.HORIZONTAL);
+        pttWave.setGravity(Gravity.CENTER);
+        GradientDrawable wbg = new GradientDrawable();
+        wbg.setColor(accent);
+        wbg.setCornerRadius(dp(8));
+        pttWave.setBackground(wbg);
+        card.addView(pttWave, ptLp);
+        pttWave.setVisibility(View.GONE);
+        for (int i = 0; i < 5; i++) {
+            View bar = new View(activity);
+            GradientDrawable barBg = new GradientDrawable();
+            barBg.setColor(0xCCFFFFFF);
+            barBg.setCornerRadius(dp(2));
+            bar.setBackground(barBg);
+            LinearLayout.LayoutParams barLp = new LinearLayout.LayoutParams(dp(3), dp(6));
+            if (i > 0) {
+                barLp.leftMargin = dp(3);
+            }
+            pttWave.addView(bar, barLp);
+            pttBars[i] = bar;
+        }
+        pttWave.setOnTouchListener((v, e) -> {
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
-                    VoiceEngine.get(activity).pttDown();
-                    v.setAlpha(0.7f);
+                    startWave();
                     return true;
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
-                    VoiceEngine.get(activity).pttUp();
-                    v.setAlpha(1f);
+                    stopWave();
                     return true;
             }
             return false;
@@ -506,6 +573,10 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         }
         if (pttButton != null) {
             pttButton.setVisibility(selfMode == VoiceEngine.MODE_PTT ? View.VISIBLE : View.GONE);
+        }
+        if (pttWave != null) {
+            pttWave.setVisibility(selfMode == VoiceEngine.MODE_PTT && waveRunning
+                    ? View.VISIBLE : View.GONE);
         }
     }
 

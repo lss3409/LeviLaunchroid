@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v530 PTT 对讲机图标（机身+圆头天线+喇叭格栅+侧键）。
-     evenOdd 填充：格栅/按键为镂空，运行时 setColorFilter 只染机身。 -->
+<!-- v533 PTT 对讲机图标（Material 简洁风重画）：
+     圆角机身 + 圆头天线 + 三个喇叭孔圆点 + 侧键，evenOdd 真镂空。
+     与 ic_mic_on/ic_mic_off 同一种填充风格，去掉 emoji 感。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -9,10 +10,10 @@
     <path
         android:fillColor="#FFFFFFFF"
         android:fillType="evenOdd"
-        android:pathData="M9.5,9V6.5C9.5,5.12 10.62,4 12,4C13.38,4 14.5,5.12 14.5,6.5V9H9.5z
-            M6.5,9h11c1.38,0 2.5,1.12 2.5,2.5v7c0,1.38 -1.12,2.5 -2.5,2.5h-11C5.12,21 4,19.88 4,18.5v-7C4,10.12 5.12,9 6.5,9z
-            M6.2,13h3.6v1.3H6.2z
-            M6.2,15.6h3.6v1.3H6.2z
-            M6.2,18.2h3.6v1.3H6.2z
-            M16,13.2h2.2v2.4H16z" />
+        android:pathData="M11,3h2c1.38,0 2.5,1.12 2.5,2.5V9h-7V5.5C8.5,4.12 9.62,3 11,3z
+            M6.5,9h11c1.66,0 3,1.34 3,3v7c0,1.66 -1.34,3 -3,3h-11c-1.66,0 -3,-1.34 -3,-3v-7c0,-1.66 1.34,-3 3,-3z
+            M9.3,13.4a0.95,0.95 0 1,1 1.9,0a0.95,0.95 0 1,1 -1.9,0z
+            M9.3,16.5a0.95,0.95 0 1,1 1.9,0a0.95,0.95 0 1,1 -1.9,0z
+            M9.3,19.6a0.95,0.95 0 1,1 1.9,0a0.95,0.95 0 1,1 -1.9,0z
+            M15.6,13h2v2.4h-2z" />
 </vector>

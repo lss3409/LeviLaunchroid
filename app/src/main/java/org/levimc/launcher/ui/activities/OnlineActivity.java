@@ -5,6 +5,7 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.net.Uri;
 import android.net.VpnService;
 import android.os.Bundle;
 import android.text.Editable;
@@ -30,6 +31,7 @@ import org.levimc.launcher.core.online.QrUtils;
 import org.levimc.launcher.core.online.RelayStore;
 import org.levimc.launcher.core.online.RoomCenter;
 
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,6 +43,8 @@ import java.util.List;
 public final class OnlineActivity extends BaseActivity implements EasyTierManager.Listener {
 
     private static final int REQ_VPN = 1001;
+    /** v533：扫码请求码（journeyapps 默认 49374；相册选图自定义）。 */
+    private static final int REQ_SCAN_GALLERY = 1003;
     private static final String HOST_IPV4 = "10.144.144.144";
     private static final String PREFS_RECENT = "levimc_recent";
     private static final String KEY_RECENT = "rooms";
@@ -130,6 +134,11 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         findViewById(R.id.online_room_share_button).setOnClickListener(v -> shareCurrentCode());
         findViewById(R.id.online_qr_button).setOnClickListener(v -> showQrDialog());
         findViewById(R.id.online_back_home_button).setOnClickListener(v -> showHome());
+
+        // v533：预热身份（昵称+头像静态缓存）——debug 后门加入时不经过 UI
+        // 展示路径，不预热会导致心跳 avatarUrl 为空（vivo 头像"不显示"根因）
+        PlayerIdentity.getNickname(this);
+        PlayerIdentity.getAvatarUrl(this);
 
         updateRelayView();
         refreshRecent();
@@ -614,6 +623,35 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
             }
         });
 
+        // v533：扫码加入（相机面对面扫 / 相册选图）
+        v.findViewById(R.id.join_scan_button).setOnClickListener(x -> {
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.online_scan_title)
+                    .setItems(new String[]{getString(R.string.online_scan_camera),
+                            getString(R.string.online_scan_gallery)}, (d, which) -> {
+                        if (which == 0) {
+                            try {
+                                new com.google.zxing.integration.android.IntentIntegrator(this)
+                                        .setDesiredBarcodeFormats(
+                                                com.google.zxing.integration.android.IntentIntegrator.QR_CODE)
+                                        .setPrompt(getString(R.string.online_scan_camera))
+                                        .setOrientationLocked(false)
+                                        .initiateScan();
+                            } catch (Throwable t) {
+                                Toast.makeText(this, getString(R.string.online_scan_unavailable),
+                                        Toast.LENGTH_SHORT).show();
+                            }
+                        } else {
+                            Intent pick = new Intent(Intent.ACTION_GET_CONTENT);
+                            pick.setType("image/*");
+                            pick.addCategory(Intent.CATEGORY_OPENABLE);
+                            startActivityForResult(pick, REQ_SCAN_GALLERY);
+                        }
+                    })
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show();
+        });
+
         input.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int a, int b, int c) {
@@ -650,6 +688,13 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                 .setCancelable(false)
                 .create();
         joinDialog = dialog;
+        // v533：弹窗视图不在 Activity 内容树内，个性化强调色需手动应用
+        try {
+            org.levimc.launcher.util.PersonalizationManager pm =
+                    new org.levimc.launcher.util.PersonalizationManager(this);
+            pm.applyAccentColorRecursive(v, pm.getAccentColor(), this);
+        } catch (Throwable ignored) {
+        }
 
         v.findViewById(R.id.join_cancel_button).setOnClickListener(x -> dialog.dismiss());
         v.findViewById(R.id.join_confirm_button).setOnClickListener(x -> {
@@ -946,6 +991,13 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setView(v)
                 .create();
+        // v533：分享卡弹窗同样应用个性化强调色
+        try {
+            org.levimc.launcher.util.PersonalizationManager pm =
+                    new org.levimc.launcher.util.PersonalizationManager(this);
+            pm.applyAccentColorRecursive(v, pm.getAccentColor(), this);
+        } catch (Throwable ignored) {
+        }
         v.findViewById(R.id.share_copy_button).setOnClickListener(x -> {
             copyCurrentCode();
             dialog.dismiss();
@@ -1049,6 +1101,27 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        // v533：扫码结果（相机/相册）→ 提取邀请码回填输入框
+        if (requestCode == REQ_SCAN_GALLERY) {
+            if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+                String text = decodeQrFromImage(data.getData());
+                if (text != null) {
+                    fillJoinInput(text);
+                } else {
+                    Toast.makeText(this, R.string.online_scan_failed, Toast.LENGTH_SHORT).show();
+                }
+            }
+            return;
+        }
+        if (requestCode == com.google.zxing.integration.android.IntentIntegrator.REQUEST_CODE) {
+            com.google.zxing.integration.android.IntentResult scan =
+                    com.google.zxing.integration.android.IntentIntegrator.parseActivityResult(
+                            requestCode, resultCode, data);
+            if (scan != null && scan.getContents() != null) {
+                fillJoinInput(scan.getContents());
+            }
+            return;
+        }
         if (requestCode != REQ_VPN) {
             return;
         }
@@ -1060,6 +1133,49 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                 joinDialog.dismiss();
             }
             Toast.makeText(this, R.string.online_vpn_cancelled, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /** v533：扫码文本 → 智能提取邀请码 → 回填加入弹窗输入框。 */
+    private void fillJoinInput(String text) {
+        if (text == null) {
+            return;
+        }
+        String code = InviteCode.formatInput(text);
+        if (joinDialog != null && joinDialog.isShowing()) {
+            EditText input = joinDialog.findViewById(R.id.join_code_input);
+            input.setText(code);
+            input.setSelection(input.length());
+            TextView feedback = joinDialog.findViewById(R.id.join_feedback);
+            updateJoinFeedback(input, feedback);
+        } else {
+            showJoinDialogWithCode(code);
+        }
+    }
+
+    /** v533：相册图片解码二维码（zxing core）。 */
+    private String decodeQrFromImage(Uri uri) {
+        try (InputStream is = getContentResolver().openInputStream(uri)) {
+            android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeStream(is);
+            if (bmp == null) {
+                return null;
+            }
+            int w = bmp.getWidth();
+            int h = bmp.getHeight();
+            int[] px = new int[w * h];
+            bmp.getPixels(px, 0, w, 0, 0, w, h);
+            com.google.zxing.LuminanceSource src =
+                    new com.google.zxing.RGBLuminanceSource(w, h, px);
+            com.google.zxing.BinaryBitmap bb = new com.google.zxing.BinaryBitmap(
+                    new com.google.zxing.common.HybridBinarizer(src));
+            java.util.Map<com.google.zxing.DecodeHintType, Object> hints = new java.util.HashMap<>();
+            hints.put(com.google.zxing.DecodeHintType.POSSIBLE_FORMATS,
+                    java.util.Collections.singletonList(com.google.zxing.BarcodeFormat.QR_CODE));
+            hints.put(com.google.zxing.DecodeHintType.CHARACTER_SET, "UTF-8");
+            com.google.zxing.Result r = new com.google.zxing.qrcode.QRCodeReader().decode(bb, hints);
+            return r == null ? null : r.getText();
+        } catch (Exception e) {
+            return null;
         }
     }
 

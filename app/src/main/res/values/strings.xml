@@ -1234,6 +1234,11 @@ Invite code: P/%1$s
     <string name="pack_version_warning_channel">Pack warnings</string>
     <string name="pack_version_warning_fmt">「%1$s」requires game version %2$s or higher, but the current instance is %3$s. It may not work properly.</string>
     <string name="backup_notif_channel">World backups</string>
+    <string name="online_scan_title">Scan to join</string>
+    <string name="online_scan_camera">Scan with camera</string>
+    <string name="online_scan_gallery">Choose from gallery</string>
+    <string name="online_scan_failed">Could not read QR code</string>
+    <string name="online_scan_unavailable">Camera unavailable</string>
     <string name="online_self_suffix"> (You)</string>
     <string name="online_join_banner_fmt">「%1$s」joined the room</string>
     <string name="online_leave_banner_fmt">「%1$s」left the room</string>
