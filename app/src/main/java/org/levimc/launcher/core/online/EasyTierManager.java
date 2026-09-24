@@ -26,7 +26,8 @@ public final class EasyTierManager {
     private static final String TAG = "EasyTierMgr";
     private static final String INSTANCE_NAME = "paper-connect";
     /** 房主房间中心 TCP 端口（PaperConnect 协议：hostname = paper-connect-server-<port>）。 */
-    public static final int ROOM_CENTER_PORT = 8090;
+    /** 房间中心端口（v522：8090 与联想系统服务冲突，改 18090）。 */
+    public static final int ROOM_CENTER_PORT = 18090;
     private static final long POLL_INTERVAL_MS = 3000;
     private static final long IP_TIMEOUT_MS = 60_000;
     private static final String FALLBACK_CIDR = "10.144.0.0/16";
@@ -66,6 +67,8 @@ public final class EasyTierManager {
     private volatile boolean active;
     private volatile State state = State.IDLE;
     private volatile String virtualIp;
+    /** 最近一次连接使用的虚拟网段路由（v522 看门狗重拉 VpnService 用）。 */
+    private volatile java.util.List<String> lastCidrs = new java.util.ArrayList<>();
     private volatile ConnMode connMode = ConnMode.UNKNOWN;
     private Context appContext;
     private Listener listener;
@@ -198,9 +201,11 @@ public final class EasyTierManager {
             }
             if (info.virtualIp != null) {
                 virtualIp = info.virtualIp;
+                lastCidrs = new java.util.ArrayList<>(info.cidrs);
                 startVpn(info.virtualIp, info.cidrs);
                 Log.i(TAG, "已连接, 虚拟 IP = " + info.virtualIp);
                 notifyState(State.CONNECTED, info.virtualIp);
+                startWatchdog();
                 return;
             }
         }
@@ -257,6 +262,60 @@ public final class EasyTierManager {
             appContext.startService(i);
         } catch (Throwable t) {
             Log.e(TAG, "启动 VpnService 失败", t);
+        }
+    }
+
+    /**
+     * v522 管理器级看门狗：CONNECTED 后每 5s——
+     * ① TUN 丢失（服务被系统解绑/杀死）自动重新拉起 VpnService；
+     * ② 周期刷新连接模式（peer 路由变化实时反映到徽章）。
+     */
+    private void startWatchdog() {
+        Thread t = new Thread(() -> {
+            while (active && state == State.CONNECTED) {
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    return;
+                }
+                if (!active || state != State.CONNECTED) {
+                    return;
+                }
+                try {
+                    if (!tunExists()) {
+                        Log.w(TAG, "看门狗：TUN 丢失，重新拉起 VpnService");
+                        startVpn(virtualIp, lastCidrs);
+                        continue;
+                    }
+                    Info info = pollInfo();
+                    if (info != null && !info.running) {
+                        postFail("网络实例停止" + (info.errorMsg.isEmpty() ? "" : ": " + info.errorMsg));
+                        return;
+                    }
+                } catch (Throwable t2) {
+                    Log.w(TAG, "看门狗异常", t2);
+                }
+            }
+        }, "easytier-watchdog");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /** TUN 接口是否存在（/proc/net/dev 含 tun 行）。 */
+    private static boolean tunExists() {
+        try {
+            java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader("/proc/net/dev"));
+            String line;
+            while ((line = r.readLine()) != null) {
+                if (line.contains("tun")) {
+                    r.close();
+                    return true;
+                }
+            }
+            r.close();
+            return false;
+        } catch (Exception e) {
+            return true; // 读不到就当健康，避免误拉
         }
     }
 

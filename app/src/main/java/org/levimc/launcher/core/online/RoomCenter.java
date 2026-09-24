@@ -28,7 +28,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class RoomCenter {
 
     private static final String TAG = "RoomCenter";
-    public static final int PORT = 8090;
+    /** 房间中心端口（v522：8090 与联想系统服务冲突，改 18090）。 */
+    public static final int PORT = 18090;
     private static final long HEARTBEAT_MS = 5000;
     private static final long TIMEOUT_MS = 10_000;
     public static final int GAME_PORT = 19132;
