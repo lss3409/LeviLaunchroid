@@ -536,26 +536,28 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         org.levimc.launcher.ui.dialogs.CustomAlertDialog dialog =
                 new org.levimc.launcher.ui.dialogs.CustomAlertDialog(activity);
         dialog.setCustomView(v);
+        // v558：点弹窗旁空白区域关闭（与二维码弹窗一致）
+        dialog.setCanceledOnTouchOutside(true);
         dialog.show();
     }
 
-    /** 开关胶囊样式刷新（开=强调色底白字，关=暗底亮字）。 */
+    /** 开关胶囊样式刷新（开=强调色底深字，关=暗底亮字）。 */
     private void refreshToggle(TextView t, boolean on) {
         t.setText(on ? "开" : "关");
         t.setTextSize(13);
         t.setGravity(Gravity.CENTER);
-        // v552：文字颜色提亮——绿色强调色底上银色半透明字看不清
-        t.setTextColor(on ? Color.WHITE : 0xFFF2F2F2);
+        // v558：强调色（抹茶绿等亮色）底上用深色字——白字在亮色底上对比度不足看不清
+        t.setTextColor(on ? 0xFF101016 : 0xFFF2F2F2);
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(on ? accent : 0x33FFFFFF);
         bg.setCornerRadius(dp(9));
         t.setBackground(bg);
     }
 
-    /** 选项胶囊样式刷新（选中=强调色底白字，未选=暗底亮字）。 */
+    /** 选项胶囊样式刷新（选中=强调色底深字，未选=暗底亮字）。 */
     private void refreshCapsule(TextView t, boolean selected) {
-        // v552：文字颜色提亮（0xAAFFFFFF 银色在强调色底上不可见）
-        t.setTextColor(selected ? Color.WHITE : 0xFFF2F2F2);
+        // v558：选中态深字（同启动器按钮 on_primary），亮色强调色底上清晰可见
+        t.setTextColor(selected ? 0xFF101016 : 0xFFF2F2F2);
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(selected ? accent : 0x33FFFFFF);
         bg.setCornerRadius(dp(9));
