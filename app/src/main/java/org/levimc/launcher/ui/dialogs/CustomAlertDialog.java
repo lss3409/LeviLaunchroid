@@ -42,6 +42,8 @@ public class CustomAlertDialog extends Dialog {
     private boolean mUseBorderedBackground;
     private boolean mDismissing;
     private Runnable mDismissAnimationEndListener;
+    /** v539：点外部关闭开关（onCreate 里硬编码 false 会覆盖外部设置，改用字段）。 */
+    private boolean mCanceledOnTouchOutside = false;
 
     public CustomAlertDialog(Context context) {
         super(context);
@@ -106,11 +108,19 @@ public class CustomAlertDialog extends Dialog {
         return this;
     }
 
+    /** v539：记录字段，onCreate 里重新应用（否则 show 前设置会被覆盖）。 */
+    @Override
+    public void setCanceledOnTouchOutside(boolean cancel) {
+        mCanceledOnTouchOutside = cancel;
+        super.setCanceledOnTouchOutside(cancel);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.alert_dialog_custom);
-        setCanceledOnTouchOutside(false);
+        // v539：用字段（默认 false 保持原行为；分享卡弹窗显式开启）
+        setCanceledOnTouchOutside(mCanceledOnTouchOutside);
 
         if (mUseBorderedBackground) {
             View root = findViewById(android.R.id.content);
