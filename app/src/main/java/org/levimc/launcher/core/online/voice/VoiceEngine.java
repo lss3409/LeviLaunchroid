@@ -62,6 +62,12 @@ public final class VoiceEngine implements RoomCenter.Listener {
     private static volatile int lastMode = MODE_MUTED;
     /** 是否被房主禁麦（v530：禁麦期间点击自己麦克风被拒，解除后恢复自由）。 */
     private static volatile boolean mutedByHost;
+    /** v547：降噪开关（悬浮窗设置项；关=跳过系统 NoiseSuppressor/AEC）。 */
+    private static volatile boolean noiseSuppression = true;
+    /** v547：降噪等级 0 低 / 1 中 / 2 高（VAD 阈值系数 0.6/1.0/1.5）。 */
+    private static volatile int noiseLevel = 1;
+    /** v547：设置变化后需要重建 AudioRecord（applyEffects 只在创建时生效）。 */
+    private static volatile boolean captureDirty;
     /** 当前采集音量电平 0-100（v533 PTT 声波动效用）。 */
     private static volatile int currentLevel;
     private final Context app;
@@ -178,6 +184,31 @@ public final class VoiceEngine implements RoomCenter.Listener {
     /** 是否被房主禁麦（v530，UI 弹提示用）。 */
     public static boolean isMutedByHost() {
         return mutedByHost;
+    }
+
+    /** v547：降噪开关/等级（悬浮窗设置项）。开关/等级变化后重建采集生效。 */
+    public static void setNoiseSuppression(boolean on) {
+        if (noiseSuppression != on) {
+            noiseSuppression = on;
+            captureDirty = true;
+        }
+    }
+
+    public static boolean isNoiseSuppressionOn() {
+        return noiseSuppression;
+    }
+
+    public static void setNoiseLevel(int level) {
+        int lv = Math.max(0, Math.min(2, level));
+        if (noiseLevel != lv) {
+            noiseLevel = lv;
+            // 0 低 0.6 / 1 中 1.0 / 2 高 1.5（VAD 阈值系数）
+            Vad.setLevelFactor(lv == 0 ? 0.6 : lv == 2 ? 1.5 : 1.0);
+        }
+    }
+
+    public static int getNoiseLevel() {
+        return noiseLevel;
     }
 
     /** 房主个体禁麦指令（c:mute 单播，无 Context 静态入口，v530）。 */
@@ -315,6 +346,12 @@ public final class VoiceEngine implements RoomCenter.Listener {
                     Thread.sleep(300);
                     continue;
                 }
+                // v547：降噪开关变化 → 释放重建 AudioRecord（applyEffects 创建时生效）
+                if (captureDirty) {
+                    captureDirty = false;
+                    releaseQuiet(rec);
+                    rec = null;
+                }
                 if (rec == null) {
                     rec = createRecord();
                     if (rec == null) {
@@ -377,9 +414,14 @@ public final class VoiceEngine implements RoomCenter.Listener {
         }
     }
 
-    /** 系统降噪：NoiseSuppressor + AcousticEchoCanceler（API 33 起弃用但多数设备仍有效）。 */
+    /** 系统降噪：NoiseSuppressor + AcousticEchoCanceler（API 33 起弃用但多数设备仍有效）。
+     *  v547：noiseSuppression=false 时跳过（悬浮窗设置项）。 */
     @SuppressWarnings("deprecation")
     private static void applyEffects(AudioRecord rec) {
+        if (!noiseSuppression) {
+            Log.i(TAG, "降噪已关闭（设置）");
+            return;
+        }
         try {
             if (android.media.audiofx.NoiseSuppressor.isAvailable()) {
                 android.media.audiofx.NoiseSuppressor ns =

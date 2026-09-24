@@ -284,6 +284,16 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         cardState.setTextSize(13);
         cardState.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         header.addView(cardState, new LinearLayout.LayoutParams(0, dp(24), 1f));
+        // v547：设置按钮（只在游戏内悬浮窗——降噪开关/等级 + 详情卡查看权限）
+        TextView settings = new TextView(activity);
+        settings.setText("⚙");
+        settings.setTextColor(0xAAFFFFFF);
+        settings.setTextSize(13);
+        settings.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams sLp = new LinearLayout.LayoutParams(dp(24), dp(24));
+        sLp.rightMargin = dp(6);
+        header.addView(settings, sLp);
+        settings.setOnClickListener(v -> showSettings());
         TextView collapse = new TextView(activity);
         collapse.setText("收起");
         collapse.setTextColor(0xAAFFFFFF);
@@ -414,6 +424,138 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         cardParams.y = dp(90);
         // v525：展开卡片也可拖动
         card.setOnTouchListener(this::onCardTouch);
+    }
+
+    /**
+     * v547：悬浮窗设置——降噪开关/等级 + 详情卡查看权限（仅游戏内悬浮窗有入口）。
+     */
+    private void showSettings() {
+        LinearLayout v = new LinearLayout(activity);
+        v.setOrientation(LinearLayout.VERTICAL);
+        v.setPadding(dp(20), dp(16), dp(20), dp(16));
+
+        // 降噪开关
+        TextView noiseLabel = new TextView(activity);
+        noiseLabel.setText(R.string.online_settings_noise);
+        noiseLabel.setTextSize(13);
+        noiseLabel.setTextColor(0xFFDDDDDD);
+        v.addView(noiseLabel);
+        final boolean[] ns = {VoiceEngine.isNoiseSuppressionOn()};
+        TextView noiseToggle = new TextView(activity);
+        refreshToggle(noiseToggle, ns[0]);
+        LinearLayout.LayoutParams ntLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(36));
+        ntLp.topMargin = dp(6);
+        v.addView(noiseToggle, ntLp);
+        noiseToggle.setOnClickListener(x -> {
+            ns[0] = !ns[0];
+            VoiceEngine.setNoiseSuppression(ns[0]);
+            refreshToggle(noiseToggle, ns[0]);
+        });
+
+        // 降噪等级
+        TextView levelLabel = new TextView(activity);
+        levelLabel.setText(R.string.online_settings_noise_level);
+        levelLabel.setTextSize(13);
+        levelLabel.setTextColor(0xFFDDDDDD);
+        LinearLayout.LayoutParams llLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        llLp.topMargin = dp(14);
+        v.addView(levelLabel, llLp);
+        LinearLayout levelRow = new LinearLayout(activity);
+        levelRow.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams lrLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(34));
+        lrLp.topMargin = dp(6);
+        v.addView(levelRow, lrLp);
+        int[] levelNames = {R.string.online_settings_noise_low,
+                R.string.online_settings_noise_medium, R.string.online_settings_noise_high};
+        final int[] curLevel = {VoiceEngine.getNoiseLevel()};
+        for (int i = 0; i < 3; i++) {
+            final int level = i;
+            TextView cap = new TextView(activity);
+            cap.setText(levelNames[i]);
+            cap.setTextSize(12);
+            cap.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(0, dp(30), 1f);
+            if (i > 0) {
+                cLp.leftMargin = dp(6);
+            }
+            levelRow.addView(cap, cLp);
+            refreshCapsule(cap, curLevel[0] == level);
+            cap.setOnClickListener(x -> {
+                VoiceEngine.setNoiseLevel(level);
+                curLevel[0] = level;
+                for (int j = 0; j < levelRow.getChildCount(); j++) {
+                    refreshCapsule((TextView) levelRow.getChildAt(j), j == level);
+                }
+            });
+        }
+
+        // 详情卡查看权限
+        TextView permLabel = new TextView(activity);
+        permLabel.setText(R.string.online_settings_view_perm);
+        permLabel.setTextSize(13);
+        permLabel.setTextColor(0xFFDDDDDD);
+        LinearLayout.LayoutParams plLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        plLp.topMargin = dp(14);
+        v.addView(permLabel, plLp);
+        LinearLayout permRow = new LinearLayout(activity);
+        permRow.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams prLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(34));
+        prLp.topMargin = dp(6);
+        v.addView(permRow, prLp);
+        int[] permNames = {R.string.online_settings_perm_none,
+                R.string.online_settings_perm_host, R.string.online_settings_perm_all};
+        final int[] curPerm = {PlayerDetailCard.getViewPerm(activity)};
+        for (int i = 0; i < 3; i++) {
+            final int perm = i;
+            TextView cap = new TextView(activity);
+            cap.setText(permNames[i]);
+            cap.setTextSize(12);
+            cap.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(0, dp(30), 1f);
+            if (i > 0) {
+                cLp.leftMargin = dp(6);
+            }
+            permRow.addView(cap, cLp);
+            refreshCapsule(cap, curPerm[0] == perm);
+            cap.setOnClickListener(x -> {
+                PlayerDetailCard.setViewPerm(activity, perm);
+                curPerm[0] = perm;
+                for (int j = 0; j < permRow.getChildCount(); j++) {
+                    refreshCapsule((TextView) permRow.getChildAt(j), j == perm);
+                }
+            });
+        }
+
+        org.levimc.launcher.ui.dialogs.CustomAlertDialog dialog =
+                new org.levimc.launcher.ui.dialogs.CustomAlertDialog(activity);
+        dialog.setCustomView(v);
+        dialog.show();
+    }
+
+    /** 开关胶囊样式刷新（开=强调色底白字，关=暗底灰字）。 */
+    private void refreshToggle(TextView t, boolean on) {
+        t.setText(on ? "开" : "关");
+        t.setTextSize(13);
+        t.setGravity(Gravity.CENTER);
+        t.setTextColor(on ? Color.WHITE : 0xAAFFFFFF);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(on ? accent : 0x22FFFFFF);
+        bg.setCornerRadius(dp(9));
+        t.setBackground(bg);
+    }
+
+    /** 选项胶囊样式刷新（选中=强调色底白字，未选=暗底灰字）。 */
+    private void refreshCapsule(TextView t, boolean selected) {
+        t.setTextColor(selected ? Color.WHITE : 0xAAFFFFFF);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(selected ? accent : 0x22FFFFFF);
+        bg.setCornerRadius(dp(9));
+        t.setBackground(bg);
     }
 
     private boolean onCardTouch(View v, MotionEvent e) {
@@ -772,12 +914,8 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
                 n++;
             }
         }
-        int count = 1;
-        try {
-            int members = RoomCenter.getMemberAddresses().size();
-            count = Math.max(1, members + 1);
-        } catch (Exception ignored) {
-        }
+        // v547：人数用最近名单快照（成员端 memberAddrs 恒空，之前永远显示 1 人）
+        int count = RoomCenter.getLastPlayerCount();
         String loss = n == 0 ? "--" : String.valueOf(lost * 100 / Math.max(1, n));
         long avgRtt = avg <= 0 ? -1 : avg / Math.max(1, n - lost);
         String rtt = avgRtt < 0 ? "--ms" : avgRtt + "ms";
@@ -870,17 +1008,18 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
                         name.setTextSize(12);
                         row.addView(name, new LinearLayout.LayoutParams(0,
                                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-                        // v530：房主点击成员行 = 禁麦/解除禁麦（不能强制开麦）
-                        if (RoomCenter.isHost && !self && !p.isRoomHost) {
-                            row.setOnClickListener(v -> {
-                                boolean nowMuted = !RoomCenter.isMuted(p.clientId);
-                                RoomCenter.sendMute(p.clientId, nowMuted);
-                                Toast.makeText(activity,
-                                        nowMuted ? R.string.voice_mute_member
-                                                : R.string.voice_unmute_member,
+                        // v547：点击玩家行弹详情卡（联机页同款）；
+                        // 房主点成员行时卡片内带「禁麦/解除禁麦」按钮
+                        // （v530 的行点击直接禁麦交互迁移进详情卡）
+                        row.setOnClickListener(v -> {
+                            if (PlayerDetailCard.canView(activity, p, RoomCenter.isHost)) {
+                                PlayerDetailCard.show(activity, p,
+                                        RoomCenter.isHost && !self && !p.isRoomHost);
+                            } else {
+                                Toast.makeText(activity, R.string.online_card_no_permission,
                                         Toast.LENGTH_SHORT).show();
-                            });
-                        }
+                            }
+                        });
                         // v528：每玩家行右侧麦克风（自己=可点三态按钮，他人=状态显示）
                         android.widget.ImageView mic = new android.widget.ImageView(activity);
                         mic.setImageResource(R.drawable.ic_mic_off);

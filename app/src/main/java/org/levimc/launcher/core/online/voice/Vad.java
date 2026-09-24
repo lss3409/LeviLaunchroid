@@ -17,6 +17,13 @@ final class Vad {
     /** 尾音保持帧数（20ms/帧 → 100ms）。 */
     private static final int HANG_FRAMES = 5;
 
+    /** v547：降噪等级系数（VoiceEngine 设置项，低 0.6 / 中 1 / 高 1.5）。 */
+    private static volatile double levelFactor = 1.0;
+
+    static void setLevelFactor(double f) {
+        levelFactor = f;
+    }
+
     private double floor = FLOOR_INIT;
     private int hangover;
     private double lastRms;
@@ -34,7 +41,8 @@ final class Vad {
             }
         }
         lastFloor = floor;
-        boolean voice = e > Math.max(floor * FLOOR_GAIN, ABS_THRESHOLD);
+        // v547：阈值随降噪等级缩放（高等级=更难触发=只传清晰语音）
+        boolean voice = e > Math.max(floor * FLOOR_GAIN, ABS_THRESHOLD) * levelFactor;
         if (voice) {
             hangover = HANG_FRAMES;
         } else if (hangover > 0) {

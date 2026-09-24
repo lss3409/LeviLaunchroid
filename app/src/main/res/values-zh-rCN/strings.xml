@@ -1242,6 +1242,18 @@
     <string name="online_leave_banner_fmt">「%1$s」离开了房间</string>
     <string name="online_copy_code">复制邀请码</string>
     <string name="online_copied">已复制到剪贴板</string>
+    <!-- v547：详情卡/设置 -->
+    <string name="online_card_no_permission">该玩家未开放详情卡</string>
+    <string name="online_settings_title">悬浮窗设置</string>
+    <string name="online_settings_noise">降噪</string>
+    <string name="online_settings_noise_level">降噪等级</string>
+    <string name="online_settings_noise_low">低</string>
+    <string name="online_settings_noise_medium">中</string>
+    <string name="online_settings_noise_high">高</string>
+    <string name="online_settings_view_perm">谁可以查看我的详情卡</string>
+    <string name="online_settings_perm_none">关闭</string>
+    <string name="online_settings_perm_host">仅房主</string>
+    <string name="online_settings_perm_all">所有人</string>
     <string name="online_share_code">分享邀请码</string>
     <string name="online_discovering">正在局域网内寻找房主…</string>
     <string name="online_err_format">邀请码格式不对，应为 P/XXXX-XXXX-XXXX-XXXX</string>

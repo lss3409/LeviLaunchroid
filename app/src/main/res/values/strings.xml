@@ -1244,6 +1244,18 @@ Invite code: P/%1$s
     <string name="online_leave_banner_fmt">「%1$s」left the room</string>
     <string name="online_copy_code">Copy code</string>
     <string name="online_copied">Copied to clipboard</string>
+    <!-- v547：详情卡/设置 -->
+    <string name="online_card_no_permission">This player has not shared their profile card</string>
+    <string name="online_settings_title">Overlay settings</string>
+    <string name="online_settings_noise">Noise suppression</string>
+    <string name="online_settings_noise_level">Suppression level</string>
+    <string name="online_settings_noise_low">Low</string>
+    <string name="online_settings_noise_medium">Medium</string>
+    <string name="online_settings_noise_high">High</string>
+    <string name="online_settings_view_perm">Who can view my profile card</string>
+    <string name="online_settings_perm_none">No one</string>
+    <string name="online_settings_perm_host">Host only</string>
+    <string name="online_settings_perm_all">Everyone</string>
     <string name="online_share_code">Share code</string>
     <string name="online_discovering">Looking for host on the local network…</string>
     <string name="online_err_format">Invalid code format. Expected P/XXXX-XXXX-XXXX-XXXX</string>

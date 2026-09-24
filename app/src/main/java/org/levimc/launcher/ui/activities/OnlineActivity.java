@@ -27,6 +27,7 @@ import org.levimc.launcher.core.online.InviteCode;
 import org.levimc.launcher.core.online.LanBridge;
 import org.levimc.launcher.core.online.LanDiscovery;
 import org.levimc.launcher.core.online.OnlineOverlay;
+import org.levimc.launcher.core.online.PlayerDetailCard;
 import org.levimc.launcher.core.online.PlayerIdentity;
 import org.levimc.launcher.core.online.QrUtils;
 import org.levimc.launcher.core.online.RelayStore;
@@ -69,6 +70,8 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
 
     // v529：房主头像（成员端从玩家列表同步）+ 加入/离开横幅
     private String hostAvatarUrl;
+    /** v547：成员端保存房主快照（房主行点击详情卡用）。 */
+    private RoomCenter.Player hostPlayer;
     private TextView banner;
     private final android.os.Handler bannerHandler = new android.os.Handler(
             android.os.Looper.getMainLooper());
@@ -265,11 +268,35 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         if (isHost) {
             hostAvatar.setText(firstChar(nick));
             hostName.setText(getString(R.string.online_host_you, nick));
+            // v547：房主视角点自己的房主行 → 自己的详情卡
+            hostPlayer = new RoomCenter.Player(nick, PlayerIdentity.getClientId(this),
+                    true, null, org.levimc.launcher.core.online.voice.VoiceEngine.getLastMode(),
+                    PlayerIdentity.getAvatarUrl(this),
+                    PlayerIdentity.getCurrentXuid(), PlayerIdentity.getCurrentMsUser(),
+                    PlayerIdentity.getPlayMinutes(this), 2);
         } else {
             // 成员视角：房主昵称由玩家列表心跳获取（isRoomHost），未获取前占位
             hostAvatar.setText("房");
             hostName.setText(getString(R.string.online_host_unknown));
+            hostPlayer = null;
         }
+        // v547：房主行点击弹详情卡（成员端点击=房主快照，房主端=自己快照）
+        android.view.View.OnClickListener hostClick = v -> {
+            RoomCenter.Player hp = hostPlayer;
+            if (hp == null) {
+                return;
+            }
+            if (PlayerDetailCard.canView(this, hp, RoomCenter.isHost)) {
+                PlayerDetailCard.show(this, hp, false);
+            } else {
+                Toast.makeText(this, R.string.online_card_no_permission,
+                        Toast.LENGTH_SHORT).show();
+            }
+        };
+        hostAvatar.setClickable(true);
+        hostAvatar.setOnClickListener(hostClick);
+        hostName.setClickable(true);
+        hostName.setOnClickListener(hostClick);
         // v529：房主行头像——房主端用本机账号头像，成员端用玩家列表同步的房主头像
         hostAvatarUrl = isHost ? PlayerIdentity.getAvatarUrl(this) : null;
         loadHostAvatar();
@@ -396,10 +423,18 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
             crown.setTextSize(14);
             row.addView(crown);
         }
-        // v544：点击玩家行弹详情卡
+        // v547：点击玩家行弹详情卡（公共组件，悬浮窗同款）
         if (player != null) {
             row.setClickable(true);
-            row.setOnClickListener(v -> showPlayerDetailCard(player));
+            row.setOnClickListener(v -> {
+                if (PlayerDetailCard.canView(this, player, RoomCenter.isHost)) {
+                    PlayerDetailCard.show(this, player,
+                            RoomCenter.isHost && !isSelf && !player.isRoomHost);
+                } else {
+                    Toast.makeText(this, R.string.online_card_no_permission,
+                            Toast.LENGTH_SHORT).show();
+                }
+            });
         }
         playersContainer.addView(row);
     }
@@ -446,6 +481,8 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                     if (p.isRoomHost) {
                         hostAvatar.setText(firstChar(p.name));
                         hostName.setText(p.name);
+                        // v547：保存房主快照（房主行点击详情卡用）
+                        hostPlayer = p;
                         // v529：房主头像用同步来的 URL（变化时重新加载）
                         if (p.avatarUrl != null && !p.avatarUrl.equals(hostAvatarUrl)) {
                             hostAvatarUrl = p.avatarUrl;
@@ -460,7 +497,13 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                         memberCount++;
                     }
                 }
-                addPlayerRow(nick, true, false, null, null);
+                // v547：自己行也传快照（点击弹自己的详情卡）
+                addPlayerRow(nick, true, false, null,
+                        new RoomCenter.Player(nick, selfId, false, null,
+                                org.levimc.launcher.core.online.voice.VoiceEngine.getLastMode(),
+                                PlayerIdentity.getAvatarUrl(this),
+                                PlayerIdentity.getCurrentXuid(), PlayerIdentity.getCurrentMsUser(),
+                                PlayerIdentity.getPlayMinutes(this), 2));
                 if (memberCount == 1) {
                     TextView empty = new TextView(this);
                     empty.setText(R.string.online_players_empty);
@@ -1064,155 +1107,6 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                     findViewById(R.id.online_room_share_button));
         } catch (Throwable ignored) {
         }
-    }
-
-    /**
-     * v544：玩家详情卡——点击玩家行弹出。
-     * 内容：头像/名字/Xbox XUID/微软账号（邮箱）/Levi 游玩时长/皮肤预览/游戏内权限胶囊。
-     */
-    private void showPlayerDetailCard(RoomCenter.Player p) {
-        android.util.Log.i("OnlineActivity", "详情卡: 点击 " + (p == null ? "自己" : p.name));
-        String name = p != null ? p.name : PlayerIdentity.getNickname(this);
-        String avatarUrl = p != null ? p.avatarUrl : PlayerIdentity.getAvatarUrl(this);
-        String xuid = p != null ? p.xuid : PlayerIdentity.getCurrentXuid();
-        String msUser = p != null ? p.msUser : PlayerIdentity.getCurrentMsUser();
-        long playMinutes = p != null ? p.playMinutes : PlayerIdentity.getPlayMinutes(this);
-
-        float d = getResources().getDisplayMetrics().density;
-        LinearLayout v = new LinearLayout(this);
-        v.setOrientation(LinearLayout.VERTICAL);
-        v.setPadding((int) (20 * d), (int) (18 * d), (int) (20 * d), (int) (18 * d));
-
-        // 头部：头像 + 名字 + 房主皇冠
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        android.widget.FrameLayout avFrame = new android.widget.FrameLayout(this);
-        TextView avChar = new TextView(this);
-        avChar.setText(name == null || name.isEmpty() ? "?" : name.substring(0, 1));
-        avChar.setGravity(Gravity.CENTER);
-        avChar.setTextColor(Color.WHITE);
-        avChar.setTextSize(16);
-        avChar.setBackground(accentAvatarBg());
-        avFrame.addView(avChar, new android.widget.FrameLayout.LayoutParams((int) (44 * d), (int) (44 * d)));
-        if (avatarUrl != null && !avatarUrl.isEmpty()) {
-            android.widget.ImageView avImg = new android.widget.ImageView(this);
-            com.bumptech.glide.Glide.with(this).load(avatarUrl).circleCrop().into(avImg);
-            avFrame.addView(avImg, new android.widget.FrameLayout.LayoutParams((int) (44 * d), (int) (44 * d)));
-        }
-        header.addView(avFrame);
-        TextView nameTv = new TextView(this);
-        nameTv.setText((p != null && p.isRoomHost ? "👑 " : "") + name);
-        nameTv.setTextSize(16);
-        nameTv.setTypeface(null, android.graphics.Typeface.BOLD);
-        nameTv.setTextColor(getResources().getColor(R.color.on_surface, getTheme()));
-        LinearLayout.LayoutParams nLp = new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        nLp.leftMargin = (int) (12 * d);
-        header.addView(nameTv, nLp);
-        v.addView(header);
-
-        // Xbox 详情
-        TextView detail = new TextView(this);
-        StringBuilder sb = new StringBuilder();
-        sb.append("XUID: ").append(xuid == null || xuid.isEmpty() ? "—" : xuid).append('\n');
-        sb.append("微软账号: ").append(msUser == null || msUser.isEmpty() ? "—" : msUser).append('\n');
-        sb.append("Levi 游玩时长: ").append(formatPlayMinutes(playMinutes));
-        detail.setText(sb.toString());
-        detail.setTextSize(13);
-        detail.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
-        LinearLayout.LayoutParams dLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        dLp.topMargin = (int) (12 * d);
-        v.addView(detail, dLp);
-
-        // 皮肤预览（mc-heads.net 按 gamertag 渲染）
-        android.widget.ImageView skin = new android.widget.ImageView(this);
-        skin.setAdjustViewBounds(true);
-        try {
-            String skinUrl = "https://mc-heads.net/body/"
-                    + java.net.URLEncoder.encode(name, "UTF-8") + ".png";
-            com.bumptech.glide.Glide.with(this).load(skinUrl).into(skin);
-        } catch (Exception ignored) {
-        }
-        LinearLayout.LayoutParams sLp = new LinearLayout.LayoutParams(
-                (int) (90 * d), (int) (160 * d));
-        sLp.topMargin = (int) (10 * d);
-        sLp.gravity = Gravity.CENTER_HORIZONTAL;
-        v.addView(skin, sLp);
-
-        // 游戏内权限胶囊（访客/成员/管理员）
-        TextView permLabel = new TextView(this);
-        permLabel.setText("游戏内权限");
-        permLabel.setTextSize(12);
-        permLabel.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
-        LinearLayout.LayoutParams plLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        plLp.topMargin = (int) (12 * d);
-        v.addView(permLabel, plLp);
-
-        LinearLayout permRow = new LinearLayout(this);
-        permRow.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout.LayoutParams prLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        prLp.topMargin = (int) (6 * d);
-        v.addView(permRow, prLp);
-        String[] permNames = {"访客", "成员", "管理员"};
-        String key = p != null ? p.clientId : "self";
-        final int[] current = {getSavedPermission(key)};
-        for (int i = 0; i < permNames.length; i++) {
-            final int level = i;
-            TextView cap = new TextView(this);
-            cap.setText(permNames[i]);
-            cap.setTextSize(12);
-            cap.setGravity(Gravity.CENTER);
-            android.graphics.drawable.GradientDrawable capBg = new android.graphics.drawable.GradientDrawable();
-            capBg.setCornerRadius(16 * d);
-            if (current[0] == level) {
-                capBg.setColor(accentColor());
-                cap.setTextColor(Color.WHITE);
-            } else {
-                capBg.setColor(0x22FFFFFF);
-                cap.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
-            }
-            cap.setBackground(capBg);
-            LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(
-                    0, (int) (32 * d), 1f);
-            if (i > 0) {
-                cLp.leftMargin = (int) (6 * d);
-            }
-            permRow.addView(cap, cLp);
-            cap.setOnClickListener(x -> {
-                savePermission(key, level);
-                Toast.makeText(this, "权限已记录: " + permNames[level]
-                        + "（写入存档将在后续版本接入）", Toast.LENGTH_SHORT).show();
-                current[0] = level;
-            });
-        }
-
-        org.levimc.launcher.ui.dialogs.CustomAlertDialog dialog =
-                new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this);
-        dialog.setCustomView(v);
-        dialog.show();
-    }
-
-    private static final String PREFS_PERM = "levimc_permissions";
-
-    private int getSavedPermission(String clientId) {
-        return getSharedPreferences(PREFS_PERM, MODE_PRIVATE).getInt(clientId, 1);
-    }
-
-    private void savePermission(String clientId, int level) {
-        getSharedPreferences(PREFS_PERM, MODE_PRIVATE).edit().putInt(clientId, level).apply();
-    }
-
-    private String formatPlayMinutes(long minutes) {
-        if (minutes < 60) {
-            return minutes + " 分钟";
-        }
-        long h = minutes / 60;
-        long m = minutes % 60;
-        return h + " 小时 " + m + " 分钟";
     }
 
     private void onLeaveClicked() {
