@@ -1230,6 +1230,10 @@ Invite code: P/%1$s
     <string name="voice_muted_by_host">Muted by host</string>
     <string name="voice_mute_member">Member muted</string>
     <string name="voice_unmute_member">Member unmuted</string>
+    <string name="pack_version_warning_title">Pack requires a newer game version</string>
+    <string name="pack_version_warning_channel">Pack warnings</string>
+    <string name="pack_version_warning_fmt">「%1$s」requires game version %2$s or higher, but the current instance is %3$s. It may not work properly.</string>
+    <string name="backup_notif_channel">World backups</string>
     <string name="online_self_suffix"> (You)</string>
     <string name="online_join_banner_fmt">「%1$s」joined the room</string>
     <string name="online_leave_banner_fmt">「%1$s」left the room</string>

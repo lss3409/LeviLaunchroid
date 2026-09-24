@@ -682,27 +682,23 @@ public class InstancesActivity extends BaseActivity {
 
         String savedLines = joinLines(batchBackupPaths);
         String failedLines = joinLines(batchBackupFailures);
-        CustomAlertDialog resultDialog = new CustomAlertDialog(this);
+        // v532：备份结果提示改通知栏（成功/部分成功），失败保留弹窗
         if (batchBackupPaths.isEmpty()) {
-            resultDialog
+            new CustomAlertDialog(this)
                     .setTitleText(getString(R.string.instance_batch_backup_failed_title))
                     .setMessage(getString(R.string.instance_batch_backup_failed_message, failedLines))
                     .setPositiveButton(getString(R.string.confirm), null)
                     .show();
         } else if (batchBackupFailures.isEmpty()) {
-            resultDialog
-                    .setTitleText(getString(R.string.instance_batch_backup_success_title))
-                    .setMessage(getString(R.string.instance_batch_backup_success_message,
-                            batchBackupPaths.size(), savedLines))
-                    .setPositiveButton(getString(R.string.confirm), null)
-                    .show();
+            org.levimc.launcher.util.BackupNotifier.show(this,
+                    getString(R.string.instance_batch_backup_success_title),
+                    getString(R.string.instance_batch_backup_success_message,
+                            batchBackupPaths.size(), savedLines));
         } else {
-            resultDialog
-                    .setTitleText(getString(R.string.instance_batch_backup_partial_title))
-                    .setMessage(getString(R.string.instance_batch_backup_partial_message,
-                            batchBackupPaths.size(), batchBackupFailures.size(), savedLines, failedLines))
-                    .setPositiveButton(getString(R.string.confirm), null)
-                    .show();
+            org.levimc.launcher.util.BackupNotifier.show(this,
+                    getString(R.string.instance_batch_backup_partial_title),
+                    getString(R.string.instance_batch_backup_partial_message,
+                            batchBackupPaths.size(), batchBackupFailures.size(), savedLines, failedLines));
         }
 
         pendingBatchBackupVersions = new ArrayList<>();

@@ -102,6 +102,22 @@ public class SharedFolderActivity extends BaseActivity {
         importLauncher.launch(intent);
     }
 
+    /** v532：当前选中实例的游戏版本号（导入包版本对比用；无则 null）。 */
+    private String currentGameVersion() {
+        try {
+            org.levimc.launcher.core.versions.GameVersion v =
+                    org.levimc.launcher.core.versions.VersionManager.get(this).getSelectedVersion();
+            if (v != null && v.versionCode != null && !v.versionCode.isEmpty()) {
+                return v.versionCode;
+            }
+            if (v != null) {
+                return v.displayName;
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
     private void handleImport(List<Uri> uris) {
         File gameDataDir = LauncherStorage.getSharedGameDataDir(this, true);
         File worldsDir = new File(gameDataDir, "minecraftWorlds");
@@ -123,6 +139,7 @@ public class SharedFolderActivity extends BaseActivity {
         });
 
         contentImporter.importContent(uris, resourcePacksDir, behaviorPacksDir, skinPacksDir, worldsDir, structuresDir,
+                currentGameVersion(),
                 new ContentImporter.ImportCallback() {
                     @Override
                     public void onSuccess(String message) {
@@ -148,6 +165,12 @@ public class SharedFolderActivity extends BaseActivity {
                                 progressDialog.setDetail(getString(R.string.importing_file_detail, current, total, fileName));
                             }
                         });
+                    }
+
+                    @Override
+                    public void onVersionWarnings(java.util.List<String> warnings) {
+                        runOnUiThread(() -> ContentImporter.showVersionWarningsAndNotify(
+                                SharedFolderActivity.this, warnings));
                     }
                 });
     }

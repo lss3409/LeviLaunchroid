@@ -384,6 +384,8 @@ public class ContentManagementActivity extends BaseActivity {
         }
 
         contentImporter.importContent(uris, resourcePacksDir, behaviorPacksDir, skinPacksDir, worldsDir, structuresDir,
+            currentVersion.versionCode != null && !currentVersion.versionCode.isEmpty()
+                    ? currentVersion.versionCode : currentVersion.displayName,
             new ContentImporter.ImportCallback() {
                 @Override
                 public void onSuccess(String message) {
@@ -409,6 +411,12 @@ public class ContentManagementActivity extends BaseActivity {
                             progressDialog.setDetail(getString(R.string.importing_file_detail, current, total, fileName));
                         }
                     });
+                }
+
+                @Override
+                public void onVersionWarnings(List<String> warnings) {
+                    runOnUiThread(() -> ContentImporter.showVersionWarningsAndNotify(
+                            ContentManagementActivity.this, warnings));
                 }
             });
     }

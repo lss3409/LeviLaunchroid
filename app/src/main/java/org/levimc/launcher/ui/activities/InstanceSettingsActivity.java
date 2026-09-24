@@ -367,11 +367,10 @@ public class InstanceSettingsActivity extends BaseActivity {
             @Override
             public void onSuccess(String displayPath) {
                 finishBackupProgress();
-                new CustomAlertDialog(InstanceSettingsActivity.this)
-                        .setTitleText(getString(R.string.instance_backup_success_title))
-                        .setMessage(getString(R.string.instance_backup_success_message, displayPath))
-                        .setPositiveButton(getString(R.string.confirm), null)
-                        .show();
+                // v532：备份完成提示改通知栏（删弹窗）
+                org.levimc.launcher.util.BackupNotifier.show(InstanceSettingsActivity.this,
+                        getString(R.string.instance_backup_success_title),
+                        getString(R.string.instance_backup_success_message, displayPath));
             }
 
             @Override

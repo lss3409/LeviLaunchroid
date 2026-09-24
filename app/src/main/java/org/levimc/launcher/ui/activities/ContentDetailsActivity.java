@@ -390,6 +390,8 @@ public class ContentDetailsActivity extends BaseActivity {
         File structuresDir = new File(org.levimc.launcher.util.LauncherStorage.getSharedGameDataDir(this, true), "structures");
 
         contentImporter.importContent(java.util.Collections.singletonList(uri), resourcePacksDir, behaviorPacksDir, skinPacksDir, worldsDir, structuresDir,
+            currentVersion.versionCode != null && !currentVersion.versionCode.isEmpty()
+                    ? currentVersion.versionCode : currentVersion.displayName,
             new ContentImporter.ImportCallback() {
                 @Override
                 public void onSuccess(String message) {
@@ -412,6 +414,12 @@ public class ContentDetailsActivity extends BaseActivity {
 
                 @Override
                 public void onProgress(int current, int total, String fileName) {
+                }
+
+                @Override
+                public void onVersionWarnings(java.util.List<String> warnings) {
+                    runOnUiThread(() -> ContentImporter.showVersionWarningsAndNotify(
+                            ContentDetailsActivity.this, warnings));
                 }
             });
     }
