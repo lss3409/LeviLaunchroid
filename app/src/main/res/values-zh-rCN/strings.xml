@@ -1177,6 +1177,8 @@
     <string name="online_step_handshake">握手</string>
     <string name="online_step_p2p">P2P 直连</string>
     <string name="online_step_unknown">检测中…</string>
+    <string name="online_game_open">房主世界已开启，可直接加入游戏</string>
+    <string name="online_game_wait">等待房主开启世界…</string>
     <string name="online_step_relay">中继模式</string>
     <string name="online_room_latency_fmt">%1$d ms</string>
     <string name="online_host_you">%1$s（你）</string>

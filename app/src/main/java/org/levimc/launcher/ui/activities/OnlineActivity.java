@@ -423,6 +423,14 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                 label.setText(getString(R.string.online_players_count_fmt,
                         memberCount, RoomCenter.MAX_PLAYERS));
             }
+            // v520：成员端提示房主世界开启状态（心跳响应带回）
+            if (!isHost && joinGameHint != null) {
+                if (RoomCenter.hostGameOpen) {
+                    joinGameHint.setText(R.string.online_game_open);
+                } else {
+                    joinGameHint.setText(R.string.online_game_wait);
+                }
+            }
         });
     }
 

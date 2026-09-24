@@ -34,6 +34,8 @@ public final class RoomCenter {
     public static final int GAME_PORT = 19132;
     /** 房间成员上限（含房主）。 */
     public static final int MAX_PLAYERS = 8;
+    /** 房主的 MC 世界是否已开启（19132 监听），由心跳响应带回（v520）。 */
+    public static volatile boolean hostGameOpen = false;
 
     public static class Player {
         public final String name;
@@ -141,6 +143,8 @@ public final class RoomCenter {
                     JSONObject resp = new JSONObject();
                     resp.put("returnTime", System.currentTimeMillis());
                     resp.put("players", buildPlayerListJson());
+                    // v520：房主 MC 世界开启状态（19132 监听检测），成员端据此提示
+                    resp.put("gameOpen", isMcWorldOpen());
                     send(hostSocket, resp.toString(), p.getAddress(), p.getPort());
                     // 通知房主 UI 刷新玩家列表
                     Listener l = hostListener;
@@ -174,6 +178,24 @@ public final class RoomCenter {
     /** 成员虚拟 IP 列表（供 LanBridge 公告桥单播转发，v517）。 */
     public static java.util.List<InetAddress> getMemberAddresses() {
         return new java.util.ArrayList<>(memberAddrs.values());
+    }
+
+    /** 本机 MC 是否开启了世界（UDP 19132 监听；/proc/net/udp 端口为 LE hex）。 */
+    private static boolean isMcWorldOpen() {
+        try {
+            java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader("/proc/net/udp"));
+            String line;
+            while ((line = r.readLine()) != null) {
+                String[] cols = line.trim().split("\\s+");
+                if (cols.length > 1 && cols[1].toUpperCase().endsWith(":BC4A")) {
+                    r.close();
+                    return true;
+                }
+            }
+            r.close();
+        } catch (Exception ignored) {
+        }
+        return false;
     }
 
     /** 房主侧玩家列表（含房主自己）。 */
@@ -274,6 +296,8 @@ public final class RoomCenter {
         List<Player> out = new ArrayList<>();
         try {
             JSONObject o = new JSONObject(json);
+            // v520：房主世界开启状态（心跳响应带回）
+            hostGameOpen = o.optBoolean("gameOpen", false);
             JSONArray arr = o.optJSONArray("players");
             if (arr != null) {
                 for (int i = 0; i < arr.length(); i++) {

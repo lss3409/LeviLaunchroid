@@ -356,7 +356,9 @@ public final class EasyTierManager {
                             ? ConnMode.P2P : ConnMode.RELAY;
                 }
                 if (!checkedAny) {
-                    // 房主端回退：任意路由对的 peer 直连情况（成员→房主的路径）
+                    // 房主端回退：任一成员路由对存在直连即 P2P（v520 修复：
+                    // 之前取第一个 pair 会拿到中转节点导致误报中继）
+                    boolean anyPair = false;
                     for (int i = 0; i < prp.length(); i++) {
                         JSONObject pair = prp.optJSONObject(i);
                         if (pair == null) {
@@ -366,10 +368,16 @@ public final class EasyTierManager {
                         if (peer == null) {
                             continue;
                         }
+                        anyPair = true;
                         JSONArray dcc = peer.optJSONArray("directly_connected_conns");
-                        connMode = (dcc != null && dcc.length() > 0)
-                                ? ConnMode.P2P : ConnMode.RELAY;
-                        break;
+                        if (dcc != null && dcc.length() > 0) {
+                            connMode = ConnMode.P2P;
+                            break;
+                        }
+                        connMode = ConnMode.RELAY;
+                    }
+                    if (!anyPair) {
+                        connMode = ConnMode.UNKNOWN;
                     }
                 }
             }
