@@ -58,10 +58,13 @@ public final class RoomCenter {
         public final long playMinutes;
         /** v547：详情卡查看权限（0 关闭 / 1 仅房主 / 2 所有人），随心跳广播。 */
         public final int viewPerm;
+        /** v549：最近在线时间（epoch ms，启动器活跃时间戳，详情卡展示）。 */
+        public final long lastActive;
 
         /** v547：public——UI 层构造本机快照（自己行的详情卡）用。 */
         public Player(String name, String clientId, boolean isRoomHost, String addr, int micState,
-               String avatarUrl, String xuid, String msUser, long playMinutes, int viewPerm) {
+               String avatarUrl, String xuid, String msUser, long playMinutes, int viewPerm,
+               long lastActive) {
             this.name = name;
             this.clientId = clientId;
             this.isRoomHost = isRoomHost;
@@ -72,6 +75,7 @@ public final class RoomCenter {
             this.msUser = msUser;
             this.playMinutes = playMinutes;
             this.viewPerm = viewPerm;
+            this.lastActive = lastActive;
         }
     }
 
@@ -101,6 +105,8 @@ public final class RoomCenter {
             java.util.concurrent.ConcurrentHashMap.newKeySet();
     /** v547：成员详情卡查看权限（心跳带 viewPerm）。 */
     private static final Map<String, Integer> memberViewPerm = new ConcurrentHashMap<>();
+    /** v549：成员最近在线时间（心跳带 lastActive，详情卡展示）。 */
+    private static final Map<String, Long> memberLastActive = new ConcurrentHashMap<>();
     /** v547：本机详情卡查看权限（心跳广播用，PlayerDetailCard 设置项写入）。 */
     private static volatile int selfViewPerm = 2;
     private static String hostName;
@@ -186,6 +192,7 @@ public final class RoomCenter {
         memberMsUser.clear();
         memberPlay.clear();
         memberViewPerm.clear();
+        memberLastActive.clear();
         hostMuted.clear();
     }
 
@@ -231,6 +238,7 @@ public final class RoomCenter {
                             memberMic.remove(cid);
                             memberAvatar.remove(cid);
                             memberViewPerm.remove(cid);
+                            memberLastActive.remove(cid);
                             hostMuted.remove(cid);
                             Log.i(TAG, "成员主动退出: " + cid);
                             notifyListeners(snapshot(), -1);
@@ -262,12 +270,17 @@ public final class RoomCenter {
                         memberPlay.put(cid, q.optLong("playMinutes", 0));
                         // v547：成员详情卡查看权限
                         memberViewPerm.put(cid, q.optInt("viewPerm", 2));
+                        // v549：成员最近在线时间
+                        long la = q.optLong("lastActive", 0);
+                        if (la > 0) {
+                            memberLastActive.put(cid, la);
+                        }
                         if (!players.containsKey(cid)) {
                             if (players.size() + 1 >= MAX_PLAYERS) {
                                 Log.w(TAG, "房间已满，拒绝: " + pname);
                             } else {
                                 players.put(cid, new Player(pname, cid, false, null, 0, null,
-                                        null, null, 0, 2));
+                                        null, null, 0, 2, System.currentTimeMillis()));
                                 Log.i(TAG, "玩家加入: " + pname + " (" + cid + ")");
                             }
                         }
@@ -379,6 +392,8 @@ public final class RoomCenter {
         host.put("micState", org.levimc.launcher.core.online.voice.VoiceEngine.getLastMode());
         // v547：房主详情卡查看权限广播
         host.put("viewPerm", selfViewPerm);
+        // v549：房主最近在线时间广播
+        host.put("lastActive", PlayerIdentity.getLastActiveStatic());
         putAvatar(host, PlayerIdentity.getCurrentAvatarUrl());
         putStr(host, "xuid", PlayerIdentity.getCurrentXuid());
         putStr(host, "msUser", PlayerIdentity.getCurrentMsUser());
@@ -399,6 +414,11 @@ public final class RoomCenter {
             // v547：成员详情卡查看权限广播
             Integer vp = memberViewPerm.get(p.clientId);
             o.put("viewPerm", vp == null ? 2 : vp);
+            // v549：成员最近在线时间广播
+            Long la = memberLastActive.get(p.clientId);
+            if (la != null) {
+                o.put("lastActive", la);
+            }
             putAvatar(o, memberAvatar.get(p.clientId));
             putStr(o, "xuid", memberXuid.get(p.clientId));
             putStr(o, "msUser", memberMsUser.get(p.clientId));
@@ -612,6 +632,8 @@ public final class RoomCenter {
                                 + "\",\"playMinutes\":" + PlayerIdentity.getCurrentPlayMinutes()
                                 // v547：详情卡查看权限随心跳广播
                                 + ",\"viewPerm\":" + selfViewPerm
+                                // v549：最近在线时间随心跳广播
+                                + ",\"lastActive\":" + PlayerIdentity.getLastActiveStatic()
                                 + "}";
                         byte[] out2 = hb.getBytes("UTF-8");
                         s.send(new DatagramPacket(out2, out2.length, target));
@@ -693,7 +715,8 @@ public final class RoomCenter {
                                 xu == null || xu.isEmpty() ? null : xu,
                                 mu == null || mu.isEmpty() ? null : mu,
                                 p.optLong("playMinutes", 0),
-                                p.optInt("viewPerm", 2)));
+                                p.optInt("viewPerm", 2),
+                                p.optLong("lastActive", 0)));
                     }
                 }
             }
@@ -709,14 +732,17 @@ public final class RoomCenter {
                 org.levimc.launcher.core.online.voice.VoiceEngine.getLastMode(),
                 PlayerIdentity.getCurrentAvatarUrl(),
                 PlayerIdentity.getCurrentXuid(), PlayerIdentity.getCurrentMsUser(),
-                PlayerIdentity.getCurrentPlayMinutes(), selfViewPerm));
+                PlayerIdentity.getCurrentPlayMinutes(), selfViewPerm,
+                PlayerIdentity.getLastActiveStatic()));
         for (Player p : players.values()) {
             Long pm = memberPlay.get(p.clientId);
             Integer vp = memberViewPerm.get(p.clientId);
+            Long la = memberLastActive.get(p.clientId);
             out.add(new Player(p.name, p.clientId, false, addrOf(p.clientId), micOf(p.clientId),
                     memberAvatar.get(p.clientId),
                     memberXuid.get(p.clientId), memberMsUser.get(p.clientId),
-                    pm == null ? 0 : pm, vp == null ? 2 : vp));
+                    pm == null ? 0 : pm, vp == null ? 2 : vp,
+                    la == null ? 0 : la));
         }
         return out;
     }

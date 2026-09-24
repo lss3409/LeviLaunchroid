@@ -64,7 +64,7 @@
             android:textSize="14sp"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textColor="@color/text_secondary"
             android:paddingStart="12dp"
             android:paddingEnd="12dp" />
 
@@ -83,7 +83,7 @@
             android:textSize="14sp"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textColor="@color/text_secondary"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
             android:visibility="gone" />
@@ -102,8 +102,8 @@
             android:textSize="14sp"
             android:ellipsize="end"
             android:maxLines="1"
-            android:backgroundTint="?attr/colorPrimary"
-            android:textColor="?attr/colorOnPrimary"
+            android:backgroundTint="@color/primary"
+            android:textColor="@color/on_primary"
             android:paddingStart="12dp"
             android:paddingEnd="12dp" />
     </LinearLayout>

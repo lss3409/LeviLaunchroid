@@ -48,7 +48,9 @@ public class CustomAlertDialog extends Dialog {
     private int mMaxWidthDp = 400;
 
     public CustomAlertDialog(Context context) {
-        super(context);
+        // v549：固定 LeviDialogTheme——游戏进程（MinecraftActivity 非 AppCompat）
+        // 里 Dialog 继承宿主主题导致 Button attr 解析失败崩溃（tombstone 547）
+        super(context, R.style.LeviDialogTheme);
     }
 
     public CustomAlertDialog setTitleText(String title) {

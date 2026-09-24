@@ -273,7 +273,8 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                     true, null, org.levimc.launcher.core.online.voice.VoiceEngine.getLastMode(),
                     PlayerIdentity.getAvatarUrl(this),
                     PlayerIdentity.getCurrentXuid(), PlayerIdentity.getCurrentMsUser(),
-                    PlayerIdentity.getPlayMinutes(this), 2);
+                    PlayerIdentity.getPlayMinutes(this), 2,
+                    PlayerIdentity.getLastActiveStatic());
         } else {
             // 成员视角：房主昵称由玩家列表心跳获取（isRoomHost），未获取前占位
             hostAvatar.setText("房");
@@ -503,7 +504,8 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                                 org.levimc.launcher.core.online.voice.VoiceEngine.getLastMode(),
                                 PlayerIdentity.getAvatarUrl(this),
                                 PlayerIdentity.getCurrentXuid(), PlayerIdentity.getCurrentMsUser(),
-                                PlayerIdentity.getPlayMinutes(this), 2));
+                                PlayerIdentity.getPlayMinutes(this), 2,
+                                PlayerIdentity.getLastActiveStatic()));
                 if (memberCount == 1) {
                     TextView empty = new TextView(this);
                     empty.setText(R.string.online_players_empty);

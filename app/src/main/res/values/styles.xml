@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- v549：弹窗固定主题——游戏进程（MinecraftActivity 非 AppCompat）里
+     Dialog 继承 Activity 主题时 Button 的 textAppearance 等 attr 解析失败崩溃，
+     所有 CustomAlertDialog 统一用此完整主题，不依赖宿主 Activity。 -->
+    <style name="LeviDialogTheme" parent="Theme.AppCompat.Light.Dialog.Alert">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:colorBackground">@color/background</item>
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorOnPrimary">@color/on_primary</item>
+        <item name="colorOnSurface">@color/on_surface</item>
+        <item name="android:textColorPrimary">@color/on_surface</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:fontFamily">@font/misans</item>
+    </style>
+
     <style name="AppFullScreenTheme" parent="Theme.AppCompat.NoActionBar">
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionBar">false</item>

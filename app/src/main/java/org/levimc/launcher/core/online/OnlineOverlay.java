@@ -179,6 +179,8 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
             refreshMicUi();
             startPingLoop();
             ui.post(this::refreshBar);
+            // v549：游戏内悬浮窗显示 = 玩家在线，刷新最近在线时间戳
+            PlayerIdentity.touchLastActive(activity);
         } catch (Exception e) {
             Log.w(TAG, "悬浮窗显示失败", e);
         }

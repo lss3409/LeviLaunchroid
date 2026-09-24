@@ -14,9 +14,10 @@ import org.levimc.launcher.util.PersonalizationManager;
 
 /**
  * v547：玩家详情卡公共组件——联机页（OnlineActivity）与游戏内悬浮窗
- * （OnlineOverlay）共用。内容：头像/名称/皇冠、Xbox XUID、微软账号、
- * Levi 游玩时长、mc-heads.net 皮肤预览、游戏内权限胶囊；
+ * （OnlineOverlay）共用。内容：头像/名称/皇冠、Xbox XUID、Levi 游玩时长、
+ * 最近在线时间、mc-heads.net 皮肤预览；
  * 房主视角看成员时额外带「禁麦/解除禁麦」按钮（v530 行点击禁麦迁移至此）。
+ * v549：删微软账号/游戏内权限胶囊（用户要求）；点卡片外区域可关闭（同二维码弹窗）。
  */
 public final class PlayerDetailCard {
 
@@ -28,7 +29,6 @@ public final class PlayerDetailCard {
     public static final int PERM_HOST_ONLY = 1;
     public static final int PERM_ALL = 2;
 
-    private static final String PREFS = "levimc_permissions";
     private static final String PREFS_VIEW = "levimc_card_view_perm";
 
     /** 弹详情卡。permitMute=true 时显示禁麦按钮（房主视角看成员）。 */
@@ -38,9 +38,10 @@ public final class PlayerDetailCard {
         String name = p != null ? p.name : org.levimc.launcher.core.online.PlayerIdentity.getNickname(activity);
         String avatarUrl = p != null ? p.avatarUrl : org.levimc.launcher.core.online.PlayerIdentity.getAvatarUrl(activity);
         String xuid = p != null ? p.xuid : org.levimc.launcher.core.online.PlayerIdentity.getCurrentXuid();
-        String msUser = p != null ? p.msUser : org.levimc.launcher.core.online.PlayerIdentity.getCurrentMsUser();
         long playMinutes = p != null ? p.playMinutes
                 : org.levimc.launcher.core.online.PlayerIdentity.getPlayMinutes(activity);
+        long lastActive = p != null ? p.lastActive
+                : org.levimc.launcher.core.online.PlayerIdentity.getLastActiveStatic();
 
         float d = activity.getResources().getDisplayMetrics().density;
         int accent = new PersonalizationManager(activity).getAccentColor();
@@ -77,12 +78,12 @@ public final class PlayerDetailCard {
         header.addView(nameTv, nLp);
         v.addView(header);
 
-        // Xbox 详情
+        // 详情（v549：删微软账号行，加最近在线）
         TextView detail = new TextView(activity);
         StringBuilder sb = new StringBuilder();
         sb.append("XUID: ").append(xuid == null || xuid.isEmpty() ? "—" : xuid).append('\n');
-        sb.append("微软账号: ").append(msUser == null || msUser.isEmpty() ? "—" : msUser).append('\n');
-        sb.append("Levi 游玩时长: ").append(formatPlayMinutes(playMinutes));
+        sb.append("Levi 游玩时长: ").append(formatPlayMinutes(playMinutes)).append('\n');
+        sb.append("最近在线: ").append(formatLastActive(lastActive));
         detail.setText(sb.toString());
         detail.setTextSize(13);
         detail.setTextColor(activity.getResources().getColor(R.color.text_secondary, activity.getTheme()));
@@ -91,7 +92,7 @@ public final class PlayerDetailCard {
         dLp.topMargin = (int) (12 * d);
         v.addView(detail, dLp);
 
-        // 皮肤预览（mc-heads.net 按昵称渲染）
+        // 皮肤预览（mc-heads.net 按昵称渲染；未设置皮肤显示默认 Steve/Alex）
         ImageView skin = new ImageView(activity);
         skin.setAdjustViewBounds(true);
         try {
@@ -105,55 +106,6 @@ public final class PlayerDetailCard {
         sLp.topMargin = (int) (10 * d);
         sLp.gravity = Gravity.CENTER_HORIZONTAL;
         v.addView(skin, sLp);
-
-        // 游戏内权限胶囊（访客/成员/管理员）
-        TextView permLabel = new TextView(activity);
-        permLabel.setText("游戏内权限");
-        permLabel.setTextSize(12);
-        permLabel.setTextColor(activity.getResources().getColor(R.color.text_secondary, activity.getTheme()));
-        LinearLayout.LayoutParams plLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        plLp.topMargin = (int) (12 * d);
-        v.addView(permLabel, plLp);
-
-        LinearLayout permRow = new LinearLayout(activity);
-        permRow.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout.LayoutParams prLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        prLp.topMargin = (int) (6 * d);
-        v.addView(permRow, prLp);
-        String[] permNames = {"访客", "成员", "管理员"};
-        String key = p != null ? p.clientId : "self";
-        final int[] current = {getSavedPermission(activity, key)};
-        for (int i = 0; i < permNames.length; i++) {
-            final int level = i;
-            TextView cap = new TextView(activity);
-            cap.setText(permNames[i]);
-            cap.setTextSize(12);
-            cap.setGravity(Gravity.CENTER);
-            GradientDrawable capBg = new GradientDrawable();
-            capBg.setCornerRadius(16 * d);
-            if (current[0] == level) {
-                capBg.setColor(accent);
-                cap.setTextColor(Color.WHITE);
-            } else {
-                capBg.setColor(0x22FFFFFF);
-                cap.setTextColor(activity.getResources().getColor(R.color.text_secondary, activity.getTheme()));
-            }
-            cap.setBackground(capBg);
-            LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(
-                    0, (int) (32 * d), 1f);
-            if (i > 0) {
-                cLp.leftMargin = (int) (6 * d);
-            }
-            permRow.addView(cap, cLp);
-            cap.setOnClickListener(x -> {
-                savePermission(activity, key, level);
-                Toast.makeText(activity, "权限已记录: " + permNames[level]
-                        + "（写入存档将在后续版本接入）", Toast.LENGTH_SHORT).show();
-                current[0] = level;
-            });
-        }
 
         // v547：房主视角看成员 → 禁麦/解除禁麦按钮
         if (permitMute && p != null) {
@@ -178,6 +130,8 @@ public final class PlayerDetailCard {
         org.levimc.launcher.ui.dialogs.CustomAlertDialog dialog =
                 new org.levimc.launcher.ui.dialogs.CustomAlertDialog(activity);
         dialog.setCustomView(v);
+        // v549：点卡片外区域可关闭（与二维码弹窗一致）
+        dialog.setCanceledOnTouchOutside(true);
         dialog.show();
     }
 
@@ -208,19 +162,36 @@ public final class PlayerDetailCard {
                 .getInt("self", PERM_ALL);
     }
 
-    private static int getSavedPermission(Activity activity, String clientId) {
-        return activity.getSharedPreferences(PREFS, Activity.MODE_PRIVATE).getInt(clientId, 1);
-    }
-
-    private static void savePermission(Activity activity, String clientId, int level) {
-        activity.getSharedPreferences(PREFS, Activity.MODE_PRIVATE)
-                .edit().putInt(clientId, level).apply();
-    }
-
     private static String formatPlayMinutes(long minutes) {
         long h = minutes / 60;
         long m = minutes % 60;
         return h > 0 ? h + " 小时 " + m + " 分" : m + " 分钟";
+    }
+
+    /** v549：最近在线格式化——刚刚/x 分钟前/x 小时前/x 天前/具体日期。 */
+    private static String formatLastActive(long ts) {
+        if (ts <= 0) {
+            return "—";
+        }
+        long diff = System.currentTimeMillis() - ts;
+        if (diff < 60_000L) {
+            return "刚刚";
+        }
+        long minutes = diff / 60_000L;
+        if (minutes < 60) {
+            return minutes + " 分钟前";
+        }
+        long hours = minutes / 60;
+        if (hours < 24) {
+            return hours + " 小时前";
+        }
+        long days = hours / 24;
+        if (days < 7) {
+            return days + " 天前";
+        }
+        java.text.SimpleDateFormat fmt = new java.text.SimpleDateFormat("yyyy-MM-dd",
+                java.util.Locale.ROOT);
+        return fmt.format(new java.util.Date(ts));
     }
 
     /** 头像底圆形背景（跟随个性化强调色，v544 起统一）。 */

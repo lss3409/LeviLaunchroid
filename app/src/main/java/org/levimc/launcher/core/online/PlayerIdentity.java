@@ -102,6 +102,22 @@ public final class PlayerIdentity {
                 .edit().putLong("play_minutes", getPlayMinutes(ctx) + minutes).apply();
     }
 
+    /** v549：最近在线时间戳（epoch ms，启动器活跃即更新）。 */
+    private static volatile long lastActiveTs;
+
+    /** v549：启动器活跃心跳（SplashActivity 启动时调用），持久化+静态缓存。 */
+    public static void touchLastActive(Context ctx) {
+        long now = System.currentTimeMillis();
+        lastActiveTs = now;
+        ctx.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit().putLong("last_active", now).apply();
+    }
+
+    /** v549：读取持久化的最近在线时间戳（无 Context 心跳用）。 */
+    public static long getLastActiveStatic() {
+        return lastActiveTs;
+    }
+
     /**
      * v527：Xbox 登录/切换账号后刷新身份（MsftAccountStore 回调）。
      * 清缓存并立即用新 gamertag 更新 currentNick——进程内登录后
