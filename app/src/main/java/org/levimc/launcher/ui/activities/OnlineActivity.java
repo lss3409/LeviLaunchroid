@@ -489,6 +489,20 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         if (list == null) {
             return;
         }
+        // v531 防呆：成员端名单缺房主条目 = 数据不完整（如误收的响应），
+        // 跳过 diff，避免误判"房主离开了房间"
+        if (!isHost) {
+            boolean hasHost = false;
+            for (RoomCenter.Player p : list) {
+                if (p.isRoomHost) {
+                    hasHost = true;
+                    break;
+                }
+            }
+            if (!hasHost) {
+                return;
+            }
+        }
         java.util.Set<String> ids = new java.util.HashSet<>();
         java.util.Map<String, String> names = new java.util.HashMap<>();
         for (RoomCenter.Player p : list) {
@@ -535,7 +549,13 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
 
     private void showBanner(String text, int bgColor, long durationMs) {
         banner.setText(text);
-        banner.getBackground().setTint(bgColor);
+        // v531：不能对共享 drawable（bg_rounded_card）setTint——会把页面上
+        // 所有引用它的卡片背景全染色（"切后台回来背景变灰"根因）。
+        // 每次新建独立 GradientDrawable。
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor(bgColor);
+        bg.setCornerRadius(14 * getResources().getDisplayMetrics().density);
+        banner.setBackground(bg);
         banner.setAlpha(0f);
         banner.setVisibility(View.VISIBLE);
         banner.animate().alpha(1f).setDuration(200).start();

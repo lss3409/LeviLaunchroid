@@ -401,7 +401,10 @@ public final class RoomCenter {
                                     }
                                 } catch (Exception ignored) {
                                 }
-                                if (!list.isEmpty() || rtt > 0) {
+                                // v531：仅含玩家名单的响应才广播——c:ping 响应
+                                // （无 players 数组）会产生空名单，成员端据此误判
+                                // "房主离开了房间"（rtt 更新由心跳响应承担）
+                                if (!list.isEmpty()) {
                                     notifyListeners(list, rtt);
                                 }
                             }
