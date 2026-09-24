@@ -142,20 +142,34 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         String peer = intent.getStringExtra("debug_join_peer");
         currentCode = rawToCode(r.parsed);
         isHost = false;
+        // 与 UI 加入流程一致：先过 VpnService.prepare 授权（未授权时 TUN 建不起来，
+        // 内核侧却会照常"连上"——v512 在 vivo 上踩过的坑），授权后走 REQ_VPN 回调
+        // doJoinFromDialog（v511 起已合并固定中转，异地可用）。
+        pendingParsed.clear();
+        pendingParsed.add(r.parsed);
+        Intent vpnIntent = VpnService.prepare(this);
+        if (vpnIntent != null) {
+            Toast.makeText(this, "请允许 VPN 连接以完成联机", Toast.LENGTH_SHORT).show();
+            startActivityForResult(vpnIntent, REQ_VPN);
+        } else if (peer != null && !peer.isEmpty()) {
+            debugJoin(r.parsed, peer);
+        } else {
+            doJoinFromDialog(r.parsed);
+        }
+    }
+
+    /** 调试路径的显式 peer 直连加入（无授权弹窗时用）。 */
+    private void debugJoin(InviteCode.Parsed parsed, String explicitPeer) {
         new Thread(() -> {
             List<String> peers = new ArrayList<>();
-            if (peer != null && !peer.isEmpty()) {
-                peers.add(peer);
-            } else {
-                peers.addAll(LanDiscovery.discover(r.parsed.networkName, 3000));
-            }
+            peers.add(explicitPeer);
             for (String p : RelayStore.load(this)) {
                 if (!peers.contains(p)) {
                     peers.add(p);
                 }
             }
             runOnUiThread(() -> EasyTierManager.get().join(this,
-                    r.parsed.networkName, r.parsed.networkSecret, this, peers));
+                    parsed.networkName, parsed.networkSecret, this, peers));
         }, "debug-join").start();
     }
 
