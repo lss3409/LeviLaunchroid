@@ -97,6 +97,11 @@ public final class RoomCenter {
         hostName = name;
         hostClientId = clientId;
         hostListener = l;
+        // v522 修复：传参监听器同步注册进多监听器注册表（v521 只广播注册表，
+        // 传参监听器被静默忽略导致 UI 收不到玩家列表更新）
+        if (l != null) {
+            addListener(l);
+        }
         hostRunning = true;
         try {
             hostSocket = new DatagramSocket(null);
@@ -119,6 +124,10 @@ public final class RoomCenter {
         if (hostSocket != null) {
             hostSocket.close();
             hostSocket = null;
+        }
+        if (hostListener != null) {
+            removeListener(hostListener);
+            hostListener = null;
         }
         players.clear();
         lastSeen.clear();
@@ -243,10 +252,16 @@ public final class RoomCenter {
     // ---- 成员端 ----
     private static volatile boolean clientRunning;
     private static Thread clientThread;
+    private static volatile Listener clientListener;
 
     public static synchronized void startClient(String hostIp, String name, String clientId, Listener l) {
         stopClient();
         clientRunning = true;
+        clientListener = l;
+        // v522 修复：传参监听器同步注册进多监听器注册表
+        if (l != null) {
+            addListener(l);
+        }
         clientThread = new Thread(() -> clientLoop(hostIp, name, clientId, l), "room-client");
         clientThread.setDaemon(true);
         clientThread.start();
@@ -257,6 +272,10 @@ public final class RoomCenter {
         if (clientThread != null) {
             clientThread.interrupt();
             clientThread = null;
+        }
+        if (clientListener != null) {
+            removeListener(clientListener);
+            clientListener = null;
         }
     }
 
