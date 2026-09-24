@@ -20,34 +20,47 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import org.levimc.launcher.R;
+import org.levimc.launcher.util.PersonalizationManager;
 
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.List;
 
 /**
- * 联机悬浮窗（v521，游戏内，参考蓝盾简洁风）：
- * 房间会话激活 + 进入游戏时显示——收起态 = 小圆泡（模式色 + 人数），
- * 点开 = 紧凑卡片（模式/延迟/房间码可复制/玩家列表/退出房间）。
- * 数据来自 RoomCenter 多监听器广播 + EasyTierManager 状态。
+ * 联机悬浮窗（v524 长条形改版，游戏内）：
+ * 收起态 = 水平胶囊条 [●] 54ms · 0%丢包 · 2/8人 [▾]（跟随个性化强调色）；
+ * 点开 = 紧凑卡片（模式/延迟/丢包/房间码可复制/玩家列表/退出）。
+ * 自带独立 ping 线程测量延迟与丢包（10 次滑动窗口），不依赖心跳间隔。
  */
 public final class OnlineOverlay implements RoomCenter.Listener {
 
     private static final String TAG = "OnlineOverlay";
+    private static final int PING_INTERVAL_MS = 2000;
+    private static final int PING_WINDOW = 10;
     private static volatile OnlineOverlay instance;
 
     private final Activity activity;
     private final WindowManager wm;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final float density;
+    private final int accent;
 
-    private FrameLayout bubbleView;
+    private View barView;
     private View cardView;
-    private WindowManager.LayoutParams bubbleParams;
+    private WindowManager.LayoutParams barParams;
     private WindowManager.LayoutParams cardParams;
-    private TextView bubbleCount;
-    private LinearLayout playersContainer;
+    private TextView barText;
     private TextView cardState;
-    private TextView cardLatency;
+    private LinearLayout playersContainer;
     private boolean showing;
+
+    // ping 统计
+    private final long[] pingWindow = new long[PING_WINDOW]; // >0 = rtt, -1 = 丢包
+    private int pingIdx = 0;
+    private int pingFilled = 0;
+    private Thread pingThread;
 
     private int dragStartX, dragStartY, touchStartX, touchStartY;
     private boolean dragging;
@@ -56,6 +69,12 @@ public final class OnlineOverlay implements RoomCenter.Listener {
         this.activity = activity;
         this.wm = (WindowManager) activity.getSystemService(Context.WINDOW_SERVICE);
         this.density = activity.getResources().getDisplayMetrics().density;
+        int a = 0xFF4AE0A0;
+        try {
+            a = new PersonalizationManager(activity).getAccentColor();
+        } catch (Exception ignored) {
+        }
+        this.accent = a;
     }
 
     public static OnlineOverlay get(Activity activity) {
@@ -86,11 +105,12 @@ public final class OnlineOverlay implements RoomCenter.Listener {
             return;
         }
         try {
-            buildBubble();
+            buildBar();
             buildCard();
             showing = true;
             RoomCenter.addListener(this);
-            ui.post(this::refreshFromState);
+            startPingLoop();
+            ui.post(this::refreshBar);
         } catch (Exception e) {
             Log.w(TAG, "悬浮窗显示失败", e);
         }
@@ -102,73 +122,95 @@ public final class OnlineOverlay implements RoomCenter.Listener {
         }
         showing = false;
         RoomCenter.removeListener(this);
+        if (pingThread != null) {
+            pingThread.interrupt();
+            pingThread = null;
+        }
         try {
-            if (bubbleView != null) {
-                wm.removeView(bubbleView);
+            if (barView != null) {
+                wm.removeView(barView);
             }
             if (cardView != null) {
                 wm.removeView(cardView);
             }
         } catch (Exception ignored) {
         }
-        bubbleView = null;
+        barView = null;
         cardView = null;
     }
 
-    // ---------------- UI 构建 ----------------
+    // ---------------- 长条形收起态 ----------------
 
-    private void buildBubble() {
-        bubbleView = new FrameLayout(activity);
-        int size = dp(46);
+    private void buildBar() {
+        LinearLayout bar = new LinearLayout(activity);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
         GradientDrawable bg = new GradientDrawable();
-        bg.setShape(GradientDrawable.OVAL);
-        bg.setColor(0xCC1E1E24);
-        bg.setStroke(dp(2), 0xFF4AE0A0);
-        bubbleView.setBackground(bg);
-        bubbleView.setAlpha(0.9f);
+        bg.setColor(0xD91B1B22);
+        bg.setCornerRadius(dp(18));
+        bg.setStroke(dp(1), blend(accent, 0x000000, 0.35f));
+        bar.setBackground(bg);
+        bar.setPadding(dp(12), dp(6), dp(10), dp(6));
 
-        bubbleCount = new TextView(activity);
-        bubbleCount.setTextColor(Color.WHITE);
-        bubbleCount.setTextSize(12);
-        bubbleCount.setGravity(Gravity.CENTER);
-        bubbleCount.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(size, size);
-        bubbleView.addView(bubbleCount, lp);
+        View dot = new View(activity);
+        GradientDrawable dbg = new GradientDrawable();
+        dbg.setShape(GradientDrawable.OVAL);
+        dbg.setColor(accent);
+        LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(dp(8), dp(8));
+        dotLp.rightMargin = dp(6);
+        bar.addView(dot, dotLp);
 
-        bubbleView.setOnTouchListener(this::onBubbleTouch);
-        bubbleParams = baseParams(size, size);
-        bubbleParams.x = dp(12);
-        bubbleParams.y = dp(120);
-        wm.addView(bubbleView, bubbleParams);
+        barText = new TextView(activity);
+        barText.setTextColor(Color.WHITE);
+        barText.setTextSize(11);
+        barText.setText("--ms · --% · -/-");
+        bar.addView(barText);
+
+        TextView caret = new TextView(activity);
+        caret.setText("▾");
+        caret.setTextColor(0xAAFFFFFF);
+        caret.setTextSize(10);
+        LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        cLp.leftMargin = dp(4);
+        bar.addView(caret, cLp);
+
+        barView = bar;
+        barParams = baseParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        barParams.x = dp(12);
+        barParams.y = dp(90);
+        barView.setOnTouchListener(this::onBarTouch);
+        wm.addView(barView, barParams);
     }
 
     private void buildCard() {
-        int width = dp(240);
+        int width = dp(250);
         LinearLayout card = new LinearLayout(activity);
         card.setOrientation(LinearLayout.VERTICAL);
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(0xF01B1B22);
         bg.setCornerRadius(dp(14));
-        bg.setStroke(dp(1), 0x33FFFFFF);
+        bg.setStroke(dp(1), blend(accent, 0x000000, 0.4f));
         card.setBackground(bg);
         card.setPadding(dp(14), dp(12), dp(14), dp(12));
 
-        // 头部：状态 + 延迟
         LinearLayout header = new LinearLayout(activity);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
         cardState = new TextView(activity);
-        cardState.setTextColor(0xFF4AE0A0);
+        cardState.setTextColor(accent);
         cardState.setTextSize(13);
         cardState.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         header.addView(cardState, new LinearLayout.LayoutParams(0, dp(24), 1f));
-        cardLatency = new TextView(activity);
-        cardLatency.setTextColor(0x99FFFFFF);
-        cardLatency.setTextSize(11);
-        header.addView(cardLatency);
+        TextView collapse = new TextView(activity);
+        collapse.setText("收起");
+        collapse.setTextColor(0xAAFFFFFF);
+        collapse.setTextSize(11);
+        header.addView(collapse);
+        collapse.setOnClickListener(v -> toggleCard());
         card.addView(header);
 
-        // 房间码（点按复制）
         TextView code = new TextView(activity);
         code.setTextColor(0xFF8AB4F8);
         code.setTextSize(12);
@@ -187,7 +229,6 @@ public final class OnlineOverlay implements RoomCenter.Listener {
             }
         });
 
-        // 玩家列表
         playersContainer = new LinearLayout(activity);
         playersContainer.setOrientation(LinearLayout.VERTICAL);
         LinearLayout.LayoutParams plLp = new LinearLayout.LayoutParams(
@@ -195,7 +236,6 @@ public final class OnlineOverlay implements RoomCenter.Listener {
         plLp.topMargin = dp(6);
         card.addView(playersContainer, plLp);
 
-        // 退出房间
         TextView leave = new TextView(activity);
         leave.setText(R.string.online_leave);
         leave.setTextColor(0xFFFF6B6B);
@@ -220,8 +260,7 @@ public final class OnlineOverlay implements RoomCenter.Listener {
         cardView = card;
         cardParams = baseParams(width, WindowManager.LayoutParams.WRAP_CONTENT);
         cardParams.x = dp(12);
-        cardParams.y = dp(120);
-        cardParams.flags |= WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL;
+        cardParams.y = dp(90);
     }
 
     private WindowManager.LayoutParams baseParams(int w, int h) {
@@ -238,11 +277,11 @@ public final class OnlineOverlay implements RoomCenter.Listener {
 
     // ---------------- 交互 ----------------
 
-    private boolean onBubbleTouch(View v, MotionEvent e) {
+    private boolean onBarTouch(View v, MotionEvent e) {
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
-                dragStartX = bubbleParams.x;
-                dragStartY = bubbleParams.y;
+                dragStartX = barParams.x;
+                dragStartY = barParams.y;
                 touchStartX = (int) e.getRawX();
                 touchStartY = (int) e.getRawY();
                 dragging = false;
@@ -254,9 +293,9 @@ public final class OnlineOverlay implements RoomCenter.Listener {
                     dragging = true;
                 }
                 if (dragging) {
-                    bubbleParams.x = clampX(dragStartX + dx);
-                    bubbleParams.y = clampY(dragStartY + dy);
-                    wm.updateViewLayout(bubbleView, bubbleParams);
+                    barParams.x = clampX(dragStartX + dx);
+                    barParams.y = clampY(dragStartY + dy);
+                    wm.updateViewLayout(barView, barParams);
                 }
                 return true;
             }
@@ -270,12 +309,12 @@ public final class OnlineOverlay implements RoomCenter.Listener {
     }
 
     private int clampX(int x) {
-        int max = activity.getResources().getDisplayMetrics().widthPixels - dp(46);
+        int max = activity.getResources().getDisplayMetrics().widthPixels - dp(160);
         return Math.max(0, Math.min(x, max));
     }
 
     private int clampY(int y) {
-        int max = activity.getResources().getDisplayMetrics().heightPixels - dp(46);
+        int max = activity.getResources().getDisplayMetrics().heightPixels - dp(40);
         return Math.max(0, Math.min(y, max));
     }
 
@@ -297,29 +336,100 @@ public final class OnlineOverlay implements RoomCenter.Listener {
         }
     }
 
-    // ---------------- 数据刷新 ----------------
+    // ---------------- 延迟/丢包测量 ----------------
 
-    private void refreshFromState() {
-        if (!showing) {
-            return;
-        }
-        if (EasyTierManager.get().getState() != EasyTierManager.State.CONNECTED) {
-            hide();
-            return;
-        }
-        EasyTierManager.ConnMode mode = EasyTierManager.get().getConnMode();
-        int color = 0xFF4AE0A0;
-        if (mode == EasyTierManager.ConnMode.RELAY) {
-            color = 0xFFFFB74D;
-        } else if (mode == EasyTierManager.ConnMode.UNKNOWN) {
-            color = 0xFF9E9E9E;
-        }
-        if (bubbleView != null) {
-            GradientDrawable bg = (GradientDrawable) bubbleView.getBackground();
-            bg.setStroke(dp(2), color);
-        }
-        refreshCard();
+    private void startPingLoop() {
+        pingThread = new Thread(() -> {
+            while (showing) {
+                long rtt = pingOnce();
+                synchronized (pingWindow) {
+                    pingWindow[pingIdx % PING_WINDOW] = rtt;
+                    pingIdx++;
+                    if (pingFilled < PING_WINDOW) {
+                        pingFilled++;
+                    }
+                }
+                ui.post(this::refreshBar);
+                try {
+                    Thread.sleep(PING_INTERVAL_MS);
+                } catch (InterruptedException e) {
+                    return;
+                }
+            }
+        }, "online-overlay-ping");
+        pingThread.setDaemon(true);
+        pingThread.start();
     }
+
+    /** 单次 c:ping：房主 ping 各成员（取平均），成员 ping 房主。 */
+    private long pingOnce() {
+        List<InetAddress> targets = new java.util.ArrayList<>();
+        if (RoomCenter.isHost) {
+            targets.addAll(RoomCenter.getMemberAddresses());
+        } else {
+            targets.add(null); // null = 房主固定 IP
+        }
+        if (targets.isEmpty()) {
+            return -1;
+        }
+        long sum = 0;
+        int ok = 0;
+        try (DatagramSocket s = new DatagramSocket()) {
+            s.setSoTimeout(1200);
+            for (InetAddress ip : targets) {
+                try {
+                    String targetIp = ip == null ? "10.144.144.144" : ip.getHostAddress();
+                    long t0 = System.currentTimeMillis();
+                    String req = "c:ping\0{\"time\":" + t0 + "}";
+                    byte[] out = req.getBytes("UTF-8");
+                    s.send(new DatagramPacket(out, out.length,
+                            new InetSocketAddress(targetIp, RoomCenter.PORT)));
+                    byte[] buf = new byte[512];
+                    DatagramPacket p = new DatagramPacket(buf, buf.length);
+                    s.receive(p);
+                    String resp = new String(p.getData(), 0, p.getLength(), "UTF-8");
+                    if (resp.contains("returnTime")) {
+                        sum += System.currentTimeMillis() - t0;
+                        ok++;
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return ok == 0 ? -1 : sum / ok;
+    }
+
+    private void refreshBar() {
+        if (barText == null) {
+            return;
+        }
+        long avg = 0;
+        int lost = 0;
+        int n = 0;
+        synchronized (pingWindow) {
+            for (int i = 0; i < pingFilled; i++) {
+                long v = pingWindow[i];
+                if (v < 0) {
+                    lost++;
+                } else {
+                    avg += v;
+                }
+                n++;
+            }
+        }
+        int count = 1;
+        try {
+            List<InetAddress> members = RoomCenter.getMemberAddresses();
+            count = Math.max(1, members.size() + (RoomCenter.isHost ? 0 : 1) + (RoomCenter.isHost ? 1 : 0));
+        } catch (Exception ignored) {
+        }
+        String loss = n == 0 ? "--" : String.valueOf(lost * 100 / Math.max(1, n));
+        String rtt = avg <= 0 ? "--ms" : (avg / Math.max(1, n - lost)) + "ms";
+        barText.setText(rtt + " · " + loss + "%丢包 · " + count + "人");
+    }
+
+    // ---------------- 数据刷新 ----------------
 
     private void refreshCard() {
         if (cardView == null) {
@@ -331,7 +441,7 @@ public final class OnlineOverlay implements RoomCenter.Listener {
             cardState.setTextColor(0xFFFFB74D);
         } else if (mode == EasyTierManager.ConnMode.P2P) {
             cardState.setText(R.string.online_step_p2p);
-            cardState.setTextColor(0xFF4AE0A0);
+            cardState.setTextColor(accent);
         } else {
             cardState.setText(R.string.online_step_unknown);
             cardState.setTextColor(0xAAFFFFFF);
@@ -347,21 +457,13 @@ public final class OnlineOverlay implements RoomCenter.Listener {
             if (!showing) {
                 return;
             }
-            int count = players == null ? 0 : players.size();
-            if (bubbleCount != null) {
-                bubbleCount.setText(count + "/" + RoomCenter.MAX_PLAYERS);
-            }
-            if (rttMs > 0 && cardLatency != null) {
-                cardLatency.setText(rttMs + "ms");
-            }
             if (playersContainer != null) {
                 playersContainer.removeAllViews();
                 if (players != null) {
                     String selfId = PlayerIdentity.getClientId(activity);
                     for (RoomCenter.Player p : players) {
                         TextView row = new TextView(activity);
-                        String name = p.isRoomHost ? "👑 " + p.name : p.name;
-                        row.setText(name);
+                        row.setText(p.isRoomHost ? "👑 " + p.name : p.name);
                         row.setTextSize(12);
                         row.setTextColor(p.clientId.equals(selfId) ? 0xFF8AB4F8 : 0xDDFFFFFF);
                         row.setPadding(0, dp(3), 0, dp(3));
@@ -369,7 +471,15 @@ public final class OnlineOverlay implements RoomCenter.Listener {
                     }
                 }
             }
-            refreshFromState();
+            refreshBar();
+            refreshCard();
         });
+    }
+
+    private static int blend(int color, int other, float ratio) {
+        int r = (int) (Color.red(color) * (1 - ratio) + Color.red(other) * ratio);
+        int g = (int) (Color.green(color) * (1 - ratio) + Color.green(other) * ratio);
+        int b = (int) (Color.blue(color) * (1 - ratio) + Color.blue(other) * ratio);
+        return Color.rgb(r, g, b);
     }
 }

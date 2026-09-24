@@ -941,6 +941,16 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                 // v521：会话状态写入静态区，供游戏内悬浮窗读取
                 RoomCenter.roomCode = currentCode;
                 RoomCenter.isHost = isHost;
+                // v524：游戏正在前台时立即挂悬浮窗（否则要等游戏下次 onResume 才出现）
+                try {
+                    if (org.levimc.launcher.core.minecraft.MinecraftActivityState.isRunning()) {
+                        android.app.Activity game = org.levimc.launcher.core.minecraft.MinecraftActivityState.getActivity();
+                        if (game != null) {
+                            OnlineOverlay.get(game).show();
+                        }
+                    }
+                } catch (Throwable ignored) {
+                }
                 // v519：初始显示"检测中"，等轮询数据到达再亮 P2P/中继徽章
                 roomState.setText(getString(R.string.online_step_unknown));
                 roomState.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));

@@ -50,6 +50,12 @@ public final class MinecraftActivityState {
         return running;
     }
 
+    /** 当前游戏 Activity（弱引用，可能为 null；v524 联机悬浮窗用）。 */
+    public static Activity getActivity() {
+        WeakReference<Activity> ref = currentActivityRef;
+        return ref == null ? null : ref.get();
+    }
+
     public static boolean isRunning(Context context) {
         return running;
     }
