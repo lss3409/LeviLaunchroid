@@ -1184,6 +1184,7 @@ Virtual IP: %1$s
     <string name="online_step_discover">Find host</string>
     <string name="online_step_handshake">Handshake</string>
     <string name="online_step_p2p">P2P Direct</string>
+    <string name="online_step_unknown">Detecting…</string>
     <string name="online_step_relay">Relay Mode</string>
     <string name="online_room_latency_fmt">%1$d ms</string>
     <string name="online_host_you">%1$s (You)</string>

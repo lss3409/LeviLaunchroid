@@ -326,8 +326,12 @@ public final class EasyTierManager {
                 info.cidrs.add(FALLBACK_CIDR);
                 info.cidrs.add(FALLBACK_CIDR_DHCP);
             }
-            // 连接模式：peer_route_pairs 里房主路由的 peer 是否有直连 conn
+            // 连接模式：peer_route_pairs 里房主路由的 peer 是否有直连 conn。
+            // 注意不对称性（v519 修复）：成员的路由表里有房主（paper-connect-server-*）
+            // 条目可判定；房主自己就是该节点，路由表里没有这个主机名——房主端
+            // 回退为"任一 peer 路由对"判定（看成员路由的直连情况）。
             connMode = ConnMode.UNKNOWN;
+            boolean checkedAny = false;
             JSONArray prp = inst.optJSONArray("peer_route_pairs");
             if (prp != null) {
                 for (int i = 0; i < prp.length(); i++) {
@@ -336,10 +340,12 @@ public final class EasyTierManager {
                         continue;
                     }
                     JSONObject route = pair.optJSONObject("route");
-                    if (route == null
-                            || !route.optString("hostname", "").startsWith("paper-connect-server-")) {
+                    boolean isHostRoute = route != null
+                            && route.optString("hostname", "").startsWith("paper-connect-server-");
+                    if (!isHostRoute) {
                         continue;
                     }
+                    checkedAny = true;
                     JSONObject peer = pair.optJSONObject("peer");
                     if (peer == null) {
                         connMode = ConnMode.RELAY;
@@ -348,6 +354,23 @@ public final class EasyTierManager {
                     JSONArray dcc = peer.optJSONArray("directly_connected_conns");
                     connMode = (dcc != null && dcc.length() > 0)
                             ? ConnMode.P2P : ConnMode.RELAY;
+                }
+                if (!checkedAny) {
+                    // 房主端回退：任意路由对的 peer 直连情况（成员→房主的路径）
+                    for (int i = 0; i < prp.length(); i++) {
+                        JSONObject pair = prp.optJSONObject(i);
+                        if (pair == null) {
+                            continue;
+                        }
+                        JSONObject peer = pair.optJSONObject("peer");
+                        if (peer == null) {
+                            continue;
+                        }
+                        JSONArray dcc = peer.optJSONArray("directly_connected_conns");
+                        connMode = (dcc != null && dcc.length() > 0)
+                                ? ConnMode.P2P : ConnMode.RELAY;
+                        break;
+                    }
                 }
             }
             Log.i(TAG, "poll: running=" + info.running + " ip=" + info.virtualIp

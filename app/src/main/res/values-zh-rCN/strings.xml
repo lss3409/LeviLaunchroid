@@ -1176,6 +1176,7 @@
     <string name="online_step_discover">发现房主</string>
     <string name="online_step_handshake">握手</string>
     <string name="online_step_p2p">P2P 直连</string>
+    <string name="online_step_unknown">检测中…</string>
     <string name="online_step_relay">中继模式</string>
     <string name="online_room_latency_fmt">%1$d ms</string>
     <string name="online_host_you">%1$s（你）</string>

@@ -300,15 +300,19 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                 .show();
     }
 
-    /** 更新连接模式徽章（v505：P2P 直连绿 / 中继模式黄）。 */
+    /** 更新连接模式徽章（v505：P2P 直连绿 / 中继模式黄；v519：未知灰——
+     *  房主端此前检测不到数据时"未知"冒充了 P2P 绿，现如实显示）。 */
     private void updateConnModeBadge() {
         EasyTierManager.ConnMode m = EasyTierManager.get().getConnMode();
         if (m == EasyTierManager.ConnMode.RELAY) {
             roomState.setText(getString(R.string.online_step_relay));
             roomState.setTextColor(getResources().getColor(R.color.warning, getTheme()));
-        } else {
+        } else if (m == EasyTierManager.ConnMode.P2P) {
             roomState.setText(getString(R.string.online_step_p2p));
             roomState.setTextColor(getResources().getColor(R.color.primary, getTheme()));
+        } else {
+            roomState.setText(getString(R.string.online_step_unknown));
+            roomState.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
         }
     }
 
@@ -924,8 +928,9 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                 if (currentCode != null) {
                     saveRecent(currentCode);
                 }
-                roomState.setText(getString(R.string.online_step_p2p));
-                roomState.setTextColor(getResources().getColor(R.color.primary, getTheme()));
+                // v519：初始显示"检测中"，等轮询数据到达再亮 P2P/中继徽章
+                roomState.setText(getString(R.string.online_step_unknown));
+                roomState.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
                 showRoom();
                 // 房间中心：房主开 TCP 服务，成员连房主心跳（玩家列表+延迟）
                 String nick = PlayerIdentity.getNickname(this);
