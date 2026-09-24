@@ -398,6 +398,7 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         }
         // v544：点击玩家行弹详情卡
         if (player != null) {
+            row.setClickable(true);
             row.setOnClickListener(v -> showPlayerDetailCard(player));
         }
         playersContainer.addView(row);
@@ -1070,6 +1071,7 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
      * 内容：头像/名字/Xbox XUID/微软账号（邮箱）/Levi 游玩时长/皮肤预览/游戏内权限胶囊。
      */
     private void showPlayerDetailCard(RoomCenter.Player p) {
+        android.util.Log.i("OnlineActivity", "详情卡: 点击 " + (p == null ? "自己" : p.name));
         String name = p != null ? p.name : PlayerIdentity.getNickname(this);
         String avatarUrl = p != null ? p.avatarUrl : PlayerIdentity.getAvatarUrl(this);
         String xuid = p != null ? p.xuid : PlayerIdentity.getCurrentXuid();
@@ -1354,8 +1356,22 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         EasyTierManager.get().setListener(this);
         EasyTierManager.State s = EasyTierManager.get().getState();
         if (s == EasyTierManager.State.CONNECTED) {
+            // v545：游戏内切回启动器/新建联机页实例时，恢复当前房间视图
+            // （此前新实例 onCreate 只显示首页，用户看到"重新联机"）
+            restoreRoomIfConnected();
             onState(s, EasyTierManager.get().getVirtualIp());
         }
+    }
+
+    /** v545：组网仍连接且有房间时，直接恢复房间视图。 */
+    private void restoreRoomIfConnected() {
+        if (RoomCenter.roomCode == null) {
+            return;
+        }
+        currentCode = RoomCenter.roomCode;
+        isHost = RoomCenter.isHost;
+        roomCodeText.setText("P/" + currentCode);
+        showRoom();
     }
 
     @Override

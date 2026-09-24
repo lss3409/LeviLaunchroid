@@ -115,6 +115,16 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
 
         if (savedInstanceState != null) {
             trace.mark("MinecraftActivity finishing restored instance")
+            // v545：进程被杀后系统恢复实例时，实例 native 库尚未加载——
+            // 直接 super.onCreate 会因 GameActivity.initializeNativeCode 无实现而崩
+            // （UnsatisfiedLinkError）。先走 prepare 加载实例库再结束会话。
+            try {
+                val preparedRuntime = MinecraftLaunchSession.getPreparedRuntime()
+                    ?: MinecraftRuntimePreparer.prepare(applicationContext, intent)
+                gameManager = preparedRuntime.gameManager
+            } catch (t: Throwable) {
+                android.util.Log.w("MinecraftActivity", "恢复实例库加载失败，直接结束", t)
+            }
             gameRuntimeStarted = true
             super.onCreate(null)
             finish()
