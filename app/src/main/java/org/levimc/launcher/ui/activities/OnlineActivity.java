@@ -263,6 +263,7 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
     /** 房间视图数据填充。 */
     private void populateRoom() {
         roomCodeText2.setText(currentCode == null ? "" : "P/" + currentCode);
+        hostAvatar.setBackground(accentAvatarBg()); // v541：房主头像底跟随个性化强调色
         String nick = PlayerIdentity.getNickname(this);
         if (isHost) {
             hostAvatar.setText(firstChar(nick));
@@ -362,7 +363,7 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         avatar.setTextColor(getResources().getColor(R.color.on_primary, getTheme()));
         avatar.setTextSize(13);
         avatar.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        avatar.setBackgroundResource(R.drawable.bg_avatar);
+        avatar.setBackground(accentAvatarBg()); // v541：头像底跟随个性化强调色
         avatarFrame.addView(avatar, new android.widget.FrameLayout.LayoutParams(
                 avatarSize, avatarSize));
         // Xbox 头像（该玩家的 URL；自己=本机账号头像）
@@ -382,8 +383,9 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         // v529（清单 #33）：自己那行加"（我）"标识
         label.setText(isSelf ? name + getString(R.string.online_self_suffix) : name);
         label.setTextSize(14);
-        label.setTextColor(getResources().getColor(
-                isSelf ? R.color.primary : R.color.on_surface, getTheme()));
+        // v541：自己名字/高亮跟随个性化强调色
+        label.setTextColor(isSelf ? accentColor()
+                : getResources().getColor(R.color.on_surface, getTheme()));
         LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
         llp.leftMargin = (int) (10 * getResources().getDisplayMetrics().density);
@@ -896,7 +898,7 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         for (String code : recents) {
             TextView row = new TextView(this);
             row.setText("P/" + code);
-            row.setTextColor(getResources().getColor(R.color.primary, getTheme()));
+            row.setTextColor(accentColor()); // v541：最近房间码跟随个性化强调色
             row.setTextSize(14);
             row.setPadding(24, 14, 24, 14);
             row.setBackgroundResource(R.drawable.bg_rounded_card);
@@ -1025,6 +1027,23 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         send.setType("text/plain");
         send.putExtra(Intent.EXTRA_TEXT, getString(R.string.online_share_text, "P/" + currentCode));
         startActivity(Intent.createChooser(send, getString(R.string.online_share_code)));
+    }
+
+    /** v541：当前个性化强调色。 */
+    private int accentColor() {
+        try {
+            return new org.levimc.launcher.util.PersonalizationManager(this).getAccentColor();
+        } catch (Throwable ignored) {
+            return getResources().getColor(R.color.primary, getTheme());
+        }
+    }
+
+    /** v541：圆形强调色头像底（替代 bg_avatar 静态色）。 */
+    private android.graphics.drawable.GradientDrawable accentAvatarBg() {
+        android.graphics.drawable.GradientDrawable d = new android.graphics.drawable.GradientDrawable();
+        d.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        d.setColor(accentColor());
+        return d;
     }
 
     /** v537：主按钮统一走 AccentStyler（无条件染强调色 + 按压态加深）。 */

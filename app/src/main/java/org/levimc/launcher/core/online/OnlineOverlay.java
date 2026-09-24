@@ -775,10 +775,14 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         String loss = n == 0 ? "--" : String.valueOf(lost * 100 / Math.max(1, n));
         long avgRtt = avg <= 0 ? -1 : avg / Math.max(1, n - lost);
         String rtt = avgRtt < 0 ? "--ms" : avgRtt + "ms";
-        barText.setText(rtt + " · " + loss + "%丢包 · " + count + "人");
-        // v529（清单 #25）：延迟颜色分级 <50 绿 / 50-100 黄 / >100 红
-        barText.setTextColor(avgRtt < 0 ? Color.WHITE
-                : avgRtt < 50 ? 0xFF4CAF50 : avgRtt < 100 ? 0xFFFFB74D : 0xFFFF6B6B);
+        String full = rtt + " · " + loss + "%丢包 · " + count + "人";
+        // v529（清单 #25）+ v541：只给"延迟"部分上色（红黄绿），丢包/人数保持白色
+        android.text.SpannableString ss = new android.text.SpannableString(full);
+        int rttColor = avgRtt < 0 ? Color.WHITE
+                : avgRtt < 50 ? 0xFF4CAF50 : avgRtt < 100 ? 0xFFFFB74D : 0xFFFF6B6B;
+        ss.setSpan(new android.text.style.ForegroundColorSpan(rttColor), 0, rtt.length(),
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        barText.setText(ss);
     }
 
     // ---------------- 数据刷新 ----------------

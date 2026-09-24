@@ -7,8 +7,9 @@
     android:viewportWidth="24"
     android:viewportHeight="24">
 
+  <!-- v541：与原始图标同比例（竖向 2.5-19），三柱加长到底部 19，防底部观感缺失 -->
   <path
-      android:pathData="M10,3h4v4h-4z"
+      android:pathData="M10,2.5h4v4.5h-4z"
       android:strokeColor="#000000"
       android:strokeWidth="2"
       android:strokeLineJoin="round"
@@ -27,7 +28,7 @@
       android:strokeLineCap="round" />
 
   <path
-      android:pathData="M6,12v5.5M12,12v5.5M18,12v5.5"
+      android:pathData="M6,12v7M12,12v7M18,12v7"
       android:strokeColor="#000000"
       android:strokeWidth="2"
       android:strokeLineCap="round" />
