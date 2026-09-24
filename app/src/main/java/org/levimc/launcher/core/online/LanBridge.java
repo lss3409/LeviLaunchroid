@@ -45,11 +45,12 @@ public final class LanBridge {
             byte[] pkt = buildAnnouncement(motd);
             try (DatagramSocket s = new DatagramSocket()) {
                 while (running) {
-                    List<InetAddress> members = RoomCenter.getMemberAddresses();
-                    for (InetAddress ip : members) {
+                    List<InetSocketAddress> members = RoomCenter.getMemberAddresses();
+                    for (InetSocketAddress addr : members) {
                         try {
                             byte[] out = pkt;
-                            DatagramPacket p = new DatagramPacket(out, out.length, ip, LAN_PORT);
+                            DatagramPacket p = new DatagramPacket(out, out.length,
+                                    addr.getAddress(), LAN_PORT);
                             s.send(p);
                         } catch (Exception ignored) {
                         }

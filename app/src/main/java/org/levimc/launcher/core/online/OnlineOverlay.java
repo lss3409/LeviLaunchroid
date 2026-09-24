@@ -261,6 +261,40 @@ public final class OnlineOverlay implements RoomCenter.Listener {
         cardParams = baseParams(width, WindowManager.LayoutParams.WRAP_CONTENT);
         cardParams.x = dp(12);
         cardParams.y = dp(90);
+        // v525：展开卡片也可拖动
+        card.setOnTouchListener(this::onCardTouch);
+    }
+
+    private boolean onCardTouch(View v, MotionEvent e) {
+        switch (e.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                dragStartX = cardParams.x;
+                dragStartY = cardParams.y;
+                touchStartX = (int) e.getRawX();
+                touchStartY = (int) e.getRawY();
+                dragging = false;
+                // 不消费 DOWN，让子控件（复制/退出按钮）仍可点击
+                return false;
+            case MotionEvent.ACTION_MOVE: {
+                int dx = (int) e.getRawX() - touchStartX;
+                int dy = (int) e.getRawY() - touchStartY;
+                if (Math.abs(dx) > dp(8) || Math.abs(dy) > dp(8)) {
+                    dragging = true;
+                }
+                if (dragging) {
+                    cardParams.x = clampX(dragStartX + dx);
+                    cardParams.y = clampY(dragStartY + dy);
+                    wm.updateViewLayout(cardView, cardParams);
+                    return true;
+                }
+                return false;
+            }
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                dragging = false;
+                return false;
+        }
+        return false;
     }
 
     private WindowManager.LayoutParams baseParams(int w, int h) {
@@ -363,11 +397,12 @@ public final class OnlineOverlay implements RoomCenter.Listener {
 
     /** 单次 c:ping：房主 ping 各成员（取平均），成员 ping 房主。 */
     private long pingOnce() {
-        List<InetAddress> targets = new java.util.ArrayList<>();
+        List<InetSocketAddress> targets = new java.util.ArrayList<>();
         if (RoomCenter.isHost) {
+            // v525：ping 成员的源端口（成员客户端常驻 socket 会应答反向 ping）
             targets.addAll(RoomCenter.getMemberAddresses());
         } else {
-            targets.add(null); // null = 房主固定 IP
+            targets.add(new InetSocketAddress("10.144.144.144", RoomCenter.PORT));
         }
         if (targets.isEmpty()) {
             return -1;
@@ -376,14 +411,12 @@ public final class OnlineOverlay implements RoomCenter.Listener {
         int ok = 0;
         try (DatagramSocket s = new DatagramSocket()) {
             s.setSoTimeout(1200);
-            for (InetAddress ip : targets) {
+            for (InetSocketAddress addr : targets) {
                 try {
-                    String targetIp = ip == null ? "10.144.144.144" : ip.getHostAddress();
                     long t0 = System.currentTimeMillis();
                     String req = "c:ping\0{\"time\":" + t0 + "}";
                     byte[] out = req.getBytes("UTF-8");
-                    s.send(new DatagramPacket(out, out.length,
-                            new InetSocketAddress(targetIp, RoomCenter.PORT)));
+                    s.send(new DatagramPacket(out, out.length, addr));
                     byte[] buf = new byte[512];
                     DatagramPacket p = new DatagramPacket(buf, buf.length);
                     s.receive(p);

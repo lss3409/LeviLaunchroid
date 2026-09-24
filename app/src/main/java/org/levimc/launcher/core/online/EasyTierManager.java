@@ -292,6 +292,17 @@ public final class EasyTierManager {
                         postFail("网络实例停止" + (info.errorMsg.isEmpty() ? "" : ": " + info.errorMsg));
                         return;
                     }
+                    // v525：游戏在前台时兜底挂载联机悬浮窗（覆盖任何挂载时序）
+                    try {
+                        if (org.levimc.launcher.core.minecraft.MinecraftActivityState.isRunning()) {
+                            android.app.Activity game =
+                                    org.levimc.launcher.core.minecraft.MinecraftActivityState.getActivity();
+                            if (game != null) {
+                                main.post(() -> OnlineOverlay.get(game).show());
+                            }
+                        }
+                    } catch (Throwable ignored) {
+                    }
                 } catch (Throwable t2) {
                     Log.w(TAG, "看门狗异常", t2);
                 }

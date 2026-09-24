@@ -64,8 +64,8 @@ public final class RoomCenter {
     private static volatile boolean hostRunning;
     private static final Map<String, Player> players = new ConcurrentHashMap<>();
     private static final Map<String, Long> lastSeen = new ConcurrentHashMap<>();
-    /** 成员虚拟 IP（心跳包源地址），供 LanBridge 单播转发 MC 公告（v517）。 */
-    private static final Map<String, InetAddress> memberAddrs = new ConcurrentHashMap<>();
+    /** 成员虚拟地址（心跳包源 ip:port），供 LanBridge 转发与房主 ping 成员（v525 含端口）。 */
+    private static final Map<String, InetSocketAddress> memberAddrs = new ConcurrentHashMap<>();
     private static String hostName;
     private static String hostClientId;
     private static volatile Listener hostListener;
@@ -164,7 +164,7 @@ public final class RoomCenter {
                         String cid = q.optString("clientId", "?");
                         String pname = q.optString("playerName", cid);
                         lastSeen.put(cid, System.currentTimeMillis());
-                        memberAddrs.put(cid, p.getAddress());
+                        memberAddrs.put(cid, new InetSocketAddress(p.getAddress(), p.getPort()));
                         if (!players.containsKey(cid)) {
                             if (players.size() + 1 >= MAX_PLAYERS) {
                                 Log.w(TAG, "房间已满，拒绝: " + pname);
@@ -207,8 +207,8 @@ public final class RoomCenter {
         }
     }
 
-    /** 成员虚拟 IP 列表（供 LanBridge 公告桥单播转发，v517）。 */
-    public static java.util.List<InetAddress> getMemberAddresses() {
+    /** 成员虚拟地址列表（供 LanBridge 公告桥单播转发与房主 ping，v525 含端口）。 */
+    public static java.util.List<InetSocketAddress> getMemberAddresses() {
         return new java.util.ArrayList<>(memberAddrs.values());
     }
 
@@ -282,38 +282,54 @@ public final class RoomCenter {
     private static void clientLoop(String hostIp, String name, String clientId, Listener l) {
         while (clientRunning) {
             try (DatagramSocket s = new DatagramSocket()) {
-                s.setSoTimeout(2500);
                 InetSocketAddress target = new InetSocketAddress(hostIp, PORT);
+                // v525 接收线程：常驻 socket 应答房主的反向 c:ping（房主才能测到
+                // 成员延迟/丢包），并解析心跳响应（RTT 用响应回显的 time 计算）。
+                Thread receiver = new Thread(() -> {
+                    byte[] buf = new byte[4096];
+                    DatagramPacket p = new DatagramPacket(buf, buf.length);
+                    while (clientRunning) {
+                        try {
+                            s.setSoTimeout(1000);
+                            s.receive(p);
+                            String text = new String(p.getData(), 0, p.getLength(), "UTF-8");
+                            if (text.startsWith("c:ping\0")) {
+                                answerPing(s, p, text);
+                            } else {
+                                List<Player> list = parsePlayers(text);
+                                long rtt = -1;
+                                try {
+                                    JSONObject o = new JSONObject(text);
+                                    long sent = o.optLong("time", 0);
+                                    if (sent > 0) {
+                                        rtt = System.currentTimeMillis() - sent;
+                                    }
+                                } catch (Exception ignored) {
+                                }
+                                if (!list.isEmpty() || rtt > 0) {
+                                    notifyListeners(list, rtt);
+                                }
+                            }
+                        } catch (java.net.SocketTimeoutException ignored) {
+                            // 继续等待
+                        } catch (Exception e) {
+                            return;
+                        }
+                    }
+                }, "room-client-recv");
+                receiver.setDaemon(true);
+                receiver.start();
                 while (clientRunning) {
-                    // 延迟探测
-                    long pingRtt = -1;
                     try {
                         long t0 = System.currentTimeMillis();
                         String req = "c:ping\0{\"time\":" + t0 + "}";
                         byte[] out = req.getBytes("UTF-8");
                         s.send(new DatagramPacket(out, out.length, target));
-                        String resp = recv(s);
-                        if (resp != null && resp.contains("returnTime")) {
-                            pingRtt = System.currentTimeMillis() - t0;
-                        }
-                    } catch (Exception ignored) {
-                    }
-                    // 心跳 + 玩家列表
-                    List<Player> list = new ArrayList<>();
-                    try {
-                        String req = "c:player\0{\"clientId\":\"" + clientId
+                        String hb = "c:player\0{\"clientId\":\"" + clientId
                                 + "\",\"playerName\":\"" + escape(name) + "\"}";
-                        byte[] out = req.getBytes("UTF-8");
-                        s.send(new DatagramPacket(out, out.length, target));
-                        String resp = recv(s);
-                        if (resp != null) {
-                            list = parsePlayers(resp);
-                        }
+                        byte[] out2 = hb.getBytes("UTF-8");
+                        s.send(new DatagramPacket(out2, out2.length, target));
                     } catch (Exception ignored) {
-                    }
-                    if (pingRtt > 0 || !list.isEmpty()) {
-                        // v521：多监听器广播
-                        notifyListeners(list, pingRtt);
                     }
                     try {
                         Thread.sleep(HEARTBEAT_MS);
@@ -332,6 +348,25 @@ public final class RoomCenter {
                     return;
                 }
             }
+        }
+    }
+
+    /** 应答 c:ping 请求（房主反向探测成员延迟用，v525）。 */
+    private static void answerPing(DatagramSocket s, DatagramPacket req, String text) {
+        try {
+            JSONObject resp = new JSONObject();
+            try {
+                JSONObject q = new JSONObject(text.substring(text.indexOf('\0') + 1));
+                resp.put("time", q.optLong("time", 0));
+            } catch (Exception ignored) {
+            }
+            resp.put("returnTime", System.currentTimeMillis());
+            resp.put("gameType", "MinecraftBedrock");
+            resp.put("gameProtocolType", "UDP");
+            resp.put("gamePort", GAME_PORT);
+            byte[] out = resp.toString().getBytes("UTF-8");
+            s.send(new DatagramPacket(out, out.length, req.getAddress(), req.getPort()));
+        } catch (Exception ignored) {
         }
     }
 
