@@ -453,8 +453,8 @@ public final class OnlineOverlay implements RoomCenter.Listener {
         }
         int count = 1;
         try {
-            List<InetAddress> members = RoomCenter.getMemberAddresses();
-            count = Math.max(1, members.size() + (RoomCenter.isHost ? 0 : 1) + (RoomCenter.isHost ? 1 : 0));
+            int members = RoomCenter.getMemberAddresses().size();
+            count = Math.max(1, members + 1);
         } catch (Exception ignored) {
         }
         String loss = n == 0 ? "--" : String.valueOf(lost * 100 / Math.max(1, n));
