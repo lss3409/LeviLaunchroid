@@ -257,7 +257,16 @@ public class CustomAlertDialog extends Dialog {
             int screenWidth = getContext().getResources().getDisplayMetrics().widthPixels;
             int maxWidth = (int) (mMaxWidthDp * density);
             int dialogWidth = Math.min((int) (screenWidth * 0.9), maxWidth);
+            // v550：主题的 windowMinWidthMajor（Alert 主题默认 ~65% 屏幕）会在
+            // 某些设备上覆盖 setLayout 的宽度——显式写 attributes 强制生效
+            WindowManager.LayoutParams lp = window.getAttributes();
+            lp.width = dialogWidth;
+            lp.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            window.setAttributes(lp);
             window.setLayout(dialogWidth, WindowManager.LayoutParams.WRAP_CONTENT);
+            android.util.Log.i("CustomAlertDialog", "弹窗宽度: " + dialogWidth
+                    + "px (" + mMaxWidthDp + "dp, density=" + density
+                    + ", screen=" + screenWidth + ")");
 
             if (mBlurBackground) {
                 window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
