@@ -54,7 +54,6 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
     private View createView;
     private View roomView;
     private TextView stateText;
-    private TextView relayValue;
     private View stateDot;
     private View stateProgress;
     private View disconnectButton;
@@ -97,7 +96,6 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         createView = findViewById(R.id.online_create_view);
         roomView = findViewById(R.id.online_room_view);
         stateText = findViewById(R.id.online_state_text);
-        relayValue = findViewById(R.id.online_relay_value);
         stateDot = findViewById(R.id.online_state_dot);
         stateProgress = findViewById(R.id.online_state_progress);
         disconnectButton = findViewById(R.id.online_disconnect_button);
@@ -144,7 +142,6 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         PlayerIdentity.getNickname(this);
         PlayerIdentity.getAvatarUrl(this);
 
-        updateRelayView();
         refreshRecent();
         setHomeState(EasyTierManager.State.IDLE, null);
 
@@ -988,6 +985,9 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         }
         View v = getLayoutInflater().inflate(R.layout.dialog_share_code, null);
         ((TextView) v.findViewById(R.id.share_code_text)).setText("P/" + currentCode);
+        // v542：大邀请码与「联机邀请」标签跟随个性化强调色
+        ((TextView) v.findViewById(R.id.share_code_text)).setTextColor(accentColor());
+        ((TextView) v.findViewById(R.id.share_tag)).setTextColor(accentColor());
         android.graphics.Bitmap qr = QrUtils.generate("P/" + currentCode, 480);
         android.widget.ImageView qrView = v.findViewById(R.id.share_qr);
         if (qr != null) {
@@ -1057,31 +1057,6 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                     findViewById(R.id.online_room_share_button));
         } catch (Throwable ignored) {
         }
-    }
-
-    private void updateRelayView() {
-        RelayStore.cleanupLegacy(this);
-        relayValue.setText(getString(R.string.online_relay_support_fmt, RelayStore.SUPPORTED_BY));
-        // 异步测试固定中转连通性（角标：绿=在线 / 灰=离线）
-        new Thread(() -> {
-            boolean ok = false;
-            try (java.net.Socket s = new java.net.Socket()) {
-                s.connect(new java.net.InetSocketAddress("192.168.1.167", 11010), 2000);
-                ok = true;
-            } catch (Exception ignored) {
-            }
-            boolean reachable = ok;
-            runOnUiThread(() -> {
-                View dot = findViewById(R.id.online_relay_dot);
-                if (dot != null) {
-                    dot.setBackgroundResource(reachable
-                            ? R.drawable.bg_state_dot_ok : R.drawable.bg_state_dot_idle);
-                }
-                relayValue.setText(getString(reachable
-                        ? R.string.online_relay_support_fmt : R.string.online_relay_offline,
-                        RelayStore.SUPPORTED_BY));
-            });
-        }, "relay-check").start();
     }
 
     private void onLeaveClicked() {
@@ -1221,7 +1196,6 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
     @Override
     protected void onResume() {
         super.onResume();
-        updateRelayView();
         refreshRecent();
         EasyTierManager.get().setListener(this);
         EasyTierManager.State s = EasyTierManager.get().getState();

@@ -179,30 +179,6 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical" />
 
-            <!-- 服务器支持（固定中转，不可配置） -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:padding="12dp">
-
-                <View
-                    android:id="@+id/online_relay_dot"
-                    android:layout_width="8dp"
-                    android:layout_height="8dp"
-                    android:background="@drawable/bg_state_dot_idle" />
-
-                <TextView
-                    android:id="@+id/online_relay_value"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:fontFamily="@font/misans"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
-            </LinearLayout>
         </LinearLayout>
 
         <!-- ============ 创建视图 ============ -->
