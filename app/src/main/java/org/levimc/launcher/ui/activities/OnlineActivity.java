@@ -42,7 +42,6 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
 
     private static final int REQ_VPN = 1001;
     private static final String HOST_IPV4 = "10.144.144.144";
-    private static final int GAME_PORT = 19132;
     private static final String PREFS_RECENT = "levimc_recent";
     private static final String KEY_RECENT = "rooms";
 
@@ -60,14 +59,13 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
     private TextView roomLatency;
     private TextView hostAvatar;
     private TextView hostName;
-    private TextView joinGameHint;
+    private TextView gameStatus;
     private LinearLayout playersContainer;
     private TextView createStatus;
 
     private boolean formatting;
     private InviteCode.Parsed pendingJoin;
     private String currentCode; // 当前房间码（房主生成/成员加入）
-    private String hostAddress; // 房主虚拟 IP:游戏端口
     private AlertDialog joinDialog;
     private boolean isHost;
     private final List<InviteCode.Parsed> pendingParsed = new ArrayList<>();
@@ -92,7 +90,7 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         roomLatency = findViewById(R.id.online_room_latency);
         hostAvatar = findViewById(R.id.online_host_avatar);
         hostName = findViewById(R.id.online_host_name);
-        joinGameHint = findViewById(R.id.online_join_game_hint);
+        gameStatus = findViewById(R.id.online_room_game_status);
         playersContainer = findViewById(R.id.online_players_container);
         createStatus = findViewById(R.id.online_create_status);
 
@@ -106,13 +104,6 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         findViewById(R.id.online_room_share_button).setOnClickListener(v -> shareCurrentCode());
         findViewById(R.id.online_qr_button).setOnClickListener(v -> showQrDialog());
         findViewById(R.id.online_back_home_button).setOnClickListener(v -> showHome());
-        findViewById(R.id.online_join_game_button).setOnClickListener(v -> {
-            if (hostAddress != null) {
-                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                cm.setPrimaryClip(ClipData.newPlainText("host", hostAddress));
-                Toast.makeText(this, getString(R.string.online_copied), Toast.LENGTH_SHORT).show();
-            }
-        });
 
         updateRelayView();
         refreshRecent();
@@ -251,12 +242,16 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                 com.bumptech.glide.Glide.with(this).load(avatarUrl).circleCrop().into(hostImg);
             }
         }
-        hostAddress = (isHost ? EasyTierManager.get().getVirtualIp() : HOST_IPV4) + ":" + GAME_PORT;
-        if (hostAddress.startsWith("null")) {
-            hostAddress = HOST_IPV4 + ":" + GAME_PORT;
+        // v526：房主世界开启状态（成员端显示，房主端隐藏；心跳回调后实时刷新）
+        if (gameStatus != null) {
+            if (isHost) {
+                gameStatus.setVisibility(View.GONE);
+            } else {
+                gameStatus.setVisibility(View.VISIBLE);
+                gameStatus.setText(R.string.online_game_wait);
+                gameStatus.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+            }
         }
-        joinGameHint.setText(getString(R.string.online_join_game_steps)
-                + "\n\n" + getString(R.string.online_join_game_hint, hostAddress));
         playersContainer.removeAllViews();
         // 初始占位（心跳回调后重建）：房主行已展示自己，列表不再重复
         TextView empty = new TextView(this);
@@ -424,12 +419,18 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                 label.setText(getString(R.string.online_players_count_fmt,
                         memberCount, RoomCenter.MAX_PLAYERS));
             }
-            // v520：成员端提示房主世界开启状态（心跳响应带回）
-            if (!isHost && joinGameHint != null) {
-                if (RoomCenter.hostGameOpen) {
-                    joinGameHint.setText(R.string.online_game_open);
+            // v526：成员端房主世界开启状态（紧凑状态行，替代旧引导卡）
+            if (gameStatus != null) {
+                if (isHost) {
+                    gameStatus.setVisibility(View.GONE);
+                } else if (RoomCenter.hostGameOpen) {
+                    gameStatus.setVisibility(View.VISIBLE);
+                    gameStatus.setText(R.string.online_game_open);
+                    gameStatus.setTextColor(getResources().getColor(R.color.primary, getTheme()));
                 } else {
-                    joinGameHint.setText(R.string.online_game_wait);
+                    gameStatus.setVisibility(View.VISIBLE);
+                    gameStatus.setText(R.string.online_game_wait);
+                    gameStatus.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
                 }
             }
         });
@@ -793,7 +794,39 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         Toast.makeText(this, R.string.online_copied, Toast.LENGTH_SHORT).show();
     }
 
+    /**
+     * v526：Levi 品牌邀请卡弹窗（大码 + 二维码 + 复制/系统分享）。
+     * 替代原先直接拉起系统分享选择器的粗糙交互。
+     */
     private void shareCurrentCode() {
+        if (currentCode == null) {
+            return;
+        }
+        View v = getLayoutInflater().inflate(R.layout.dialog_share_code, null);
+        ((TextView) v.findViewById(R.id.share_code_text)).setText("P/" + currentCode);
+        android.graphics.Bitmap qr = QrUtils.generate("P/" + currentCode, 480);
+        android.widget.ImageView qrView = v.findViewById(R.id.share_qr);
+        if (qr != null) {
+            qrView.setImageBitmap(qr);
+        } else {
+            qrView.setVisibility(View.GONE);
+        }
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(v)
+                .create();
+        v.findViewById(R.id.share_copy_button).setOnClickListener(x -> {
+            copyCurrentCode();
+            dialog.dismiss();
+        });
+        v.findViewById(R.id.share_send_button).setOnClickListener(x -> {
+            dialog.dismiss();
+            systemShareCode();
+        });
+        dialog.show();
+    }
+
+    /** 系统分享（微信/QQ 等），文本为链接卡片式。 */
+    private void systemShareCode() {
         if (currentCode == null) {
             return;
         }
@@ -838,7 +871,6 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         RoomCenter.hostGameOpen = false;
         currentCode = null;
         isHost = false;
-        hostAddress = null;
         showHome();
         setHomeState(EasyTierManager.State.IDLE, null);
     }

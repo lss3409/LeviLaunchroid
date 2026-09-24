@@ -1156,11 +1156,13 @@
     <string name="online_back_home">返回首页</string>
     <string name="online_room_code_label">房间码</string>
     <string name="online_players_label">玩家</string>
-    <string name="online_join_game_title">加入游戏</string>
-    <string name="online_join_game_hint">游戏内「好友→加入局域网」看不到时，去「服务器」页填房主地址：
-%1$s</string>
-    <string name="online_join_game_button">复制房主地址</string>
     <string name="online_leave">退出房间</string>
+    <string name="online_share_brand">LeviLaunchroid</string>
+    <string name="online_share_brand_sub">PaperConnect · 联机邀请</string>
+    <string name="online_share_card_tag">联机邀请</string>
+    <string name="online_share_qr_hint">用 Levi 启动器扫描，或在联机页粘贴邀请码加入</string>
+    <string name="online_share_copy_button">复制邀请码</string>
+    <string name="online_share_send_button">分享给朋友</string>
     <string name="online_relay_add">添加</string>
     <string name="online_relay_support_fmt">服务器支持：%1$s</string>
     <string name="online_relay_mine">我的服务器</string>
@@ -1188,12 +1190,11 @@
     <string name="online_recent_delete">删除此记录</string>
     <string name="online_relay_online">中转在线</string>
     <string name="online_relay_offline">中转离线（异地联机不可用）</string>
-    <string name="online_join_game_steps">① 打开游戏，进入你想加入的世界（或创建局域网世界）
-② 游戏内「服务器」页添加服务器
-③ 填入房主地址并加入</string>
     <string name="online_state_idle">未连接</string>
     <string name="online_state_connected_fmt">已连接 · 虚拟 IP %1$s</string>
-    <string name="online_share_text">来我的世界联机！邀请码：P/%1$s</string>
+    <string name="online_share_text">【LeviLaunchroid 联机邀请】
+来我的世界联机！邀请码：P/%1$s
+打开 Levi 启动器 → 联机 → 加入房间，粘贴邀请码即可</string>
     <string name="online_state_discovering">正在局域网内寻找房主…</string>
     <string name="online_my_room">我的房间</string>
     <string name="online_room_hint">同 WiFi（或已配置中转）的好友输入此码即可加入</string>

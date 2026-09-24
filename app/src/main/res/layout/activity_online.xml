@@ -410,12 +410,12 @@
                         style="@style/Widget.MaterialComponents.Button"
                         android:layout_width="wrap_content"
                         android:layout_height="32dp"
-                        android:backgroundTint="@color/divider"
+                        android:backgroundTint="@color/primary"
                         android:fontFamily="@font/misans"
                         android:paddingHorizontal="10dp"
                         android:text="@string/online_copy_code"
                         android:textAllCaps="false"
-                        android:textColor="@color/on_surface"
+                        android:textColor="@color/on_primary"
                         android:textSize="12sp" />
 
                     <com.google.android.material.button.MaterialButton
@@ -424,12 +424,12 @@
                         android:layout_width="wrap_content"
                         android:layout_height="32dp"
                         android:layout_marginStart="6dp"
-                        android:backgroundTint="@color/divider"
+                        android:backgroundTint="@color/primary"
                         android:fontFamily="@font/misans"
                         android:paddingHorizontal="10dp"
                         android:text="@string/online_share_code"
                         android:textAllCaps="false"
-                        android:textColor="@color/on_surface"
+                        android:textColor="@color/on_primary"
                         android:textSize="12sp" />
                 </LinearLayout>
 
@@ -498,48 +498,20 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
                     android:orientation="vertical" />
-            </LinearLayout>
 
-            <!-- 加入游戏 -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:orientation="vertical"
-                android:padding="18dp"
-                android:background="@drawable/bg_rounded_card">
-
+                <!-- v526：房主世界开启状态（成员端可见，替代已删除的加入游戏引导卡） -->
                 <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="@font/misans"
-                    android:text="@string/online_join_game_title"
-                    android:textColor="@color/on_surface"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/online_join_game_hint"
+                    android:id="@+id/online_room_game_status"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:fontFamily="@font/misans"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/online_join_game_button"
-                    style="@style/Widget.MaterialComponents.Button"
-                    android:layout_width="match_parent"
-                    android:layout_height="42dp"
                     android:layout_marginTop="10dp"
-                    android:backgroundTint="@color/primary"
+                    android:background="@drawable/bg_rounded_card"
                     android:fontFamily="@font/misans"
-                    android:text="@string/online_join_game_button"
-                    android:textAllCaps="false"
-                    android:textColor="@color/on_primary"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
+                    android:gravity="center"
+                    android:padding="8dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
             </LinearLayout>
 
             <com.google.android.material.button.MaterialButton

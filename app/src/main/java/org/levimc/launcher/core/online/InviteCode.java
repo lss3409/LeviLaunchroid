@@ -140,15 +140,32 @@ public final class InviteCode {
     }
 
     /**
-     * 输入自动格式化：去非法字符、转大写、剥前置 P//U/ 前缀、补短横线。
+     * 输入自动格式化（v526 智能粘贴）：优先按邀请码模式提取（4-4-4-4 分组，
+     * 可带 P//U/ 前缀、空格、中英文混排——如微信分享文本
+     * "来我的世界联机！邀请码：P/MV87-MPFS-Q5NR-NTT4"），提取结果须通过
+     * mod 7 校验才采用；否则回退旧逻辑（去非法字符、转大写、剥前缀、补短横线）。
      * 注意：P/ 前缀由布局层 TextView 渲染，不属于文本（v494）——
      * 文本里只放 16 位码本体，避免手输前缀时 P 混入数据位造成码移位。
      */
+    private static final java.util.regex.Pattern CODE_PATTERN = java.util.regex.Pattern.compile(
+            "(?:[PU]\\s*/\\s*)?([0-9A-Z]{4})\\s*[-–—]\\s*([0-9A-Z]{4})\\s*[-–—]\\s*"
+                    + "([0-9A-Z]{4})\\s*[-–—]\\s*([0-9A-Z]{4})",
+            java.util.regex.Pattern.CASE_INSENSITIVE);
+
     public static String formatInput(String input) {
         if (input == null) {
             return "";
         }
-        // 粘贴带前缀的完整码时先剥掉前缀，避免 P 混入数据位
+        // v526：先尝试从任意文本中提取合法邀请码（只认校验通过的）
+        java.util.regex.Matcher m = CODE_PATTERN.matcher(input);
+        while (m.find()) {
+            String candidate = (m.group(1) + "-" + m.group(2) + "-"
+                    + m.group(3) + "-" + m.group(4)).toUpperCase(Locale.ROOT);
+            if (parse("P/" + candidate).ok()) {
+                return candidate;
+            }
+        }
+        // 回退：粘贴带前缀的完整码时先剥掉前缀，避免 P 混入数据位
         String upper = input.toUpperCase(Locale.ROOT);
         if (upper.length() >= 2 && (upper.startsWith("P/") || upper.startsWith("U/"))) {
             upper = upper.substring(2);

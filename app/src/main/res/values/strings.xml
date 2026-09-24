@@ -1164,11 +1164,13 @@ Virtual IP: %1$s
     <string name="online_back_home">Back</string>
     <string name="online_room_code_label">Room Code</string>
     <string name="online_players_label">Players</string>
-    <string name="online_join_game_title">Join Game</string>
-    <string name="online_join_game_hint">If the LAN list does not show the host, add this address in the game Servers tab:
-%1$s</string>
-    <string name="online_join_game_button">Copy host address</string>
     <string name="online_leave">Leave Room</string>
+    <string name="online_share_brand">LeviLaunchroid</string>
+    <string name="online_share_brand_sub">PaperConnect · Online invite</string>
+    <string name="online_share_card_tag">Invite</string>
+    <string name="online_share_qr_hint">Scan with Levi Launcher, or paste the code in the Online tab</string>
+    <string name="online_share_copy_button">Copy</string>
+    <string name="online_share_send_button">Share to friends</string>
     <string name="online_relay_add">Add</string>
     <string name="online_relay_support_fmt">Server support: %1$s</string>
     <string name="online_relay_mine">My servers</string>
@@ -1196,12 +1198,11 @@ Virtual IP: %1$s
     <string name="online_recent_delete">Delete this entry</string>
     <string name="online_relay_online">Relay online</string>
     <string name="online_relay_offline">Relay offline (cross-network play unavailable)</string>
-    <string name="online_join_game_steps">1. Open the game and enter the world (or create a LAN world)
-2. Add a server in the game Servers tab
-3. Fill in the host address and join</string>
     <string name="online_state_idle">Not connected</string>
     <string name="online_state_connected_fmt">Connected · Virtual IP %1$s</string>
-    <string name="online_share_text">Join my Minecraft world! Invite code: P/%1$s</string>
+    <string name="online_share_text">【LeviLaunchroid Invite】
+Join my Minecraft world! Invite code: P/%1$s
+Open Levi Launcher → Online → Join, then paste the code</string>
     <string name="online_state_discovering">Looking for host on the local network…</string>
     <string name="online_my_room">Your Room</string>
     <string name="online_room_hint">Friends on the same Wi-Fi (or via relay) can join with this code</string>
