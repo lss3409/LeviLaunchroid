@@ -5,6 +5,9 @@
      所有 CustomAlertDialog 统一用此完整主题，不依赖宿主 Activity。 -->
     <style name="LeviDialogTheme" parent="Theme.AppCompat.Light.Dialog.Alert">
         <item name="android:windowBackground">@android:color/transparent</item>
+        <!-- v550：Alert 主题默认窗口最小宽度约 65% 屏幕，会覆盖代码 setLayout 的收窄宽度 -->
+        <item name="android:windowMinWidthMajor">0dp</item>
+        <item name="android:windowMinWidthMinor">0dp</item>
         <item name="android:colorBackground">@color/background</item>
         <item name="colorPrimary">@color/primary</item>
         <item name="colorOnPrimary">@color/on_primary</item>

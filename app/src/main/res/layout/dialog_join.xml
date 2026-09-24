@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="22dp">
+    android:padding="16dp">
 
     <TextView
         android:layout_width="wrap_content"
@@ -18,8 +18,8 @@
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:layout_marginTop="14dp"
+        android:layout_height="44dp"
+        android:layout_marginTop="10dp"
         android:background="@drawable/bg_edit_text"
         android:gravity="center_vertical"
         android:orientation="horizontal"
@@ -87,7 +87,7 @@
         android:id="@+id/join_steps_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
+        android:layout_marginTop="10dp"
         android:orientation="horizontal"
         android:visibility="gone" />
 
@@ -105,7 +105,7 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
+        android:layout_marginTop="10dp"
         android:orientation="horizontal">
 
         <!-- v538：取消按钮 TextButton 风格（透明背景），文字运行时染个性化强调色 -->
