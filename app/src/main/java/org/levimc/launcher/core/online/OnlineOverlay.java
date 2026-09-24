@@ -67,6 +67,10 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
     private final View[] pttBars = new View[5];
     // v534：悬浮窗内加入/离开提示行
     private TextView playerBanner;
+    /** v559：设置面板（悬浮窗同款 UI，内嵌卡片显示/隐藏）。 */
+    private LinearLayout settingsPanel;
+    /** v559：卡片里可被设置面板隐藏的内容行（切换时保存可见性）。 */
+    private final List<View> settingsHideTargets = new java.util.ArrayList<>();
     private final java.util.Set<String> lastOverlayIds = new java.util.HashSet<>();
     private final java.util.Map<String, String> lastOverlayNames = new java.util.HashMap<>();
     private final Runnable hidePlayerBannerRunnable = () -> {
@@ -287,6 +291,7 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         cardState.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         header.addView(cardState, new LinearLayout.LayoutParams(0, dp(24), 1f));
         // v547：设置按钮（只在游戏内悬浮窗——降噪开关/等级 + 详情卡查看权限）
+        // v559：改为内嵌面板切换（悬浮窗同款 UI，不再弹居中弹窗）
         TextView settings = new TextView(activity);
         settings.setText("⚙");
         settings.setTextColor(0xAAFFFFFF);
@@ -295,7 +300,7 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         LinearLayout.LayoutParams sLp = new LinearLayout.LayoutParams(dp(24), dp(24));
         sLp.rightMargin = dp(6);
         header.addView(settings, sLp);
-        settings.setOnClickListener(v -> showSettings());
+        settings.setOnClickListener(v -> toggleSettingsPanel());
         TextView collapse = new TextView(activity);
         collapse.setText("收起");
         collapse.setTextColor(0xAAFFFFFF);
@@ -420,6 +425,18 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
             hide();
         });
 
+        // v559：设置面板（悬浮窗同款 UI——深色卡片内的行式设置项）
+        buildSettingsPanel(card);
+        // v559：设置面板显示时隐藏常规内容行
+        settingsHideTargets.clear();
+        settingsHideTargets.add(code);
+        settingsHideTargets.add(playersContainer);
+        settingsHideTargets.add(pttFrame);
+        settingsHideTargets.add(leave);
+        if (playerBanner != null) {
+            settingsHideTargets.add(playerBanner);
+        }
+
         cardView = card;
         cardParams = baseParams(width, WindowManager.LayoutParams.WRAP_CONTENT);
         cardParams.x = dp(12);
@@ -429,26 +446,42 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
     }
 
     /**
-     * v547：悬浮窗设置——降噪开关/等级 + 详情卡查看权限（仅游戏内悬浮窗有入口）。
+     * v559：构建设置面板——悬浮窗同款 UI（深色卡片内行式设置项），
+     * 点 ⚙ 在玩家列表与设置面板之间切换，不再弹居中弹窗。
      */
-    private void showSettings() {
-        LinearLayout v = new LinearLayout(activity);
-        v.setOrientation(LinearLayout.VERTICAL);
-        v.setPadding(dp(20), dp(16), dp(20), dp(16));
+    private void buildSettingsPanel(LinearLayout card) {
+        settingsPanel = new LinearLayout(activity);
+        settingsPanel.setOrientation(LinearLayout.VERTICAL);
+        settingsPanel.setVisibility(View.GONE);
+        LinearLayout.LayoutParams spLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        spLp.topMargin = dp(8);
+        card.addView(settingsPanel, spLp);
+
+        // 返回行（点 ⚙ 或此行回到玩家列表）
+        TextView backRow = new TextView(activity);
+        backRow.setText("← 返回");
+        backRow.setTextColor(0xAAFFFFFF);
+        backRow.setTextSize(11);
+        settingsPanel.addView(backRow);
+        backRow.setOnClickListener(v -> toggleSettingsPanel());
 
         // 降噪开关
         TextView noiseLabel = new TextView(activity);
         noiseLabel.setText(R.string.online_settings_noise);
-        noiseLabel.setTextSize(13);
+        noiseLabel.setTextSize(12);
         noiseLabel.setTextColor(0xFFF5F5F5);
-        v.addView(noiseLabel);
+        LinearLayout.LayoutParams nlLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        nlLp.topMargin = dp(10);
+        settingsPanel.addView(noiseLabel, nlLp);
         final boolean[] ns = {VoiceEngine.isNoiseSuppressionOn()};
         TextView noiseToggle = new TextView(activity);
         refreshToggle(noiseToggle, ns[0]);
         LinearLayout.LayoutParams ntLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(36));
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(32));
         ntLp.topMargin = dp(6);
-        v.addView(noiseToggle, ntLp);
+        settingsPanel.addView(noiseToggle, ntLp);
         noiseToggle.setOnClickListener(x -> {
             ns[0] = !ns[0];
             VoiceEngine.setNoiseSuppression(ns[0]);
@@ -458,18 +491,18 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         // 降噪等级
         TextView levelLabel = new TextView(activity);
         levelLabel.setText(R.string.online_settings_noise_level);
-        levelLabel.setTextSize(13);
+        levelLabel.setTextSize(12);
         levelLabel.setTextColor(0xFFF5F5F5);
         LinearLayout.LayoutParams llLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        llLp.topMargin = dp(14);
-        v.addView(levelLabel, llLp);
+        llLp.topMargin = dp(12);
+        settingsPanel.addView(levelLabel, llLp);
         LinearLayout levelRow = new LinearLayout(activity);
         levelRow.setOrientation(LinearLayout.HORIZONTAL);
         LinearLayout.LayoutParams lrLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(34));
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(30));
         lrLp.topMargin = dp(6);
-        v.addView(levelRow, lrLp);
+        settingsPanel.addView(levelRow, lrLp);
         int[] levelNames = {R.string.online_settings_noise_low,
                 R.string.online_settings_noise_medium, R.string.online_settings_noise_high};
         final int[] curLevel = {VoiceEngine.getNoiseLevel()};
@@ -479,7 +512,7 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
             cap.setText(levelNames[i]);
             cap.setTextSize(12);
             cap.setGravity(Gravity.CENTER);
-            LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(0, dp(30), 1f);
+            LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(0, dp(28), 1f);
             if (i > 0) {
                 cLp.leftMargin = dp(6);
             }
@@ -497,18 +530,18 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         // 详情卡查看权限
         TextView permLabel = new TextView(activity);
         permLabel.setText(R.string.online_settings_view_perm);
-        permLabel.setTextSize(13);
+        permLabel.setTextSize(12);
         permLabel.setTextColor(0xFFF5F5F5);
         LinearLayout.LayoutParams plLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        plLp.topMargin = dp(14);
-        v.addView(permLabel, plLp);
+        plLp.topMargin = dp(12);
+        settingsPanel.addView(permLabel, plLp);
         LinearLayout permRow = new LinearLayout(activity);
         permRow.setOrientation(LinearLayout.HORIZONTAL);
         LinearLayout.LayoutParams prLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(34));
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(30));
         prLp.topMargin = dp(6);
-        v.addView(permRow, prLp);
+        settingsPanel.addView(permRow, prLp);
         int[] permNames = {R.string.online_settings_perm_none,
                 R.string.online_settings_perm_host, R.string.online_settings_perm_all};
         final int[] curPerm = {PlayerDetailCard.getViewPerm(activity)};
@@ -518,7 +551,7 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
             cap.setText(permNames[i]);
             cap.setTextSize(12);
             cap.setGravity(Gravity.CENTER);
-            LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(0, dp(30), 1f);
+            LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(0, dp(28), 1f);
             if (i > 0) {
                 cLp.leftMargin = dp(6);
             }
@@ -532,13 +565,25 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
                 }
             });
         }
+    }
 
-        org.levimc.launcher.ui.dialogs.CustomAlertDialog dialog =
-                new org.levimc.launcher.ui.dialogs.CustomAlertDialog(activity);
-        dialog.setCustomView(v);
-        // v558：点弹窗旁空白区域关闭（与二维码弹窗一致）
-        dialog.setCanceledOnTouchOutside(true);
-        dialog.show();
+    /** v559：设置面板与常规内容互斥切换。 */
+    private void toggleSettingsPanel() {
+        if (settingsPanel == null) {
+            return;
+        }
+        boolean show = settingsPanel.getVisibility() != View.VISIBLE;
+        settingsPanel.setVisibility(show ? View.VISIBLE : View.GONE);
+        for (View target : settingsHideTargets) {
+            if (target != null) {
+                target.setVisibility(show ? View.GONE : View.VISIBLE);
+            }
+        }
+        // 回列表时 PTT 行按模式恢复显示
+        if (!show && pttFrame != null) {
+            pttFrame.setVisibility(VoiceEngine.getLastMode() == VoiceEngine.MODE_PTT
+                    ? View.VISIBLE : View.GONE);
+        }
     }
 
     /** 开关胶囊样式刷新（开=强调色底深字，关=暗底亮字）。 */
