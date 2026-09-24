@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v527 PTT 图标（对讲机：机身 + 天线 + 喇叭孔） -->
+<!-- v530 PTT 对讲机图标（机身+圆头天线+喇叭格栅+侧键）。
+     evenOdd 填充：格栅/按键为镂空，运行时 setColorFilter 只染机身。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -7,5 +8,11 @@
     android:viewportHeight="24">
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M7,10h10c1.66,0 3,1.34 3,3v6c0,1.66 -1.34,3 -3,3H7c-1.66,0 -3,-1.34 -3,-3v-6c0,-1.66 1.34,-3 3,-3zM8,3h3v7H8zM6.5,14.5h4v1.8h-4zM6.5,17.5h4v1.8h-4z" />
+        android:fillType="evenOdd"
+        android:pathData="M9.5,9V6.5C9.5,5.12 10.62,4 12,4C13.38,4 14.5,5.12 14.5,6.5V9H9.5z
+            M6.5,9h11c1.38,0 2.5,1.12 2.5,2.5v7c0,1.38 -1.12,2.5 -2.5,2.5h-11C5.12,21 4,19.88 4,18.5v-7C4,10.12 5.12,9 6.5,9z
+            M6.2,13h3.6v1.3H6.2z
+            M6.2,15.6h3.6v1.3H6.2z
+            M6.2,18.2h3.6v1.3H6.2z
+            M16,13.2h2.2v2.4H16z" />
 </vector>

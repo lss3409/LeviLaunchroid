@@ -62,7 +62,6 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
 
     // v527/v528 麦克风 UI：每玩家行一个图标（自己=可点三态按钮，他人=状态显示）
     private TextView pttButton;
-    private TextView muteAllButton;
     private boolean micPending;
     private final Map<String, TextView> playerRows = new HashMap<>();
     private final Map<String, android.widget.ImageView> playerMicViews = new HashMap<>();
@@ -155,7 +154,6 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         barView = null;
         cardView = null;
         pttButton = null;
-        muteAllButton = null;
         playerRows.clear();
         playerMicViews.clear();
         playerMicStates.clear();
@@ -231,22 +229,6 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         collapse.setTextSize(11);
         header.addView(collapse);
         collapse.setOnClickListener(v -> toggleCard());
-        // v528 房主一键全员禁麦（仅房主可见）
-        muteAllButton = new TextView(activity);
-        muteAllButton.setText(R.string.voice_mute_all);
-        muteAllButton.setTextColor(0xAAFFFFFF);
-        muteAllButton.setTextSize(11);
-        GradientDrawable mabg = new GradientDrawable();
-        mabg.setColor(0x1AFFFFFF);
-        mabg.setCornerRadius(dp(6));
-        muteAllButton.setBackground(mabg);
-        LinearLayout.LayoutParams maLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        maLp.leftMargin = dp(10);
-        header.addView(muteAllButton, maLp);
-        muteAllButton.setVisibility(View.GONE);
-        muteAllButton.setOnClickListener(v ->
-                RoomCenter.sendMuteAll(!RoomCenter.allMuted));
         card.addView(header);
 
         TextView code = new TextView(activity);
@@ -459,6 +441,11 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
 
     private void advanceMicMode() {
         VoiceEngine ve = VoiceEngine.get(activity);
+        // v530：被房主禁麦期间不能自己开麦
+        if (ve.isMutedByHost()) {
+            Toast.makeText(activity, R.string.voice_muted_by_host, Toast.LENGTH_SHORT).show();
+            return;
+        }
         int m = ve.cycleMode();
         refreshMicUi();
         if (m != VoiceEngine.MODE_MUTED) {
@@ -519,11 +506,6 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         }
         if (pttButton != null) {
             pttButton.setVisibility(selfMode == VoiceEngine.MODE_PTT ? View.VISIBLE : View.GONE);
-        }
-        if (muteAllButton != null && muteAllButton.getVisibility() == View.VISIBLE) {
-            muteAllButton.setText(RoomCenter.allMuted
-                    ? R.string.voice_unmute_all : R.string.voice_mute_all);
-            muteAllButton.setTextColor(RoomCenter.allMuted ? accent : 0xAAFFFFFF);
         }
     }
 
@@ -712,11 +694,25 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
                         avLp.rightMargin = dp(6);
                         row.addView(avFrame, avLp);
                         TextView name = new TextView(activity);
-                        name.setText((p.isRoomHost ? "👑 " : "") + p.name
+                        // v530：被房主禁麦的成员名字前加 🔇 标记
+                        boolean muted = RoomCenter.isMuted(p.clientId);
+                        name.setText((p.isRoomHost ? "👑 " : "") + (muted ? "🔇 " : "")
+                                + p.name
                                 + (self ? activity.getString(R.string.online_self_suffix) : ""));
                         name.setTextSize(12);
                         row.addView(name, new LinearLayout.LayoutParams(0,
                                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                        // v530：房主点击成员行 = 禁麦/解除禁麦（不能强制开麦）
+                        if (RoomCenter.isHost && !self && !p.isRoomHost) {
+                            row.setOnClickListener(v -> {
+                                boolean nowMuted = !RoomCenter.isMuted(p.clientId);
+                                RoomCenter.sendMute(p.clientId, nowMuted);
+                                Toast.makeText(activity,
+                                        nowMuted ? R.string.voice_mute_member
+                                                : R.string.voice_unmute_member,
+                                        Toast.LENGTH_SHORT).show();
+                            });
+                        }
                         // v528：每玩家行右侧麦克风（自己=可点三态按钮，他人=状态显示）
                         android.widget.ImageView mic = new android.widget.ImageView(activity);
                         mic.setImageResource(R.drawable.ic_mic_off);
@@ -742,10 +738,6 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
                         playerMicViews.put(p.clientId, mic);
                         playerMicStates.put(p.clientId, p.micState);
                     }
-                }
-                // v528：房主显示一键禁麦按钮
-                if (muteAllButton != null) {
-                    muteAllButton.setVisibility(RoomCenter.isHost ? View.VISIBLE : View.GONE);
                 }
                 onVoiceChanged(); // 按当前说话状态上色 + 刷新麦克风图标
             }

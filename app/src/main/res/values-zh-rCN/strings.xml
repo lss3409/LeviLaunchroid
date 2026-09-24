@@ -1219,8 +1219,9 @@
     <string name="voice_ptt">对讲机</string>
     <string name="voice_ptt_hold">按住说话</string>
     <string name="voice_perm_denied">需要麦克风权限才能开麦</string>
-    <string name="voice_mute_all">全员禁麦</string>
-    <string name="voice_unmute_all">解除禁麦</string>
+    <string name="voice_muted_by_host">你已被房主禁麦</string>
+    <string name="voice_mute_member">已禁麦该成员</string>
+    <string name="voice_unmute_member">已解除该成员禁麦</string>
     <string name="online_self_suffix">（我）</string>
     <string name="online_join_banner_fmt">「%1$s」加入了房间</string>
     <string name="online_leave_banner_fmt">「%1$s」离开了房间</string>

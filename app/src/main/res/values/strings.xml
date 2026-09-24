@@ -1227,8 +1227,9 @@ Invite code: P/%1$s
     <string name="voice_ptt">PTT</string>
     <string name="voice_ptt_hold">Hold to talk</string>
     <string name="voice_perm_denied">Microphone permission required</string>
-    <string name="voice_mute_all">Mute all</string>
-    <string name="voice_unmute_all">Unmute all</string>
+    <string name="voice_muted_by_host">Muted by host</string>
+    <string name="voice_mute_member">Member muted</string>
+    <string name="voice_unmute_member">Member unmuted</string>
     <string name="online_self_suffix"> (You)</string>
     <string name="online_join_banner_fmt">「%1$s」joined the room</string>
     <string name="online_leave_banner_fmt">「%1$s」left the room</string>

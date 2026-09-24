@@ -60,6 +60,8 @@ public final class VoiceEngine implements RoomCenter.Listener {
     private static volatile VoiceEngine instance;
     /** 最近一次模式（无 Context 读取，RoomCenter 心跳/玩家列表同步用，v528）。 */
     private static volatile int lastMode = MODE_MUTED;
+    /** 是否被房主禁麦（v530：禁麦期间点击自己麦克风被拒，解除后恢复自由）。 */
+    private static volatile boolean mutedByHost;
     private final Context app;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
@@ -131,8 +133,13 @@ public final class VoiceEngine implements RoomCenter.Listener {
         }
     }
 
-    /** 下一档模式（MUTED→OPEN→PTT→MUTED），返回新模式。 */
+    /** 下一档模式（MUTED→OPEN→PTT→MUTED），返回新模式；
+     *  v530：被房主禁麦时拒绝切换（返回 -1）。 */
     public int cycleMode() {
+        if (mutedByHost) {
+            Log.i(TAG, "被房主禁麦，拒绝切换模式");
+            return -1;
+        }
         int next;
         synchronized (this) {
             next = (mode + 1) % 3;
@@ -147,33 +154,44 @@ public final class VoiceEngine implements RoomCenter.Listener {
     }
 
     public void pttDown() {
+        Log.d(TAG, "PTT 按下");
         pttPressed = true;
     }
 
     public void pttUp() {
+        Log.d(TAG, "PTT 松开");
         pttPressed = false;
     }
 
-    /** 房主一键禁麦指令（c:mute，无 Context 静态入口，v528）。 */
-    public static void forceMuteStatic(boolean mute) {
+    /** 是否被房主禁麦（v530，UI 弹提示用）。 */
+    public static boolean isMutedByHost() {
+        return mutedByHost;
+    }
+
+    /** 房主个体禁麦指令（c:mute 单播，无 Context 静态入口，v530）。 */
+    public static void setMutedByHostStatic(boolean mute) {
         VoiceEngine ve = instance;
         if (ve != null) {
-            ve.forceMute(mute);
+            ve.setMutedByHost(mute);
+        } else {
+            mutedByHost = mute;
         }
     }
 
-    /** 被房主强制禁麦：直接切回闭麦（UI 立即刷新）。 */
-    public void forceMute(boolean mute) {
-        if (!mute) {
-            return;
+    /** 被房主禁麦：切回闭麦并锁定；解除：只解锁（不自动开麦）。 */
+    public void setMutedByHost(boolean mute) {
+        mutedByHost = mute;
+        if (mute) {
+            synchronized (this) {
+                mode = MODE_MUTED;
+                pttPressed = false;
+            }
+            lastMode = mode;
+            Log.i(TAG, "被房主禁麦");
+            notifyChanged();
+        } else {
+            Log.i(TAG, "房主已解除禁麦");
         }
-        synchronized (this) {
-            mode = MODE_MUTED;
-            pttPressed = false;
-        }
-        lastMode = mode;
-        Log.i(TAG, "被房主一键禁麦");
-        notifyChanged();
     }
 
     // ---------------- 生命周期 ----------------

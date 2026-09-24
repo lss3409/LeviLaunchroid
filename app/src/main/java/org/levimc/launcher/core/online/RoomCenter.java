@@ -80,8 +80,9 @@ public final class RoomCenter {
     private static final Map<String, Integer> memberMic = new ConcurrentHashMap<>();
     /** 成员 Xbox 头像 URL（心跳带 avatarUrl，v529）。 */
     private static final Map<String, String> memberAvatar = new ConcurrentHashMap<>();
-    /** 房主一键禁麦是否生效（v528）。 */
-    public static volatile boolean allMuted = false;
+    /** 房主禁麦名单（v530：个体禁麦，替换 v528 全员禁麦）。 */
+    private static final java.util.Set<String> hostMuted =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
     private static String hostName;
     private static String hostClientId;
     private static volatile Listener hostListener;
@@ -149,7 +150,7 @@ public final class RoomCenter {
         lastSeen.clear();
         memberMic.clear();
         memberAvatar.clear();
-        allMuted = false;
+        hostMuted.clear();
     }
 
     private static void hostLoop() {
@@ -211,8 +212,10 @@ public final class RoomCenter {
                     notifyListeners(snapshot(), -1);
                 }
             } catch (java.net.SocketTimeoutException e) {
-                // 超时：顺带清理过期成员
-                cleanupStale();
+                // 超时：顺带清理过期成员；v530：有移除时广播名单（成员退出横幅/列表刷新）
+                if (cleanupStale()) {
+                    notifyListeners(snapshot(), -1);
+                }
             } catch (Exception e) {
                 if (hostRunning) {
                     Log.w(TAG, "房主循环异常", e);
@@ -222,15 +225,22 @@ public final class RoomCenter {
         Log.i(TAG, "房间中心已停止");
     }
 
-    private static void cleanupStale() {
+    /** 清理超时成员；有成员被移除时返回 true（调用方需广播玩家列表，v530）。 */
+    private static boolean cleanupStale() {
         long now = System.currentTimeMillis();
+        boolean removed = false;
         for (Map.Entry<String, Long> e : lastSeen.entrySet()) {
             if (now - e.getValue() > TIMEOUT_MS) {
                 players.remove(e.getKey());
                 lastSeen.remove(e.getKey());
                 memberAddrs.remove(e.getKey());
+                memberMic.remove(e.getKey());
+                memberAvatar.remove(e.getKey());
+                Log.i(TAG, "成员超时移除: " + e.getKey());
+                removed = true;
             }
         }
+        return removed;
     }
 
     /** 成员虚拟地址列表（供 LanBridge 公告桥单播转发与房主 ping，v525 含端口）。 */
@@ -372,12 +382,12 @@ public final class RoomCenter {
                             if (text.startsWith("c:ping\0")) {
                                 answerPing(s, p, text);
                             } else if (text.startsWith("c:mute\0")) {
-                                // v528：房主一键禁麦指令 → 语音引擎强制闭麦
+                                // v530：房主个体禁麦指令（单播给我）→ 语音引擎处理
                                 try {
                                     JSONObject mq = new JSONObject(
                                             text.substring(text.indexOf('\0') + 1));
                                     org.levimc.launcher.core.online.voice.VoiceEngine
-                                            .forceMuteStatic(mq.optBoolean("mute", false));
+                                            .setMutedByHostStatic(mq.optBoolean("mute", false));
                                 } catch (Exception ignored) {
                                 }
                             } else {
@@ -501,22 +511,36 @@ public final class RoomCenter {
         return out;
     }
 
-    /** 房主一键禁麦/解除（v528）：c:mute 单播给所有成员。 */
-    public static void sendMuteAll(boolean mute) {
-        allMuted = mute;
-        DatagramSocket s = hostSocket;
-        if (s == null || s.isClosed()) {
-            return;
+    /** 该成员是否被房主禁麦（v530）。 */
+    public static boolean isMuted(String clientId) {
+        return hostMuted.contains(clientId);
+    }
+
+    /**
+     * v530 个体禁麦/解除（仅房主可调）：c:mute 单播给目标成员。
+     * 只能禁麦/解除，不能强制开麦（解除后成员仍闭麦直到自己开）。
+     */
+    public static void sendMute(String clientId, boolean mute) {
+        if (mute) {
+            hostMuted.add(clientId);
+        } else {
+            hostMuted.remove(clientId);
         }
-        String msg = "c:mute\0{\"mute\":" + mute + "}";
-        byte[] out = msg.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        for (InetSocketAddress addr : memberAddrs.values()) {
-            try {
-                s.send(new DatagramPacket(out, out.length, addr.getAddress(), addr.getPort()));
-            } catch (Exception ignored) {
+        DatagramSocket s = hostSocket;
+        if (s != null && !s.isClosed()) {
+            InetSocketAddress addr = memberAddrs.get(clientId);
+            if (addr != null) {
+                String msg = "c:mute\0{\"clientId\":\"" + clientId + "\",\"mute\":" + mute + "}";
+                byte[] out = msg.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                try {
+                    s.send(new DatagramPacket(out, out.length, addr.getAddress(), addr.getPort()));
+                } catch (Exception ignored) {
+                }
             }
         }
-        Log.i(TAG, "一键禁麦广播: " + mute);
+        Log.i(TAG, "成员禁麦: " + clientId + " mute=" + mute);
+        // 房主本地玩家列表刷新（被禁麦成员的 🔇 标记即时更新）
+        notifyListeners(snapshot(), -1);
     }
 
     // ---- UDP 工具 ----
