@@ -272,10 +272,28 @@ public class CustomAlertDialog extends Dialog {
             lp.height = WindowManager.LayoutParams.WRAP_CONTENT;
             window.setAttributes(lp);
             window.setLayout(dialogWidth, WindowManager.LayoutParams.WRAP_CONTENT);
-            // v552：高度上限 = 屏幕 78%（根布局 maxHeight 兜底，防按钮被挤出屏）
+            // v556：横屏手机屏高很小（如 vivo 横屏仅 360dp），xml 的 500dp
+            // maxHeight 仍会超屏——测量后若超过屏高 78% 就把窗口高度钉死，
+            // 内部 ScrollView 压缩滚动，按钮永远在屏内
             View root = findViewById(R.id.dialog_root);
             if (root != null) {
-                root.setMinimumHeight(0);
+                root.post(() -> {
+                    if (!isShowing()) {
+                        return;
+                    }
+                    int maxH = org.levimc.launcher.util.DialogSizer.dialogMaxHeight(
+                            getContext());
+                    if (root.getHeight() > maxH) {
+                        // 根布局高度钉死到屏高 78%（内部 ScrollView 压缩滚动），
+                        // 窗口高度同步——否则内容被窗口裁剪、按钮不可见
+                        ViewGroup.LayoutParams rlp = root.getLayoutParams();
+                        rlp.height = maxH;
+                        root.setLayoutParams(rlp);
+                        WindowManager.LayoutParams wlp = window.getAttributes();
+                        wlp.height = maxH;
+                        window.setAttributes(wlp);
+                    }
+                });
             }
 
             if (mBlurBackground) {
