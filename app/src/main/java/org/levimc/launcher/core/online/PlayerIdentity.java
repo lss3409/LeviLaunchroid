@@ -21,6 +21,8 @@ public final class PlayerIdentity {
     private static volatile String cachedUuid;
     /** 最近一次解析出的昵称（无 Context 读取，RoomCenter 心跳用，v527）。 */
     private static volatile String currentNick;
+    /** 最近一次解析出的头像 URL（心跳同步用，v529）。 */
+    private static volatile String currentAvatarUrl;
 
     private PlayerIdentity() {
     }
@@ -58,13 +60,20 @@ public final class PlayerIdentity {
         return currentNick;
     }
 
+    /** 无 Context 读取最近一次解析出的头像 URL（心跳同步用，v529）。 */
+    public static String getCurrentAvatarUrl() {
+        return currentAvatarUrl;
+    }
+
     /**
      * v527：Xbox 登录/切换账号后刷新身份（MsftAccountStore 回调）。
      * 清缓存并立即用新 gamertag 更新 currentNick——进程内登录后
      * 联机 ID 马上换成 Xbox 的，不用重启进程。
      */
     public static void refresh(Context ctx) {
-        String gamertag = loadGamertag(ctx);
+        String[] profile = loadXboxProfile(ctx);
+        String gamertag = profile[0];
+        currentAvatarUrl = profile[1];
         if (gamertag != null && !gamertag.isEmpty()) {
             cachedNick = gamertag;
             currentNick = gamertag;
@@ -115,7 +124,9 @@ public final class PlayerIdentity {
 
     /** 读取 Xbox 账号头像 URL（无则 null）。 */
     public static String getAvatarUrl(Context ctx) {
-        return loadXboxProfile(ctx)[1];
+        String url = loadXboxProfile(ctx)[1];
+        currentAvatarUrl = url;
+        return url;
     }
 
     /** 从 MsftAccountStore 读 active 账号的 [gamertag, avatarUrl]。 */

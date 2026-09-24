@@ -63,6 +63,18 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
     private LinearLayout playersContainer;
     private TextView createStatus;
 
+    // v529：房主头像（成员端从玩家列表同步）+ 加入/离开横幅
+    private String hostAvatarUrl;
+    private TextView banner;
+    private final android.os.Handler bannerHandler = new android.os.Handler(
+            android.os.Looper.getMainLooper());
+    private final Runnable hideBannerRunnable = this::hideBannerNow;
+    private final List<String> pendingJoins = new ArrayList<>();
+    private final List<String> pendingLeaves = new ArrayList<>();
+    private final java.util.Set<String> lastPlayerIds = new java.util.HashSet<>();
+    private final java.util.Map<String, String> lastPlayerNames = new java.util.HashMap<>();
+    private Runnable flushBannerRunnable;
+
     private boolean formatting;
     private InviteCode.Parsed pendingJoin;
     private String currentCode; // 当前房间码（房主生成/成员加入）
@@ -91,6 +103,20 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         hostAvatar = findViewById(R.id.online_host_avatar);
         hostName = findViewById(R.id.online_host_name);
         gameStatus = findViewById(R.id.online_room_game_status);
+        banner = findViewById(R.id.online_banner);
+        flushBannerRunnable = () -> {
+            List<String> joins = new ArrayList<>(pendingJoins);
+            List<String> leaves = new ArrayList<>(pendingLeaves);
+            pendingJoins.clear();
+            pendingLeaves.clear();
+            if (!joins.isEmpty()) {
+                showBanner(getString(R.string.online_join_banner_fmt, String.join("」「", joins)),
+                        0xCC3A6B4E, 2500); // MC 原版加入提示绿
+            } else if (!leaves.isEmpty()) {
+                showBanner(getString(R.string.online_leave_banner_fmt, String.join("」「", leaves)),
+                        0xAA3A3A44, 1500); // 离开用淡灰，不抢注意力
+            }
+        };
         playersContainer = findViewById(R.id.online_players_container);
         createStatus = findViewById(R.id.online_create_status);
 
@@ -233,15 +259,9 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
             hostAvatar.setText("房");
             hostName.setText(getString(R.string.online_host_unknown));
         }
-        // Xbox 头像覆盖（有 URL 时）
-        String avatarUrl = PlayerIdentity.getAvatarUrl(this);
-        android.widget.ImageView hostImg = findViewById(R.id.online_host_avatar_img);
-        if (hostImg != null) {
-            hostImg.setImageDrawable(null);
-            if (avatarUrl != null && !avatarUrl.isEmpty()) {
-                com.bumptech.glide.Glide.with(this).load(avatarUrl).circleCrop().into(hostImg);
-            }
-        }
+        // v529：房主行头像——房主端用本机账号头像，成员端用玩家列表同步的房主头像
+        hostAvatarUrl = isHost ? PlayerIdentity.getAvatarUrl(this) : null;
+        loadHostAvatar();
         // v526：房主世界开启状态（成员端显示，房主端隐藏；心跳回调后实时刷新）
         if (gameStatus != null) {
             if (isHost) {
@@ -312,8 +332,9 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         }
     }
 
-    /** 玩家行（v502）：首字头像 + 昵称 + 房主皇冠 + 自己高亮。 */
-    private void addPlayerRow(String name, boolean isSelf, boolean isRoomHost) {
+    /** 玩家行（v502/v529）：首字头像（有 URL 时 Glide 覆盖）+ 昵称 + 房主皇冠 + 自己高亮。
+     *  v529：avatarUrl 按玩家传入（跨设备同步），不再用本机账号头像。 */
+    private void addPlayerRow(String name, boolean isSelf, boolean isRoomHost, String avatarUrl) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -330,8 +351,10 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         avatar.setBackgroundResource(R.drawable.bg_avatar);
         avatarFrame.addView(avatar, new android.widget.FrameLayout.LayoutParams(
                 avatarSize, avatarSize));
-        // Xbox 头像（有 URL 时 Glide 覆盖首字底）
-        String avatarUrl = PlayerIdentity.getAvatarUrl(this);
+        // Xbox 头像（该玩家的 URL；自己=本机账号头像）
+        if (isSelf) {
+            avatarUrl = PlayerIdentity.getAvatarUrl(this);
+        }
         if (avatarUrl != null && !avatarUrl.isEmpty()) {
             android.widget.ImageView iv = new android.widget.ImageView(this);
             com.bumptech.glide.Glide.with(this).load(avatarUrl).circleCrop().into(iv);
@@ -342,7 +365,8 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         row.addView(avatarFrame, alp);
 
         TextView label = new TextView(this);
-        label.setText(name);
+        // v529（清单 #33）：自己那行加"（我）"标识
+        label.setText(isSelf ? name + getString(R.string.online_self_suffix) : name);
         label.setTextSize(14);
         label.setTextColor(getResources().getColor(
                 isSelf ? R.color.primary : R.color.on_surface, getTheme()));
@@ -368,17 +392,23 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
             }
             if (rttMs > 0) {
                 roomLatency.setText(getString(R.string.online_room_latency_fmt, rttMs));
+                // v529（清单 #25）：延迟颜色分级 <50 绿 / 50-100 黄 / >100 红
+                roomLatency.setTextColor(rttMs < 50 ? 0xFF4CAF50
+                        : rttMs < 100 ? getResources().getColor(R.color.warning, getTheme())
+                        : getResources().getColor(R.color.error, getTheme()));
             }
             updateConnModeBadge();
             String selfId = PlayerIdentity.getClientId(this);
             String nick = PlayerIdentity.getNickname(this);
+            // v529（清单 #13/15/16）：加入/离开横幅（对比上次名单）
+            detectPlayerChanges(list, selfId);
             playersContainer.removeAllViews();
             int memberCount = 1;
             if (isHost) {
                 // 房主视角：房主行已展示自己，玩家列表只列成员
                 for (RoomCenter.Player p : list) {
                     if (!p.isRoomHost) {
-                        addPlayerRow(p.name, false, false);
+                        addPlayerRow(p.name, false, false, p.avatarUrl);
                         memberCount++;
                     }
                 }
@@ -396,16 +426,21 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                     if (p.isRoomHost) {
                         hostAvatar.setText(firstChar(p.name));
                         hostName.setText(p.name);
+                        // v529：房主头像用同步来的 URL（变化时重新加载）
+                        if (p.avatarUrl != null && !p.avatarUrl.equals(hostAvatarUrl)) {
+                            hostAvatarUrl = p.avatarUrl;
+                            loadHostAvatar();
+                        }
                         memberCount++;
                     }
                 }
                 for (RoomCenter.Player p : list) {
                     if (!p.isRoomHost && !p.clientId.equals(selfId)) {
-                        addPlayerRow(p.name, false, false);
+                        addPlayerRow(p.name, false, false, p.avatarUrl);
                         memberCount++;
                     }
                 }
-                addPlayerRow(nick, true, false);
+                addPlayerRow(nick, true, false, null);
                 if (memberCount == 1) {
                     TextView empty = new TextView(this);
                     empty.setText(R.string.online_players_empty);
@@ -434,6 +469,83 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                 }
             }
         });
+    }
+
+    /** v529：房主行头像加载（hostAvatarUrl 变化时调用）。 */
+    private void loadHostAvatar() {
+        android.widget.ImageView hostImg = findViewById(R.id.online_host_avatar_img);
+        if (hostImg == null) {
+            return;
+        }
+        hostImg.setImageDrawable(null);
+        if (hostAvatarUrl != null && !hostAvatarUrl.isEmpty()) {
+            com.bumptech.glide.Glide.with(this).load(hostAvatarUrl).circleCrop().into(hostImg);
+        }
+    }
+
+    // ---- v529 加入/离开横幅 ----
+
+    private void detectPlayerChanges(List<RoomCenter.Player> list, String selfId) {
+        if (list == null) {
+            return;
+        }
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        java.util.Map<String, String> names = new java.util.HashMap<>();
+        for (RoomCenter.Player p : list) {
+            if (!p.clientId.equals(selfId)) {
+                ids.add(p.clientId);
+                names.put(p.clientId, p.name);
+            }
+        }
+        if (!lastPlayerIds.isEmpty()) {
+            for (String id : ids) {
+                if (!lastPlayerIds.contains(id)) {
+                    queueJoin(names.get(id));
+                }
+            }
+            for (String id : lastPlayerIds) {
+                if (!ids.contains(id)) {
+                    queueLeave(lastPlayerNames.get(id));
+                }
+            }
+        }
+        lastPlayerIds.clear();
+        lastPlayerIds.addAll(ids);
+        lastPlayerNames.clear();
+        lastPlayerNames.putAll(names);
+    }
+
+    private void queueJoin(String name) {
+        if (name == null) {
+            return;
+        }
+        pendingJoins.add(name);
+        bannerHandler.removeCallbacks(flushBannerRunnable);
+        bannerHandler.postDelayed(flushBannerRunnable, 800);
+    }
+
+    private void queueLeave(String name) {
+        if (name == null) {
+            return;
+        }
+        pendingLeaves.add(name);
+        bannerHandler.removeCallbacks(flushBannerRunnable);
+        bannerHandler.postDelayed(flushBannerRunnable, 800);
+    }
+
+    private void showBanner(String text, int bgColor, long durationMs) {
+        banner.setText(text);
+        banner.getBackground().setTint(bgColor);
+        banner.setAlpha(0f);
+        banner.setVisibility(View.VISIBLE);
+        banner.animate().alpha(1f).setDuration(200).start();
+        bannerHandler.removeCallbacks(hideBannerRunnable);
+        bannerHandler.postDelayed(hideBannerRunnable, durationMs);
+    }
+
+    private void hideBannerNow() {
+        banner.animate().alpha(0f).setDuration(200)
+                .withEndAction(() -> banner.setVisibility(View.GONE)).start();
     }
 
     // ---------- 创建房间 ----------

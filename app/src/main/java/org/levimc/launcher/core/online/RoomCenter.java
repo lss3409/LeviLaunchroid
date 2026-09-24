@@ -49,13 +49,17 @@ public final class RoomCenter {
         public final String addr;
         /** 麦克风模式（v528：0 闭麦 / 1 开麦 / 2 PTT）。 */
         public final int micState;
+        /** Xbox 头像 URL（v529 跨设备同步；null = 无）。 */
+        public final String avatarUrl;
 
-        Player(String name, String clientId, boolean isRoomHost, String addr, int micState) {
+        Player(String name, String clientId, boolean isRoomHost, String addr, int micState,
+               String avatarUrl) {
             this.name = name;
             this.clientId = clientId;
             this.isRoomHost = isRoomHost;
             this.addr = addr;
             this.micState = micState;
+            this.avatarUrl = avatarUrl;
         }
     }
 
@@ -74,6 +78,8 @@ public final class RoomCenter {
     private static final Map<String, InetSocketAddress> memberAddrs = new ConcurrentHashMap<>();
     /** 成员麦克风模式（心跳带 micState，v528）。 */
     private static final Map<String, Integer> memberMic = new ConcurrentHashMap<>();
+    /** 成员 Xbox 头像 URL（心跳带 avatarUrl，v529）。 */
+    private static final Map<String, String> memberAvatar = new ConcurrentHashMap<>();
     /** 房主一键禁麦是否生效（v528）。 */
     public static volatile boolean allMuted = false;
     private static String hostName;
@@ -142,6 +148,7 @@ public final class RoomCenter {
         players.clear();
         lastSeen.clear();
         memberMic.clear();
+        memberAvatar.clear();
         allMuted = false;
     }
 
@@ -179,11 +186,16 @@ public final class RoomCenter {
                         memberAddrs.put(cid, new InetSocketAddress(p.getAddress(), p.getPort()));
                         // v528：成员麦克风模式同步
                         memberMic.put(cid, q.optInt("micState", 0));
+                        // v529：成员头像同步
+                        String av = q.optString("avatarUrl", null);
+                        if (av != null && !av.isEmpty()) {
+                            memberAvatar.put(cid, av);
+                        }
                         if (!players.containsKey(cid)) {
                             if (players.size() + 1 >= MAX_PLAYERS) {
                                 Log.w(TAG, "房间已满，拒绝: " + pname);
                             } else {
-                                players.put(cid, new Player(pname, cid, false, null, 0));
+                                players.put(cid, new Player(pname, cid, false, null, 0, null));
                                 Log.i(TAG, "玩家加入: " + pname + " (" + cid + ")");
                             }
                         }
@@ -254,6 +266,7 @@ public final class RoomCenter {
         host.put("isRoomHost", true);
         host.put("addr", hostAddr());
         host.put("micState", org.levimc.launcher.core.online.voice.VoiceEngine.getLastMode());
+        putAvatar(host, PlayerIdentity.getCurrentAvatarUrl());
         arr.put(host);
         for (Player p : players.values()) {
             JSONObject o = new JSONObject();
@@ -261,6 +274,7 @@ public final class RoomCenter {
             o.put("clientId", p.clientId);
             o.put("isRoomHost", false);
             o.put("micState", micOf(p.clientId));
+            putAvatar(o, memberAvatar.get(p.clientId));
             String ip = addrOf(p.clientId);
             if (ip != null) {
                 o.put("addr", ip);
@@ -268,6 +282,16 @@ public final class RoomCenter {
             arr.put(o);
         }
         return arr;
+    }
+
+    /** 头像 URL 非空才写入（org.json put null 会删 key）。 */
+    private static void putAvatar(JSONObject o, String url) {
+        if (url != null && !url.isEmpty()) {
+            try {
+                o.put("avatarUrl", url);
+            } catch (Exception ignored) {
+            }
+        }
     }
 
     /** 成员麦克风模式（默认闭麦，v528）。 */
@@ -388,11 +412,13 @@ public final class RoomCenter {
                         s.send(new DatagramPacket(out, out.length, target));
                         // v527：心跳动态读当前昵称（Xbox 登录后自动换名）
                         // v528：附带麦克风模式（房主端同步全员状态）
+                        // v529：附带头像 URL
                         String hb = "c:player\0{\"clientId\":\"" + clientId
                                 + "\",\"playerName\":\"" + escape(displayName(name))
                                 + "\",\"micState\":"
                                 + org.levimc.launcher.core.online.voice.VoiceEngine.getLastMode()
-                                + "}";
+                                + ",\"avatarUrl\":\""
+                                + escape(PlayerIdentity.getCurrentAvatarUrl()) + "\"}";
                         byte[] out2 = hb.getBytes("UTF-8");
                         s.send(new DatagramPacket(out2, out2.length, target));
                     } catch (Exception ignored) {
@@ -448,10 +474,12 @@ public final class RoomCenter {
                     JSONObject p = arr.optJSONObject(i);
                     if (p != null) {
                         String addr = p.optString("addr", null);
+                        String av = p.optString("avatarUrl", null);
                         out.add(new Player(p.optString("player", "?"),
                                 p.optString("clientId", "?"), p.optBoolean("isRoomHost", false),
                                 addr == null || addr.isEmpty() ? null : addr,
-                                p.optInt("micState", 0)));
+                                p.optInt("micState", 0),
+                                av == null || av.isEmpty() ? null : av));
                     }
                 }
             }
@@ -464,9 +492,11 @@ public final class RoomCenter {
     private static List<Player> snapshot() {
         List<Player> out = new ArrayList<>();
         out.add(new Player(displayName(hostName), hostClientId, true, hostAddr(),
-                org.levimc.launcher.core.online.voice.VoiceEngine.getLastMode()));
+                org.levimc.launcher.core.online.voice.VoiceEngine.getLastMode(),
+                PlayerIdentity.getCurrentAvatarUrl()));
         for (Player p : players.values()) {
-            out.add(new Player(p.name, p.clientId, false, addrOf(p.clientId), micOf(p.clientId)));
+            out.add(new Player(p.name, p.clientId, false, addrOf(p.clientId), micOf(p.clientId),
+                    memberAvatar.get(p.clientId)));
         }
         return out;
     }

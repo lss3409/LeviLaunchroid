@@ -639,8 +639,12 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         } catch (Exception ignored) {
         }
         String loss = n == 0 ? "--" : String.valueOf(lost * 100 / Math.max(1, n));
-        String rtt = avg <= 0 ? "--ms" : (avg / Math.max(1, n - lost)) + "ms";
+        long avgRtt = avg <= 0 ? -1 : avg / Math.max(1, n - lost);
+        String rtt = avgRtt < 0 ? "--ms" : avgRtt + "ms";
         barText.setText(rtt + " · " + loss + "%丢包 · " + count + "人");
+        // v529（清单 #25）：延迟颜色分级 <50 绿 / 50-100 黄 / >100 红
+        barText.setTextColor(avgRtt < 0 ? Color.WHITE
+                : avgRtt < 50 ? 0xFF4CAF50 : avgRtt < 100 ? 0xFFFFB74D : 0xFFFF6B6B);
     }
 
     // ---------------- 数据刷新 ----------------
@@ -684,8 +688,32 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
                         row.setOrientation(LinearLayout.HORIZONTAL);
                         row.setGravity(Gravity.CENTER_VERTICAL);
                         row.setPadding(0, dp(3), 0, dp(3));
+                        // v529：小头像（Xbox 头像有 URL 时 Glide 覆盖首字圆底）
+                        android.widget.FrameLayout avFrame = new android.widget.FrameLayout(activity);
+                        TextView avChar = new TextView(activity);
+                        avChar.setText(p.name == null || p.name.isEmpty() ? "?" : p.name.substring(0, 1));
+                        avChar.setGravity(Gravity.CENTER);
+                        avChar.setTextColor(0xFF101016);
+                        avChar.setTextSize(10);
+                        GradientDrawable avBg = new GradientDrawable();
+                        avBg.setColor(accent);
+                        avBg.setShape(GradientDrawable.OVAL);
+                        avChar.setBackground(avBg);
+                        avFrame.addView(avChar, new android.widget.FrameLayout.LayoutParams(
+                                dp(20), dp(20)));
+                        if (p.avatarUrl != null && !p.avatarUrl.isEmpty()) {
+                            android.widget.ImageView avImg = new android.widget.ImageView(activity);
+                            com.bumptech.glide.Glide.with(activity)
+                                    .load(p.avatarUrl).circleCrop().into(avImg);
+                            avFrame.addView(avImg, new android.widget.FrameLayout.LayoutParams(
+                                    dp(20), dp(20)));
+                        }
+                        LinearLayout.LayoutParams avLp = new LinearLayout.LayoutParams(dp(20), dp(20));
+                        avLp.rightMargin = dp(6);
+                        row.addView(avFrame, avLp);
                         TextView name = new TextView(activity);
-                        name.setText(p.isRoomHost ? "👑 " + p.name : p.name);
+                        name.setText((p.isRoomHost ? "👑 " : "") + p.name
+                                + (self ? activity.getString(R.string.online_self_suffix) : ""));
                         name.setTextSize(12);
                         row.addView(name, new LinearLayout.LayoutParams(0,
                                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
