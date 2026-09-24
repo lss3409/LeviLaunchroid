@@ -819,6 +819,7 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         LanDiscovery.stopHost();
         RoomCenter.stopHost();
         RoomCenter.stopClient();
+        LanBridge.stopHost();
         currentCode = null;
         isHost = false;
         hostAddress = null;
@@ -930,6 +931,8 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                 String cid = PlayerIdentity.getClientId(this);
                 if (isHost) {
                     RoomCenter.startHost(nick, cid, this::onRoomPlayers);
+                    // v517 局域网公告桥：合成 MC 公告单播给成员，异地好友页可见房主世界
+                    LanBridge.startHost(nick);
                 } else {
                     RoomCenter.startClient(HOST_IPV4, nick, cid, this::onRoomPlayers);
                 }

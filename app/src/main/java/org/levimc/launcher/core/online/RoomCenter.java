@@ -57,6 +57,8 @@ public final class RoomCenter {
     private static volatile boolean hostRunning;
     private static final Map<String, Player> players = new ConcurrentHashMap<>();
     private static final Map<String, Long> lastSeen = new ConcurrentHashMap<>();
+    /** 成员虚拟 IP（心跳包源地址），供 LanBridge 单播转发 MC 公告（v517）。 */
+    private static final Map<String, InetAddress> memberAddrs = new ConcurrentHashMap<>();
     private static String hostName;
     private static String hostClientId;
     private static volatile Listener hostListener;
@@ -124,6 +126,7 @@ public final class RoomCenter {
                         String cid = q.optString("clientId", "?");
                         String pname = q.optString("playerName", cid);
                         lastSeen.put(cid, System.currentTimeMillis());
+                        memberAddrs.put(cid, p.getAddress());
                         if (!players.containsKey(cid)) {
                             if (players.size() + 1 >= MAX_PLAYERS) {
                                 Log.w(TAG, "房间已满，拒绝: " + pname);
@@ -162,8 +165,14 @@ public final class RoomCenter {
             if (now - e.getValue() > TIMEOUT_MS) {
                 players.remove(e.getKey());
                 lastSeen.remove(e.getKey());
+                memberAddrs.remove(e.getKey());
             }
         }
+    }
+
+    /** 成员虚拟 IP 列表（供 LanBridge 公告桥单播转发，v517）。 */
+    public static java.util.List<InetAddress> getMemberAddresses() {
+        return new java.util.ArrayList<>(memberAddrs.values());
     }
 
     /** 房主侧玩家列表（含房主自己）。 */
