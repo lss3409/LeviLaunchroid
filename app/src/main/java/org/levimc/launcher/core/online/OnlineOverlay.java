@@ -39,7 +39,7 @@ public final class OnlineOverlay implements RoomCenter.Listener {
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final float density;
 
-    private View bubbleView;
+    private FrameLayout bubbleView;
     private View cardView;
     private WindowManager.LayoutParams bubbleParams;
     private WindowManager.LayoutParams cardParams;
@@ -339,7 +339,7 @@ public final class OnlineOverlay implements RoomCenter.Listener {
     }
 
     @Override
-    public void onPlayers(List<Player> players, long rttMs) {
+    public void onPlayers(List<RoomCenter.Player> players, long rttMs) {
         if (!showing) {
             return;
         }
@@ -358,7 +358,7 @@ public final class OnlineOverlay implements RoomCenter.Listener {
                 playersContainer.removeAllViews();
                 if (players != null) {
                     String selfId = PlayerIdentity.getClientId(activity);
-                    for (Player p : players) {
+                    for (RoomCenter.Player p : players) {
                         TextView row = new TextView(activity);
                         String name = p.isRoomHost ? "👑 " + p.name : p.name;
                         row.setText(name);
