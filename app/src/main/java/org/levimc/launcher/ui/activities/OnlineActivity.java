@@ -82,7 +82,7 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
     private boolean formatting;
     private InviteCode.Parsed pendingJoin;
     private String currentCode; // 当前房间码（房主生成/成员加入）
-    private AlertDialog joinDialog;
+    private android.app.Dialog joinDialog;
     private boolean isHost;
     private final List<InviteCode.Parsed> pendingParsed = new ArrayList<>();
 
@@ -134,6 +134,9 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         findViewById(R.id.online_room_share_button).setOnClickListener(v -> shareCurrentCode());
         findViewById(R.id.online_qr_button).setOnClickListener(v -> showQrDialog());
         findViewById(R.id.online_back_home_button).setOnClickListener(v -> showHome());
+
+        // v535：联机页主按钮手动应用个性化强调色（复制/分享/二维码等）
+        applyAccentToPrimaryButtons();
 
         // v533：预热身份（昵称+头像静态缓存）——debug 后门加入时不经过 UI
         // 展示路径，不预热会导致心跳 avatarUrl 为空（vivo 头像"不显示"根因）
@@ -318,11 +321,12 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         label.setTextColor(getResources().getColor(R.color.on_surface, getTheme()));
         label.setPadding(0, 12, 0, 0);
         wrap.addView(label);
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.online_qr)
-                .setView(wrap)
-                .setPositiveButton(android.R.string.ok, null)
-                .show();
+        org.levimc.launcher.ui.dialogs.CustomAlertDialog d =
+                new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this);
+        d.setTitleText(getString(R.string.online_qr));
+        d.setCustomView(wrap);
+        d.setPositiveButton(getString(R.string.confirm), null);
+        d.show();
     }
 
     /** 更新连接模式徽章（v505：P2P 直连绿 / 中继模式黄；v519：未知灰——
@@ -623,12 +627,13 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
             }
         });
 
-        // v533：扫码加入（相机面对面扫 / 相册选图）
+        // v533：扫码加入（相机面对面扫 / 相册选图）；v535：Levi 风格弹窗
         v.findViewById(R.id.join_scan_button).setOnClickListener(x -> {
-            new AlertDialog.Builder(this)
-                    .setTitle(R.string.online_scan_title)
-                    .setItems(new String[]{getString(R.string.online_scan_camera),
-                            getString(R.string.online_scan_gallery)}, (d, which) -> {
+            org.levimc.launcher.ui.dialogs.CustomAlertDialog scanDialog =
+                    new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this);
+            scanDialog.setTitleText(getString(R.string.online_scan_title));
+            scanDialog.setItems(new String[]{getString(R.string.online_scan_camera),
+                    getString(R.string.online_scan_gallery)}, (d, which) -> {
                         if (which == 0) {
                             try {
                                 new com.google.zxing.integration.android.IntentIntegrator(this)
@@ -647,9 +652,9 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                             pick.addCategory(Intent.CATEGORY_OPENABLE);
                             startActivityForResult(pick, REQ_SCAN_GALLERY);
                         }
-                    })
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .show();
+                    });
+            scanDialog.setNegativeButton(getString(android.R.string.cancel), null);
+            scanDialog.show();
         });
 
         input.addTextChangedListener(new TextWatcher() {
@@ -683,10 +688,12 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
             }
         });
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setView(v)
-                .setCancelable(false)
-                .create();
+        // v535：改用 Levi 风格弹窗（CustomAlertDialog），统一背景与启动器一致
+        org.levimc.launcher.ui.dialogs.CustomAlertDialog dialog =
+                new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this);
+        dialog.setCustomView(v);
+        dialog.setCancelable(false);
+        dialog.show();
         joinDialog = dialog;
         // v533：弹窗视图不在 Activity 内容树内，个性化强调色需手动应用
         try {
@@ -735,7 +742,6 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                 setHomeState(EasyTierManager.State.IDLE, null);
             }
         });
-        dialog.show();
     }
 
     private void doJoinFromDialog(InviteCode.Parsed parsed) {
@@ -988,9 +994,11 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         } else {
             qrView.setVisibility(View.GONE);
         }
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setView(v)
-                .create();
+        // v535：分享卡弹窗同样换 Levi 风格
+        org.levimc.launcher.ui.dialogs.CustomAlertDialog dialog =
+                new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this);
+        dialog.setCustomView(v);
+        dialog.show();
         // v533：分享卡弹窗同样应用个性化强调色
         try {
             org.levimc.launcher.util.PersonalizationManager pm =
@@ -1018,6 +1026,30 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         send.setType("text/plain");
         send.putExtra(Intent.EXTRA_TEXT, getString(R.string.online_share_text, "P/" + currentCode));
         startActivity(Intent.createChooser(send, getString(R.string.online_share_code)));
+    }
+
+    /** v535：primary 主按钮手动应用个性化强调色（防御 applyToActivity 遗漏）。 */
+    private void applyAccentToPrimaryButtons() {
+        try {
+            org.levimc.launcher.util.PersonalizationManager pm =
+                    new org.levimc.launcher.util.PersonalizationManager(this);
+            int accent = pm.getAccentColor();
+            int primary = androidx.core.content.ContextCompat.getColor(this, R.color.primary);
+            int[] ids = {R.id.online_copy_button, R.id.online_share_button, R.id.online_qr_button,
+                    R.id.online_room_copy_button, R.id.online_room_share_button};
+            for (int id : ids) {
+                View v = findViewById(id);
+                if (v instanceof com.google.android.material.button.MaterialButton) {
+                    com.google.android.material.button.MaterialButton b =
+                            (com.google.android.material.button.MaterialButton) v;
+                    if (b.getBackgroundTintList() != null
+                            && b.getBackgroundTintList().getDefaultColor() == primary) {
+                        b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(accent));
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     private void updateRelayView() {

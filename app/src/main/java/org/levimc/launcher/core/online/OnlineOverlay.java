@@ -61,6 +61,7 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
     private boolean showing;
 
     // v527/v528 麦克风 UI：每玩家行一个图标（自己=可点三态按钮，他人=状态显示）
+    private android.widget.FrameLayout pttFrame;
     private TextView pttButton;
     private LinearLayout pttWave;
     private final View[] pttBars = new View[5];
@@ -210,6 +211,7 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         ui.removeCallbacks(hidePlayerBannerRunnable);
         pttButton = null;
         pttWave = null;
+        pttFrame = null;
         playerBanner = null;
         lastOverlayIds.clear();
         lastOverlayNames.clear();
@@ -322,9 +324,17 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         plLp.topMargin = dp(6);
         card.addView(playersContainer, plLp);
 
-        // v533：PTT 按住说话大按钮——微信式声波动效（按住时文字淡出、声纹条随音量起伏）
+        // v535：PTT 按住说话大按钮——文字与声纹同框重叠，按住后按钮"变身"声纹动画
+        pttFrame = new android.widget.FrameLayout(activity);
+        LinearLayout.LayoutParams ptLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(40));
+        ptLp.topMargin = dp(10);
+        card.addView(pttFrame, ptLp);
+        pttFrame.setVisibility(View.GONE);
+
         pttButton = new TextView(activity);
-        pttButton.setText(R.string.voice_ptt_hold);
+        // v535：悬浮窗统一中文（此前英文设备回退英文导致中英混排）
+        pttButton.setText("按住说话");
         pttButton.setTextColor(Color.WHITE);
         pttButton.setTextSize(13);
         pttButton.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
@@ -333,25 +343,11 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         pbg.setColor(accent);
         pbg.setCornerRadius(dp(8));
         pttButton.setBackground(pbg);
-        LinearLayout.LayoutParams ptLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(40));
-        ptLp.topMargin = dp(10);
-        card.addView(pttButton, ptLp);
-        pttButton.setVisibility(View.GONE);
-        // v534：文字按钮本身也要接收按住事件（v533 漏挂监听导致按住无反应）
-        pttButton.setOnTouchListener((v, e) -> {
-            switch (e.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN:
-                    startWave();
-                    return true;
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    stopWave();
-                    return true;
-            }
-            return false;
-        });
-        // 声纹容器：按钮背景 + 波形条
+        pttFrame.addView(pttButton, new android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT));
+
+        // 声纹层：与文字同尺寸重叠，按住时可见
         pttWave = new LinearLayout(activity);
         pttWave.setOrientation(LinearLayout.HORIZONTAL);
         pttWave.setGravity(Gravity.CENTER);
@@ -359,7 +355,9 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         wbg.setColor(accent);
         wbg.setCornerRadius(dp(8));
         pttWave.setBackground(wbg);
-        card.addView(pttWave, ptLp);
+        pttFrame.addView(pttWave, new android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT));
         pttWave.setVisibility(View.GONE);
         for (int i = 0; i < 5; i++) {
             View bar = new View(activity);
@@ -374,7 +372,8 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
             pttWave.addView(bar, barLp);
             pttBars[i] = bar;
         }
-        pttWave.setOnTouchListener((v, e) -> {
+        // 整个按钮区域接收按住事件（文字与声纹共用）
+        pttFrame.setOnTouchListener((v, e) -> {
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
                     startWave();
@@ -388,7 +387,7 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         });
 
         TextView leave = new TextView(activity);
-        leave.setText(R.string.online_leave);
+        leave.setText("退出房间"); // v535：悬浮窗统一中文
         leave.setTextColor(0xFFFF6B6B);
         leave.setTextSize(12);
         leave.setGravity(Gravity.CENTER);
@@ -604,8 +603,8 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
                 mic.setColorFilter(0xAAFFFFFF);
             }
         }
-        if (pttButton != null) {
-            pttButton.setVisibility(selfMode == VoiceEngine.MODE_PTT ? View.VISIBLE : View.GONE);
+        if (pttFrame != null) {
+            pttFrame.setVisibility(selfMode == VoiceEngine.MODE_PTT ? View.VISIBLE : View.GONE);
         }
         if (pttWave != null) {
             pttWave.setVisibility(selfMode == VoiceEngine.MODE_PTT && waveRunning
