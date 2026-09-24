@@ -36,6 +36,9 @@ public final class RoomCenter {
     public static final int MAX_PLAYERS = 8;
     /** 房主的 MC 世界是否已开启（19132 监听），由心跳响应带回（v520）。 */
     public static volatile boolean hostGameOpen = false;
+    /** 当前会话信息（v521 游戏内悬浮窗用）：房间码 / 是否房主。 */
+    public static volatile String roomCode = null;
+    public static volatile boolean isHost = false;
 
     public static class Player {
         public final String name;
@@ -65,6 +68,28 @@ public final class RoomCenter {
     private static String hostName;
     private static String hostClientId;
     private static volatile Listener hostListener;
+    /** v521：多监听器（OnlineActivity 页面 + 游戏内悬浮窗同时订阅）。 */
+    private static final java.util.concurrent.CopyOnWriteArrayList<Listener> listeners =
+            new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    public static void addListener(Listener l) {
+        if (l != null && !listeners.contains(l)) {
+            listeners.add(l);
+        }
+    }
+
+    public static void removeListener(Listener l) {
+        listeners.remove(l);
+    }
+
+    private static void notifyListeners(List<Player> list, long rttMs) {
+        for (Listener l : listeners) {
+            try {
+                l.onPlayers(list, rttMs);
+            } catch (Exception ignored) {
+            }
+        }
+    }
 
     public static synchronized void startHost(String name, String clientId, Listener l) {
         stopHost();
@@ -146,11 +171,8 @@ public final class RoomCenter {
                     // v520：房主 MC 世界开启状态（19132 监听检测），成员端据此提示
                     resp.put("gameOpen", isMcWorldOpen());
                     send(hostSocket, resp.toString(), p.getAddress(), p.getPort());
-                    // 通知房主 UI 刷新玩家列表
-                    Listener l = hostListener;
-                    if (l != null) {
-                        l.onPlayers(snapshot(), -1);
-                    }
+                    // 通知房主 UI 刷新玩家列表（v521：多监听器广播）
+                    notifyListeners(snapshot(), -1);
                 }
             } catch (java.net.SocketTimeoutException e) {
                 // 超时：顺带清理过期成员
@@ -269,8 +291,9 @@ public final class RoomCenter {
                         }
                     } catch (Exception ignored) {
                     }
-                    if (l != null && (pingRtt > 0 || !list.isEmpty())) {
-                        l.onPlayers(list, pingRtt);
+                    if (pingRtt > 0 || !list.isEmpty()) {
+                        // v521：多监听器广播
+                        notifyListeners(list, pingRtt);
                     }
                     try {
                         Thread.sleep(HEARTBEAT_MS);

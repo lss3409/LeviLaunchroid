@@ -264,6 +264,16 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             startInbuiltModServices()
         }
 
+        // v521：联机会话激活时显示游戏内悬浮窗
+        try {
+            if (org.levimc.launcher.core.online.EasyTierManager.get().state
+                == org.levimc.launcher.core.online.EasyTierManager.State.CONNECTED) {
+                org.levimc.launcher.core.online.OnlineOverlay.get(this).show()
+            }
+        } catch (t: Throwable) {
+            android.util.Log.w("MinecraftActivity", "online overlay failed", t)
+        }
+
         startHardcoreBackupScheduler()
     }
 
@@ -509,6 +519,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
 
     override fun onPause() {
         lastPauseElapsed = android.os.SystemClock.elapsedRealtime()
+        org.levimc.launcher.core.online.OnlineOverlay.hideIfShown()
         stopHardcoreBackupScheduler()
         backupOnPauseIfNeeded()
         val shouldRestartAfterNormalExit = shouldRestartAfterNormalExit()

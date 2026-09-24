@@ -833,6 +833,8 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         RoomCenter.stopHost();
         RoomCenter.stopClient();
         LanBridge.stopHost();
+        RoomCenter.roomCode = null;
+        RoomCenter.hostGameOpen = false;
         currentCode = null;
         isHost = false;
         hostAddress = null;
@@ -936,6 +938,9 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                 if (currentCode != null) {
                     saveRecent(currentCode);
                 }
+                // v521：会话状态写入静态区，供游戏内悬浮窗读取
+                RoomCenter.roomCode = currentCode;
+                RoomCenter.isHost = isHost;
                 // v519：初始显示"检测中"，等轮询数据到达再亮 P2P/中继徽章
                 roomState.setText(getString(R.string.online_step_unknown));
                 roomState.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
