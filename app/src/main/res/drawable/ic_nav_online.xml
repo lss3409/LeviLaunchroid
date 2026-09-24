@@ -8,6 +8,14 @@
     android:viewportWidth="24"
     android:viewportHeight="24">
 
+  <!-- v548：整体缩放 0.85（以图形中心 12.95,13 为轴）——
+       底部方块 22.8 → 21.3，四周留出安全边距，修 tab 里底部被裁切 -->
+  <group
+      android:scaleX="0.85"
+      android:scaleY="0.85"
+      android:pivotX="12.95"
+      android:pivotY="13">
+
   <!-- 顶部节点框（空心）：贴图 x90-144 y27-72 → 10.8,3.2 - 17.3,8.6 -->
   <path
       android:pathData="M10.8,3.2h6.5v5.4h-6.5z"
@@ -52,5 +60,7 @@
       android:strokeWidth="2"
       android:strokeLineJoin="round"
       android:fillColor="@android:color/transparent" />
+
+  </group>
 
 </vector>

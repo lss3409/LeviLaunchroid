@@ -44,6 +44,8 @@ public class CustomAlertDialog extends Dialog {
     private Runnable mDismissAnimationEndListener;
     /** v539：点外部关闭开关（onCreate 里硬编码 false 会覆盖外部设置，改用字段）。 */
     private boolean mCanceledOnTouchOutside = false;
+    /** v548：弹窗最大宽度（dp），内容少的弹窗可调小让背景"刚刚好"。 */
+    private int mMaxWidthDp = 400;
 
     public CustomAlertDialog(Context context) {
         super(context);
@@ -113,6 +115,12 @@ public class CustomAlertDialog extends Dialog {
     public void setCanceledOnTouchOutside(boolean cancel) {
         mCanceledOnTouchOutside = cancel;
         super.setCanceledOnTouchOutside(cancel);
+    }
+
+    /** v548：设置弹窗最大宽度（dp），默认 400。 */
+    public CustomAlertDialog setMaxWidthDp(int maxWidthDp) {
+        this.mMaxWidthDp = maxWidthDp;
+        return this;
     }
 
     @Override
@@ -245,7 +253,7 @@ public class CustomAlertDialog extends Dialog {
             window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
             float density = getContext().getResources().getDisplayMetrics().density;
             int screenWidth = getContext().getResources().getDisplayMetrics().widthPixels;
-            int maxWidth = (int) (400 * density);
+            int maxWidth = (int) (mMaxWidthDp * density);
             int dialogWidth = Math.min((int) (screenWidth * 0.9), maxWidth);
             window.setLayout(dialogWidth, WindowManager.LayoutParams.WRAP_CONTENT);
 

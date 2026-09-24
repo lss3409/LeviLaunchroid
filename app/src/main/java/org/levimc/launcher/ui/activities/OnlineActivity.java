@@ -741,6 +741,8 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
         // v535：改用 Levi 风格弹窗（CustomAlertDialog），统一背景与启动器一致
         org.levimc.launcher.ui.dialogs.CustomAlertDialog dialog =
                 new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this);
+        // v548：加入弹窗内容窄，背景收窄（默认 400dp 太宽留白大）
+        dialog.setMaxWidthDp(320);
         dialog.setCustomView(v);
         dialog.setCancelable(false);
         dialog.show();
@@ -1105,6 +1107,9 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                     findViewById(R.id.online_qr_button),
                     findViewById(R.id.online_room_copy_button),
                     findViewById(R.id.online_room_share_button));
+            // v548：返回首页按钮文字染强调色（个性化兼容，灰底保留）
+            org.levimc.launcher.util.AccentStyler.styleSecondary(this,
+                    findViewById(R.id.online_back_home_button));
         } catch (Throwable ignored) {
         }
     }
