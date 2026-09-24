@@ -367,12 +367,12 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
                     playersContainer.addView(empty);
                 }
             } else {
-                // 成员视角：玩家列表 = 房主(👑) + 其他成员 + 自己（高亮）
+                // 成员视角：房主在专属房主行展示（👑），玩家列表只放其他成员 + 自己（高亮）
+                // （v514 修复：房主不再重复出现在列表里）
                 for (RoomCenter.Player p : list) {
                     if (p.isRoomHost) {
                         hostAvatar.setText(firstChar(p.name));
                         hostName.setText(p.name);
-                        addPlayerRow(p.name, false, true);
                         memberCount++;
                     }
                 }
