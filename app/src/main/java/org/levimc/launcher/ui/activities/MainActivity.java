@@ -849,7 +849,7 @@ import okhttp3.OkHttpClient;
         if (lastPauseElapsed > 0
                 && android.os.SystemClock.elapsedRealtime() - lastPauseElapsed > LONG_PAUSE_HEAL_MS) {
             if (MinecraftActivityState.isRunning()) {
-                MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this, true);
+                MinecraftProcessRestarter.INSTANCE.restartLauncherAfterMinecraftExit(this, true);
                 finish();
                 return;
             }
