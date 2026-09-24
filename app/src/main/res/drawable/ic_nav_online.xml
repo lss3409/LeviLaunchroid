@@ -1,17 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v538：联机 tab 图标——分支贴图精确复刻（顶节点+主干+横梁+三根分叉竖线）。
-     白色 fill，运行时 tint 兼容个性化颜色。 -->
+<!-- v540：联机 tab 图标——沿用 v537 前的描边画法（stroke 2 + 圆头圆角），
+     形状换成用户分支贴图：顶部节点框 + 主干 + 横梁 + 三根分叉竖线。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M10.2,2.8h3.6v5.6h-3.6z
-            M12.4,8.4h1.6v4.6h-1.6z
-            M4.8,13h14.4v1.8H4.8z
-            M4.8,14.8h1.6v3.8H4.8z
-            M10.4,14.8h2v3.8h-2z
-            M17.6,14.8h1.6v3.8h-1.6z" />
+
+  <path
+      android:pathData="M10,3h4v4h-4z"
+      android:strokeColor="#000000"
+      android:strokeWidth="2"
+      android:strokeLineJoin="round"
+      android:fillColor="@android:color/transparent" />
+
+  <path
+      android:pathData="M12,7v5"
+      android:strokeColor="#000000"
+      android:strokeWidth="2"
+      android:strokeLineCap="round" />
+
+  <path
+      android:pathData="M5,12h14"
+      android:strokeColor="#000000"
+      android:strokeWidth="2"
+      android:strokeLineCap="round" />
+
+  <path
+      android:pathData="M6,12v5.5M12,12v5.5M18,12v5.5"
+      android:strokeColor="#000000"
+      android:strokeWidth="2"
+      android:strokeLineCap="round" />
+
 </vector>
