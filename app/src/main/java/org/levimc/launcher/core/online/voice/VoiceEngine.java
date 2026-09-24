@@ -190,8 +190,11 @@ public final class VoiceEngine implements RoomCenter.Listener {
         }
     }
 
-    /** 被房主禁麦：切回闭麦并锁定；解除：只解锁（不自动开麦）。 */
+    /** 被房主禁麦：切回闭麦并锁定；解除：只解锁（不自动开麦）。
+     *  v546：幂等化——心跳名单每 2s 同步一次 muted（冗余通道），状态未变时
+     *  不刷 UI 不打日志。 */
     public void setMutedByHost(boolean mute) {
+        boolean changed = mutedByHost != mute;
         mutedByHost = mute;
         if (mute) {
             synchronized (this) {
@@ -199,15 +202,18 @@ public final class VoiceEngine implements RoomCenter.Listener {
                 pttPressed = false;
             }
             lastMode = mode;
-            Log.i(TAG, "被房主禁麦");
-            // v534：被禁麦后状态即时同步（心跳 kick）
-            try {
-                RoomCenter.notifyLocalStateChanged();
-            } catch (Throwable ignored) {
+            if (changed) {
+                Log.i(TAG, "被房主禁麦");
+                // v534：被禁麦后状态即时同步（心跳 kick）
+                try {
+                    RoomCenter.notifyLocalStateChanged();
+                } catch (Throwable ignored) {
+                }
+                notifyChanged();
             }
-            notifyChanged();
-        } else {
+        } else if (changed) {
             Log.i(TAG, "房主已解除禁麦");
+            notifyChanged();
         }
     }
 

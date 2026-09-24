@@ -301,7 +301,13 @@ public final class RoomCenter {
             return;
         }
         try {
-            String json = buildPlayerListJson().toString();
+            // v546：包成与心跳响应一致的 {"players":[...],"gameOpen":...}。
+            // 此前直接发 JSONArray，成员端 parsePlayers 用 JSONObject 解析必失败
+            // ——房主状态变化从未即时同步到成员端（v534 遗留 bug）
+            JSONObject wrap = new JSONObject();
+            wrap.put("players", buildPlayerListJson());
+            wrap.put("gameOpen", isMcWorldOpen());
+            String json = wrap.toString();
             byte[] out = json.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             for (InetSocketAddress addr : memberAddrs.values()) {
                 try {
@@ -355,6 +361,9 @@ public final class RoomCenter {
             o.put("clientId", p.clientId);
             o.put("isRoomHost", false);
             o.put("micState", micOf(p.clientId));
+            // v546：禁麦状态随名单广播（成员端冗余通道——c:mute 单播丢失也能
+            // 靠 2s 心跳响应恢复禁麦）
+            o.put("muted", hostMuted.contains(p.clientId));
             putAvatar(o, memberAvatar.get(p.clientId));
             putStr(o, "xuid", memberXuid.get(p.clientId));
             putStr(o, "msUser", memberMsUser.get(p.clientId));
@@ -462,6 +471,8 @@ public final class RoomCenter {
     }
 
     public static synchronized void stopClient() {
+        // v546：退出房间清除禁麦锁（否则残留 mutedByHost 会带到下一个房间）
+        org.levimc.launcher.core.online.voice.VoiceEngine.setMutedByHostStatic(false);
         // v534：退出前即时通知房主（c:bye），房主端立刻刷新玩家列表
         InetSocketAddress host = lastHostTarget;
         String cid = currentClientId;
@@ -513,8 +524,10 @@ public final class RoomCenter {
                                 try {
                                     JSONObject mq = new JSONObject(
                                             text.substring(text.indexOf('\0') + 1));
+                                    boolean mute = mq.optBoolean("mute", false);
+                                    Log.i(TAG, "收到房主禁麦指令: mute=" + mute);
                                     org.levimc.launcher.core.online.voice.VoiceEngine
-                                            .setMutedByHostStatic(mq.optBoolean("mute", false));
+                                            .setMutedByHostStatic(mute);
                                 } catch (Exception ignored) {
                                 }
                             } else {
@@ -628,8 +641,15 @@ public final class RoomCenter {
                         String av = p.optString("avatarUrl", null);
                         String xu = p.optString("xuid", null);
                         String mu = p.optString("msUser", null);
+                        String cid = p.optString("clientId", "?");
+                        // v546：名单里自己的 muted 字段 = 房主权威禁麦状态。
+                        // c:mute 单播丢失时靠它 2s 内恢复（冗余通道）
+                        if (cid.equals(currentClientId)) {
+                            org.levimc.launcher.core.online.voice.VoiceEngine
+                                    .setMutedByHostStatic(p.optBoolean("muted", false));
+                        }
                         out.add(new Player(p.optString("player", "?"),
-                                p.optString("clientId", "?"), p.optBoolean("isRoomHost", false),
+                                cid, p.optBoolean("isRoomHost", false),
                                 addr == null || addr.isEmpty() ? null : addr,
                                 p.optInt("micState", 0),
                                 av == null || av.isEmpty() ? null : av,
@@ -685,11 +705,19 @@ public final class RoomCenter {
                 byte[] out = msg.getBytes(java.nio.charset.StandardCharsets.UTF_8);
                 try {
                     s.send(new DatagramPacket(out, out.length, addr.getAddress(), addr.getPort()));
-                } catch (Exception ignored) {
+                    Log.i(TAG, "成员禁麦单播已发: " + clientId + " mute=" + mute
+                            + " -> " + addr);
+                } catch (Exception e) {
+                    Log.w(TAG, "成员禁麦单播失败: " + clientId, e);
                 }
+            } else {
+                Log.w(TAG, "成员禁麦目标地址缺失: " + clientId + "（改走名单推送）");
             }
         }
         Log.i(TAG, "成员禁麦: " + clientId + " mute=" + mute);
+        // v546：无论单播是否发出，都主动推送一次玩家名单——muted 字段随
+        // 名单广播，成员端 2s 内必然收到（c:mute 单播丢失的冗余通道）
+        hostPushRequested = true;
         // 房主本地玩家列表刷新（被禁麦成员的 🔇 标记即时更新）
         notifyListeners(snapshot(), -1);
     }

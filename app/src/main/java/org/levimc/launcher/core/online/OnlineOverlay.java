@@ -592,7 +592,13 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
             if (mic == null) {
                 continue;
             }
-            if (m == VoiceEngine.MODE_OPEN) {
+            // v546：被禁麦的麦克风染红锁定（房主视角成员行 + 成员自己行）
+            boolean mutedLocked = self ? VoiceEngine.isMutedByHost()
+                    : RoomCenter.isMuted(e.getKey());
+            if (mutedLocked) {
+                mic.setImageResource(R.drawable.ic_mic_off);
+                mic.setColorFilter(0xFFFF6B6B);
+            } else if (m == VoiceEngine.MODE_OPEN) {
                 mic.setImageResource(R.drawable.ic_mic_on);
                 mic.setColorFilter(accent);
             } else if (m == VoiceEngine.MODE_PTT) {
@@ -853,8 +859,11 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
                         avLp.rightMargin = dp(6);
                         row.addView(avFrame, avLp);
                         TextView name = new TextView(activity);
-                        // v530：被房主禁麦的成员名字前加 🔇 标记
-                        boolean muted = RoomCenter.isMuted(p.clientId);
+                        // v530：被房主禁麦的成员名字前加 🔇 标记（房主视角）；
+                        // v546：成员端自己行看本机 VoiceEngine 禁麦状态（此前成员端
+                        // 永远看不到自己的禁麦标记——RoomCenter.isMuted 是房主本地名单）
+                        boolean muted = RoomCenter.isMuted(p.clientId)
+                                || (self && VoiceEngine.isMutedByHost());
                         name.setText((p.isRoomHost ? "👑 " : "") + (muted ? "🔇 " : "")
                                 + p.name
                                 + (self ? activity.getString(R.string.online_self_suffix) : ""));
