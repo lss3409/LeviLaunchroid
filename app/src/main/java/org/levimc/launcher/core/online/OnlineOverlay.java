@@ -2,6 +2,7 @@ package org.levimc.launcher.core.online;
 
 import android.app.Activity;
 import android.content.ClipData;
+import android.content.Intent;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.graphics.Color;
@@ -69,6 +70,9 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
     private TextView playerBanner;
     /** v559：设置面板（悬浮窗同款 UI，内嵌卡片显示/隐藏）。 */
     private LinearLayout settingsPanel;
+    /** v560：玩家详情面板（悬浮窗同款 UI，点玩家行切换显示）。 */
+    private LinearLayout detailPanel;
+    private LinearLayout detailContent;
     /** v559：卡片里可被设置面板隐藏的内容行（切换时保存可见性）。 */
     private final List<View> settingsHideTargets = new java.util.ArrayList<>();
     private final java.util.Set<String> lastOverlayIds = new java.util.HashSet<>();
@@ -290,6 +294,20 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         cardState.setTextSize(13);
         cardState.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         header.addView(cardState, new LinearLayout.LayoutParams(0, dp(24), 1f));
+        // v560：房主一键邀请成员进入世界（URI 深链直达，成员免选局域网入口）
+        if (RoomCenter.isHost) {
+            TextView invite = new TextView(activity);
+            invite.setText("📣");
+            invite.setTextSize(13);
+            invite.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams ivLp = new LinearLayout.LayoutParams(dp(24), dp(24));
+            ivLp.rightMargin = dp(4);
+            header.addView(invite, ivLp);
+            invite.setOnClickListener(v -> {
+                RoomCenter.sendInviteAll();
+                Toast.makeText(activity, "已邀请成员进入世界", Toast.LENGTH_SHORT).show();
+            });
+        }
         // v547：设置按钮（只在游戏内悬浮窗——降噪开关/等级 + 详情卡查看权限）
         // v559：改为内嵌面板切换（悬浮窗同款 UI，不再弹居中弹窗）
         TextView settings = new TextView(activity);
@@ -427,6 +445,8 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
 
         // v559：设置面板（悬浮窗同款 UI——深色卡片内的行式设置项）
         buildSettingsPanel(card);
+        // v560：玩家详情面板（悬浮窗同款 UI）
+        buildDetailPanel(card);
         // v559：设置面板显示时隐藏常规内容行
         settingsHideTargets.clear();
         settingsHideTargets.add(code);
@@ -573,17 +593,233 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
             return;
         }
         boolean show = settingsPanel.getVisibility() != View.VISIBLE;
-        settingsPanel.setVisibility(show ? View.VISIBLE : View.GONE);
+        if (show) {
+            hideRegularRows();
+            settingsPanel.setVisibility(View.VISIBLE);
+        } else {
+            settingsPanel.setVisibility(View.GONE);
+            restoreRegularRows();
+        }
+    }
+
+    /** v560：隐藏常规内容行（设置面板/详情面板显示时）。 */
+    private void hideRegularRows() {
+        if (detailPanel != null) {
+            detailPanel.setVisibility(View.GONE);
+        }
         for (View target : settingsHideTargets) {
             if (target != null) {
-                target.setVisibility(show ? View.GONE : View.VISIBLE);
+                target.setVisibility(View.GONE);
             }
         }
-        // 回列表时 PTT 行按模式恢复显示
-        if (!show && pttFrame != null) {
+    }
+
+    /** v560：恢复常规内容行。 */
+    private void restoreRegularRows() {
+        if (settingsPanel != null) {
+            settingsPanel.setVisibility(View.GONE);
+        }
+        for (View target : settingsHideTargets) {
+            if (target != null) {
+                target.setVisibility(View.VISIBLE);
+            }
+        }
+        // PTT 行按模式恢复显示
+        if (pttFrame != null) {
             pttFrame.setVisibility(VoiceEngine.getLastMode() == VoiceEngine.MODE_PTT
                     ? View.VISIBLE : View.GONE);
         }
+    }
+
+    /** v560：玩家详情面板（悬浮窗同款 UI——头像/名称/XUID/游玩时长/最近在线/皮肤/禁麦）。 */
+    private void buildDetailPanel(LinearLayout card) {
+        detailPanel = new LinearLayout(activity);
+        detailPanel.setOrientation(LinearLayout.VERTICAL);
+        detailPanel.setVisibility(View.GONE);
+        LinearLayout.LayoutParams dpLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        dpLp.topMargin = dp(8);
+        card.addView(detailPanel, dpLp);
+
+        TextView backRow = new TextView(activity);
+        backRow.setText("← 返回");
+        backRow.setTextColor(0xAAFFFFFF);
+        backRow.setTextSize(11);
+        detailPanel.addView(backRow);
+        backRow.setOnClickListener(v -> {
+            detailPanel.setVisibility(View.GONE);
+            restoreRegularRows();
+        });
+
+        detailContent = new LinearLayout(activity);
+        detailContent.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams dcLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        dcLp.topMargin = dp(8);
+        detailPanel.addView(detailContent, dcLp);
+    }
+
+    /** v560：显示玩家详情（p==null 表示关闭面板恢复列表）。 */
+    private void showDetailPanel(RoomCenter.Player p) {
+        if (detailPanel == null || detailContent == null) {
+            return;
+        }
+        if (p == null) {
+            detailPanel.setVisibility(View.GONE);
+            restoreRegularRows();
+            return;
+        }
+        if (!PlayerDetailCard.canView(activity, p, RoomCenter.isHost)) {
+            Toast.makeText(activity, R.string.online_card_no_permission,
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+        detailContent.removeAllViews();
+
+        // 头像 + 名字 + 皇冠
+        LinearLayout header = new LinearLayout(activity);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        android.widget.FrameLayout avFrame = new android.widget.FrameLayout(activity);
+        TextView avChar = new TextView(activity);
+        String dname = p.name == null || p.name.isEmpty() ? "?" : p.name;
+        avChar.setText(dname.substring(0, 1));
+        avChar.setGravity(Gravity.CENTER);
+        avChar.setTextColor(0xFF101016);
+        avChar.setTextSize(13);
+        GradientDrawable avBg = new GradientDrawable();
+        avBg.setShape(GradientDrawable.OVAL);
+        avBg.setColor(accent);
+        avChar.setBackground(avBg);
+        avFrame.addView(avChar, new android.widget.FrameLayout.LayoutParams(dp(34), dp(34)));
+        if (p.avatarUrl != null && !p.avatarUrl.isEmpty()) {
+            android.widget.ImageView avImg = new android.widget.ImageView(activity);
+            com.bumptech.glide.Glide.with(activity).load(p.avatarUrl).circleCrop().into(avImg);
+            avFrame.addView(avImg, new android.widget.FrameLayout.LayoutParams(dp(34), dp(34)));
+        }
+        header.addView(avFrame);
+        TextView nameTv = new TextView(activity);
+        nameTv.setText((p.isRoomHost ? "👑 " : "") + dname);
+        nameTv.setTextSize(13);
+        nameTv.setTypeface(null, android.graphics.Typeface.BOLD);
+        nameTv.setTextColor(0xFFF5F5F5);
+        LinearLayout.LayoutParams nLp = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        nLp.leftMargin = dp(10);
+        header.addView(nameTv, nLp);
+        detailContent.addView(header);
+
+        // 信息行（XUID / 游玩时长 / 最近在线）
+        TextView info = new TextView(activity);
+        StringBuilder sb = new StringBuilder();
+        sb.append("XUID: ").append(p.xuid == null || p.xuid.isEmpty() ? "—" : p.xuid)
+                .append('\n');
+        sb.append("Levi 游玩时长: ").append(formatOverlayMinutes(p.playMinutes)).append('\n');
+        sb.append("最近在线: ").append(formatOverlayLastActive(p.lastActive));
+        info.setText(sb.toString());
+        info.setTextSize(11);
+        info.setTextColor(0xCCFFFFFF);
+        LinearLayout.LayoutParams iLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        iLp.topMargin = dp(8);
+        detailContent.addView(info, iLp);
+
+        // 皮肤预览（mc-heads.net，小尺寸居中）
+        android.widget.ImageView skin = new android.widget.ImageView(activity);
+        skin.setAdjustViewBounds(true);
+        try {
+            String skinUrl = "https://mc-heads.net/body/"
+                    + java.net.URLEncoder.encode(dname, "UTF-8") + ".png";
+            com.bumptech.glide.Glide.with(activity).load(skinUrl).into(skin);
+        } catch (Exception ignored) {
+        }
+        LinearLayout.LayoutParams sLp = new LinearLayout.LayoutParams(
+                (int) (48 * density), (int) (86 * density));
+        sLp.topMargin = dp(8);
+        sLp.gravity = Gravity.CENTER_HORIZONTAL;
+        detailContent.addView(skin, sLp);
+
+        // 房主对成员：禁麦/解除禁麦
+        String selfId = PlayerIdentity.getClientId(activity);
+        if (RoomCenter.isHost && !p.isRoomHost && !p.clientId.equals(selfId)) {
+            TextView muteBtn = new TextView(activity);
+            boolean muted = RoomCenter.isMuted(p.clientId);
+            muteBtn.setText(muted ? "解除禁麦" : "禁麦");
+            muteBtn.setTextSize(12);
+            muteBtn.setGravity(Gravity.CENTER);
+            muteBtn.setTextColor(0xFF101016);
+            GradientDrawable mbg = new GradientDrawable();
+            mbg.setColor(accent);
+            mbg.setCornerRadius(dp(8));
+            muteBtn.setBackground(mbg);
+            LinearLayout.LayoutParams mLp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(32));
+            mLp.topMargin = dp(10);
+            detailContent.addView(muteBtn, mLp);
+            muteBtn.setOnClickListener(x -> {
+                boolean nowMuted = !RoomCenter.isMuted(p.clientId);
+                RoomCenter.sendMute(p.clientId, nowMuted);
+                Toast.makeText(activity, nowMuted ? "已禁麦 " + p.name : "已解除禁麦 " + p.name,
+                        Toast.LENGTH_SHORT).show();
+                muteBtn.setText(nowMuted ? "解除禁麦" : "禁麦");
+            });
+        }
+
+        hideRegularRows();
+        detailPanel.setVisibility(View.VISIBLE);
+    }
+
+    /** v560：房主邀请进入世界——深链一键连接（成员端）。 */
+    @Override
+    public void onInvite(String hostIp, int port) {
+        ui.post(() -> {
+            if (!showing) {
+                return;
+            }
+            try {
+                Intent intent = new Intent(activity,
+                        org.levimc.launcher.ui.activities.IntentHandler.class);
+                intent.setAction(Intent.ACTION_VIEW);
+                intent.setData(android.net.Uri.parse(
+                        "minecraft://connect?serverUrl=" + hostIp + "&serverPort=" + port));
+                activity.startActivity(intent);
+                Toast.makeText(activity, "房主邀请进入世界，正在连接…",
+                        Toast.LENGTH_SHORT).show();
+            } catch (Exception e) {
+                Log.w(TAG, "邀请深链启动失败", e);
+            }
+        });
+    }
+
+    private static String formatOverlayMinutes(long minutes) {
+        long h = minutes / 60;
+        long m = minutes % 60;
+        return h > 0 ? h + " 小时 " + m + " 分" : m + " 分钟";
+    }
+
+    private static String formatOverlayLastActive(long ts) {
+        if (ts <= 0) {
+            return "—";
+        }
+        long diff = System.currentTimeMillis() - ts;
+        if (diff < 60_000L) {
+            return "刚刚";
+        }
+        long minutes = diff / 60_000L;
+        if (minutes < 60) {
+            return minutes + " 分钟前";
+        }
+        long hours = minutes / 60;
+        if (hours < 24) {
+            return hours + " 小时前";
+        }
+        long days = hours / 24;
+        if (days < 7) {
+            return days + " 天前";
+        }
+        java.text.SimpleDateFormat fmt = new java.text.SimpleDateFormat("yyyy-MM-dd",
+                java.util.Locale.ROOT);
+        return fmt.format(new java.util.Date(ts));
     }
 
     /** 开关胶囊样式刷新（开=强调色底深字，关=暗底亮字）。 */
@@ -1059,18 +1295,9 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
                         name.setTextSize(12);
                         row.addView(name, new LinearLayout.LayoutParams(0,
                                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-                        // v547：点击玩家行弹详情卡（联机页同款）；
-                        // 房主点成员行时卡片内带「禁麦/解除禁麦」按钮
-                        // （v530 的行点击直接禁麦交互迁移进详情卡）
-                        row.setOnClickListener(v -> {
-                            if (PlayerDetailCard.canView(activity, p, RoomCenter.isHost)) {
-                                PlayerDetailCard.show(activity, p,
-                                        RoomCenter.isHost && !self && !p.isRoomHost);
-                            } else {
-                                Toast.makeText(activity, R.string.online_card_no_permission,
-                                        Toast.LENGTH_SHORT).show();
-                            }
-                        });
+                        // v560：点击玩家行切换详情面板（悬浮窗同款 UI，
+                        // 不再弹居中弹窗；房主看成员时面板带禁麦按钮）
+                        row.setOnClickListener(v -> showDetailPanel(p));
                         // v528：每玩家行右侧麦克风（自己=可点三态按钮，他人=状态显示）
                         android.widget.ImageView mic = new android.widget.ImageView(activity);
                         mic.setImageResource(R.drawable.ic_mic_off);

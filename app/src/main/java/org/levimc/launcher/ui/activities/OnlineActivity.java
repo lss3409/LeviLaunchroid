@@ -42,7 +42,8 @@ import java.util.List;
  * 首页（状态条+创建/加入并排卡片+最近房间+中转入口）/ 创建视图 / 房间视图；
  * 加入房间为弹窗（输入+实时校验+连接步骤条动画 解析→组网→发现房主→握手）。
  */
-public final class OnlineActivity extends BaseActivity implements EasyTierManager.Listener {
+public final class OnlineActivity extends BaseActivity
+        implements EasyTierManager.Listener, RoomCenter.Listener {
 
     private static final int REQ_VPN = 1001;
     /** v533：扫码请求码（journeyapps 默认 49374；相册选图自定义）。 */
@@ -438,6 +439,34 @@ public final class OnlineActivity extends BaseActivity implements EasyTierManage
             });
         }
         playersContainer.addView(row);
+    }
+
+    /** v560：RoomCenter.Listener 接口实现（转调 onRoomPlayers）。 */
+    @Override
+    public void onPlayers(List<RoomCenter.Player> players, long rttMs) {
+        onRoomPlayers(players, rttMs);
+    }
+
+    /** v560：成员端收到房主世界邀请 → 深链启动游戏自动连接（免选局域网入口）。 */
+    @Override
+    public void onInvite(String hostIp, int port) {
+        if (RoomCenter.isHost) {
+            return;
+        }
+        runOnUiThread(() -> {
+            try {
+                Intent intent = new Intent(this,
+                        org.levimc.launcher.ui.activities.IntentHandler.class);
+                intent.setAction(Intent.ACTION_VIEW);
+                intent.setData(Uri.parse("minecraft://connect?serverUrl="
+                        + hostIp + "&serverPort=" + port));
+                startActivity(intent);
+                Toast.makeText(this, "房主邀请进入世界，正在连接…",
+                        Toast.LENGTH_SHORT).show();
+            } catch (Exception e) {
+                Toast.makeText(this, "邀请连接失败", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     /** 玩家列表心跳回调（工作线程）。 */

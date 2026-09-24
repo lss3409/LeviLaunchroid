@@ -82,6 +82,10 @@ public final class RoomCenter {
     /** 玩家列表/延迟回调（工作线程，UI 自行切主线程）。 */
     public interface Listener {
         void onPlayers(List<Player> players, long rttMs);
+
+        /** v560：房主邀请进入世界（c:invite）——成员端深链一键连接。 */
+        default void onInvite(String hostIp, int port) {
+        }
     }
 
     // ---- 房主端 ----
@@ -200,6 +204,30 @@ public final class RoomCenter {
     public static void setSelfViewPerm(int perm) {
         selfViewPerm = perm;
         notifyLocalStateChanged();
+    }
+
+    /**
+     * v560：房主邀请全体成员进入世界（URI 一键直达）——c:invite 单播，
+     * 成员端收到后深链启动游戏自动连接房主的局域网世界。
+     */
+    public static void sendInviteAll() {
+        DatagramSocket s = hostSocket;
+        if (s == null || s.isClosed()) {
+            Log.w(TAG, "邀请失败：房间中心不可用");
+            return;
+        }
+        String msg = "c:invite\0{\"hostIp\":\"" + hostAddr()
+                + "\",\"port\":" + GAME_PORT + "}";
+        byte[] out = msg.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        int sent = 0;
+        for (InetSocketAddress addr : memberAddrs.values()) {
+            try {
+                s.send(new DatagramPacket(out, out.length, addr.getAddress(), addr.getPort()));
+                sent++;
+            } catch (Exception ignored) {
+            }
+        }
+        Log.i(TAG, "已邀请 " + sent + " 名成员进入世界: " + hostAddr());
     }
 
     private static void hostLoop() {
@@ -583,6 +611,24 @@ public final class RoomCenter {
                                     Log.i(TAG, "收到房主禁麦指令: mute=" + mute);
                                     org.levimc.launcher.core.online.voice.VoiceEngine
                                             .setMutedByHostStatic(mute);
+                                } catch (Exception ignored) {
+                                }
+                            } else if (text.startsWith("c:invite\0")) {
+                                // v560：房主邀请进入世界（URI 一键直达）→ 广播给监听器
+                                try {
+                                    JSONObject iq = new JSONObject(
+                                            text.substring(text.indexOf('\0') + 1));
+                                    String hip = iq.optString("hostIp", "");
+                                    int port = iq.optInt("port", 19132);
+                                    if (!hip.isEmpty()) {
+                                        Log.i(TAG, "收到房主世界邀请: " + hip + ":" + port);
+                                        for (Listener lst : listeners) {
+                                            try {
+                                                lst.onInvite(hip, port);
+                                            } catch (Exception ignored) {
+                                            }
+                                        }
+                                    }
                                 } catch (Exception ignored) {
                                 }
                             } else {
