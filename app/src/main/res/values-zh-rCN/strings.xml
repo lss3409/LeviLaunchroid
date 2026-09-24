@@ -1332,9 +1332,6 @@
     <string name="news_unread_description">启动器新闻，%1$d 条未读</string>
     <string name="news_notification_channel">启动器新闻</string>
     <string name="news_notification_channel_description">LeviLauncher 的新公告和重要通知</string>
-    <string name="changelog_title">新增内容</string>
-    <string name="changelog_version">LeviLauncher %1$s</string>
-    <string name="changelog_continue">继续</string>
 
     <!-- 内容列表选择与批量操作（同步自上游） -->
     <string name="select">选择</string>

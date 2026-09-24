@@ -1380,9 +1380,6 @@ Invite code: P/%1$s
     <string name="news_unread_description">Launcher news, %1$d unread</string>
     <string name="news_notification_channel">Launcher news</string>
     <string name="news_notification_channel_description">New LeviLauncher announcements and important notices</string>
-    <string name="changelog_title">What’s new</string>
-    <string name="changelog_version">LeviLauncher %1$s</string>
-    <string name="changelog_continue">Continue</string>
 
     <!-- Content list selection & batch (synced from upstream) -->
     <string name="select">Select</string>

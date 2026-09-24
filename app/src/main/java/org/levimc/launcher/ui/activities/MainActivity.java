@@ -158,12 +158,7 @@ import okhttp3.OkHttpClient;
 
         initAccountHeader();
         initializeAfterMigrationGate();
-        // 版本更新日志（官方新闻体系）：版本升级后展示一次 What's new
-        try {
-            org.levimc.launcher.core.news.ChangelogManager.showIfNeeded(this, () -> {});
-        } catch (Throwable t) {
-            android.util.Log.w("MainActivity", "Changelog failed", t);
-        }
+        // v555：更新日志弹窗已删除（用户要求）
     }
 
     @Override
