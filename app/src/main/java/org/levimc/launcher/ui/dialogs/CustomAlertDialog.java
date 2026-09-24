@@ -165,6 +165,12 @@ public class CustomAlertDialog extends Dialog {
         if (mCustomView != null) {
             messageScrollView.setVisibility(View.GONE);
             itemsRecyclerView.setVisibility(View.GONE);
+            // v553：custom view 外层 ScrollView 必须一起显示——v552 包 ScrollView
+            // 后漏设，弹窗内容整个不可见（表现为空白弹窗/点不动）
+            View customScroll = findViewById(R.id.custom_scroll_view);
+            if (customScroll != null) {
+                customScroll.setVisibility(View.VISIBLE);
+            }
             if (customViewContainer != null) {
                 customViewContainer.setVisibility(View.VISIBLE);
                 customViewContainer.addView(mCustomView);
