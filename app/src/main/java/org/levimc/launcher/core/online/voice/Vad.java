@@ -19,10 +19,13 @@ final class Vad {
 
     private double floor = FLOOR_INIT;
     private int hangover;
+    private double lastRms;
+    private double lastFloor;
 
     /** 单帧判定：true = 语音帧（应发送）。 */
     boolean process(short[] buf) {
         double e = energy(buf);
+        lastRms = e;
         if (e < floor * 2) {
             // 静音段：噪声底向当前能量缓慢收敛
             floor = 0.97 * floor + 0.03 * e;
@@ -30,6 +33,7 @@ final class Vad {
                 floor = 50;
             }
         }
+        lastFloor = floor;
         boolean voice = e > Math.max(floor * FLOOR_GAIN, ABS_THRESHOLD);
         if (voice) {
             hangover = HANG_FRAMES;
@@ -38,6 +42,16 @@ final class Vad {
             voice = true;
         }
         return voice;
+    }
+
+    /** 最近一帧能量（调试用，v528）。 */
+    double getLastRms() {
+        return lastRms;
+    }
+
+    /** 当前噪声底（调试用，v528）。 */
+    double getLastFloor() {
+        return lastFloor;
     }
 
     /** 帧平均能量（样本平方均值）。 */

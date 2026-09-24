@@ -1219,6 +1219,8 @@
     <string name="voice_ptt">对讲机</string>
     <string name="voice_ptt_hold">按住说话</string>
     <string name="voice_perm_denied">需要麦克风权限才能开麦</string>
+    <string name="voice_mute_all">全员禁麦</string>
+    <string name="voice_unmute_all">解除禁麦</string>
     <string name="online_copy_code">复制邀请码</string>
     <string name="online_copied">已复制到剪贴板</string>
     <string name="online_share_code">分享邀请码</string>

@@ -60,12 +60,13 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
     private LinearLayout playersContainer;
     private boolean showing;
 
-    // v527 麦克风 UI
-    private android.widget.ImageView micIcon;
-    private TextView micLabel;
+    // v527/v528 麦克风 UI：每玩家行一个图标（自己=可点三态按钮，他人=状态显示）
     private TextView pttButton;
+    private TextView muteAllButton;
     private boolean micPending;
     private final Map<String, TextView> playerRows = new HashMap<>();
+    private final Map<String, android.widget.ImageView> playerMicViews = new HashMap<>();
+    private final Map<String, Integer> playerMicStates = new HashMap<>();
 
     // ping 统计
     private final long[] pingWindow = new long[PING_WINDOW]; // >0 = rtt, -1 = 丢包
@@ -123,7 +124,7 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
             VoiceEngine ve = VoiceEngine.get(activity);
             ve.addListener(this);
             ve.start(); // 收包/播放常驻（闭麦也能听），采集按模式激活
-            applyMicUi(ve.getMode());
+            refreshMicUi();
             startPingLoop();
             ui.post(this::refreshBar);
         } catch (Exception e) {
@@ -153,10 +154,11 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         }
         barView = null;
         cardView = null;
-        micIcon = null;
-        micLabel = null;
         pttButton = null;
+        muteAllButton = null;
         playerRows.clear();
+        playerMicViews.clear();
+        playerMicStates.clear();
     }
 
     // ---------------- 长条形收起态 ----------------
@@ -229,6 +231,22 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         collapse.setTextSize(11);
         header.addView(collapse);
         collapse.setOnClickListener(v -> toggleCard());
+        // v528 房主一键全员禁麦（仅房主可见）
+        muteAllButton = new TextView(activity);
+        muteAllButton.setText(R.string.voice_mute_all);
+        muteAllButton.setTextColor(0xAAFFFFFF);
+        muteAllButton.setTextSize(11);
+        GradientDrawable mabg = new GradientDrawable();
+        mabg.setColor(0x1AFFFFFF);
+        mabg.setCornerRadius(dp(6));
+        muteAllButton.setBackground(mabg);
+        LinearLayout.LayoutParams maLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        maLp.leftMargin = dp(10);
+        header.addView(muteAllButton, maLp);
+        muteAllButton.setVisibility(View.GONE);
+        muteAllButton.setOnClickListener(v ->
+                RoomCenter.sendMuteAll(!RoomCenter.allMuted));
         card.addView(header);
 
         TextView code = new TextView(activity);
@@ -256,48 +274,21 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         plLp.topMargin = dp(6);
         card.addView(playersContainer, plLp);
 
-        // v527 麦克风行：图标（闭麦/开麦/对讲机循环）+ 模式名 + PTT 按住说话
-        LinearLayout micRow = new LinearLayout(activity);
-        micRow.setOrientation(LinearLayout.HORIZONTAL);
-        micRow.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout.LayoutParams mrLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(34));
-        mrLp.topMargin = dp(10);
-        card.addView(micRow, mrLp);
-
-        micIcon = new android.widget.ImageView(activity);
-        micIcon.setImageResource(R.drawable.ic_mic_off);
-        GradientDrawable micBg = new GradientDrawable();
-        micBg.setColor(0x22FFFFFF);
-        micBg.setCornerRadius(dp(8));
-        micIcon.setBackground(micBg);
-        micIcon.setPadding(dp(6), dp(6), dp(6), dp(6));
-        LinearLayout.LayoutParams miLp = new LinearLayout.LayoutParams(dp(34), dp(34));
-        micRow.addView(micIcon, miLp);
-        micIcon.setOnClickListener(v -> onMicClicked());
-
-        micLabel = new TextView(activity);
-        micLabel.setText(R.string.voice_mute);
-        micLabel.setTextColor(0xAAFFFFFF);
-        micLabel.setTextSize(12);
-        LinearLayout.LayoutParams mlLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        mlLp.leftMargin = dp(8);
-        micRow.addView(micLabel, mlLp);
-
+        // v528：PTT 按住说话大按钮（仅对讲机模式显示，全宽好按）
         pttButton = new TextView(activity);
         pttButton.setText(R.string.voice_ptt_hold);
         pttButton.setTextColor(Color.WHITE);
-        pttButton.setTextSize(12);
+        pttButton.setTextSize(13);
         pttButton.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         pttButton.setGravity(Gravity.CENTER);
         GradientDrawable pbg = new GradientDrawable();
         pbg.setColor(accent);
         pbg.setCornerRadius(dp(8));
         pttButton.setBackground(pbg);
-        LinearLayout.LayoutParams ptLp = new LinearLayout.LayoutParams(dp(88), dp(32));
-        ptLp.leftMargin = dp(8);
-        micRow.addView(pttButton, ptLp);
+        LinearLayout.LayoutParams ptLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(36));
+        ptLp.topMargin = dp(10);
+        card.addView(pttButton, ptLp);
         pttButton.setVisibility(View.GONE);
         pttButton.setOnTouchListener((v, e) -> {
             switch (e.getActionMasked()) {
@@ -469,7 +460,7 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
     private void advanceMicMode() {
         VoiceEngine ve = VoiceEngine.get(activity);
         int m = ve.cycleMode();
-        applyMicUi(m);
+        refreshMicUi();
         if (m != VoiceEngine.MODE_MUTED) {
             ve.start();
         }
@@ -497,30 +488,46 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
         }
     }
 
-    private void applyMicUi(int m) {
-        if (micIcon == null) {
+    /**
+     * v528：刷新全员麦克风图标——自己行可点（三态循环），他人行只读状态；
+     * PTT 按住说话按钮与房主一键禁麦按钮同步显隐。
+     */
+    private void refreshMicUi() {
+        if (playersContainer == null) {
             return;
         }
-        if (m == VoiceEngine.MODE_OPEN) {
-            micIcon.setImageResource(R.drawable.ic_mic_on);
-            micIcon.setColorFilter(accent);
-            micLabel.setText(R.string.voice_open);
-            micLabel.setTextColor(accent);
-        } else if (m == VoiceEngine.MODE_PTT) {
-            micIcon.setImageResource(R.drawable.ic_mic_ptt);
-            micIcon.setColorFilter(0xFFFFB74D);
-            micLabel.setText(R.string.voice_ptt);
-            micLabel.setTextColor(0xFFFFB74D);
-        } else {
-            micIcon.setImageResource(R.drawable.ic_mic_off);
-            micIcon.setColorFilter(0xAAFFFFFF);
-            micLabel.setText(R.string.voice_mute);
-            micLabel.setTextColor(0xAAFFFFFF);
+        String selfId = PlayerIdentity.getClientId(activity);
+        int selfMode = VoiceEngine.getLastMode();
+        for (Map.Entry<String, android.widget.ImageView> e : playerMicViews.entrySet()) {
+            boolean self = e.getKey().equals(selfId);
+            int m = self ? selfMode
+                    : (playerMicStates.containsKey(e.getKey()) ? playerMicStates.get(e.getKey()) : 0);
+            android.widget.ImageView mic = e.getValue();
+            if (mic == null) {
+                continue;
+            }
+            if (m == VoiceEngine.MODE_OPEN) {
+                mic.setImageResource(R.drawable.ic_mic_on);
+                mic.setColorFilter(accent);
+            } else if (m == VoiceEngine.MODE_PTT) {
+                mic.setImageResource(R.drawable.ic_mic_ptt);
+                mic.setColorFilter(0xFFFFB74D);
+            } else {
+                mic.setImageResource(R.drawable.ic_mic_off);
+                mic.setColorFilter(0xAAFFFFFF);
+            }
         }
-        pttButton.setVisibility(m == VoiceEngine.MODE_PTT ? View.VISIBLE : View.GONE);
+        if (pttButton != null) {
+            pttButton.setVisibility(selfMode == VoiceEngine.MODE_PTT ? View.VISIBLE : View.GONE);
+        }
+        if (muteAllButton != null && muteAllButton.getVisibility() == View.VISIBLE) {
+            muteAllButton.setText(RoomCenter.allMuted
+                    ? R.string.voice_unmute_all : R.string.voice_mute_all);
+            muteAllButton.setTextColor(RoomCenter.allMuted ? accent : 0xAAFFFFFF);
+        }
     }
 
-    /** 说话人变化：重涂玩家行（高亮正在说话的人）。 */
+    /** 说话人/模式变化：重涂玩家行（高亮正在说话的人）+ 刷新麦克风图标。 */
     @Override
     public void onVoiceChanged() {
         if (!showing) {
@@ -541,6 +548,7 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
                 row.setTextColor(0xDDFFFFFF);
             }
         }
+        refreshMicUi();
     }
 
     // ---------------- 延迟/丢包测量 ----------------
@@ -666,17 +674,52 @@ public final class OnlineOverlay implements RoomCenter.Listener, VoiceEngine.Lis
             if (playersContainer != null) {
                 playersContainer.removeAllViews();
                 playerRows.clear();
+                playerMicViews.clear();
+                playerMicStates.clear();
                 if (players != null) {
+                    String selfId = PlayerIdentity.getClientId(activity);
                     for (RoomCenter.Player p : players) {
-                        TextView row = new TextView(activity);
-                        row.setText(p.isRoomHost ? "👑 " + p.name : p.name);
-                        row.setTextSize(12);
+                        boolean self = p.clientId.equals(selfId);
+                        LinearLayout row = new LinearLayout(activity);
+                        row.setOrientation(LinearLayout.HORIZONTAL);
+                        row.setGravity(Gravity.CENTER_VERTICAL);
                         row.setPadding(0, dp(3), 0, dp(3));
+                        TextView name = new TextView(activity);
+                        name.setText(p.isRoomHost ? "👑 " + p.name : p.name);
+                        name.setTextSize(12);
+                        row.addView(name, new LinearLayout.LayoutParams(0,
+                                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                        // v528：每玩家行右侧麦克风（自己=可点三态按钮，他人=状态显示）
+                        android.widget.ImageView mic = new android.widget.ImageView(activity);
+                        mic.setImageResource(R.drawable.ic_mic_off);
+                        mic.setColorFilter(0xAAFFFFFF);
+                        LinearLayout.LayoutParams micLp;
+                        if (self) {
+                            micLp = new LinearLayout.LayoutParams(dp(26), dp(26));
+                            micLp.leftMargin = dp(6);
+                            mic.setPadding(dp(5), dp(5), dp(5), dp(5));
+                            GradientDrawable micBg = new GradientDrawable();
+                            micBg.setColor(0x22FFFFFF);
+                            micBg.setCornerRadius(dp(7));
+                            mic.setBackground(micBg);
+                            mic.setOnClickListener(v -> onMicClicked());
+                        } else {
+                            micLp = new LinearLayout.LayoutParams(dp(18), dp(18));
+                            micLp.leftMargin = dp(6);
+                            mic.setPadding(dp(2), dp(2), dp(2), dp(2));
+                        }
+                        row.addView(mic, micLp);
                         playersContainer.addView(row);
-                        playerRows.put(p.clientId, row);
+                        playerRows.put(p.clientId, name);
+                        playerMicViews.put(p.clientId, mic);
+                        playerMicStates.put(p.clientId, p.micState);
                     }
                 }
-                onVoiceChanged(); // 按当前说话状态上色
+                // v528：房主显示一键禁麦按钮
+                if (muteAllButton != null) {
+                    muteAllButton.setVisibility(RoomCenter.isHost ? View.VISIBLE : View.GONE);
+                }
+                onVoiceChanged(); // 按当前说话状态上色 + 刷新麦克风图标
             }
             refreshBar();
             refreshCard();

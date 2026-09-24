@@ -58,6 +58,8 @@ public final class VoiceEngine implements RoomCenter.Listener {
     }
 
     private static volatile VoiceEngine instance;
+    /** 最近一次模式（无 Context 读取，RoomCenter 心跳/玩家列表同步用，v528）。 */
+    private static volatile int lastMode = MODE_MUTED;
     private final Context app;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
@@ -111,6 +113,11 @@ public final class VoiceEngine implements RoomCenter.Listener {
         return mode;
     }
 
+    /** 无 Context 读取最近模式（RoomCenter 心跳同步用，v528）。 */
+    public static int getLastMode() {
+        return lastMode;
+    }
+
     public Set<String> getSpeakingClients() {
         return speakingClients;
     }
@@ -134,6 +141,7 @@ public final class VoiceEngine implements RoomCenter.Listener {
                 pttPressed = false;
             }
         }
+        lastMode = mode;
         notifyChanged();
         return next;
     }
@@ -144,6 +152,28 @@ public final class VoiceEngine implements RoomCenter.Listener {
 
     public void pttUp() {
         pttPressed = false;
+    }
+
+    /** 房主一键禁麦指令（c:mute，无 Context 静态入口，v528）。 */
+    public static void forceMuteStatic(boolean mute) {
+        VoiceEngine ve = instance;
+        if (ve != null) {
+            ve.forceMute(mute);
+        }
+    }
+
+    /** 被房主强制禁麦：直接切回闭麦（UI 立即刷新）。 */
+    public void forceMute(boolean mute) {
+        if (!mute) {
+            return;
+        }
+        synchronized (this) {
+            mode = MODE_MUTED;
+            pttPressed = false;
+        }
+        lastMode = mode;
+        Log.i(TAG, "被房主一键禁麦");
+        notifyChanged();
     }
 
     // ---------------- 生命周期 ----------------
@@ -234,9 +264,11 @@ public final class VoiceEngine implements RoomCenter.Listener {
 
     private void capLoop() {
         AudioRecord rec = null;
+        long frameCount = 0;
         try {
             while (running) {
-                if (suspended || mode == MODE_MUTED && !pttPressed || !permGranted) {
+                // v528：非闭麦模式采集常驻（PTT 按住即发零延迟，不再等采集启动）
+                if (suspended || mode == MODE_MUTED || !permGranted) {
                     releaseQuiet(rec);
                     rec = null;
                     Thread.sleep(300);
@@ -264,8 +296,16 @@ public final class VoiceEngine implements RoomCenter.Listener {
                     continue;
                 }
                 // 降噪：系统 NS/AEC（applyEffects）+ 软件噪声门限 VAD
-                if (vad.process(buf) && shouldTransmit()) {
+                boolean voice = vad.process(buf);
+                // v528：开麦走 VAD 门；PTT 按住就发（对讲机语义，静音帧也发）
+                boolean send = mode == MODE_OPEN ? voice : pttPressed;
+                if (send) {
                     sendFrame(buf);
+                }
+                if (++frameCount % 100 == 0) {
+                    Log.d(TAG, "VAD 采样: rms=" + Math.round(Math.sqrt(vad.getLastRms()))
+                            + " floor=" + Math.round(Math.sqrt(vad.getLastFloor()))
+                            + " voice=" + voice + " mode=" + mode + " ptt=" + pttPressed);
                 }
             }
         } catch (InterruptedException ignored) {
@@ -274,10 +314,6 @@ public final class VoiceEngine implements RoomCenter.Listener {
         } finally {
             releaseQuiet(rec);
         }
-    }
-
-    private boolean shouldTransmit() {
-        return mode == MODE_OPEN || (mode == MODE_PTT && pttPressed);
     }
 
     private static AudioRecord createRecord() {
@@ -411,8 +447,10 @@ public final class VoiceEngine implements RoomCenter.Listener {
         }
     }
 
-    /** 每发送方抖动缓冲（丢包补静音，乱序丢弃）。 */
+    /** 每发送方抖动缓冲（丢包补静音，乱序丢弃）。
+     *  v528：ArrayDeque 不接受 null——静音用全零哨兵帧（混音加零无副作用）。 */
     static final class SenderBuf {
+        static final byte[] EMPTY = new byte[FRAME_SAMPLES * 2];
         final java.util.ArrayDeque<byte[]> q = new java.util.ArrayDeque<>();
         int lastSeq = -1;
 
@@ -427,7 +465,7 @@ public final class VoiceEngine implements RoomCenter.Listener {
             }
             int fill = Math.min(gap, MAX_JITTER_FRAMES);
             for (int i = 0; i < fill; i++) {
-                q.add(null);
+                q.add(EMPTY);
             }
             q.add(frame);
             lastSeq = seq;

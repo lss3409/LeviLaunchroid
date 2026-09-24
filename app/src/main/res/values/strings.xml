@@ -1227,6 +1227,8 @@ Invite code: P/%1$s
     <string name="voice_ptt">PTT</string>
     <string name="voice_ptt_hold">Hold to talk</string>
     <string name="voice_perm_denied">Microphone permission required</string>
+    <string name="voice_mute_all">Mute all</string>
+    <string name="voice_unmute_all">Unmute all</string>
     <string name="online_copy_code">Copy code</string>
     <string name="online_copied">Copied to clipboard</string>
     <string name="online_share_code">Share code</string>
