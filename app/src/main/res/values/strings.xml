@@ -1241,6 +1241,7 @@ Invite code: P/%1$s
     <string name="online_copied">Copied to clipboard</string>
     <!-- v547：详情卡/设置 -->
     <string name="online_card_no_permission">This player has not shared their profile card</string>
+    <string name="online_host_not_found">Host not found - the room may have been disbanded. Please check the code and retry</string>
     <string name="online_settings_title">Overlay settings</string>
     <string name="online_settings_noise">Noise suppression</string>
     <string name="online_settings_noise_level">Suppression level</string>

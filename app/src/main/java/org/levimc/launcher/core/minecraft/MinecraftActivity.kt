@@ -37,7 +37,10 @@ import java.io.File
 /** 后台久置阈值：超过此时长回前台视为渲染不可恢复（v518 自愈）。 */
 // v534：黑屏自愈阈值 5 分钟→90 秒（开了前台服务保活时渲染面丢失黑屏高发，
 // 缩短等待——切后台超过 90 秒回来直接结束会话回启动器，世界自动存档兜底）
-private const val LONG_PAUSE_HEAL_MS = 90_000L
+// v561：后台久置自愈阈值 90s→60s——vivo 类厂商后台机制激进（冻结 GL 上下文
+// 更频繁），后台超 60s 回前台就走静默重启（游戏自动存档回启动器），
+// 宁可重启也不要黑屏卡死；联想 ZUI 机制宽松（90s 时也只黑过 1 次）
+private const val LONG_PAUSE_HEAL_MS = 60_000L
 
 class MinecraftActivity : MainActivity(), PojavControlsHost {
 

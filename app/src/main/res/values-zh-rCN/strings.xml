@@ -1239,6 +1239,7 @@
     <string name="online_copied">已复制到剪贴板</string>
     <!-- v547：详情卡/设置 -->
     <string name="online_card_no_permission">该玩家未开放详情卡</string>
+    <string name="online_host_not_found">未找到房主——房间可能已解散，请确认邀请码后重试</string>
     <string name="online_settings_title">悬浮窗设置</string>
     <string name="online_settings_noise">降噪</string>
     <string name="online_settings_noise_level">降噪等级</string>

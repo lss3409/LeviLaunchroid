@@ -71,6 +71,10 @@ public final class EasyTierManager {
     /** 最近一次连接使用的虚拟网段路由（v522 看门狗重拉 VpnService 用）。 */
     private volatile java.util.List<String> lastCidrs = new java.util.ArrayList<>();
     private volatile ConnMode connMode = ConnMode.UNKNOWN;
+    /** v561：房主在虚拟网络内的真实 IP（从 peer_route_pairs 解析）。
+     *  异地经中转时房主 DHCP 拿到的 IP 不一定是 10.144.144.144——成员端
+     *  写死该 IP 会导致心跳连不上（双方都只显示 1 人）。 */
+    private volatile String hostVirtualIp;
     private Context appContext;
     private Listener listener;
 
@@ -88,6 +92,12 @@ public final class EasyTierManager {
     /** 当前与房主的连接模式（v505）。 */
     public ConnMode getConnMode() {
         return connMode;
+    }
+
+    /** v561：房主虚拟 IP（peer 路由表解析，异地中继下 DH 分配的真实地址）；
+     *  null = 未解析到（调用方回退 10.144.144.144）。 */
+    public String getHostVirtualIp() {
+        return hostVirtualIp;
     }
 
     public void setListener(Listener l) {
@@ -150,7 +160,10 @@ public final class EasyTierManager {
         // （局域网自动发现/自建中转）。
         String toml = "instance_name = \"" + INSTANCE_NAME + "\"\n"
                 + "dhcp = " + (fixedIpv4 == null ? "true" : "false") + "\n"
-                + (fixedIpv4 != null ? "ipv4 = \"" + fixedIpv4 + "\"\n" : "")
+                // v561：ipv4 用 CIDR 格式（EasyTier 2.6 配置规范；纯 IP 可能被
+                // 内核忽略导致 dhcp 生效、房主 IP 随机分配——成员端写死
+                // 10.144.144.144 连不上，异地"只显示 1 人"的根因之一）
+                + (fixedIpv4 != null ? "ipv4 = \"" + fixedIpv4 + "/24\"\n" : "")
                 // 房主节点带协议主机名，房客 RPC 匹配 paper-connect-server-* 发现房间中心
                 + (fixedIpv4 != null
                         ? "hostname = \"paper-connect-server-" + ROOM_CENTER_PORT + "\"\n" : "")
@@ -415,6 +428,24 @@ public final class EasyTierManager {
                             && route.optString("hostname", "").startsWith("paper-connect-server-");
                     if (!isHostRoute) {
                         continue;
+                    }
+                    // v561：顺带记录房主虚拟 IP——异地经中转时房主 DHCP 拿到的
+                    // 虚拟 IP 不一定是 10.144.144.144，成员端写死该 IP 导致
+                    // 心跳连不上（双方都显示 1 人）的根因。路由表里的
+                    // ipv4_addr 是房主在虚拟网络内的真实地址。
+                    if (route != null) {
+                        JSONObject ipa = route.optJSONObject("ipv4_addr");
+                        JSONObject adr = ipa == null ? null : ipa.optJSONObject("address");
+                        if (adr != null) {
+                            long a = adr.optLong("addr", -1);
+                            if (a > 0 && a <= 0xFFFFFFFFL) {
+                                String ip = ((a >> 24) & 0xFF) + "." + ((a >> 16) & 0xFF)
+                                        + "." + ((a >> 8) & 0xFF) + "." + (a & 0xFF);
+                                if (!ip.startsWith("0.") && !ip.startsWith("127.")) {
+                                    hostVirtualIp = ip;
+                                }
+                            }
+                        }
                     }
                     checkedAny = true;
                     JSONObject peer = pair.optJSONObject("peer");

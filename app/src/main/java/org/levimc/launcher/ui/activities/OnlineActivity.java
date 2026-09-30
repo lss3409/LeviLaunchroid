@@ -89,6 +89,25 @@ public final class OnlineActivity extends BaseActivity
     private android.app.Dialog joinDialog;
     private boolean isHost;
     private final List<InviteCode.Parsed> pendingParsed = new ArrayList<>();
+    /** v561：成员加入后等待房主握手的超时计时（20s 未见房主 = 房间已解散）。 */
+    private final android.os.Handler handshakeHandler = new android.os.Handler(
+            android.os.Looper.getMainLooper());
+    private boolean roomHandshakeDone = true;
+    private final Runnable handshakeTimeout = () -> {
+        if (isHost || roomHandshakeDone || isFinishing()) {
+            return;
+        }
+        roomHandshakeDone = true;
+        if (joinDialog != null) {
+            joinDialog.dismiss();
+        }
+        EasyTierManager.get().stop(this);
+        RoomCenter.stopClient();
+        LanDiscovery.stopHost();
+        Toast.makeText(this, R.string.online_host_not_found, Toast.LENGTH_LONG).show();
+        showHome();
+        setHomeState(EasyTierManager.State.IDLE, null);
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -472,6 +491,16 @@ public final class OnlineActivity extends BaseActivity
     /** 玩家列表心跳回调（工作线程）。 */
     private void onRoomPlayers(List<RoomCenter.Player> list, long rttMs) {
         runOnUiThread(() -> {
+            // v561：加入握手——名单里出现房主条目即握手成功，取消超时判定
+            if (!isHost && !roomHandshakeDone && list != null) {
+                for (RoomCenter.Player p : list) {
+                    if (p.isRoomHost) {
+                        roomHandshakeDone = true;
+                        handshakeHandler.removeCallbacks(handshakeTimeout);
+                        break;
+                    }
+                }
+            }
             if (!roomView.isShown() && joinDialog == null) {
                 return;
             }
@@ -1146,6 +1175,9 @@ public final class OnlineActivity extends BaseActivity
     }
 
     private void onLeaveClicked() {
+        // v561：清理加入握手超时计时
+        roomHandshakeDone = true;
+        handshakeHandler.removeCallbacks(handshakeTimeout);
         EasyTierManager.get().stop(this);
         LanDiscovery.stopHost();
         RoomCenter.stopHost();
@@ -1365,7 +1397,20 @@ public final class OnlineActivity extends BaseActivity
                     // 玩家列表出现自己的房主 ID
                     RoomCenter.stopHost();
                     LanBridge.stopHost();
-                    RoomCenter.startClient(HOST_IPV4, nick, cid, this::onRoomPlayers);
+                    // v561：房主虚拟 IP 从 EasyTier 路由表解析（异地中继下
+                    // DHCP 分配的真实地址），解析不到才回退固定 IP——
+                    // 写死 10.144.144.144 是异地联机"只显示 1 人"的根因
+                    String hostIp = EasyTierManager.get().getHostVirtualIp();
+                    if (hostIp == null || hostIp.isEmpty()) {
+                        hostIp = HOST_IPV4;
+                    }
+                    android.util.Log.i("OnlineActivity", "连接房主: " + hostIp);
+                    RoomCenter.startClient(hostIp, nick, cid, this::onRoomPlayers);
+                    // v561：加入握手确认——20 秒内收不到房主玩家列表
+                    // 即判定房间已解散（此前"房主不在也能加入成功"）
+                    roomHandshakeDone = false;
+                    handshakeHandler.removeCallbacks(handshakeTimeout);
+                    handshakeHandler.postDelayed(handshakeTimeout, 20_000L);
                 }
                 break;
             case FAILED:
