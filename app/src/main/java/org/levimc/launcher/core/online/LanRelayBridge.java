@@ -146,8 +146,15 @@ public final class LanRelayBridge {
             while (proxying && proxy != null && !proxy.isClosed()) {
                 byte[] pong = buildPong(hostNick);
                 try {
-                    proxy.send(new DatagramPacket(pong, pong.length,
-                            InetAddress.getByName("255.255.255.255"), ANN_PORT));
+                    // v591：pong 单播回本机虚拟 IP（TUN 回环）——广播发进
+                    // TUN 会被 EasyTier 吞掉，本机游戏客户端收不到（实测
+                    // 广播方案好友页无显示）。单播走 local 路由回环，游戏
+                    // socket（VPN 网络）直接收到。
+                    String selfIp = EasyTierManager.get().getVirtualIp();
+                    InetAddress target = selfIp != null && !selfIp.isEmpty()
+                            ? InetAddress.getByName(selfIp)
+                            : InetAddress.getByName("127.0.0.1");
+                    proxy.send(new DatagramPacket(pong, pong.length, target, ANN_PORT));
                 } catch (Exception ignored) {
                 }
                 try {
