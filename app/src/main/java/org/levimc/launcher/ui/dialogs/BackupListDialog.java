@@ -294,9 +294,18 @@ public final class BackupListDialog extends Dialog {
                             existing.name = world;
                             info.worlds.add(existing);
                         }
-                        // v570.3：world_icon（启动器同款三文件名）
                         String inner = rel.substring(slash + 1);
-                        if (existing.icon == null
+                        // v570.5：显示存档本身的名字（levelname.txt），
+                        // 文件夹名（如 LqP0fwJeU4U=）只是内部目录标识
+                        if (inner.equals("levelname.txt")) {
+                            try (java.io.InputStream in = zip.getInputStream(e)) {
+                                String levelName = new String(readAll(in), "UTF-8").trim();
+                                if (!levelName.isEmpty()) {
+                                    existing.name = levelName;
+                                }
+                            } catch (Exception ignored) {
+                            }
+                        } else if (existing.icon == null
                                 && (inner.equals("world_icon.jpeg")
                                 || inner.equals("world_icon.jpg")
                                 || inner.equals("world_icon.png"))) {
@@ -305,6 +314,7 @@ public final class BackupListDialog extends Dialog {
                                 if (data.length < 512 * 1024) {
                                     existing.icon = data;
                                 }
+                            } catch (Exception ignored) {
                             }
                         }
                     }
