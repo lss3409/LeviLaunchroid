@@ -292,14 +292,13 @@ public final class EasyTierVpnService extends VpnService {
         // 10.126.126.0/24（内核 DHCP 默认网段）两边 TUN 都要路由才能互通。
         builder.addRoute("10.144.0.0", 16);
         builder.addRoute("10.126.126.0", 24);
-        // v623：MC 局域网组播地址进 TUN——组播包经 EasyTier 内核转发给
-        // 对端（relay_network_whitelist 默认 "*" 全转发），对端内核写 TUN
-        // 模拟入站组播投递给本地 join 的 socket（Terracotta 异地 LAN 的关键）。
-        // 只加 224.0.2.60/32 最小侵入，不影响 mDNS 等其他组播。
-        builder.addRoute("224.0.2.60", 32);
+        // v628：v623 的 224.0.2.60/32 组播路由回退——Android VpnService
+        // 默认不拦截组播/广播（组播永远走真实网络，netd 丢弃 VPN 网络
+        // socket 的组播包），组播进 TUN 不可行；且该路由会劫持游戏客户端
+        // 同网 LAN 发现的组播（v584 同热点原生发现会回归）。
         org.levimc.launcher.util.OnlineDebugLog.log("TUN 路由: ipv4=" + ipv4
                 + " cidrs=" + java.util.Arrays.toString(cidrs)
-                + " + 兜底 10.144.0.0/16,10.126.126.0/24,组播 224.0.2.60/32");
+                + " + 兜底 10.144.0.0/16,10.126.126.0/24");
         try {
             ParcelFileDescriptor fd = builder.establish();
             if (fd == null) {

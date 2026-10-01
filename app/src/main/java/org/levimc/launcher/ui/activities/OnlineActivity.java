@@ -135,7 +135,6 @@ public final class OnlineActivity extends BaseActivity
         EasyTierManager.get().stop(this);
         RoomCenter.stopClient();
         LanDiscovery.stopHost();
-        org.levimc.launcher.core.online.TerracottaLan.stopScan();
         Toast.makeText(this, R.string.online_host_not_found, Toast.LENGTH_LONG).show();
         showHome();
         setHomeState(EasyTierManager.State.IDLE, null);
@@ -268,19 +267,12 @@ public final class OnlineActivity extends BaseActivity
                 return;
             }
             LanDiscovery.startHost(hr.parsed.networkName);
-            // v620：debug 后门建房同样启组播公告（v617 只在 doHostRoom 接了，
-            // debug_host 路径漏接导致自动化测试时公告线程从未启动）
-            // v622：debug_announce_port 强制公告端口（无游戏验证组播链路用）
-            int dbgPort = intent.getIntExtra("debug_announce_port", 0);
-            if (dbgPort > 0) {
-                org.levimc.launcher.core.online.TerracottaLan.debugPort = dbgPort;
-            }
-            org.levimc.launcher.core.online.TerracottaLan.startAnnounce(
-                    PlayerIdentity.getNickname(this));
-            // v626：debug_scan 房主自测扫描（诊断组播是否真的进了 TUN
-            // 并投回本机——收不到=发送侧没进 TUN）
-            if (intent.getBooleanExtra("debug_scan", false)) {
-                org.levimc.launcher.core.online.TerracottaLan.startScan();
+            // v628：debug_invite 后门——建房 10s 后自动发「邀请进入世界」
+            //（自动化验证 v618 深链链路：成员端收邀请→结束重启→补发深链）
+            if (intent.getBooleanExtra("debug_invite", false)) {
+                handshakeHandler.postDelayed(
+                        () -> org.levimc.launcher.core.online.RoomCenter.sendInviteAll(),
+                        10_000);
             }
             List<String> relayPeers = RelayStore.load(this);
             EasyTierManager.get().host(this, hr.parsed.networkName, hr.parsed.networkSecret, this,
@@ -317,8 +309,6 @@ public final class OnlineActivity extends BaseActivity
 
     /** 调试路径的显式 peer 直连加入（无授权弹窗时用）。 */
     private void debugJoin(InviteCode.Parsed parsed, String explicitPeer) {
-        // v622：debug 加入同样启组播扫描（v617 只在 doJoinFromDialog 接了）
-        org.levimc.launcher.core.online.TerracottaLan.startScan();
         new Thread(() -> {
             List<String> peers = new ArrayList<>();
             peers.add(explicitPeer);
@@ -885,10 +875,6 @@ public final class OnlineActivity extends BaseActivity
         roomState.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
         showRoom();
         LanDiscovery.startHost(parsed.networkName);
-        // v617：Terracotta 式组播公告实验（对含 TUN 在内的所有本机地址
-        // 组播发 [MOTD]/[AD] 到 224.0.2.60:4445，看 EasyTier 是否转发组播）
-        org.levimc.launcher.core.online.TerracottaLan.startAnnounce(
-                PlayerIdentity.getNickname(this));
         List<String> relayPeers = RelayStore.load(this);
         EasyTierManager.get().host(this, parsed.networkName, parsed.networkSecret, this,
                 HOST_IPV4, relayPeers);
@@ -1041,9 +1027,6 @@ public final class OnlineActivity extends BaseActivity
         currentCode = rawToCode(parsed);
         isHost = false;
         setStepState(1, true);
-        // v617：成员侧组播扫描实验（join 224.0.2.60:4445 收房主公告，
-        // 验证 EasyTier 虚拟网是否转发组播，日志写 OnlineDebugLog 文件）
-        org.levimc.launcher.core.online.TerracottaLan.startScan();
         new Thread(() -> {
             List<String> peers = new ArrayList<>(LanDiscovery.discover(parsed.networkName, 1500)); // v537：局域网发现 3s→1.5s
             // 合并固定中转：异地/流量联机时局域网发现不到房主，必须靠中转牵线（v511 修复）
@@ -1391,8 +1374,6 @@ public final class OnlineActivity extends BaseActivity
         LanBridge.stopHost();
         org.levimc.launcher.core.online.LanRelayBridge.stopHost();
         org.levimc.launcher.core.online.LanRelayBridge.stopClient();
-        org.levimc.launcher.core.online.TerracottaLan.stopAnnounce();
-        org.levimc.launcher.core.online.TerracottaLan.stopScan();
         org.levimc.launcher.core.online.voice.VoiceEngine.get(this).stop();
         RoomCenter.roomCode = null;
         RoomCenter.hostGameOpen = false;
