@@ -11,30 +11,23 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * v592：异地局域网入口桥——拦截客户端 ping 广播 + 双向代理。
+ * v595：异地局域网入口桥——世界服务器侧公告/流量代理。
  *
- * 1.26 发现机制实测：
- *   客户端周期向 255.255.255.255:19132 广播 RakNet ping（0x01+魔数）；
- *   服务器（房主游戏）监听 19132 收到 ping 后单播回 pong（0x1C 含
- *   世界名，源端口=世界随机端口）；客户端收到 pong 即在好友页
- *   「局域网」分类显示世界。客户端本身不监听 19132。
+ * 1.26 发现机制实测（角色修正后）：世界服务器周期向
+ * 255.255.255.255:19132 广播公告（0x01+魔数，33 字节），客户端
+ * 监听 19132 收到公告即在好友页「局域网」分类显示世界；点入后
+ * RakNet 连接流量指向公告源地址。
  *
- * 异地时 ping 广播进 TUN 被 EasyTier 吞掉（v584 重放公告、v588 合成
- * pong、v590 动态端口、v591 单播回环全部无效的根因——客户端根本不
- * 收 19132 的单播）。正确入口 = 拦客户端自己发出的 ping 广播：
- * 客户端广播会经内核本地投递到同网络（VPN mark 相同）绑 0.0.0.0:19132
- * 的 socket。
- *
- * 方案：
- * 房主侧 startHost()：周期 c:lan 同步房主昵称（成员据此启动代理）。
- * 成员侧 onAnnounce()：单 socket 绑 0.0.0.0:19132（VPN 网络）——
- *   ① 收到本机客户端广播 ping → 记录客户端源 → 转发房主 19132
- *   （服务器在 19132 监听发现 ping）；
- *   ② 房主回 pong/握手包（源=房主世界端口或 19132）→ 转回客户端
- *   源，源端口≠19132 时学习为世界端口；
- *   ③ 客户端后续连接流量 → 转发房主（已学端口或 19132）。
- * 客户端视角世界服务器 = 成员虚拟 IP:19132，全部流量双向代理，
- * 联机走 TUN 直达房主世界。
+ * 用户实际场景：vivo（RoomCenter 成员）在游戏里开存档=世界服务器；
+ * 平板（RoomCenter 房主）是客户端。服务器广播会经内核本地投递到
+ * 本机绑 0.0.0.0:19132 的 socket——服务器侧代理：
+ *   ① 拦本机服务器公告广播 → 转发平板（客户端）19132 → 客户端
+ *   显示「局域网」世界（源=成员虚拟 IP:19132）；
+ *   ② 平板客户端 ping/连接单播到成员虚拟 IP:19132 → 转本机
+ *   127.0.0.1:世界端口（端口由 WorldPortProbe 探测——vivo SELinux
+ *   允许读端口表，平板才被拒）；
+ *   ③ 本机服务器应答（回环源）→ 转回平板客户端源。
+ * 客户端全部流量双向代理，联机走 TUN 直达世界服务器。
  */
 public final class LanRelayBridge {
 
@@ -140,19 +133,22 @@ public final class LanRelayBridge {
                         org.levimc.launcher.util.OnlineDebugLog.log(
                                 "桥收包: from " + src + ":" + sport + " len=" + data.length
                                         + " head=" + String.format(java.util.Locale.US, "%02x",
-                                                data.length > 0 ? data[0] : -1));
+                                                data.length > 0 ? data[0] : -1)
+                                        + " wp=" + worldPort);
                     }
-                    // 房主回包判定：已学习的 worldPort 或发现端口 19132
-                    boolean fromHost = hostIp != null && src.equals(hostIp)
-                            && (sport == worldPort || sport == ANN_PORT);
-                    if (fromHost) {
-                        // 房主回包：源端口≠19132 即真实世界端口（学习）
-                        if (sport != ANN_PORT && worldPort != sport) {
-                            worldPort = sport;
-                            org.levimc.launcher.util.OnlineDebugLog.log(
-                                    "异地桥(成员): 学习到房主世界端口 " + sport);
-                        }
-                        // 转给 5s 内活跃的客户端
+                    // v595：本机是世界服务器（vivo 开存档）——方向修正：
+                    //   hostIp（平板，世界客户端）来的包 → 转本机 127.0.0.1 世界端口
+                    //   本机回环（服务器应答）→ 转回平板客户端源
+                    //   本机其他接口地址（服务器公告广播，本地投递）→ 转平板 19132
+                    boolean fromClientHost = hostIp != null && src.equals(hostIp);
+                    if (fromClientHost) {
+                        clients.put(new InetSocketAddress(src, sport),
+                                System.currentTimeMillis());
+                        int fwdPort = worldPort > 0 ? worldPort : ANN_PORT;
+                        proxy.send(new DatagramPacket(data, data.length,
+                                InetAddress.getByName("127.0.0.1"), fwdPort));
+                    } else if (src.startsWith("127.")) {
+                        // 本机服务器应答 → 转给 5s 内活跃的平板客户端
                         long now = System.currentTimeMillis();
                         Iterator<Map.Entry<InetSocketAddress, Long>> it =
                                 clients.entrySet().iterator();
@@ -168,13 +164,11 @@ public final class LanRelayBridge {
                             } catch (Exception ignored) {
                             }
                         }
-                    } else if (hostIp != null && data.length >= 1) {
-                        // 客户端流量（本机广播 ping / 单播连接）→ 记录并转发房主
-                        int fwdPort = worldPort > 0 ? worldPort : ANN_PORT;
-                        clients.put(new InetSocketAddress(src, sport),
-                                System.currentTimeMillis());
+                    } else if (hostIp != null) {
+                        // 本机服务器公告（广播本地投递，源=本机 wlan/热点地址）
+                        // → 转发平板客户端 19132（客户端监听处收公告显示世界）
                         proxy.send(new DatagramPacket(data, data.length,
-                                InetAddress.getByName(hostIp), fwdPort));
+                                InetAddress.getByName(hostIp), ANN_PORT));
                     }
                 } catch (Exception e) {
                     if (proxying) {
@@ -183,6 +177,28 @@ public final class LanRelayBridge {
                 }
             }
         }, "lan-relay-fwd");
+        fwd.setDaemon(true);
+        fwd.start();
+
+        // v595：本机（vivo）是世界服务器——周期探测世界端口（vivo SELinux
+        // 允许读端口表，平板被拒；服务器侧探测即可）
+        Thread probe = new Thread(() -> {
+            while (proxying && proxy != null && !proxy.isClosed()) {
+                int wp = WorldPortProbe.getWorldPort();
+                if (wp > 0 && wp != worldPort) {
+                    worldPort = wp;
+                    org.levimc.launcher.util.OnlineDebugLog.log(
+                            "异地桥(服务器): 探测到本机世界端口 " + wp);
+                }
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    return;
+                }
+            }
+        }, "lan-relay-probe");
+        probe.setDaemon(true);
+        probe.start();
         fwd.setDaemon(true);
         fwd.start();
     }
