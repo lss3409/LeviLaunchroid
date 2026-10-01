@@ -1285,6 +1285,8 @@ public final class OnlineActivity extends BaseActivity
         RoomCenter.stopHost();
         RoomCenter.stopClient();
         LanBridge.stopHost();
+        org.levimc.launcher.core.online.LanRelayBridge.stopHost();
+        org.levimc.launcher.core.online.LanRelayBridge.stopClient();
         org.levimc.launcher.core.online.voice.VoiceEngine.get(this).stop();
         RoomCenter.roomCode = null;
         RoomCenter.hostGameOpen = false;
@@ -1498,6 +1500,8 @@ public final class OnlineActivity extends BaseActivity
                     // 切换身份时清理对端角色（房主→成员或成员→房主，v518）
                     RoomCenter.stopClient();
                     RoomCenter.startHost(nick, cid, this::onRoomPlayers);
+                    // v584：房主启动局域网公告抓取转发（异地入口桥）
+                    org.levimc.launcher.core.online.LanRelayBridge.startHost();
                     // v517 局域网公告桥：合成 MC 公告单播给成员，异地好友页可见房主世界
                     LanBridge.startHost(nick);
                 } else {
@@ -1506,6 +1510,8 @@ public final class OnlineActivity extends BaseActivity
                     // 玩家列表出现自己的房主 ID
                     RoomCenter.stopHost();
                     LanBridge.stopHost();
+        org.levimc.launcher.core.online.LanRelayBridge.stopHost();
+        org.levimc.launcher.core.online.LanRelayBridge.stopClient();
                     // v561：房主虚拟 IP 从 EasyTier 路由表解析（异地中继下
                     // DHCP 分配的真实地址），解析不到才回退固定 IP——
                     // 写死 10.144.144.144 是异地联机"只显示 1 人"的根因

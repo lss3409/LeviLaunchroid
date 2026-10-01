@@ -251,6 +251,30 @@ public final class RoomCenter {
         Log.i(TAG, "已邀请 " + sent + " 名成员进入世界: " + hostAddr());
     }
 
+    /** v584：房主转发本机游戏的 RakNet 公告（c:lan）给全体成员。 */
+    public static void sendLanAnnounce(byte[] replyData, int worldPort) {
+        DatagramSocket s = hostSocket;
+        if (s == null || s.isClosed()) {
+            return;
+        }
+        try {
+            JSONObject o = new JSONObject();
+            o.put("data", android.util.Base64.encodeToString(replyData,
+                    android.util.Base64.NO_WRAP));
+            o.put("worldPort", worldPort);
+            String msg = "c:lan\0" + o;
+            byte[] out = msg.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            for (InetSocketAddress addr : memberAddrs.values()) {
+                try {
+                    s.send(new DatagramPacket(out, out.length, addr.getAddress(), addr.getPort()));
+                } catch (Exception ignored) {
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "公告转发失败", e);
+        }
+    }
+
     private static void hostLoop() {
         byte[] buf = new byte[4096];
         DatagramPacket p = new DatagramPacket(buf, buf.length);
@@ -655,6 +679,21 @@ public final class RoomCenter {
                                     Log.i(TAG, "收到房主禁麦指令: mute=" + mute);
                                     org.levimc.launcher.core.online.voice.VoiceEngine
                                             .setMutedByHostStatic(mute);
+                                } catch (Exception ignored) {
+                                }
+                            } else if (text.startsWith("c:lan\0")) {
+                                // v584：房主游戏 RakNet 公告转发（异地局域网入口桥）
+                                try {
+                                    JSONObject lq = new JSONObject(
+                                            text.substring(text.indexOf('\0') + 1));
+                                    String b64 = lq.optString("data", "");
+                                    int wp = lq.optInt("worldPort", 0);
+                                    if (!b64.isEmpty()) {
+                                        byte[] reply = android.util.Base64.decode(b64,
+                                                android.util.Base64.NO_WRAP);
+                                        LanRelayBridge.onAnnounce(reply,
+                                                p.getAddress().getHostAddress(), wp);
+                                    }
                                 } catch (Exception ignored) {
                                 }
                             } else if (text.startsWith("c:invite\0")) {
