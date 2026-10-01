@@ -1184,6 +1184,9 @@ Virtual IP: %1$s
     <string name="online_game_open">Host world is open, ready to join</string>
     <string name="online_game_wait">Waiting for host to open a world…</string>
     <string name="online_host_invite">Invite to world</string>
+    <string name="online_member_join">Join host world</string>
+    <string name="online_member_world_open">Host world open (port %1$d)</string>
+    <string name="online_member_world_none">Host world not open yet</string>
     <string name="online_world_opened">World open (port %1$d) - members join via deep link</string>
     <string name="online_world_none">World not detected - open a world in the game first</string>
     <string name="online_step_relay">Relay Mode</string>

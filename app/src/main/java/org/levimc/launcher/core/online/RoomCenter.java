@@ -258,6 +258,9 @@ public final class RoomCenter {
 
     /** v584：房主转发本机游戏的 RakNet 公告（c:lan）给全体成员。 */
     private static int lanSendCount;
+    /** v633：成员端缓存房主世界端口/地址（c:lan 同步），主动深链用。 */
+    public static volatile int lastWorldPort;
+    public static volatile String lastHostIp;
 
     public static void sendLanAnnounce(byte[] replyData, int worldPort) {
         DatagramSocket s = hostSocket;
@@ -705,6 +708,10 @@ public final class RoomCenter {
                                             text.substring(text.indexOf('\0') + 1));
                                     String b64 = lq.optString("data", "");
                                     int wp = lq.optInt("worldPort", 0);
+                                    // v633：成员端缓存房主世界端口/地址（c:lan 同步），
+                                    // 联机页「进入房主世界」主动深链用
+                                    lastWorldPort = wp;
+                                    lastHostIp = p.getAddress().getHostAddress();
                                     // v588：data 可空（1.26 服务器不广播，成员侧合成
                                     // pong）；nick 为成员合成 pong 的世界名
                                     String nick = lq.optString("nick", "");

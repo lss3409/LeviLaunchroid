@@ -71,6 +71,9 @@ public final class OnlineActivity extends BaseActivity
     // v600：房主侧世界状态 + 深链邀请按钮
     private android.view.View hostWorldRow;
     private TextView hostWorldState;
+    // v633：成员侧房主世界状态 + 主动深链直连按钮
+    private android.view.View memberWorldRow;
+    private TextView memberWorldState;
     private final android.os.Handler worldPollHandler = new android.os.Handler(
             android.os.Looper.getMainLooper());
     private final Runnable worldPollRunnable = this::refreshHostWorldState;
@@ -166,6 +169,28 @@ public final class OnlineActivity extends BaseActivity
         findViewById(R.id.online_host_invite_button).setOnClickListener(v -> {
             org.levimc.launcher.core.online.RoomCenter.sendInviteAll();
             Toast.makeText(this, "已邀请成员进入世界（成员端深链直达）", Toast.LENGTH_SHORT).show();
+        });
+        // v633：成员侧房主世界状态 + 主动深链直连（c:lan 已同步端口）
+        memberWorldRow = findViewById(R.id.online_member_world_row);
+        memberWorldState = findViewById(R.id.online_member_world_state);
+        findViewById(R.id.online_member_join_button).setOnClickListener(v -> {
+            // v633：房主 IP 优先 c:lan 来源，回退 v561 路由表解析的房主虚拟 IP，
+            // 再回退房主固定网段 10.144.144.144
+            String hip = org.levimc.launcher.core.online.RoomCenter.lastHostIp;
+            if (hip == null || hip.isEmpty()) {
+                hip = EasyTierManager.get().getHostVirtualIp();
+            }
+            if (hip == null || hip.isEmpty()) {
+                hip = "10.144.144.144";
+            }
+            int wp = org.levimc.launcher.core.online.RoomCenter.lastWorldPort;
+            if (wp <= 0) {
+                Toast.makeText(this, R.string.online_member_world_none,
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
+            launchDeepLink("minecraft://connect?serverUrl=" + hip + "&serverPort=" + wp,
+                    "正在连接房主世界…");
         });
         banner = findViewById(R.id.online_banner);
         flushBannerRunnable = () -> {
@@ -431,15 +456,24 @@ public final class OnlineActivity extends BaseActivity
             }
         }
         // v600：房主侧世界状态 + 深链邀请按钮（1s 轮询桥学到的世界端口）
+        // v633：成员侧房主世界状态 + 主动深链按钮（端口从 c:lan 同步）
         if (hostWorldRow != null) {
             if (isHost) {
                 hostWorldRow.setVisibility(View.VISIBLE);
+                if (memberWorldRow != null) {
+                    memberWorldRow.setVisibility(View.GONE);
+                }
                 refreshHostWorldState();
                 worldPollHandler.removeCallbacks(worldPollRunnable);
                 worldPollHandler.postDelayed(worldPollRunnable, 1000);
             } else {
                 hostWorldRow.setVisibility(View.GONE);
-                worldPollHandler.removeCallbacks(worldPollRunnable);
+                if (memberWorldRow != null) {
+                    memberWorldRow.setVisibility(View.VISIBLE);
+                    refreshHostWorldState();
+                    worldPollHandler.removeCallbacks(worldPollRunnable);
+                    worldPollHandler.postDelayed(worldPollRunnable, 1000);
+                }
             }
         }
         playersContainer.removeAllViews();
@@ -451,22 +485,60 @@ public final class OnlineActivity extends BaseActivity
         playersContainer.addView(empty);
     }
 
-    /** v600：刷新房主世界状态（桥从公告源学到的世界端口），1s 轮询。 */
+    /** v600：刷新房主世界状态（桥从公告源学到的世界端口），1s 轮询。
+     *  v633：成员端同步刷新（端口从 c:lan 缓存的 RoomCenter.lastWorldPort）。 */
     private void refreshHostWorldState() {
-        if (hostWorldState == null) {
-            return;
+        if (isHost) {
+            if (hostWorldState == null) {
+                return;
+            }
+            int wp = org.levimc.launcher.core.online.LanRelayBridge.getLearnedWorldPort();
+            if (wp > 0) {
+                hostWorldState.setText(getString(R.string.online_world_opened, wp));
+                hostWorldState.setTextColor(getResources().getColor(R.color.primary, getTheme()));
+            } else {
+                hostWorldState.setText(R.string.online_world_none);
+                hostWorldState.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+            }
+        } else if (memberWorldState != null) {
+            int wp = org.levimc.launcher.core.online.RoomCenter.lastWorldPort;
+            if (wp > 0) {
+                memberWorldState.setText(getString(R.string.online_member_world_open, wp));
+                memberWorldState.setTextColor(getResources().getColor(R.color.primary, getTheme()));
+            } else {
+                memberWorldState.setText(R.string.online_member_world_none);
+                memberWorldState.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+            }
         }
-        int wp = org.levimc.launcher.core.online.LanRelayBridge.getLearnedWorldPort();
-        if (wp > 0) {
-            hostWorldState.setText(getString(R.string.online_world_opened, wp));
-            hostWorldState.setTextColor(getResources().getColor(R.color.primary, getTheme()));
-        } else {
-            hostWorldState.setText(R.string.online_world_none);
-            hostWorldState.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
-        }
-        if (isHost && hostWorldRow != null && hostWorldRow.getVisibility() == View.VISIBLE) {
+        if ((isHost && hostWorldRow != null && hostWorldRow.getVisibility() == View.VISIBLE)
+                || (!isHost && memberWorldRow != null && memberWorldRow.getVisibility() == View.VISIBLE)) {
             worldPollHandler.removeCallbacks(worldPollRunnable);
             worldPollHandler.postDelayed(worldPollRunnable, 1000);
+        }
+    }
+
+    /** v633：深链直连公共入口（成员主动进入/房主邀请共用）——
+     *  游戏运行中 1.26 不处理深链：先结束会话，退出后 onResume 自动补发。 */
+    private void launchDeepLink(String url, String toast) {
+        try {
+            if (org.levimc.launcher.core.minecraft.MinecraftActivityState.isRunning()) {
+                savePendingDeepLink(this, url);
+                android.app.Activity game = org.levimc.launcher.core.minecraft
+                        .MinecraftActivityState.getCurrentActivity();
+                if (game != null && !game.isFinishing()) {
+                    game.finish();
+                }
+                Toast.makeText(this, "正在重启游戏连接…", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            Intent intent = new Intent(this,
+                    org.levimc.launcher.ui.activities.IntentHandler.class);
+            intent.setAction(Intent.ACTION_VIEW);
+            intent.setData(Uri.parse(url));
+            startActivity(intent);
+            Toast.makeText(this, toast, Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "连接失败", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -603,34 +675,12 @@ public final class OnlineActivity extends BaseActivity
             return;
         }
         runOnUiThread(() -> {
-            try {
-                String url = "minecraft://connect?serverUrl=" + hostIp
-                        + "&serverPort=" + port;
-                // v601：游戏运行中不处理深链（1.26 实测）——先结束会话，
-                // 退出流程完成后启动器自动重启并补发深链（待启动记忆）
-                if (org.levimc.launcher.core.minecraft.MinecraftActivityState.isRunning()) {
-                    savePendingDeepLink(this, url);
-                    android.app.Activity game = org.levimc.launcher.core.minecraft
-                            .MinecraftActivityState.getCurrentActivity();
-                    if (game != null && !game.isFinishing()) {
-                        game.finish();
-                    }
-                    Toast.makeText(this, "房主邀请进入世界，正在重启游戏连接…",
-                            Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                Intent intent = new Intent(this,
-                        org.levimc.launcher.ui.activities.IntentHandler.class);
-                intent.setAction(Intent.ACTION_VIEW);
-                intent.setData(Uri.parse(url));
-                startActivity(intent);
-                org.levimc.launcher.util.OnlineDebugLog.log(
-                        "onInvite: 游戏未运行，已发深链 IntentHandler: " + url);
-                Toast.makeText(this, "房主邀请进入世界，正在连接…",
-                        Toast.LENGTH_SHORT).show();
-            } catch (Exception e) {
-                Toast.makeText(this, "邀请连接失败", Toast.LENGTH_SHORT).show();
-            }
+            String url = "minecraft://connect?serverUrl=" + hostIp
+                    + "&serverPort=" + port;
+            org.levimc.launcher.util.OnlineDebugLog.log(
+                    "onInvite: 收到房主邀请，深链 " + url);
+            // v633：深链直连统一走公共入口（游戏运行中先结束，退出后补发）
+            launchDeepLink(url, "房主邀请进入世界，正在连接…");
         });
     }
 
