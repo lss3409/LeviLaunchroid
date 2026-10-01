@@ -268,6 +268,10 @@ public final class OnlineActivity extends BaseActivity
                 return;
             }
             LanDiscovery.startHost(hr.parsed.networkName);
+            // v620：debug 后门建房同样启组播公告（v617 只在 doHostRoom 接了，
+            // debug_host 路径漏接导致自动化测试时公告线程从未启动）
+            org.levimc.launcher.core.online.TerracottaLan.startAnnounce(
+                    PlayerIdentity.getNickname(this));
             List<String> relayPeers = RelayStore.load(this);
             EasyTierManager.get().host(this, hr.parsed.networkName, hr.parsed.networkSecret, this,
                     HOST_IPV4, relayPeers);
