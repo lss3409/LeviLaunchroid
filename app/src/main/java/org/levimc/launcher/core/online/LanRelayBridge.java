@@ -6,61 +6,46 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * v590：异地局域网入口桥——合成 pong 公告 + ping/pong 代理（端口动态学习）。
+ * v592：异地局域网入口桥——拦截客户端 ping 广播 + 双向代理。
  *
- * 1.26 发现机制实测：客户端周期向 255.255.255.255:19132 广播带
- * RakNet 魔数的 ping（0x01），服务器单播回 pong（0x1C 含世界名，
- * 源端口即世界随机端口）——服务器自身不广播任何公告。且 1.26 的
- * 服务器在 19132 上监听发现 ping。
+ * 1.26 发现机制实测：
+ *   客户端周期向 255.255.255.255:19132 广播 RakNet ping（0x01+魔数）；
+ *   服务器（房主游戏）监听 19132 收到 ping 后单播回 pong（0x1C 含
+ *   世界名，源端口=世界随机端口）；客户端收到 pong 即在好友页
+ *   「局域网」分类显示世界。客户端本身不监听 19132。
  *
- * 平板（ZUI）SELinux 拒 untrusted_app 读 /proc/self/net/udp
- * （avc denied 实锤，vivo 允许）——WorldPortProbe 在房主平板失效，
- * wp 恒 0。故 v590 不再依赖端口探测：
+ * 异地时 ping 广播进 TUN 被 EasyTier 吞掉（v584 重放公告、v588 合成
+ * pong、v590 动态端口、v591 单播回环全部无效的根因——客户端根本不
+ * 收 19132 的单播）。正确入口 = 拦客户端自己发出的 ping 广播：
+ * 客户端广播会经内核本地投递到同网络（VPN mark 相同）绑 0.0.0.0:19132
+ * 的 socket。
  *
  * 方案：
- * 房主侧 startHost()：周期 c:lan 同步房主昵称。
- * 成员侧 onAnnounce()：单个随机端口 socket（绑 VPN 网络）——
- *   ① 周期合成 RakNet pong（0x1C + 时间戳 + 固定 id + 魔数 +
- *   MOTD=房主昵称）广播到 255.255.255.255:19132（源=成员虚拟 IP:
- *   本 socket 端口，客户端把源当世界服务器地址，好友页「局域网」
- *   分类显示世界）；
- *   ② 客户端 ping/连接请求单播到本 socket → 转发房主（未学到
- *   世界端口前先发 19132——服务器在那里监听发现 ping）；
- *   ③ 房主回包（源端口≠19132 时即真实世界端口，动态学习）→
- *   转回客户端。点入后 RakNet 连接流量双向代理，联机走 TUN 直达
- *   房主世界。
+ * 房主侧 startHost()：周期 c:lan 同步房主昵称（成员据此启动代理）。
+ * 成员侧 onAnnounce()：单 socket 绑 0.0.0.0:19132（VPN 网络）——
+ *   ① 收到本机客户端广播 ping → 记录客户端源 → 转发房主 19132
+ *   （服务器在 19132 监听发现 ping）；
+ *   ② 房主回 pong/握手包（源=房主世界端口或 19132）→ 转回客户端
+ *   源，源端口≠19132 时学习为世界端口；
+ *   ③ 客户端后续连接流量 → 转发房主（已学端口或 19132）。
+ * 客户端视角世界服务器 = 成员虚拟 IP:19132，全部流量双向代理，
+ * 联机走 TUN 直达房主世界。
  */
 public final class LanRelayBridge {
 
     private static final String TAG = "LanRelayBridge";
     private static final int ANN_PORT = 19132;
-    /** 重放/转发间隔（游戏原生公告节奏约 1s）。 */
-    private static final long INTERVAL_MS = 1000;
-
-    /** RakNet 魔数：pong 包需回显此 16 字节。 */
-    private static final byte[] MAGIC = {
-            0x00, (byte) 0xff, (byte) 0xff, 0x00,
-            (byte) 0xfe, (byte) 0xfe, (byte) 0xfe, (byte) 0xfe,
-            (byte) 0xfd, (byte) 0xfd, (byte) 0xfd, (byte) 0xfd,
-            0x12, 0x34, 0x56, 0x78
-    };
 
     // ---------------- 房主侧 ----------------
 
     private static volatile boolean hosting;
 
-    /**
-     * 房主开桥：周期把昵称同步给成员（c:lan）。
-     * v590：不再探测世界端口——平板 SELinux 拒读 /proc/self/net/udp
-     * （avc denied 实锤），wp 恒 0；成员侧改为转发先走 19132 并从
-     * 房主回包源端口动态学习真实世界端口。
-     */
+    /** 房主开桥：周期把昵称同步给成员（c:lan）。 */
     public static synchronized void startHost() {
         stopHost();
         hosting = true;
@@ -89,28 +74,23 @@ public final class LanRelayBridge {
         hosting = false;
     }
 
-    // ---------------- 成员侧：合成 pong + ping/pong 代理 ----------------
+    // ---------------- 成员侧：ping 拦截 + 双向代理 ----------------
 
     private static volatile boolean proxying;
     private static DatagramSocket proxy;
     private static volatile String hostIp;
     private static volatile int worldPort;
-    private static volatile String hostNick = "PaperConnect";
-    /** 客户端地址（源端口）→ 最近活跃时间，房主回包按此路由。 */
+    /** 客户端源地址 → 最近活跃时间（pong 回路由）。 */
     private static final Map<InetSocketAddress, Long> clients =
             new ConcurrentHashMap<>();
 
-    /** 成员收到房主世界端口/昵称（c:lan）：更新并启动代理。 */
+    /** 成员收到房主公告（c:lan）：启动/更新代理。 */
     public static synchronized void onAnnounce(byte[] ignoredReply, String host,
                                                int port, String nick) {
         hostIp = host;
-        worldPort = port;
-        if (nick != null && !nick.isEmpty()) {
-            hostNick = nick;
+        if (port > 0) {
+            worldPort = port;
         }
-        org.levimc.launcher.util.OnlineDebugLog.log(
-                "异地桥(成员): 收到 c:lan host=" + host + " wp=" + port
-                        + " nick=" + nick + " proxying=" + proxying);
         if (!proxying) {
             startProxy();
         }
@@ -131,41 +111,16 @@ public final class LanRelayBridge {
                     Log.w(TAG, "代理绑定 VPN 网络失败", be);
                 }
             }
-            proxy.bind(new InetSocketAddress("0.0.0.0", 0)); // 随机端口，避开游戏 19132
+            proxy.bind(new InetSocketAddress("0.0.0.0", ANN_PORT));
             proxy.setBroadcast(true);
             Log.i(TAG, "异地入口桥(成员): 代理已启动 端口=" + proxy.getLocalPort()
-                    + " 房主=" + hostIp + ":" + worldPort);
+                    + " 房主=" + hostIp + " 世界端口=" + worldPort);
         } catch (Exception e) {
             Log.w(TAG, "代理启动失败", e);
             proxy = null;
             return;
         }
         proxying = true;
-
-        Thread announce = new Thread(() -> {
-            while (proxying && proxy != null && !proxy.isClosed()) {
-                byte[] pong = buildPong(hostNick);
-                try {
-                    // v591：pong 单播回本机虚拟 IP（TUN 回环）——广播发进
-                    // TUN 会被 EasyTier 吞掉，本机游戏客户端收不到（实测
-                    // 广播方案好友页无显示）。单播走 local 路由回环，游戏
-                    // socket（VPN 网络）直接收到。
-                    String selfIp = EasyTierManager.get().getVirtualIp();
-                    InetAddress target = selfIp != null && !selfIp.isEmpty()
-                            ? InetAddress.getByName(selfIp)
-                            : InetAddress.getByName("127.0.0.1");
-                    proxy.send(new DatagramPacket(pong, pong.length, target, ANN_PORT));
-                } catch (Exception ignored) {
-                }
-                try {
-                    Thread.sleep(INTERVAL_MS);
-                } catch (InterruptedException e) {
-                    return;
-                }
-            }
-        }, "lan-relay-replay");
-        announce.setDaemon(true);
-        announce.start();
 
         Thread fwd = new Thread(() -> {
             byte[] buf = new byte[2048];
@@ -177,11 +132,11 @@ public final class LanRelayBridge {
                     System.arraycopy(buf, 0, data, 0, p.getLength());
                     String src = p.getAddress().getHostAddress();
                     int sport = p.getPort();
-                    // v590：房主回包判定——已学习的 worldPort 或发现端口 19132
+                    // 房主回包判定：已学习的 worldPort 或发现端口 19132
                     boolean fromHost = hostIp != null && src.equals(hostIp)
                             && (sport == worldPort || sport == ANN_PORT);
                     if (fromHost) {
-                        // 房主回包：若源端口不是 19132 就是真实世界端口（学习）
+                        // 房主回包：源端口≠19132 即真实世界端口（学习）
                         if (sport != ANN_PORT && worldPort != sport) {
                             worldPort = sport;
                             org.levimc.launcher.util.OnlineDebugLog.log(
@@ -204,7 +159,7 @@ public final class LanRelayBridge {
                             }
                         }
                     } else if (hostIp != null && data.length >= 1) {
-                        // 客户端流量 → 记录并转发房主（未学到端口先发 19132）
+                        // 客户端流量（本机广播 ping / 单播连接）→ 记录并转发房主
                         int fwdPort = worldPort > 0 ? worldPort : ANN_PORT;
                         clients.put(new InetSocketAddress(src, sport),
                                 System.currentTimeMillis());
@@ -234,28 +189,5 @@ public final class LanRelayBridge {
         clients.clear();
         hostIp = null;
         worldPort = 0;
-    }
-
-    /**
-     * 合成 RakNet Unconnected Pong（基岩版局域网公告格式）：
-     * 0x1C + 时间戳(8) + serverId(8) + 魔数(16) + MOTD 长度(2 BE) + MOTD。
-     */
-    private static byte[] buildPong(String motd) {
-        byte[] name = (motd == null ? "PaperConnect" : motd)
-                .getBytes(StandardCharsets.UTF_8);
-        byte[] out = new byte[35 + name.length];
-        out[0] = 0x1C;
-        long t = System.currentTimeMillis();
-        for (int i = 0; i < 8; i++) {
-            out[1 + i] = (byte) (t >>> (8 * (7 - i)));
-        }
-        // serverId：固定即可（客户端按它去重）
-        out[9] = 0x11;
-        out[16] = 0x22;
-        System.arraycopy(MAGIC, 0, out, 17, MAGIC.length);
-        out[33] = (byte) ((name.length >>> 8) & 0xFF);
-        out[34] = (byte) (name.length & 0xFF);
-        System.arraycopy(name, 0, out, 35, name.length);
-        return out;
     }
 }
