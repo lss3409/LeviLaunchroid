@@ -77,7 +77,22 @@ public final class EasyTierVpnService extends VpnService {
             stopSelf();
             return START_NOT_STICKY;
         }
-        startForeground(NOTIF_ID, buildNotification());
+        try {
+            startForeground(NOTIF_ID, buildNotification());
+        } catch (Throwable fg) {
+            // v568：app 处于后台时 Android 15+/ZUI 拒绝前台服务启动
+            // （ForegroundServiceStartNotAllowedException）——不崩溃，
+            // 停止并等 Manager 看门狗在 app 前台时重拉（tombstone 567 根因）
+            Log.w(TAG, "startForeground 被拒（后台限制），等看门狗重拉", fg);
+            org.levimc.launcher.util.OnlineDebugLog.log("startForeground 被拒（app 在后台）: "
+                    + fg.getClass().getSimpleName());
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException ignored) {
+            }
+            stopSelf();
+            return START_NOT_STICKY;
+        }
         Thread t = new Thread(() -> runTun(lastInstance, lastIpv4, lastCidrs), "easytier-vpn");
         t.setDaemon(true);
         t.start();
@@ -121,20 +136,42 @@ public final class EasyTierVpnService extends VpnService {
     private void runTun(String instance, String ipv4, String[] cidrs) {
         int reestablishCount = 0;
         try {
-            tun = establishTun(ipv4, cidrs);
+            // v568：establish 失败（未授权/系统拦截）不再 stopSelf——停止中
+            // 实例被看门狗重拉时 startForeground 会抛异常崩进程（tombstone
+            // 567）。改循环重试：用户稍后授权（如建房流程补的 prepare 弹窗）
+            // 时自动恢复，无需重启服务。
+            while (running) {
+                tun = establishTun(ipv4, cidrs);
+                if (tun != null) {
+                    break;
+                }
+                try {
+                    Thread.sleep(3000);
+                } catch (InterruptedException e) {
+                    return;
+                }
+            }
             if (tun == null) {
-                Log.e(TAG, "TUN 建立失败（可能用户拒绝了 VPN 授权）");
-                stopSelf();
+                Log.e(TAG, "TUN 建立失败且服务已停止");
                 return;
             }
-            int rc = EasyTierJNI.setTunFd(instance, tun.getFd());
-            Log.i(TAG, "setTunFd(" + instance + ") = " + rc + " ip=" + ipv4);
-            if (rc != 0) {
+            // v568：setTunFd 失败也重试（内核实例可能刚重建尚未就绪），
+            // 不 stopSelf（停止中实例被重拉会崩进程，tombstone 567 教训）
+            int rc;
+            while (running) {
+                rc = EasyTierJNI.setTunFd(instance, tun.getFd());
+                Log.i(TAG, "setTunFd(" + instance + ") = " + rc + " ip=" + ipv4);
+                if (rc == 0) {
+                    break;
+                }
                 Log.e(TAG, "setTunFd 失败: " + EasyTierJNI.getLastError());
                 org.levimc.launcher.util.OnlineDebugLog.log("setTunFd 失败 rc=" + rc
-                        + ": " + EasyTierJNI.getLastError());
-                stopSelf();
-                return;
+                        + ": " + EasyTierJNI.getLastError() + "，3s 后重试");
+                try {
+                    Thread.sleep(3000);
+                } catch (InterruptedException e) {
+                    return;
+                }
             }
             running = true;
             // v515 看门狗：TUN 被吊销（其他 VPN 抢占/系统回收）后自动重建

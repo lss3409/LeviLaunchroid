@@ -89,6 +89,8 @@ public final class OnlineActivity extends BaseActivity
     private android.app.Dialog joinDialog;
     private boolean isHost;
     private final List<InviteCode.Parsed> pendingParsed = new ArrayList<>();
+    /** v568：建房流程 VPN 授权未完成时暂存的邀请码（授权回来继续建房）。 */
+    private InviteCode.Parsed pendingHostParsed;
     /** v561：成员加入后等待房主握手的超时计时（20s 未见房主 = 房间已解散）。 */
     private final android.os.Handler handshakeHandler = new android.os.Handler(
             android.os.Looper.getMainLooper());
@@ -199,6 +201,15 @@ public final class OnlineActivity extends BaseActivity
             roomCodeText.setText("P/" + currentCode);
             createStatus.setText(getString(R.string.online_connecting_kernel));
             showCreate();
+            // v568：建房同样需要 VPN 授权（此前只有加入流程有 prepare，
+            // 房主重装后无授权时 TUN 建立失败且永远不弹授权窗）
+            Intent vpnIntent = VpnService.prepare(this);
+            if (vpnIntent != null) {
+                pendingHostParsed = hr.parsed;
+                Toast.makeText(this, "请允许 VPN 连接以完成联机", Toast.LENGTH_SHORT).show();
+                startActivityForResult(vpnIntent, REQ_VPN);
+                return;
+            }
             LanDiscovery.startHost(hr.parsed.networkName);
             List<String> relayPeers = RelayStore.load(this);
             EasyTierManager.get().host(this, hr.parsed.networkName, hr.parsed.networkSecret, this,
@@ -713,11 +724,26 @@ public final class OnlineActivity extends BaseActivity
         currentCode = g.code;
         isHost = true;
         roomCodeText.setText("P/" + g.code);
+        // v568：建房同样需要 VPN 授权（此前只有加入流程有 prepare，
+        // 房主重装后无授权时 TUN 建立失败且永远不弹授权窗——用户实测
+        // "平板做房主 VPN 没跑起来"的根因）
+        Intent vpnIntent = VpnService.prepare(this);
+        if (vpnIntent != null) {
+            pendingHostParsed = g.parsed;
+            Toast.makeText(this, "请允许 VPN 连接以完成联机", Toast.LENGTH_SHORT).show();
+            startActivityForResult(vpnIntent, REQ_VPN);
+            return;
+        }
+        doHostRoom(g.parsed);
+    }
+
+    /** v568：建房通用流程（授权完成后调用）。 */
+    private void doHostRoom(InviteCode.Parsed parsed) {
         createStatus.setText(getString(R.string.online_connecting_kernel));
         showCreate();
-        LanDiscovery.startHost(g.parsed.networkName);
+        LanDiscovery.startHost(parsed.networkName);
         List<String> relayPeers = RelayStore.load(this);
-        EasyTierManager.get().host(this, g.parsed.networkName, g.parsed.networkSecret, this,
+        EasyTierManager.get().host(this, parsed.networkName, parsed.networkSecret, this,
                 HOST_IPV4, relayPeers);
     }
 
@@ -1268,10 +1294,16 @@ public final class OnlineActivity extends BaseActivity
         if (requestCode != REQ_VPN) {
             return;
         }
-        if (resultCode == RESULT_OK && !pendingParsed.isEmpty()) {
+        if (resultCode == RESULT_OK && pendingHostParsed != null) {
+            // v568：建房授权完成，继续建房
+            InviteCode.Parsed hp = pendingHostParsed;
+            pendingHostParsed = null;
+            doHostRoom(hp);
+        } else if (resultCode == RESULT_OK && !pendingParsed.isEmpty()) {
             doJoinFromDialog(pendingParsed.remove(0));
         } else {
             pendingParsed.clear();
+            pendingHostParsed = null;
             if (joinDialog != null) {
                 joinDialog.dismiss();
             }

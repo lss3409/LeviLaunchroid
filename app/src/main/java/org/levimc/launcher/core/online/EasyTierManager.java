@@ -353,6 +353,15 @@ public final class EasyTierManager {
 
     private void startVpn(String ipv4, List<String> cidrs) {
         try {
+            // v568：先发停止信号清掉可能残留的停止中实例（旧实例 stopSelf
+            // 后未销毁期间被 startService 复用会因 mAllowStartForeground
+            // 抛异常崩进程，tombstone 567 根因之一）
+            try {
+                Intent stop = new Intent(appContext, EasyTierVpnService.class);
+                stop.setAction(EasyTierVpnService.ACTION_STOP);
+                appContext.startService(stop);
+            } catch (Throwable ignored) {
+            }
             Intent i = new Intent(appContext, EasyTierVpnService.class);
             i.putExtra(EasyTierVpnService.EXTRA_INSTANCE, INSTANCE_NAME);
             i.putExtra(EasyTierVpnService.EXTRA_IPV4, ipv4);
