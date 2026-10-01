@@ -90,6 +90,8 @@ public final class LanBridge {
         stopDebugDump();
         dumping = true;
         int[] ports = {19132, 2168, 4445, 19133};
+        // v585：mDNS 抓包——1.26 局域网分类由 _minecraft._udp mDNS 服务决定
+        startDumpListener(5353, "224.0.0.251", true);
         for (int port : ports) {
             int p = port;
             Thread t = new Thread(() -> {
@@ -154,6 +156,41 @@ public final class LanBridge {
             t.setDaemon(true);
             t.start();
         }
+    }
+
+    /** v585：通用抓包监听线程（多播组可配——mDNS 用 224.0.0.251:5353）。 */
+    private static void startDumpListener(int port, String group, boolean dumpText) {
+        Thread t = new Thread(() -> {
+            try (java.net.MulticastSocket ms = new java.net.MulticastSocket(port)) {
+                ms.setReuseAddress(true);
+                try {
+                    ms.joinGroup(java.net.InetAddress.getByName(group));
+                } catch (Exception ignored) {
+                }
+                ms.setSoTimeout(4000);
+                byte[] buf = new byte[2048];
+                while (dumping) {
+                    try {
+                        java.net.DatagramPacket p = new java.net.DatagramPacket(buf, buf.length);
+                        ms.receive(p);
+                        String hex = bytesToHex(p.getData(), Math.min(p.getLength(), 256));
+                        org.levimc.launcher.util.OnlineDebugLog.log("LAN 抓包(" + group + ":" + port
+                                + ") from " + p.getAddress().getHostAddress() + ":" + p.getPort()
+                                + " len=" + p.getLength() + " [" + hex + "]");
+                        if (dumpText) {
+                            String text = new String(p.getData(), 0, p.getLength(),
+                                    java.nio.charset.StandardCharsets.ISO_8859_1);
+                            org.levimc.launcher.util.OnlineDebugLog.log("明文: " + text);
+                        }
+                    } catch (java.net.SocketTimeoutException ignored) {
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "抓包启动失败(" + group + ":" + port + ")", e);
+            }
+        }, "lan-dump-" + port + "-g");
+        t.setDaemon(true);
+        t.start();
     }
 
     public static synchronized void stopDebugDump() {
