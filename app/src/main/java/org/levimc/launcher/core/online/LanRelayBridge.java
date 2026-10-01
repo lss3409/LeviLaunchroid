@@ -57,10 +57,17 @@ public final class LanRelayBridge {
         stopHost();
         hosting = true;
         Thread t = new Thread(() -> {
+            int lastWp = -1;
             while (hosting) {
                 try {
-                    RoomCenter.sendLanAnnounce(new byte[0],
-                            WorldPortProbe.getWorldPort());
+                    int wp = WorldPortProbe.getWorldPort();
+                    RoomCenter.sendLanAnnounce(new byte[0], wp);
+                    // v589：世界端口变化时打文件日志（定位 c:lan 链路断点）
+                    if (wp != lastWp) {
+                        lastWp = wp;
+                        org.levimc.launcher.util.OnlineDebugLog.log(
+                                "异地桥(房主): c:lan 已发 wp=" + wp);
+                    }
                 } catch (Exception e) {
                     if (hosting) {
                         Log.w(TAG, "房主端口同步异常", e);
@@ -101,6 +108,9 @@ public final class LanRelayBridge {
         if (nick != null && !nick.isEmpty()) {
             hostNick = nick;
         }
+        org.levimc.launcher.util.OnlineDebugLog.log(
+                "异地桥(成员): 收到 c:lan host=" + host + " wp=" + port
+                        + " nick=" + nick + " proxying=" + proxying);
         if (!proxying) {
             startProxy();
         }

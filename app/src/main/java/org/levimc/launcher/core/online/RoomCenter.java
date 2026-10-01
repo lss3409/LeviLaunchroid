@@ -252,6 +252,8 @@ public final class RoomCenter {
     }
 
     /** v584：房主转发本机游戏的 RakNet 公告（c:lan）给全体成员。 */
+    private static int lanSendCount;
+
     public static void sendLanAnnounce(byte[] replyData, int worldPort) {
         DatagramSocket s = hostSocket;
         if (s == null || s.isClosed()) {
@@ -266,11 +268,19 @@ public final class RoomCenter {
             o.put("nick", hostName != null ? hostName : "");
             String msg = "c:lan\0" + o;
             byte[] out = msg.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            int sent = 0;
             for (InetSocketAddress addr : memberAddrs.values()) {
                 try {
                     s.send(new DatagramPacket(out, out.length, addr.getAddress(), addr.getPort()));
+                    sent++;
                 } catch (Exception ignored) {
                 }
+            }
+            // v589：定位 c:lan 断点——每 10 次打一条文件日志
+            if ((lanSendCount++ & 0x7) == 0) {
+                org.levimc.launcher.util.OnlineDebugLog.log(
+                        "RoomCenter: c:lan 已发给 " + sent + " 名成员 (wp=" + worldPort
+                                + " memberAddrs=" + memberAddrs.size() + ")");
             }
         } catch (Exception e) {
             Log.w(TAG, "公告转发失败", e);
@@ -693,6 +703,9 @@ public final class RoomCenter {
                                     // v588：data 可空（1.26 服务器不广播，成员侧合成
                                     // pong）；nick 为成员合成 pong 的世界名
                                     String nick = lq.optString("nick", "");
+                                    org.levimc.launcher.util.OnlineDebugLog.log(
+                                            "RoomCenter(成员): 收到 c:lan wp=" + wp
+                                                    + " from " + p.getAddress().getHostAddress());
                                     if (wp > 0) {
                                         byte[] reply = b64.isEmpty() ? new byte[0]
                                                 : android.util.Base64.decode(b64,
