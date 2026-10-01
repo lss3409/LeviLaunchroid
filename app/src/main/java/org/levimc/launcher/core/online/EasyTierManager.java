@@ -383,15 +383,11 @@ public final class EasyTierManager {
 
     private void startVpn(String ipv4, List<String> cidrs) {
         try {
-            // v568：先发停止信号清掉可能残留的停止中实例（旧实例 stopSelf
-            // 后未销毁期间被 startService 复用会因 mAllowStartForeground
-            // 抛异常崩进程，tombstone 567 根因之一）
-            try {
-                Intent stop = new Intent(appContext, EasyTierVpnService.class);
-                stop.setAction(EasyTierVpnService.ACTION_STOP);
-                appContext.startService(stop);
-            } catch (Throwable ignored) {
-            }
+            // v573：直接 startService 带新参数（不再先发 ACTION_STOP）——
+            // 先 STOP 再启动时系统会把第二个 Intent 吞掉（服务已标记
+            // 停止），新实例根本没起来：平板实测只有 onDestroy 循环、
+            // establish 日志一条都没有，VPN 永远拉不起来。旧 runTun
+            // 由 onStartCommand 内部终止（running=false + closeTun）。
             Intent i = new Intent(appContext, EasyTierVpnService.class);
             i.putExtra(EasyTierVpnService.EXTRA_INSTANCE, INSTANCE_NAME);
             i.putExtra(EasyTierVpnService.EXTRA_IPV4, ipv4);

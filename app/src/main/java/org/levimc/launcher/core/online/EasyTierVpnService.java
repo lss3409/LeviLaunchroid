@@ -77,6 +77,11 @@ public final class EasyTierVpnService extends VpnService {
             stopSelf();
             return START_NOT_STICKY;
         }
+        // v573：终止旧 runTun 循环（服务可能已在运行，看门狗重拉时
+        // 直接复用本实例带新参数重建，不再经过 ACTION_STOP 重启）
+        running = false;
+        closeTun();
+        running = true;
         try {
             startForeground(NOTIF_ID, buildNotification());
         } catch (Throwable fg) {
