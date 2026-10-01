@@ -267,12 +267,12 @@ public final class OnlineActivity extends BaseActivity
                 return;
             }
             LanDiscovery.startHost(hr.parsed.networkName);
-            // v628：debug_invite 后门——建房 10s 后自动发「邀请进入世界」
+            // v628：debug_invite 后门——建房 25s 后自动发「邀请进入世界」
             //（自动化验证 v618 深链链路：成员端收邀请→结束重启→补发深链）
             if (intent.getBooleanExtra("debug_invite", false)) {
                 handshakeHandler.postDelayed(
                         () -> org.levimc.launcher.core.online.RoomCenter.sendInviteAll(),
-                        10_000);
+                        25_000);
             }
             List<String> relayPeers = RelayStore.load(this);
             EasyTierManager.get().host(this, hr.parsed.networkName, hr.parsed.networkSecret, this,
