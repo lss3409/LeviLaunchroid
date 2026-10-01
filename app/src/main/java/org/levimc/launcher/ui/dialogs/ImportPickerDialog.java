@@ -95,26 +95,43 @@ public class ImportPickerDialog {
                         return;
                     }
                     status.setText("发现 " + candidates.size() + " 项，点击即导入");
-                    for (GlobalImportScanner.Candidate c : candidates) {
-                        list.addView(buildRow(context, c, listener, dialog, density));
+                    // v605：按类型分组（存档/资源包/行为包/结构），资源多不乱
+                    int[][] groups = {
+                            {GlobalImportScanner.TYPE_WORLD, 0},
+                            {GlobalImportScanner.TYPE_RESOURCE, 0},
+                            {GlobalImportScanner.TYPE_BEHAVIOR, 0},
+                            {GlobalImportScanner.TYPE_STRUCTURE, 0},
+                    };
+                    String[] labels = {"存档", "资源包", "行为包", "结构"};
+                    for (int g = 0; g < groups.length; g++) {
+                        boolean headerAdded = false;
+                        for (GlobalImportScanner.Candidate c : candidates) {
+                            if (c.type != groups[g][0]) {
+                                continue;
+                            }
+                            if (!headerAdded) {
+                                list.addView(buildGroupHeader(context, labels[g], density));
+                                headerAdded = true;
+                            }
+                            list.addView(buildRow(context, c, listener, dialog, density));
+                        }
                     }
                 });
             }
         });
 
-        // v604：按钮按弹窗系统规范——MaterialButton + 个性化强调色
-        com.google.android.material.button.MaterialButton fromFiles =
-                new com.google.android.material.button.MaterialButton(
-                        context, null, com.google.android.material.button
-                                .MaterialButton.ICON_GRAVITY_TEXT_START);
-        fromFiles.setText("📂 从文件管理器选择");
+        // v605：按钮同实例备份菜单——普通 Button + 透明背景 + 强调色文字
+        android.widget.Button fromFiles = new android.widget.Button(context);
         fromFiles.setAllCaps(false);
+        fromFiles.setText("📂 从文件管理器选择");
         fromFiles.setTextSize(13);
+        fromFiles.setTextColor(new org.levimc.launcher.util.PersonalizationManager(context)
+                .getAccentColor());
+        fromFiles.setBackgroundColor(android.graphics.Color.TRANSPARENT);
         LinearLayout.LayoutParams fbp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, (int) (42 * density));
-        fbp.topMargin = (int) (12 * density);
+        fbp.topMargin = (int) (6 * density);
         fromFiles.setLayoutParams(fbp);
-        org.levimc.launcher.util.AccentStyler.styleSecondary(context, fromFiles);
         fromFiles.setOnClickListener(v -> {
             dialog.dismiss();
             if (listener != null) {
@@ -140,6 +157,17 @@ public class ImportPickerDialog {
         dialog.show();
     }
 
+    /** v605：分组小标题（存档/资源包/行为包/结构）。 */
+    private static View buildGroupHeader(Context context, String label, float density) {
+        TextView t = new TextView(context);
+        t.setText("— " + label + " —");
+        t.setTextColor(context.getColor(R.color.text_secondary));
+        t.setTextSize(11);
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(0, (int) (12 * density), 0, (int) (4 * density));
+        return t;
+    }
+
     private static View buildRow(Context context, GlobalImportScanner.Candidate c,
                                  Listener listener, Dialog dialog, float density) {
         LinearLayout row = new LinearLayout(context);
@@ -159,7 +187,8 @@ public class ImportPickerDialog {
         icon.setLayoutParams(new LinearLayout.LayoutParams(iconSize, iconSize));
         Bitmap bmp = c.icon != null ? BitmapFactory.decodeByteArray(c.icon, 0, c.icon.length) : null;
         if (bmp != null) {
-            icon.setImageBitmap(bmp);
+            // v605：贴图套圆角（启动器卡片风格）
+            icon.setImageBitmap(roundBitmap(bmp, (int) (8 * density)));
         } else {
             int res;
             switch (c.type) {
@@ -219,6 +248,29 @@ public class ImportPickerDialog {
             }
         });
         return row;
+    }
+
+    /** Bitmap 圆角裁剪（贴图对齐启动器卡片风格）。 */
+    private static Bitmap roundBitmap(Bitmap src, int radiusPx) {
+        if (src == null) {
+            return null;
+        }
+        try {
+            Bitmap out = Bitmap.createBitmap(src.getWidth(), src.getHeight(),
+                    Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas canvas = new android.graphics.Canvas(out);
+            android.graphics.Paint paint = new android.graphics.Paint(
+                    android.graphics.Paint.ANTI_ALIAS_FLAG);
+            android.graphics.Path path = new android.graphics.Path();
+            android.graphics.RectF rect = new android.graphics.RectF(0, 0,
+                    src.getWidth(), src.getHeight());
+            path.addRoundRect(rect, radiusPx, radiusPx, android.graphics.Path.Direction.CW);
+            canvas.clipPath(path);
+            canvas.drawBitmap(src, 0, 0, paint);
+            return out;
+        } catch (Throwable ignored) {
+            return src;
+        }
     }
 
     private static GradientDrawable roundBg(Context context, int color) {

@@ -93,7 +93,7 @@ public final class GlobalImportScanner {
         if (listener != null) {
             listener.onProgress(sd.getAbsolutePath());
         }
-        scanDir(sd, 12, out, seen, listener);
+        scanDir(sd, 16, out, seen, listener);
         return out;
     }
 
@@ -117,7 +117,7 @@ public final class GlobalImportScanner {
             return;
         }
         for (File f : files) {
-            if (out.size() > 200) {
+            if (out.size() > 400) {
                 return; // 上限保护
             }
             String name = f.getName().toLowerCase(Locale.US);
@@ -131,6 +131,10 @@ public final class GlobalImportScanner {
                     }
                     scanDir(f, depth - 1, out, seen, listener);
                 } else if (f.isFile()) {
+                    // v605：跳过自己的备份/包格式（本质 zip 会被误判）
+                    if (name.endsWith(".levibackup") || name.endsWith(".levipack")) {
+                        continue;
+                    }
                     if (name.endsWith(".mcworld")) {
                         Candidate c = checkZipWorld(f);
                         if (c != null && seen.add(c.path)) {
@@ -169,6 +173,13 @@ public final class GlobalImportScanner {
         File levelDat = new File(dir, "level.dat");
         File levelName = new File(dir, "levelname.txt");
         if (levelDat.isFile()) {
+            // v605：Java 版世界目录也有 level.dat——region/ 目录（.mca）
+            // 是 Java 特征，基岩存档有 db/（leveldb）；Java 世界跳过
+            File region = new File(dir, "region");
+            File db = new File(dir, "db");
+            if (region.isDirectory() && !db.isDirectory()) {
+                return null;
+            }
             Candidate c = new Candidate();
             c.type = TYPE_WORLD;
             c.name = readText(levelName, 64).trim();
@@ -277,13 +288,15 @@ public final class GlobalImportScanner {
         return c;
     }
 
-    /** .zip 内检视：level.dat=存档，manifest.json=包，.mcstructure=结构。 */
+    /** .zip 内检视：level.dat=存档（区分 Java/基岩），manifest.json=包，.mcstructure=结构。 */
     private static Candidate checkZip(File f) {
         try (ZipFile zf = new ZipFile(f)) {
             java.util.Enumeration<? extends ZipEntry> en = zf.entries();
             boolean hasLevelDat = false;
             boolean hasManifest = false;
             boolean hasStructure = false;
+            boolean hasBedrockDb = false;   // db/CURRENT 等 = 基岩 leveldb 存档
+            boolean hasJavaRegion = false;  // region/*.mca = Java 世界
             while (en.hasMoreElements()) {
                 String n = en.nextElement().getName().toLowerCase(Locale.US);
                 if (n.endsWith("level.dat")) {
@@ -292,9 +305,19 @@ public final class GlobalImportScanner {
                     hasManifest = true;
                 } else if (n.endsWith(".mcstructure")) {
                     hasStructure = true;
+                } else if (n.startsWith("db/") || n.endsWith("/current")
+                        || n.equals("current") || n.startsWith("db")) {
+                    hasBedrockDb = true;
+                } else if (n.endsWith(".mca") || n.startsWith("region/")) {
+                    hasJavaRegion = true;
                 }
             }
             if (hasLevelDat) {
+                // v605：Java 版世界 zip 也含 level.dat（region/*.mca 特征）
+                // ——跳过；基岩存档有 db/（leveldb）或 levelname.txt
+                if (hasJavaRegion && !hasBedrockDb) {
+                    return null;
+                }
                 return checkZipWorld(f);
             }
             if (hasManifest) {
