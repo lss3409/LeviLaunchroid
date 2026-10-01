@@ -468,21 +468,20 @@ public final class EasyTierManager {
         t.start();
     }
 
-    /** TUN 接口是否存在（VpnService 的 tunN；tunl0 等内核隧道不算）。 */
+    /** TUN 是否存活（VpnService 维护的存活标记文件，时间戳 <10s 视为活）。 */
     private static boolean tunExists() {
         try {
-            // v567：不用 /proc/net/dev——SELinux 拒绝 untrusted_app 读
-            // proc_net（avc denied 实测），且 contains("tun") 会误匹配
-            // 内核 tunl0 隧道设备导致看门狗失明（v566 教训）
-            java.util.Enumeration<java.net.NetworkInterface> ifs =
-                    java.net.NetworkInterface.getNetworkInterfaces();
-            while (ifs.hasMoreElements()) {
-                String n = ifs.nextElement().getName();
-                if (n.matches("tun[0-9]{1,2}")) {
-                    return true;
-                }
+            // v575：NetworkInterface 枚举不到 VpnService 的 tun0（Android
+            // 对应用隐藏）——v573 枚举方案导致看门狗恒判丢失、每 5s
+            // 建拆风暴。改由 VpnService 在 runTun 循环里刷新存活标记
+            // （files/vpn_tun_alive 时间戳），跨进程可靠。
+            Context ctx = appContext;
+            if (ctx == null) {
+                return true;
             }
-            return false;
+            java.io.File alive = new java.io.File(ctx.getFilesDir(), "vpn_tun_alive");
+            return alive.exists()
+                    && System.currentTimeMillis() - alive.lastModified() < 10_000;
         } catch (Exception e) {
             return true; // 读不到就当健康，避免误拉
         }

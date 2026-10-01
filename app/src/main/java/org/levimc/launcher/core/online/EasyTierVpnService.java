@@ -188,7 +188,19 @@ public final class EasyTierVpnService extends VpnService {
                 if (!running) {
                     break;
                 }
-                boolean lost = revoked || !tunExists();
+                // v575：TUN 存活判定直接用 tun fd 有效性——NetworkInterface
+                // 枚举不到 VpnService 的 tun0（Android 对应用隐藏），v573 改
+                // 枚举后看门狗恒判"丢失"，TUN 建立 0.8s 就被自己拆掉，
+                // 每 5s 一轮建拆风暴（拖垮系统、引发进游戏闪退的元凶）
+                boolean fdValid;
+                try {
+                    fdValid = tun != null && tun.getFileDescriptor() != null
+                            && tun.getFileDescriptor().valid();
+                } catch (Throwable t) {
+                    fdValid = false;
+                }
+                touchTunAlive();
+                boolean lost = revoked || !fdValid;
                 if (!lost) {
                     reestablishCount = 0;
                     continue;
@@ -359,6 +371,26 @@ public final class EasyTierVpnService extends VpnService {
             } catch (Exception ignored) {
             }
             tun = null;
+        }
+        // v575：存活标记随 TUN 生命周期（Manager 看门狗跨进程判断用）
+        try {
+            java.io.File alive = new java.io.File(getFilesDir(), "vpn_tun_alive");
+            if (alive.exists()) {
+                alive.delete();
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** v575：刷新 TUN 存活标记时间戳（runTun 看门狗循环里调用）。 */
+    private void touchTunAlive() {
+        try {
+            java.io.File alive = new java.io.File(getFilesDir(), "vpn_tun_alive");
+            if (!alive.exists()) {
+                alive.createNewFile();
+            }
+            alive.setLastModified(System.currentTimeMillis());
+        } catch (Throwable ignored) {
         }
     }
 }
