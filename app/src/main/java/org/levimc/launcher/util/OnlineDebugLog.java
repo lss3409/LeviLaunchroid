@@ -7,7 +7,8 @@ package org.levimc.launcher.util;
  */
 public final class OnlineDebugLog {
 
-    private static final String PATH = "/sdcard/Download/levimc_online_debug.log";
+    private static final String PATH =
+            "/storage/emulated/0/Android/data/org.levimc.launcher/files/levimc_online_debug.log";
 
     private OnlineDebugLog() {
     }
