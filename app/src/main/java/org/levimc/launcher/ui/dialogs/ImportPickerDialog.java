@@ -52,6 +52,7 @@ public class ImportPickerDialog {
     }
 
     private static List<GlobalImportScanner.Candidate> cachedCandidates;
+    private static Runnable relimitRef;
     private static View cardsHostView;
     private static int expandedType = -1;
 
@@ -197,6 +198,10 @@ public class ImportPickerDialog {
                     content.addView(t);
                 }
             }
+            // v613：内容变化后重新测量弹窗高度（限高自适应）
+            if (relimitRef != null) {
+                relimitRef.run();
+            }
         };
 
         search.addTextChangedListener(new TextWatcher() {
@@ -268,20 +273,35 @@ public class ImportPickerDialog {
         });
         root.addView(fromFiles);
 
-        dialog.setContentView(root);
-        Window w = dialog.getWindow();
-        if (w != null) {
-            w.setBackgroundDrawableResource(android.R.color.transparent);
-            int width = DialogSizer.dialogWidth(context, 560);
-            final int maxHeight = DialogSizer.dialogMaxHeight(context);
-            w.setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT);
-            root.post(() -> {
-                if (root.getHeight() > maxHeight) {
-                    w.setLayout(width, maxHeight);
+        // v613：限高做成可复用回调——内容动态变化（扫描完成/切换
+        // 分类/进二级菜单）后重新测量，避免弹窗被撑出屏幕
+        final Window[] wRef = new Window[1];
+        final int[] widthArr = new int[]{DialogSizer.dialogWidth(context, 560)};
+        final int[] maxHArr = new int[]{DialogSizer.dialogMaxHeight(context)};
+        final LinearLayout[] rootRef = new LinearLayout[]{root};
+        Runnable relimit = () -> {
+            Window ww = wRef[0];
+            if (ww == null) {
+                return;
+            }
+            ww.setLayout(widthArr[0], ViewGroup.LayoutParams.WRAP_CONTENT);
+            rootRef[0].post(() -> {
+                if (rootRef[0].getHeight() > maxHArr[0]) {
+                    ww.setLayout(widthArr[0], maxHArr[0]);
                 }
             });
+        };
+        relimitRef = relimit;
+
+        dialog.setContentView(root);
+        Window w = dialog.getWindow();
+        wRef[0] = w;
+        if (w != null) {
+            w.setBackgroundDrawableResource(android.R.color.transparent);
+            w.setLayout(widthArr[0], ViewGroup.LayoutParams.WRAP_CONTENT);
         }
         dialog.show();
+        relimit.run();
     }
 
     private static int firstNonEmptyType(List<GlobalImportScanner.Candidate> list) {
@@ -546,8 +566,10 @@ public class ImportPickerDialog {
                 new String[]{c.path}, textMain, textSub, cardBg, density));
 
         // ---- 底部按钮：返回列表 + 导入（同款强调色） ----
+        // v613：按钮区按 M3 规范——右对齐、内容宽度、按钮间 8dp 间距
         LinearLayout btns = new LinearLayout(context);
         btns.setOrientation(LinearLayout.HORIZONTAL);
+        btns.setGravity(Gravity.END);
         LinearLayout.LayoutParams btp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         btp.topMargin = (int) (2 * density);
@@ -560,8 +582,9 @@ public class ImportPickerDialog {
         backBtn.setTextSize(13);
         backBtn.setMinWidth(0);
         backBtn.setMinimumWidth(0);
-        LinearLayout.LayoutParams bbp = new LinearLayout.LayoutParams(0,
-                (int) (42 * density), 1f);
+        LinearLayout.LayoutParams bbp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, (int) (42 * density));
+        backBtn.setPadding((int) (18 * density), 0, (int) (18 * density), 0);
         btns.addView(backBtn, bbp);
         AccentStyler.stylePrimary(context, backBtn);
         backBtn.setOnClickListener(v -> {
@@ -578,9 +601,10 @@ public class ImportPickerDialog {
         importBtn.setTextSize(14);
         importBtn.setMinWidth(0);
         importBtn.setMinimumWidth(0);
-        LinearLayout.LayoutParams ibp = new LinearLayout.LayoutParams(0,
-                (int) (42 * density), 1f);
-        ibp.leftMargin = (int) (6 * density);
+        LinearLayout.LayoutParams ibp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, (int) (42 * density));
+        ibp.leftMargin = (int) (8 * density);
+        importBtn.setPadding((int) (18 * density), 0, (int) (18 * density), 0);
         btns.addView(importBtn, ibp);
         AccentStyler.stylePrimary(context, importBtn);
         importBtn.setOnClickListener(v -> {
@@ -589,6 +613,10 @@ public class ImportPickerDialog {
                 listener.onPick(c.file);
             }
         });
+        // v613：二级菜单内容变化后重新测量弹窗高度
+        if (relimitRef != null) {
+            relimitRef.run();
+        }
     }
 
     /** 子包清单详情（addon 的 bp/rp 各自 manifest 信息 + 依赖）。 */
@@ -648,8 +676,10 @@ public class ImportPickerDialog {
                     deps, textMain, textSub, cardBg, density));
         }
 
+        // v613：按钮区按 M3 规范——右对齐、内容宽度、按钮间 8dp 间距
         LinearLayout btns = new LinearLayout(context);
         btns.setOrientation(LinearLayout.HORIZONTAL);
+        btns.setGravity(Gravity.END);
         LinearLayout.LayoutParams btp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         btp.topMargin = (int) (2 * density);
@@ -662,8 +692,9 @@ public class ImportPickerDialog {
         backBtn.setTextSize(13);
         backBtn.setMinWidth(0);
         backBtn.setMinimumWidth(0);
-        LinearLayout.LayoutParams bbp = new LinearLayout.LayoutParams(0,
-                (int) (42 * density), 1f);
+        LinearLayout.LayoutParams bbp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, (int) (42 * density));
+        backBtn.setPadding((int) (18 * density), 0, (int) (18 * density), 0);
         btns.addView(backBtn, bbp);
         AccentStyler.stylePrimary(context, backBtn);
         backBtn.setOnClickListener(v -> {
@@ -680,9 +711,10 @@ public class ImportPickerDialog {
         importBtn.setTextSize(14);
         importBtn.setMinWidth(0);
         importBtn.setMinimumWidth(0);
-        LinearLayout.LayoutParams ibp = new LinearLayout.LayoutParams(0,
-                (int) (42 * density), 1f);
-        ibp.leftMargin = (int) (6 * density);
+        LinearLayout.LayoutParams ibp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, (int) (42 * density));
+        ibp.leftMargin = (int) (8 * density);
+        importBtn.setPadding((int) (18 * density), 0, (int) (18 * density), 0);
         btns.addView(importBtn, ibp);
         AccentStyler.stylePrimary(context, importBtn);
         importBtn.setOnClickListener(v -> {
@@ -691,6 +723,10 @@ public class ImportPickerDialog {
                 listener.onPick(c.file);
             }
         });
+        // v613：子包详情内容变化后重新测量弹窗高度
+        if (relimitRef != null) {
+            relimitRef.run();
+        }
     }
 
     /** 通用信息卡：标题 + 多行内容。 */
