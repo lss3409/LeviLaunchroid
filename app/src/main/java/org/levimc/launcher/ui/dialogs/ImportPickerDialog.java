@@ -260,7 +260,7 @@ public class ImportPickerDialog {
         fromFiles.setTextSize(13);
         // v614：文件夹贴图（用户提供 SVG），白图标配强调色底
         fromFiles.setIconResource(R.drawable.ic_import_folder);
-        fromFiles.setIconTint(android.content.res.ColorStateList.valueOf(Color.WHITE));
+        fromFiles.setIconTint(android.content.res.ColorStateList.valueOf(0xFF8A8A8A));
         fromFiles.setIconGravity(com.google.android.material.button.MaterialButton.ICON_GRAVITY_TEXT_START);
         fromFiles.setIconPadding((int) (6 * density));
         fromFiles.setMinWidth(0);
@@ -347,7 +347,8 @@ public class ImportPickerDialog {
 
         ImageView icon = new ImageView(context);
         icon.setImageResource(ICONS[group]);
-        icon.setColorFilter(textMain);
+        // v615：分类卡图标灰色（对齐内容管理分类图标观感）
+        icon.setColorFilter(0xFF8A8A8A);
         icon.setLayoutParams(new LinearLayout.LayoutParams(
                 (int) (22 * density), (int) (22 * density)));
         card.addView(icon);

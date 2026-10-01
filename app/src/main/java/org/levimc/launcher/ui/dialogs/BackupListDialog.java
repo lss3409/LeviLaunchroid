@@ -142,7 +142,7 @@ public final class BackupListDialog extends Dialog {
         pickButton.setTextSize(13);
         // v614：文件夹贴图（用户提供 SVG），白图标配强调色底
         pickButton.setIconResource(R.drawable.ic_import_folder);
-        pickButton.setIconTint(android.content.res.ColorStateList.valueOf(Color.WHITE));
+        pickButton.setIconTint(android.content.res.ColorStateList.valueOf(0xFF8A8A8A));
         pickButton.setIconGravity(com.google.android.material.button.MaterialButton.ICON_GRAVITY_TEXT_START);
         pickButton.setIconPadding(dp(6));
         pickButton.setMinWidth(0);
