@@ -262,6 +262,8 @@ public final class RoomCenter {
             o.put("data", android.util.Base64.encodeToString(replyData,
                     android.util.Base64.NO_WRAP));
             o.put("worldPort", worldPort);
+            // v588：房主昵称随公告下发（成员侧合成 pong 的世界名）
+            o.put("nick", hostName != null ? hostName : "");
             String msg = "c:lan\0" + o;
             byte[] out = msg.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             for (InetSocketAddress addr : memberAddrs.values()) {
@@ -688,11 +690,15 @@ public final class RoomCenter {
                                             text.substring(text.indexOf('\0') + 1));
                                     String b64 = lq.optString("data", "");
                                     int wp = lq.optInt("worldPort", 0);
-                                    if (!b64.isEmpty()) {
-                                        byte[] reply = android.util.Base64.decode(b64,
-                                                android.util.Base64.NO_WRAP);
+                                    // v588：data 可空（1.26 服务器不广播，成员侧合成
+                                    // pong）；nick 为成员合成 pong 的世界名
+                                    String nick = lq.optString("nick", "");
+                                    if (wp > 0) {
+                                        byte[] reply = b64.isEmpty() ? new byte[0]
+                                                : android.util.Base64.decode(b64,
+                                                        android.util.Base64.NO_WRAP);
                                         LanRelayBridge.onAnnounce(reply,
-                                                p.getAddress().getHostAddress(), wp);
+                                                p.getAddress().getHostAddress(), wp, nick);
                                     }
                                 } catch (Exception ignored) {
                                 }
