@@ -154,6 +154,9 @@ public class ModManager {
 
     /** v569：进程内只启用一次——防 Activity 重建时重复 enable（见 enableLoadedMods）。 */
     private static volatile boolean modsEnabledOnce;
+    /** v579：上次 enable 超时（vivo 死锁场景）——本次会话内不再重试，
+     * 游戏退出（unload）时复位，下次启动游戏再尝试。 */
+    private static volatile boolean enableTimedOut;
 
     public static void enableLoadedMods() {
         // v569：进程内只启用一次。vivo 实测退后台回前台时 MinecraftActivity
@@ -162,32 +165,40 @@ public class ModManager {
         // （tombstone 568 trace：runCppLifecycle → mutex::lock →
         // __futex_wait_ex_owner 卡 16 秒）。游戏彻底退出后再进是新进程，
         // 本标志复位，不受影响。
-        if (modsEnabledOnce) {
+        if (modsEnabledOnce || enableTimedOut) {
             return;
         }
         if (!ensurePreloaderLoaded()) {
             return;
         }
 
-        // v578：enable 放工作线程 + 10s 超时——vivo 上加新模组后启动游戏
+        // v578：enable 放工作线程 + 4s 超时——vivo 上加新模组后启动游戏
         // 首次 enable 就死锁（BSChat 内部 futex 等待永不完成，平板无此
         // 现象，tombstone 573 trace 同款栈）。超时后主线程继续启动游戏
         // （该模组不生效但不闪退）；平板正常 1-2 秒完成不受影响。
+        // v579：无论成败都置位——vivo 上超时后 Activity 重建会再次
+        // join 已死锁的 native 调用，每轮卡 4s 触发输入 ANR（tombstone
+        // 577：main 在 Thread.join 上 TimedWaiting）。
         try {
             Thread worker = new Thread(() -> {
                 try {
                     nativeEnableLoadedMods();
-                    modsEnabledOnce = true;
                 } catch (UnsatisfiedLinkError e) {
                     Log.e(TAG, "Failed to invoke nativeEnableLoadedMods", e);
                 }
             }, "mod-enable");
             worker.start();
-            worker.join(10_000);
+            worker.join(4_000);
             if (worker.isAlive()) {
-                Log.e(TAG, "nativeEnableLoadedMods 超时（10s）——跳过死锁模组继续启动游戏");
+                // v579：超时——会话内不再重试（Activity 重建不再 join 卡 4s）；
+                // 游戏退出 unload 时复位，下次启动再尝试
+                enableTimedOut = true;
+                Log.e(TAG, "nativeEnableLoadedMods 超时（4s）——跳过死锁模组继续启动游戏");
+            } else {
+                modsEnabledOnce = true;
             }
         } catch (InterruptedException e) {
+            enableTimedOut = true;
             Log.e(TAG, "nativeEnableLoadedMods 等待被中断", e);
         }
     }
@@ -201,6 +212,10 @@ public class ModManager {
             nativeDisableAndUnloadLoadedMods();
         } catch (UnsatisfiedLinkError e) {
             Log.e(TAG, "Failed to invoke nativeDisableAndUnloadLoadedMods", e);
+        } finally {
+            // v579：unload 后复位超时标志——下次启动游戏重试 enable
+            // （vivo 死锁会话结束后，下一次启动有机会正常加载）
+            enableTimedOut = false;
         }
     }
 
