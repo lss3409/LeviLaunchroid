@@ -160,20 +160,48 @@ import okhttp3.OkHttpClient;
         // v555：更新日志弹窗已删除（用户要求）
         // v601：深链待启动记忆——游戏退出流程重启后自动补发邀请深链
         // （成员端游戏运行中收到邀请时先结束会话的场景）
-        String pendingDeeplink = org.levimc.launcher.ui.activities.OnlineActivity
+        // v618：双后台删除后游戏退出回到启动器走 onResume（MainActivity
+        // 不重建），消费点移到 onResume——onCreate 保留兜底（进程被杀后
+        // 冷启动场景）。补发前先等游戏完全退出（运行中发深链 1.26 不
+        // 处理——v601 实测根因）。
+        firePendingDeepLink();
+    }
+
+    private volatile boolean deepLinkFiring = false;
+
+    /** v618：消费待启动深链并在游戏完全退出后补发（onCreate/onResume 共用）。 */
+    private void firePendingDeepLink() {
+        if (deepLinkFiring) {
+            return;
+        }
+        final String pending = org.levimc.launcher.ui.activities.OnlineActivity
                 .consumePendingDeepLink(this);
-        if (pendingDeeplink != null) {
-            binding.getRoot().postDelayed(() -> {
+        if (pending == null) {
+            return;
+        }
+        deepLinkFiring = true;
+        new Thread(() -> {
+            try {
+                int waited = 0;
+                while (org.levimc.launcher.core.minecraft.MinecraftActivityState.isRunning()
+                        && waited < 10_000) {
+                    Thread.sleep(300);
+                    waited += 300;
+                }
+            } catch (InterruptedException ignored) {
+            }
+            runOnUiThread(() -> {
                 try {
                     Intent i = new Intent(this,
                             org.levimc.launcher.ui.activities.IntentHandler.class);
                     i.setAction(Intent.ACTION_VIEW);
-                    i.setData(Uri.parse(pendingDeeplink));
+                    i.setData(Uri.parse(pending));
                     startActivity(i);
                 } catch (Exception ignored) {
                 }
-            }, 1200);
-        }
+                deepLinkFiring = false;
+            });
+        }, "pending-deeplink").start();
     }
 
     @Override
@@ -842,6 +870,9 @@ import okhttp3.OkHttpClient;
     protected void onResume() {
         super.onResume();
         sForeground = true;
+        // v618：邀请深链补发——游戏 finish 后回启动器走 onResume（双后台
+        // 已删，MainActivity 不重建），v601 只挂 onCreate 导致深链丢失
+        firePendingDeepLink();
         // v518 久置自愈：后台久置后回前台只显示背景色（实测）——
         // 游戏也在后台时同进程渲染整体停摆，整进程静默重启自愈
         // （游戏靠自动存档兜底）；无游戏时仅重建本窗口。
