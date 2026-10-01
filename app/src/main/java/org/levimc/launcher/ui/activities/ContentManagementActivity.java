@@ -130,7 +130,23 @@ public class ContentManagementActivity extends BaseActivity {
     }
 
     private void setupUI() {
-        binding.importContentButton.setOnClickListener(v -> startImport());
+        binding.importContentButton.setOnClickListener(v -> {
+            // v602：导入按钮改为全局扫描可视化选择（存档/资源包/行为包/
+            // 结构，zip 与已解压文件夹都能识别），兜底走原文件管理器
+            org.levimc.launcher.ui.dialogs.ImportPickerDialog.show(this,
+                    new org.levimc.launcher.ui.dialogs.ImportPickerDialog.Listener() {
+                        @Override
+                        public void onPick(java.io.File file) {
+                            handleImport(java.util.Collections.singletonList(
+                                    android.net.Uri.fromFile(file)));
+                        }
+
+                        @Override
+                        public void onPickFromFiles() {
+                            startImport();
+                        }
+                    });
+        });
         binding.versionText.setOnClickListener(v -> showVersionPicker());
         binding.viewSharedFolderButton.setOnClickListener(v -> showSharedFolderPicker());
 
