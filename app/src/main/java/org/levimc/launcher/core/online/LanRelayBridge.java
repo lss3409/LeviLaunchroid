@@ -124,6 +124,7 @@ public final class LanRelayBridge {
 
         Thread fwd = new Thread(() -> {
             byte[] buf = new byte[2048];
+            long lastLogTs = 0;
             while (proxying && proxy != null && !proxy.isClosed()) {
                 try {
                     DatagramPacket p = new DatagramPacket(buf, buf.length);
@@ -132,6 +133,15 @@ public final class LanRelayBridge {
                     System.arraycopy(buf, 0, data, 0, p.getLength());
                     String src = p.getAddress().getHostAddress();
                     int sport = p.getPort();
+                    // v593：定位拦截链路——每 3s 最多打一条收包日志
+                    long nowTs = System.currentTimeMillis();
+                    if (nowTs - lastLogTs > 3000) {
+                        lastLogTs = nowTs;
+                        org.levimc.launcher.util.OnlineDebugLog.log(
+                                "桥收包: from " + src + ":" + sport + " len=" + data.length
+                                        + " head=" + String.format(java.util.Locale.US, "%02x",
+                                                data.length > 0 ? data[0] : -1));
+                    }
                     // 房主回包判定：已学习的 worldPort 或发现端口 19132
                     boolean fromHost = hostIp != null && src.equals(hostIp)
                             && (sport == worldPort || sport == ANN_PORT);
