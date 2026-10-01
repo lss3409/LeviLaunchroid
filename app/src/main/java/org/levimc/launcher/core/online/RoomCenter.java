@@ -706,13 +706,13 @@ public final class RoomCenter {
                                     org.levimc.launcher.util.OnlineDebugLog.log(
                                             "RoomCenter(成员): 收到 c:lan wp=" + wp
                                                     + " from " + p.getAddress().getHostAddress());
-                                    if (wp > 0) {
-                                        byte[] reply = b64.isEmpty() ? new byte[0]
-                                                : android.util.Base64.decode(b64,
-                                                        android.util.Base64.NO_WRAP);
-                                        LanRelayBridge.onAnnounce(reply,
-                                                p.getAddress().getHostAddress(), wp, nick);
-                                    }
+                                    // v590：wp=0 也启动（平板 SELinux 读不到端口表，
+                                    // 转发先走 19132，房主回包源端口动态学习）
+                                    byte[] reply = b64.isEmpty() ? new byte[0]
+                                            : android.util.Base64.decode(b64,
+                                                    android.util.Base64.NO_WRAP);
+                                    LanRelayBridge.onAnnounce(reply,
+                                            p.getAddress().getHostAddress(), wp, nick);
                                 } catch (Exception ignored) {
                                 }
                             } else if (text.startsWith("c:invite\0")) {

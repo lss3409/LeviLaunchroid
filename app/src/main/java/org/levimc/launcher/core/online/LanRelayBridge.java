@@ -12,26 +12,29 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * v588：异地局域网入口桥——合成 pong 公告 + ping/pong 代理。
+ * v590：异地局域网入口桥——合成 pong 公告 + ping/pong 代理（端口动态学习）。
  *
  * 1.26 发现机制实测：客户端周期向 255.255.255.255:19132 广播带
- * RakNet 魔数的 ping（0x01），服务器单播回 pong（0x1C 含世界名）
- * ——服务器自身不广播任何公告。v584 房主抓到的"公告"其实是成员
- * 客户端广播的 ping，重放回去会被客户端当作自己的包忽略（用户
- * 实测：世界不显示，或显示后验证失败跳到"好友"分类）。
+ * RakNet 魔数的 ping（0x01），服务器单播回 pong（0x1C 含世界名，
+ * 源端口即世界随机端口）——服务器自身不广播任何公告。且 1.26 的
+ * 服务器在 19132 上监听发现 ping。
+ *
+ * 平板（ZUI）SELinux 拒 untrusted_app 读 /proc/self/net/udp
+ * （avc denied 实锤，vivo 允许）——WorldPortProbe 在房主平板失效，
+ * wp 恒 0。故 v590 不再依赖端口探测：
  *
  * 方案：
- * 房主侧 startHost()：周期探测世界随机端口（WorldPortProbe）→
- *   c:lan 同步（端口 + 房主昵称）。
+ * 房主侧 startHost()：周期 c:lan 同步房主昵称。
  * 成员侧 onAnnounce()：单个随机端口 socket（绑 VPN 网络）——
  *   ① 周期合成 RakNet pong（0x1C + 时间戳 + 固定 id + 魔数 +
  *   MOTD=房主昵称）广播到 255.255.255.255:19132（源=成员虚拟 IP:
  *   本 socket 端口，客户端把源当世界服务器地址，好友页「局域网」
  *   分类显示世界）；
- *   ② 客户端 ping/连接请求单播到本 socket → 转发房主世界端口
- *   （房主游戏真实应答，pong 里的真实世界名刷新显示）；
- *   ③ 房主回包 → 转回客户端。点入后 RakNet 连接流量双向代理，
- *   联机走 TUN 直达房主世界。
+ *   ② 客户端 ping/连接请求单播到本 socket → 转发房主（未学到
+ *   世界端口前先发 19132——服务器在那里监听发现 ping）；
+ *   ③ 房主回包（源端口≠19132 时即真实世界端口，动态学习）→
+ *   转回客户端。点入后 RakNet 连接流量双向代理，联机走 TUN 直达
+ *   房主世界。
  */
 public final class LanRelayBridge {
 
@@ -52,25 +55,22 @@ public final class LanRelayBridge {
 
     private static volatile boolean hosting;
 
-    /** 房主开桥：周期探测世界端口并同步给成员（c:lan）。 */
+    /**
+     * 房主开桥：周期把昵称同步给成员（c:lan）。
+     * v590：不再探测世界端口——平板 SELinux 拒读 /proc/self/net/udp
+     * （avc denied 实锤），wp 恒 0；成员侧改为转发先走 19132 并从
+     * 房主回包源端口动态学习真实世界端口。
+     */
     public static synchronized void startHost() {
         stopHost();
         hosting = true;
         Thread t = new Thread(() -> {
-            int lastWp = -1;
             while (hosting) {
                 try {
-                    int wp = WorldPortProbe.getWorldPort();
-                    RoomCenter.sendLanAnnounce(new byte[0], wp);
-                    // v589：世界端口变化时打文件日志（定位 c:lan 链路断点）
-                    if (wp != lastWp) {
-                        lastWp = wp;
-                        org.levimc.launcher.util.OnlineDebugLog.log(
-                                "异地桥(房主): c:lan 已发 wp=" + wp);
-                    }
+                    RoomCenter.sendLanAnnounce(new byte[0], 0);
                 } catch (Exception e) {
                     if (hosting) {
-                        Log.w(TAG, "房主端口同步异常", e);
+                        Log.w(TAG, "房主公告同步异常", e);
                     }
                 }
                 try {
@@ -170,10 +170,17 @@ public final class LanRelayBridge {
                     System.arraycopy(buf, 0, data, 0, p.getLength());
                     String src = p.getAddress().getHostAddress();
                     int sport = p.getPort();
-                    boolean fromHost = hostIp != null && worldPort > 0
-                            && src.equals(hostIp) && sport == worldPort;
+                    // v590：房主回包判定——已学习的 worldPort 或发现端口 19132
+                    boolean fromHost = hostIp != null && src.equals(hostIp)
+                            && (sport == worldPort || sport == ANN_PORT);
                     if (fromHost) {
-                        // 房主应答 → 转给 5s 内活跃的客户端
+                        // 房主回包：若源端口不是 19132 就是真实世界端口（学习）
+                        if (sport != ANN_PORT && worldPort != sport) {
+                            worldPort = sport;
+                            org.levimc.launcher.util.OnlineDebugLog.log(
+                                    "异地桥(成员): 学习到房主世界端口 " + sport);
+                        }
+                        // 转给 5s 内活跃的客户端
                         long now = System.currentTimeMillis();
                         Iterator<Map.Entry<InetSocketAddress, Long>> it =
                                 clients.entrySet().iterator();
@@ -189,12 +196,13 @@ public final class LanRelayBridge {
                             } catch (Exception ignored) {
                             }
                         }
-                    } else if (hostIp != null && worldPort > 0 && data.length >= 1) {
-                        // 客户端流量 → 记录并转发房主世界端口
+                    } else if (hostIp != null && data.length >= 1) {
+                        // 客户端流量 → 记录并转发房主（未学到端口先发 19132）
+                        int fwdPort = worldPort > 0 ? worldPort : ANN_PORT;
                         clients.put(new InetSocketAddress(src, sport),
                                 System.currentTimeMillis());
                         proxy.send(new DatagramPacket(data, data.length,
-                                InetAddress.getByName(hostIp), worldPort));
+                                InetAddress.getByName(hostIp), fwdPort));
                     }
                 } catch (Exception e) {
                     if (proxying) {
