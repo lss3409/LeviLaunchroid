@@ -165,7 +165,16 @@ public final class LanRelayBridge {
                             }
                         }
                     } else if (hostIp != null) {
-                        // 本机服务器公告（广播本地投递，源=本机 wlan/热点地址）
+                        // 本机服务器公告（广播本地投递，源=本机 wlan/热点地址）。
+                        // v596：公告源端口即服务器世界端口（实测公告源=世界
+                        // 监听 socket）——直接学习，不再依赖 WorldPortProbe
+                        // （vivo 先进存档后加房间时快照已含世界端口，差集
+                        // 恒空探测失败）
+                        if (sport > 1024 && worldPort != sport) {
+                            worldPort = sport;
+                            org.levimc.launcher.util.OnlineDebugLog.log(
+                                    "异地桥(服务器): 公告源端口学习为世界端口 " + sport);
+                        }
                         // → 转发平板客户端 19132（客户端监听处收公告显示世界）
                         proxy.send(new DatagramPacket(data, data.length,
                                 InetAddress.getByName(hostIp), ANN_PORT));
