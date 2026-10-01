@@ -34,13 +34,9 @@ import org.levimc.pojavcontrols.PojavControls
 import org.levimc.pojavcontrols.PojavControlsHost
 import java.io.File
 
-/** 后台久置阈值：超过此时长回前台视为渲染不可恢复（v518 自愈）。 */
 // v534：黑屏自愈阈值 5 分钟→90 秒（开了前台服务保活时渲染面丢失黑屏高发，
-// 缩短等待——切后台超过 90 秒回来直接结束会话回启动器，世界自动存档兜底）
-// v561：后台久置自愈阈值 90s→60s——vivo 类厂商后台机制激进（冻结 GL 上下文
 // 更频繁），后台超 60s 回前台就走静默重启（游戏自动存档回启动器），
 // 宁可重启也不要黑屏卡死；联想 ZUI 机制宽松（90s 时也只黑过 1 次）
-private const val LONG_PAUSE_HEAL_MS = 60_000L
 
 class MinecraftActivity : MainActivity(), PojavControlsHost {
 
@@ -55,8 +51,6 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
 
     private val hardcoreBackupHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var hardcoreBackupRunning = false
-    /** v518 久置自愈：后台久置后回前台，基岩版 EGL surface 不恢复（黑屏）。 */
-    private var lastPauseElapsed = 0L
     /** v544：本次会话起点（累计游玩时长统计）。 */
     private var sessionStartElapsed = 0L
     private val hardcoreBackupRunnable = object : Runnable {
@@ -263,16 +257,8 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
 
     override fun onResume() {
         super.onResume()
-        // v518 久置自愈：后台久置（>5 分钟）后回前台，基岩版渲染面不会恢复——
-        // 实测黑屏。直接结束会话走正常退出流程（静默重启进程回启动器，
-        // 世界进度由游戏自动存档兜底），避免把黑屏甩给用户。
-        if (lastPauseElapsed > 0
-            && android.os.SystemClock.elapsedRealtime() - lastPauseElapsed > LONG_PAUSE_HEAL_MS
-        ) {
-            android.util.Log.i("MinecraftActivity", "后台久置后恢复，主动结束会话防黑屏")
-            finish()
-            return
-        }
+        // v598：删除后台久置自愈（后台 60s 回前台强制结束会话回启动器，
+        // 用户实测与杀后台保活冲突、误杀正常联机挂机，明确要求移除）
         if (!isFinishing) {
             normalExitPrepared = false
             normalExitRestartScheduled = false
@@ -539,7 +525,6 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun onPause() {
-        lastPauseElapsed = android.os.SystemClock.elapsedRealtime()
         // v527：退后台停语音采集（不再收麦），回前台自动恢复
         try {
             org.levimc.launcher.core.online.voice.VoiceEngine.get(this).suspend()

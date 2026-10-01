@@ -12,52 +12,57 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * v597：异地局域网入口桥——世界服务器（房主）侧公告/流量代理。
+ * v598：异地局域网入口桥——双端对称代理。
  *
- * 1.26 发现机制实测：世界服务器周期向 255.255.255.255:19132 广播
- * 公告（0x01+魔数，33 字节，源端口=世界监听 socket），客户端监听
- * 19132 收到公告即在好友页「局域网」分类显示世界；点入后 RakNet
- * 连接流量指向公告源地址。
+ * 1.26 发现机制实测：
+ *   世界服务器周期向 255.255.255.255:19132 广播公告（0x01+魔数 33
+ *   字节，源端口=世界监听 socket）；客户端不监听 19132，只周期广播
+ *   ping（同格式 0x01）；服务器监听 19132 收 ping 后单播回 pong
+ *   （0x1C 含世界名）。
  *
- * 用户场景：平板=房主=世界服务器（开存档），vivo=成员=客户端
- * （好友页看局域网入口）。服务器广播会经内核本地投递到本机绑
- * 0.0.0.0:19132 的 socket——服务器侧代理：
- *   ① 拦本机服务器公告广播 → 学习公告源端口=世界端口 → 转发
- *   客户端（vivo）19132 → 客户端好友页显示「局域网」世界
- *   （源=房主虚拟 IP:19132）；
- *   ② 客户端 ping/连接单播到房主虚拟 IP:19132 → 转本机
- *   127.0.0.1:世界端口（本机服务器应答）；
- *   ③ 本机服务器应答（回环源）→ 转回客户端源。
- * 客户端全部流量双向代理，联机走 TUN 直达世界服务器。
+ * 用户场景：平板=房主=世界服务器，vivo=成员=客户端。两端都跑代理
+ * （绑 0.0.0.0:19132，VPN 网络，本地广播投递拦到本机游戏包）：
  *
- * 平板 SELinux 拒读 /proc/self/net/udp——世界端口不靠 WorldPortProbe，
- * 直接从公告源端口学习（实测公告即从世界监听 socket 发出）。
+ * 服务器端（房主，serverSide=true）：
+ *   拦本机公告广播 → 学习源端口=世界端口 → 转客户端 19132；
+ *   客户端 ping/连接（src=对端）→ 转 127.0.0.1:19132/世界端口；
+ *   本机服务器应答（127.x）→ 转回对端 19132。
+ *
+ * 客户端端（成员，serverSide=false）：
+ *   拦本机客户端 ping 广播 → 转服务器 19132；
+ *   服务器应答（src=对端）→ 转本机客户端源（clients）；
+ *   公告（src=对端 0x01）→ 转 127.0.0.1:19132（本机客户端监听处）。
+ *
+ * 连接建立后（0x80+ 帧流）：客户端直发服务器虚拟 IP:19132（经服务器
+ * 代理转世界端口），服务器应答原路返回（经客户端代理转客户端源）——
+ * 方向由两端角色自然区分，无需拆解帧内容。
  */
 public final class LanRelayBridge {
 
     private static final String TAG = "LanRelayBridge";
     private static final int ANN_PORT = 19132;
 
-    // ---------------- 服务器（房主）侧代理 ----------------
-
-    private static volatile boolean hosting;
+    private static volatile boolean running;
     private static DatagramSocket proxy;
+    private static volatile boolean serverSide;
+    private static volatile String peerIp;
     private static volatile int worldPort;
-    /** 客户端（vivo）源地址 → 最近活跃时间（服务器应答回路由）。 */
+    /** 本机客户端源地址 → 最近活跃时间（应答回路由）。 */
     private static final Map<InetSocketAddress, Long> clients =
             new ConcurrentHashMap<>();
 
-    /** 房主开桥：启动代理 + 周期 c:lan 同步。 */
+    /** 房主（世界服务器）开桥：启动服务器侧代理 + 周期 c:lan。 */
     public static synchronized void startHost() {
-        stopHost();
-        hosting = true;
+        stopAll();
+        running = true;
+        serverSide = true;
         startProxy();
         Thread t = new Thread(() -> {
-            while (hosting) {
+            while (running) {
                 try {
                     RoomCenter.sendLanAnnounce(new byte[0], worldPort);
                 } catch (Exception e) {
-                    if (hosting) {
+                    if (running) {
                         Log.w(TAG, "房主公告同步异常", e);
                     }
                 }
@@ -73,19 +78,38 @@ public final class LanRelayBridge {
         Log.i(TAG, "异地入口桥已启动（房主/世界服务器）");
     }
 
-    public static synchronized void stopHost() {
-        hosting = false;
-        stopProxy();
-    }
-
-    /** 成员收到 c:lan：本场景客户端侧无需代理，仅记录。 */
+    /** 成员（客户端）收到 c:lan：启动客户端侧代理。 */
     public static synchronized void onAnnounce(byte[] ignoredReply, String host,
                                                int port, String nick) {
-        Log.i(TAG, "异地桥(成员/客户端): 房主=" + host + " wp=" + port);
+        peerIp = host;
+        if (!running) {
+            running = true;
+            serverSide = false;
+            startProxy();
+            Log.i(TAG, "异地入口桥已启动（成员/客户端）房主=" + host);
+        }
+    }
+
+    public static synchronized void stopHost() {
+        stopAll();
     }
 
     public static synchronized void stopClient() {
-        // 客户端侧无代理（保留接口兼容旧接线）
+        stopAll();
+    }
+
+    private static synchronized void stopAll() {
+        running = false;
+        if (proxy != null) {
+            try {
+                proxy.close();
+            } catch (Exception ignored) {
+            }
+            proxy = null;
+        }
+        clients.clear();
+        worldPort = 0;
+        peerIp = null;
     }
 
     private static synchronized void startProxy() {
@@ -105,7 +129,8 @@ public final class LanRelayBridge {
             }
             proxy.bind(new InetSocketAddress("0.0.0.0", ANN_PORT));
             proxy.setBroadcast(true);
-            Log.i(TAG, "异地入口桥(服务器): 代理已启动 端口=" + proxy.getLocalPort());
+            Log.i(TAG, "异地入口桥代理已启动 serverSide=" + serverSide
+                    + " 端口=" + proxy.getLocalPort());
         } catch (Exception e) {
             Log.w(TAG, "代理启动失败", e);
             proxy = null;
@@ -115,7 +140,7 @@ public final class LanRelayBridge {
         Thread fwd = new Thread(() -> {
             byte[] buf = new byte[2048];
             long lastLogTs = 0;
-            while (hosting && proxy != null && !proxy.isClosed()) {
+            while (running && proxy != null && !proxy.isClosed()) {
                 try {
                     DatagramPacket p = new DatagramPacket(buf, buf.length);
                     proxy.receive(p);
@@ -123,7 +148,6 @@ public final class LanRelayBridge {
                     System.arraycopy(buf, 0, data, 0, p.getLength());
                     String src = p.getAddress().getHostAddress();
                     int sport = p.getPort();
-                    // v593：定位拦截链路——每 3s 最多打一条收包日志
                     long nowTs = System.currentTimeMillis();
                     if (nowTs - lastLogTs > 3000) {
                         lastLogTs = nowTs;
@@ -131,48 +155,46 @@ public final class LanRelayBridge {
                                 "桥收包: from " + src + ":" + sport + " len=" + data.length
                                         + " head=" + String.format(java.util.Locale.US, "%02x",
                                                 data.length > 0 ? data[0] : -1)
-                                        + " wp=" + worldPort);
+                                        + " wp=" + worldPort + " side=" + (serverSide ? "S" : "C"));
                     }
-                    String clientIp = getClientIp();
-                    boolean fromClient = clientIp != null && src.equals(clientIp);
-                    if (fromClient) {
-                        // 客户端流量（ping/连接）→ 记录源 → 转本机服务器
-                        clients.put(new InetSocketAddress(src, sport),
-                                System.currentTimeMillis());
-                        int fwdPort = worldPort > 0 ? worldPort : ANN_PORT;
-                        proxy.send(new DatagramPacket(data, data.length,
-                                InetAddress.getByName("127.0.0.1"), fwdPort));
-                    } else if (src.startsWith("127.")) {
-                        // 本机服务器应答 → 转给 5s 内活跃的客户端
-                        long now = System.currentTimeMillis();
-                        Iterator<Map.Entry<InetSocketAddress, Long>> it =
-                                clients.entrySet().iterator();
-                        while (it.hasNext()) {
-                            Map.Entry<InetSocketAddress, Long> e = it.next();
-                            if (now - e.getValue() > 5000) {
-                                it.remove();
-                                continue;
-                            }
-                            try {
-                                proxy.send(new DatagramPacket(data, data.length,
-                                        e.getKey().getAddress(), e.getKey().getPort()));
-                            } catch (Exception ignored) {
-                            }
+                    String peer = peerIp != null ? peerIp : resolvePeer();
+                    boolean fromPeer = peer != null && src.equals(peer);
+                    int head = data.length > 0 ? (data[0] & 0xFF) : -1;
+                    if (fromPeer) {
+                        if (head == 0x01) {
+                            // 对端 ping/公告 → 本机 19132（服务器应答 ping，
+                            // 客户端监听处收公告显示世界）
+                            proxy.send(new DatagramPacket(data, data.length,
+                                    InetAddress.getByName("127.0.0.1"), ANN_PORT));
+                        } else if (serverSide) {
+                            // 客户端流量 → 本机服务器世界端口
+                            int fwdPort = worldPort > 0 ? worldPort : ANN_PORT;
+                            proxy.send(new DatagramPacket(data, data.length,
+                                    InetAddress.getByName("127.0.0.1"), fwdPort));
+                        } else {
+                            // 服务器应答 → 本机客户端源
+                            sendToClients(data);
                         }
-                    } else if (clientIp != null) {
-                        // 本机服务器公告（广播本地投递，源=本机接口地址）。
-                        // v596：公告源端口即世界监听 socket 端口——直接学习
-                        if (sport > 1024 && worldPort != sport) {
+                    } else if (src.startsWith("127.")) {
+                        // 本机服务器应答 → 对端 19132
+                        proxy.send(new DatagramPacket(data, data.length,
+                                InetAddress.getByName(peer), ANN_PORT));
+                    } else if (peer != null) {
+                        // 本机游戏广播/流量（本地投递）：
+                        // 服务器端=公告（学习世界端口）；客户端端=ping/数据
+                        if (serverSide && head == 0x01 && sport > 1024
+                                && worldPort != sport) {
                             worldPort = sport;
                             org.levimc.launcher.util.OnlineDebugLog.log(
                                     "异地桥(服务器): 公告源端口学习为世界端口 " + sport);
                         }
-                        // → 转发客户端 19132（客户端监听处收公告显示世界）
+                        clients.put(new InetSocketAddress(src, sport),
+                                System.currentTimeMillis());
                         proxy.send(new DatagramPacket(data, data.length,
-                                InetAddress.getByName(clientIp), ANN_PORT));
+                                InetAddress.getByName(peer), ANN_PORT));
                     }
                 } catch (Exception e) {
-                    if (hosting) {
+                    if (running) {
                         Log.w(TAG, "代理转发异常", e);
                     }
                 }
@@ -182,8 +204,8 @@ public final class LanRelayBridge {
         fwd.start();
     }
 
-    /** 客户端（成员）虚拟 IP：房主从 RoomCenter 成员地址动态取。 */
-    private static String getClientIp() {
+    /** 房主侧对端 = 成员虚拟 IP（RoomCenter 动态取）。 */
+    private static String resolvePeer() {
         try {
             List<InetSocketAddress> members = RoomCenter.getMemberAddresses();
             if (members != null && !members.isEmpty()) {
@@ -194,15 +216,21 @@ public final class LanRelayBridge {
         return null;
     }
 
-    private static synchronized void stopProxy() {
-        if (proxy != null) {
+    /** 转给 5s 内活跃的本机客户端。 */
+    private static void sendToClients(byte[] data) {
+        long now = System.currentTimeMillis();
+        Iterator<Map.Entry<InetSocketAddress, Long>> it = clients.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<InetSocketAddress, Long> e = it.next();
+            if (now - e.getValue() > 5000) {
+                it.remove();
+                continue;
+            }
             try {
-                proxy.close();
+                proxy.send(new DatagramPacket(data, data.length,
+                        e.getKey().getAddress(), e.getKey().getPort()));
             } catch (Exception ignored) {
             }
-            proxy = null;
         }
-        clients.clear();
-        worldPort = 0;
     }
 }
