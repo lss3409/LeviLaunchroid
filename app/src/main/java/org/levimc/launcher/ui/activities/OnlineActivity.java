@@ -228,6 +228,13 @@ public final class OnlineActivity extends BaseActivity
         handleDebugJoinIntent(getIntent());
     }
 
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        // v632：OnlineActivity 复用（singleTask）时后门 intent 走这里
+        handleDebugJoinIntent(intent);
+    }
+
     /**
      * 调试后门（v511）：部分设备（vivo OriginOS）系统拦截调试广播且 adb 输入乱码，
      * 改用 Activity 启动参数直接触发加入流程（Activity 启动不受广播拦截影响）：
@@ -237,6 +244,18 @@ public final class OnlineActivity extends BaseActivity
      */
     private void handleDebugJoinIntent(Intent intent) {
         if (intent == null) {
+            return;
+        }
+        // v632：debug_invite_once——已在房间的房主立即补发一次邀请
+        //（自动化测试成员加入慢于 debug_invite 固定延迟的场景）
+        if (intent.getBooleanExtra("debug_invite_once", false)) {
+            if (org.levimc.launcher.core.online.RoomCenter.isHost) {
+                org.levimc.launcher.util.OnlineDebugLog.log(
+                        "debug_invite_once: 房主补发邀请");
+                handshakeHandler.postDelayed(
+                        () -> org.levimc.launcher.core.online.RoomCenter.sendInviteAll(),
+                        3_000);
+            }
             return;
         }
         // v516 调试建房：固定邀请码 TEST-TEST-TEST-TES5（免 OCR 读码）
