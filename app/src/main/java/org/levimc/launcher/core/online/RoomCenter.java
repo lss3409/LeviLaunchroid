@@ -230,8 +230,15 @@ public final class RoomCenter {
             Log.w(TAG, "邀请失败：房间中心不可用");
             return;
         }
+        // v583：1.26 世界端口随机——邀请前探测真实端口（新端口取新值，
+        // 无新端口复用上次缓存），不再写死 19132
+        int gamePort = WorldPortProbe.getWorldPort();
+        if (gamePort <= 0) {
+            gamePort = GAME_PORT;
+        }
+        org.levimc.launcher.util.OnlineDebugLog.log("邀请成员进入世界: port=" + gamePort);
         String msg = "c:invite\0{\"hostIp\":\"" + hostAddr()
-                + "\",\"port\":" + GAME_PORT + "}";
+                + "\",\"port\":" + gamePort + "}";
         byte[] out = msg.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         int sent = 0;
         for (InetSocketAddress addr : memberAddrs.values()) {
