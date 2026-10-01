@@ -47,6 +47,8 @@ public final class GlobalImportScanner {
         public List<SubManifest> subManifests;
         /** v610：主清单信息（单包时的清单文件信息，二级菜单显示）。 */
         public SubManifest mainManifest;
+        /** v611：皮肤包标记（默认图用启动器的 ic_tshirt）。 */
+        public boolean skinPack;
         /** v609：存档 level.dat 解析出的有用信息（二级菜单显示）。 */
         public LevelInfo levelInfo;
 
@@ -75,6 +77,10 @@ public final class GlobalImportScanner {
 
         public boolean isBehavior() {
             return "data".equals(type);
+        }
+
+        public boolean isSkin() {
+            return "skin_pack".equals(type);
         }
     }
 
@@ -339,6 +345,7 @@ public final class GlobalImportScanner {
             // 主清单信息始终保存给二级菜单
             c.subManifests = subs.size() > 1 ? subs : null;
             c.mainManifest = first;
+            c.skinPack = first.isSkin();
             if (c.name.isEmpty() || c.name.equals(stripExt(f.getName()))) {
                 c.name = first.name.isEmpty() ? stripExt(f.getName()) : first.name;
             }

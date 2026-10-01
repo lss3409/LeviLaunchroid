@@ -364,15 +364,7 @@ public class ImportPickerDialog {
         iconWrap.setBackground(roundBg(context, context.getColor(R.color.background)));
         ImageView icon = new ImageView(context);
         icon.setLayoutParams(new LinearLayout.LayoutParams(iconSize, iconSize));
-        Bitmap bmp = c.icon != null
-                ? BitmapFactory.decodeByteArray(c.icon, 0, c.icon.length) : null;
-        if (bmp != null) {
-            icon.setImageBitmap(bmp);
-            icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        } else {
-            icon.setImageResource(ICONS[Math.min(c.type, ICONS.length - 1)]);
-            icon.setColorFilter(textSub);
-        }
+        applyThumb(context, icon, c, iconSize, textSub);
         iconWrap.addView(icon);
         row.addView(iconWrap);
 
@@ -459,15 +451,7 @@ public class ImportPickerDialog {
         iconWrap.setBackground(roundBg(context, context.getColor(R.color.background)));
         ImageView icon = new ImageView(context);
         icon.setLayoutParams(new LinearLayout.LayoutParams(iconSize, iconSize));
-        Bitmap bmp = c.icon != null
-                ? BitmapFactory.decodeByteArray(c.icon, 0, c.icon.length) : null;
-        if (bmp != null) {
-            icon.setImageBitmap(bmp);
-            icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        } else {
-            icon.setImageResource(ICONS[Math.min(c.type, ICONS.length - 1)]);
-            icon.setColorFilter(textSub);
-        }
+        applyThumb(context, icon, c, iconSize, textSub);
         iconWrap.addView(icon);
         head.addView(iconWrap);
 
@@ -764,6 +748,51 @@ public class ImportPickerDialog {
             rows.add("（level.dat 无有效信息）");
         }
         return rows.toArray(new String[0]);
+    }
+
+    /** v611：图标照搬启动器内容管理——centerCrop 方形裁切 + 10dp 圆角；
+     * 无贴图用默认图（皮肤包 ic_tshirt）。 */
+    private static void applyThumb(Context context, ImageView iv,
+                                   GlobalImportScanner.Candidate c, int sizePx,
+                                   int tintColor) {
+        Bitmap bmp = c.icon != null
+                ? BitmapFactory.decodeByteArray(c.icon, 0, c.icon.length) : null;
+        if (bmp != null) {
+            float density = context.getResources().getDisplayMetrics().density;
+            iv.setImageBitmap(centerCropRound(bmp, sizePx, (int) (10 * density)));
+            iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        } else {
+            iv.setImageResource(c.skinPack ? R.drawable.ic_tshirt
+                    : ICONS[Math.min(c.type, ICONS.length - 1)]);
+            iv.setColorFilter(tintColor);
+        }
+    }
+
+    /** centerCrop 到 size×size 再圆角（启动器 LeviContentThumbnailShape 同款）。 */
+    private static Bitmap centerCropRound(Bitmap src, int size, int radius) {
+        try {
+            int w = src.getWidth();
+            int h = src.getHeight();
+            int side = Math.min(w, h);
+            int sx = (w - side) / 2;
+            int sy = (h - side) / 2;
+            Bitmap cropped = Bitmap.createBitmap(src, sx, sy, side, side);
+            if (side != size) {
+                cropped = Bitmap.createScaledBitmap(cropped, size, size, true);
+            }
+            Bitmap out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas canvas = new android.graphics.Canvas(out);
+            android.graphics.Paint paint = new android.graphics.Paint(
+                    android.graphics.Paint.ANTI_ALIAS_FLAG);
+            android.graphics.Path path = new android.graphics.Path();
+            path.addRoundRect(new android.graphics.RectF(0, 0, size, size),
+                    radius, radius, android.graphics.Path.Direction.CW);
+            canvas.clipPath(path);
+            canvas.drawBitmap(cropped, 0, 0, paint);
+            return out;
+        } catch (Throwable ignored) {
+            return src;
+        }
     }
 
     private static GradientDrawable roundBg(Context context, int color) {
