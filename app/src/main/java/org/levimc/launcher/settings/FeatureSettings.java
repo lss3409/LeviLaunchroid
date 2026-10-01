@@ -55,9 +55,10 @@ public class FeatureSettings {
     public boolean isLogcatOverlayEnabled() { return logcatOverlayEnabled; }
     public void setLogcatOverlayEnabled(boolean enabled) { this.logcatOverlayEnabled = enabled; autoSave(); }
 
-    /** v450：前台服务恒开（老用户 prefs 里可能是 false——直接返回
-     *  true 覆盖，设置页开关已隐藏）。 */
-    public boolean isForegroundServiceEnabled() { return true; }
+    /** v570：后台使用开关恢复（v450 曾恒开隐藏；用户要求加回开关，
+     * 默认值仍为 true——老用户 prefs 里可能是 false 或缺失，
+     * 缺失时保持 true）。 */
+    public boolean isForegroundServiceEnabled() { return foregroundServiceEnabled; }
     public void setForegroundServiceEnabled(boolean enabled) { this.foregroundServiceEnabled = enabled; autoSave(); }
 
     public boolean isAutoCloseGameOnLaunchNew() { return autoCloseGameOnLaunchNew; }

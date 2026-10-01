@@ -65,6 +65,9 @@ public class InstanceBackupManager {
     private static final String PACKAGE_PREFIX = "package/";
     /** v569：烘培地图缓存（Download/LeviLauncher/Cache/map_cache）随备份捎带。 */
     private static final String BAKED_CACHE_PREFIX = "baked_cache/";
+    /** v570：Xbox 登录数据（files/xal/，含 gamertag）随备份捎带——
+     * 导入菜单二级详情可显示玩家登录信息。 */
+    private static final String XAL_PREFIX = "xal/";
     private static final String DOWNLOAD_RELATIVE_PATH =
             Environment.DIRECTORY_DOWNLOADS + "/LeviLauncher/Backups/minecraft item";
     private static final Gson GSON = new GsonBuilder().serializeNulls().setPrettyPrinting().create();
@@ -162,6 +165,10 @@ public class InstanceBackupManager {
                     // v569：烘培地图缓存捎上（不存在则跳过；缓存大时备份
                     // 体积会明显增大，恢复端会解回新缓存目录）
                     zipDirectory(LauncherStorage.getBakedMapCacheDir(context), BAKED_CACHE_PREFIX,
+                            zos, addedEntries, copiedBytes, totalBytes, lastProgress, callback);
+
+                    // v570：Xbox 登录数据捎上（导入菜单显示玩家信息用）
+                    zipDirectory(new File(context.getFilesDir(), "xal"), XAL_PREFIX,
                             zos, addedEntries, copiedBytes, totalBytes, lastProgress, callback);
 
                     for (NamedSource source : packageSources) {
@@ -443,6 +450,8 @@ public class InstanceBackupManager {
         total += countFileBytes(MinecraftLauncher.getRuntimeLibDir(context, version.getStorageProfileId()));
         // v569：烘培缓存计入进度（不捎则进度条会提前到 100%）
         total += countFileBytes(LauncherStorage.getBakedMapCacheDir(context));
+        // v570：XAL 登录数据
+        total += countFileBytes(new File(context.getFilesDir(), "xal"));
         for (NamedSource source : packageSources) {
             total += Math.max(0L, source.file.length());
         }
@@ -715,6 +724,10 @@ public class InstanceBackupManager {
                 if (entryName.startsWith(BAKED_CACHE_PREFIX)) {
                     return new RestoreTarget(LauncherStorage.getBakedMapCacheDir(context), relativePath);
                 }
+                // v570：Xbox 登录数据解回 files/xal/
+                if (entryName.startsWith(XAL_PREFIX)) {
+                    return new RestoreTarget(new File(context.getFilesDir(), "xal"), relativePath);
+                }
                 return null;
             });
             updateCustomMetadata(targetName, manifest, sharedRestoredIntoProfile);
@@ -757,6 +770,10 @@ public class InstanceBackupManager {
             // v569：烘培缓存解回新缓存目录
             if (entryName.startsWith(BAKED_CACHE_PREFIX)) {
                 return new RestoreTarget(LauncherStorage.getBakedMapCacheDir(context), relativePath);
+            }
+            // v570：Xbox 登录数据解回 files/xal/
+            if (entryName.startsWith(XAL_PREFIX)) {
+                return new RestoreTarget(new File(context.getFilesDir(), "xal"), relativePath);
             }
             return null;
         });
@@ -934,6 +951,10 @@ public class InstanceBackupManager {
         // v569：烘培缓存条目
         if (entryName.startsWith(BAKED_CACHE_PREFIX)) {
             return entryName.substring(BAKED_CACHE_PREFIX.length());
+        }
+        // v570：Xbox 登录数据条目
+        if (entryName.startsWith(XAL_PREFIX)) {
+            return entryName.substring(XAL_PREFIX.length());
         }
         return null;
     }

@@ -253,6 +253,8 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="instance_shortcut_not_supported">Your home screen launcher does not support pinned shortcuts.</string>
     <string name="instance_shortcut_missing">This Minecraft instance is no longer available.</string>
     <string name="auto_close_game_title">Close Running Game on Launch</string>
+    <string name="keep_background_title">Keep Running in Background</string>
+    <string name="keep_background_desc">Keeps the game alive in the background with a foreground service. Turning this on will ask for battery optimization exemption to reduce the chance of the system killing the game.</string>
     <string name="custom_storage_path_reset">Reset to Default</string>
     <string name="custom_storage_path_current">Current: %1$s</string>
     <string name="custom_storage_path_default">Default: %1$s</string>

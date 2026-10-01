@@ -207,7 +207,48 @@
                                 android:trackTint="#555555" />
                         </LinearLayout>
 
-                        <!-- v450：性能监控悬浮窗开关已删除；前台服务恒开开关已隐藏 -->
+                        <!-- v570：后台使用开关恢复（v450 曾隐藏）——打开时引导电池白名单授权 -->
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:layout_marginTop="14dp"
+                            android:layout_marginBottom="14dp"
+                            android:background="@color/divider"
+                            android:alpha="0.3" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/keep_background_title"
+                                android:fontFamily="@font/misans"
+                                android:textColor="@color/on_surface"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
+                            <com.google.android.material.switchmaterial.SwitchMaterial
+                                android:id="@+id/switch_keep_background"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:thumbTint="@color/primary"
+                                android:trackTint="#555555" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:text="@string/keep_background_desc"
+                            android:fontFamily="@font/misans"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
 
                         <View
                             android:layout_width="match_parent"

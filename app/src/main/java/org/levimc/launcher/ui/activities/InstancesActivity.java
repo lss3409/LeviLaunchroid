@@ -286,7 +286,20 @@ public class InstancesActivity extends BaseActivity {
         btnImportBackup.setVisibility(View.VISIBLE);
         btnImportBackup.setSelected(true);
         applyAccentButtonStyle(btnImportBackup);
-        btnImportBackup.setOnClickListener(v -> startBackupImportPicker());
+        // v570：导入备份菜单化——点按钮打开备份列表（一级时间戳列表 +
+        // 二级详情），菜单里保留「从文件管理器选择」兜底原 SAF 流程
+        btnImportBackup.setOnClickListener(v -> new org.levimc.launcher.ui.dialogs.BackupListDialog(
+                this, new org.levimc.launcher.ui.dialogs.BackupListDialog.Listener() {
+            @Override
+            public void onRestoreRequested(java.io.File backupFile) {
+                restoreBackup(android.net.Uri.fromFile(backupFile));
+            }
+
+            @Override
+            public void onPickFromFilesRequested() {
+                startBackupImportPicker();
+            }
+        }).show());
     }
 
     private void setupBatchBackupButton() {
