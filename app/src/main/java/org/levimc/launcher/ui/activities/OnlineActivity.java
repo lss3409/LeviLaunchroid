@@ -277,6 +277,11 @@ public final class OnlineActivity extends BaseActivity
             }
             org.levimc.launcher.core.online.TerracottaLan.startAnnounce(
                     PlayerIdentity.getNickname(this));
+            // v626：debug_scan 房主自测扫描（诊断组播是否真的进了 TUN
+            // 并投回本机——收不到=发送侧没进 TUN）
+            if (intent.getBooleanExtra("debug_scan", false)) {
+                org.levimc.launcher.core.online.TerracottaLan.startScan();
+            }
             List<String> relayPeers = RelayStore.load(this);
             EasyTierManager.get().host(this, hr.parsed.networkName, hr.parsed.networkSecret, this,
                     HOST_IPV4, relayPeers);
