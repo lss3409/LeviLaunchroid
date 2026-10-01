@@ -94,6 +94,12 @@ public final class LanRelayBridge {
         stopAll();
     }
 
+    /** v599：桥学到的世界端口（公告源端口）——深链邀请兜底用
+     * （平板 SELinux 拒读端口表，WorldPortProbe 恒 0）。 */
+    public static int getLearnedWorldPort() {
+        return worldPort;
+    }
+
     public static synchronized void stopClient() {
         stopAll();
     }

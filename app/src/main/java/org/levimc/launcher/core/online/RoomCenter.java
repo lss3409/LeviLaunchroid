@@ -233,6 +233,11 @@ public final class RoomCenter {
         // v583：1.26 世界端口随机——邀请前探测真实端口（新端口取新值，
         // 无新端口复用上次缓存），不再写死 19132
         int gamePort = WorldPortProbe.getWorldPort();
+        // v599：平板 SELinux 拒读端口表探测恒 0——用桥从公告源端口学到的
+        // 世界端口兜底（v598 双端代理在房主侧学习）
+        if (gamePort <= 0) {
+            gamePort = LanRelayBridge.getLearnedWorldPort();
+        }
         if (gamePort <= 0) {
             gamePort = GAME_PORT;
         }
