@@ -280,6 +280,11 @@ public final class EasyTierManager {
                 + (isHost
                         ? "hostname = \"paper-connect-server-" + ROOM_CENTER_PORT + "\"\n" : "")
                 + "log_level = \"info\"\n"
+                // v635：蜂窝网络下 UDP 打洞不稳（vivo 实测虚拟网断流，
+                // 深链 InitialConnection-13 根因）——禁用 UDP 打洞强制走
+                // TCP 中继（VPS 11010），Astral 同款策略（它连自家 TCP
+                // 中继 103.254.205.103:11012，4 秒进世界实测）。延迟换稳定。
+                + "disable_udp_hole_punching = true\n"
                 // Android 内核默认不监听 11010（poll listeners 只有 ring://），
                 // 必须显式开启监听，局域网直连/中转才能连进本机。
                 + "listeners = [\"tcp://0.0.0.0:11010\", \"udp://0.0.0.0:11010\"]\n"
