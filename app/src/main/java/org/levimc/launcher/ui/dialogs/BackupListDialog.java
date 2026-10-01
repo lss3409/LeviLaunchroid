@@ -80,6 +80,7 @@ public final class BackupListDialog extends Dialog {
     private TextView titleView;
     private ProgressBar loadingBar;
     private View detailView;
+    private com.google.android.material.button.MaterialButton pickButton;
 
     public BackupListDialog(Context context, Listener listener) {
         super(context, R.style.LeviDialogTheme);
@@ -135,8 +136,7 @@ public final class BackupListDialog extends Dialog {
         root.addView(loadingBar, lp);
 
         // v609：底部按钮与导入同款——MaterialButton + 个性化强调色
-        com.google.android.material.button.MaterialButton pickButton =
-                new com.google.android.material.button.MaterialButton(context);
+        pickButton = new com.google.android.material.button.MaterialButton(context);
         pickButton.setAllCaps(false);
         pickButton.setText(zh ? "从文件管理器选择…" : "Choose from Files…");
         pickButton.setTextSize(13);
@@ -181,6 +181,7 @@ public final class BackupListDialog extends Dialog {
             detailView = null;
         }
         contentContainer.removeAllViews();
+        pickButton.setVisibility(View.VISIBLE);
         loadingBar.setVisibility(View.VISIBLE);
         scanAndFill();
     }
@@ -595,17 +596,14 @@ public final class BackupListDialog extends Dialog {
         }
         detail.addView(playerPair[0]);
 
-        // 操作按钮
-        Button restoreBtn = new Button(context);
+        // 操作按钮（v610：统一 MaterialButton + 强调色，竖排全宽）
+        com.google.android.material.button.MaterialButton restoreBtn =
+                new com.google.android.material.button.MaterialButton(context);
         restoreBtn.setAllCaps(false);
         restoreBtn.setText(zh ? "恢复此备份" : "Restore This Backup");
-        restoreBtn.setTextColor(Color.WHITE);
         restoreBtn.setTextSize(14);
-        restoreBtn.setTypeface(null, Typeface.BOLD);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(accent);
-        bg.setCornerRadius(dp(10));
-        restoreBtn.setBackground(bg);
+        restoreBtn.setMinWidth(0);
+        restoreBtn.setMinimumWidth(0);
         restoreBtn.setOnClickListener(v -> {
             File target = info.file;
             dismiss();
@@ -617,19 +615,26 @@ public final class BackupListDialog extends Dialog {
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(46));
         bp.topMargin = dp(12);
         detail.addView(restoreBtn, bp);
+        org.levimc.launcher.util.AccentStyler.stylePrimary(context, restoreBtn);
 
-        Button backBtn = new Button(context);
+        com.google.android.material.button.MaterialButton backBtn =
+                new com.google.android.material.button.MaterialButton(context);
         backBtn.setAllCaps(false);
         backBtn.setText(zh ? "返回列表" : "Back to List");
-        backBtn.setTextColor(context.getColor(R.color.text_secondary));
         backBtn.setTextSize(13);
-        backBtn.setBackgroundColor(Color.TRANSPARENT);
+        backBtn.setMinWidth(0);
+        backBtn.setMinimumWidth(0);
         backBtn.setOnClickListener(v -> show());
-        detail.addView(backBtn, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(40)));
+        LinearLayout.LayoutParams bbp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(42));
+        bbp.topMargin = dp(6);
+        detail.addView(backBtn, bbp);
+        org.levimc.launcher.util.AccentStyler.stylePrimary(context, backBtn);
 
         detailView = detail;
         contentContainer.addView(detail);
+        // v610：详情页隐藏底部「从文件管理器选择」，避免三按钮挤一块
+        pickButton.setVisibility(View.GONE);
         scrollView.post(() -> scrollView.scrollTo(0, 0));
     }
 

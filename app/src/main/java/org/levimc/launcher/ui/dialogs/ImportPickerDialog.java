@@ -52,6 +52,7 @@ public class ImportPickerDialog {
     }
 
     private static List<GlobalImportScanner.Candidate> cachedCandidates;
+    private static View cardsHostView;
     private static int expandedType = -1;
 
     private static final int[][] GROUPS = {
@@ -107,6 +108,13 @@ public class ImportPickerDialog {
         status.setPadding(0, (int) (8 * density), 0, (int) (6 * density));
         root.addView(status);
 
+        // v610：分类卡固定区（吸顶，条目滚动时始终显示）
+        LinearLayout cardsHost = new LinearLayout(context);
+        cardsHostView = cardsHost;
+        cardsHost.setOrientation(LinearLayout.VERTICAL);
+        root.addView(cardsHost, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
         ScrollView scroll = new ScrollView(context);
         scroll.setFillViewport(true);
         LinearLayout content = new LinearLayout(context);
@@ -121,6 +129,7 @@ public class ImportPickerDialog {
         final Runnable[] redrawRef = new Runnable[1];
 
         redrawRef[0] = () -> {
+            cardsHost.removeAllViews();
             content.removeAllViews();
             List<GlobalImportScanner.Candidate> list = results[0];
             if (list == null) {
@@ -141,10 +150,10 @@ public class ImportPickerDialog {
                     filtered.add(c);
                 }
             }
-            // 分类卡（一行四个，单展开位切换）
+            // 分类卡（固定区一行四个，单展开位切换）
             LinearLayout cards = new LinearLayout(context);
             cards.setOrientation(LinearLayout.HORIZONTAL);
-            content.addView(cards, new LinearLayout.LayoutParams(
+            cardsHost.addView(cards, new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
             for (int g = 0; g < GROUPS.length; g++) {
                 final int type = GROUPS[g][0];
@@ -156,8 +165,9 @@ public class ImportPickerDialog {
                 }
                 cards.addView(buildCategoryCard(context, g, count, density, accent,
                         textMain, cardBg, type == expandedType, v -> {
-                            // v609：单展开位——点新卡切换到新卡，点同卡收起
-                            expandedType = (expandedType == type) ? -1 : type;
+                            // v610：单展开位——必须始终有一个分类展开
+                            // （点已展开卡不再收起，避免下方出现大空缺）
+                            expandedType = type;
                             redrawRef[0].run();
                         }));
             }
@@ -425,7 +435,9 @@ public class ImportPickerDialog {
                                    EditText search, TextView status) {
         // v609：二级菜单里隐藏搜索框和"发现 N 项"提示
         search.setVisibility(View.GONE);
-        status.setVisibility(View.GONE);
+        status.setVisibility(View.GONE);        if (cardsHostView != null) {
+            cardsHostView.setVisibility(View.GONE);
+        }
         content.removeAllViews();
 
         LinearLayout head = new LinearLayout(context);
@@ -488,7 +500,29 @@ public class ImportPickerDialog {
                     c.levelInfo, textMain, textSub, density), textMain, textSub, cardBg, density));
         }
 
-        // ---- 包：清单文件信息（当前子包视图，默认第一个） ----
+        // ---- 包：清单文件信息（主清单：单包=mainManifest，多包=第一个） ----
+        if (c.type != GlobalImportScanner.TYPE_WORLD
+                && c.type != GlobalImportScanner.TYPE_STRUCTURE) {
+            GlobalImportScanner.SubManifest main = c.mainManifest;
+            if (main == null && c.subManifests != null && !c.subManifests.isEmpty()) {
+                main = c.subManifests.get(0);
+            }
+            if (main != null) {
+                List<String> rows = new ArrayList<>();
+                rows.add("名称：" + main.name);
+                if (!main.version.isEmpty()) {
+                    rows.add("版本：v" + main.version);
+                }
+                rows.add("类型：" + (main.isBehavior() ? "行为包（BP）" : "资源包（RP）"));
+                if (!main.description.isEmpty()) {
+                    rows.add("描述：" + main.description);
+                }
+                content.addView(buildInfoCard(context, "清单文件（manifest.json）",
+                        rows.toArray(new String[0]), textMain, textSub, cardBg, density));
+            }
+        }
+
+        // ---- 包：多包子包列表（仅 mcaddon） ----
         if (c.subManifests != null && !c.subManifests.isEmpty()) {
             // 子包分区：bp/rp 列表可点击切换详情
             LinearLayout subCard = new LinearLayout(context);
@@ -548,7 +582,9 @@ public class ImportPickerDialog {
         AccentStyler.stylePrimary(context, backBtn);
         backBtn.setOnClickListener(v -> {
             search.setVisibility(View.VISIBLE);
-            status.setVisibility(View.VISIBLE);
+            status.setVisibility(View.VISIBLE);        if (cardsHostView != null) {
+            cardsHostView.setVisibility(View.VISIBLE);
+        }
             back.run();
         });
 
@@ -579,7 +615,9 @@ public class ImportPickerDialog {
                                       Listener listener, Dialog dialog, Runnable back,
                                       EditText search, TextView status) {
         search.setVisibility(View.GONE);
-        status.setVisibility(View.GONE);
+        status.setVisibility(View.GONE);        if (cardsHostView != null) {
+            cardsHostView.setVisibility(View.GONE);
+        }
         content.removeAllViews();
 
         LinearLayout head = new LinearLayout(context);
@@ -646,7 +684,9 @@ public class ImportPickerDialog {
         AccentStyler.stylePrimary(context, backBtn);
         backBtn.setOnClickListener(v -> {
             search.setVisibility(View.VISIBLE);
-            status.setVisibility(View.VISIBLE);
+            status.setVisibility(View.VISIBLE);        if (cardsHostView != null) {
+            cardsHostView.setVisibility(View.VISIBLE);
+        }
             back.run();
         });
 

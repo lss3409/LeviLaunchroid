@@ -43,8 +43,10 @@ public final class GlobalImportScanner {
         public String path;
         /** pack_icon.png 原始字节（可能为 null，UI 用默认图标）。 */
         public byte[] icon;
-        /** v606：zip 内包含的子包（多包压缩包明细，二级菜单跳转用）。 */
+        /** v606：zip 内包含的子包（仅 mcaddon 多包，二级菜单跳转用）。 */
         public List<SubManifest> subManifests;
+        /** v610：主清单信息（单包时的清单文件信息，二级菜单显示）。 */
+        public SubManifest mainManifest;
         /** v609：存档 level.dat 解析出的有用信息（二级菜单显示）。 */
         public LevelInfo levelInfo;
 
@@ -261,23 +263,26 @@ public final class GlobalImportScanner {
     private static Candidate checkZipPack(File f) {
         // v609：内容校验——manifest.json 缺失的排除（防止伪装后缀）
         Candidate c = new Candidate();
-        c.type = f.getName().toLowerCase(Locale.US).endsWith(".mcaddon")
-                ? TYPE_BEHAVIOR : TYPE_RESOURCE;
+        boolean isAddon = f.getName().toLowerCase(Locale.US).endsWith(".mcaddon");
+        c.type = isAddon ? TYPE_BEHAVIOR : TYPE_RESOURCE;
         c.name = stripExt(f.getName());
         c.file = f;
         c.size = f.length();
         c.path = f.getAbsolutePath();
-        if (!fillZipPackMeta(f, c)) {
+        // v610：bp/rp 子包收集是 mcaddon 独有——mcpack 只读单清单
+        if (!fillZipPackMeta(f, c, isAddon)) {
             return null;
         }
         return c;
     }
 
     /**
-     * v609：解析包 zip 内全部 manifest（多包 addon 的 bp/rp 子包收集），
+     * v609：解析包 zip 内 manifest。
+     * v610：仅 mcaddon 收集多包（bp/rp 子包）；mcpack 只取单个清单
+     * （资源包 zip 里多 manifest 是嵌套依赖目录，不是子包）。
      * 返回是否至少含一个 manifest（缺失即伪包排除）。
      */
-    private static boolean fillZipPackMeta(File f, Candidate c) {
+    private static boolean fillZipPackMeta(File f, Candidate c, boolean collectSubs) {
         try (ZipFile zf = new ZipFile(f)) {
             List<SubManifest> subs = new ArrayList<>();
             java.util.Enumeration<? extends ZipEntry> en = zf.entries();
@@ -319,26 +324,29 @@ public final class GlobalImportScanner {
                     if (!sm.name.isEmpty() || sm.type != null) {
                         subs.add(sm);
                     }
+                    // v610：mcpack 只取第一个清单
+                    if (!collectSubs) {
+                        break;
+                    }
                 } catch (Throwable ignored) {
                 }
             }
             if (subs.isEmpty()) {
                 return false;
             }
-            c.subManifests = subs;
             SubManifest first = subs.get(0);
+            // v610：多包才保留子包列表（单清单不显示子包分区）；
+            // 主清单信息始终保存给二级菜单
+            c.subManifests = subs.size() > 1 ? subs : null;
+            c.mainManifest = first;
             if (c.name.isEmpty() || c.name.equals(stripExt(f.getName()))) {
                 c.name = first.name.isEmpty() ? stripExt(f.getName()) : first.name;
             }
             if (c.version.isEmpty()) {
                 c.version = first.version;
             }
-            // 含行为包子包时类型定行为包
-            for (SubManifest sm : subs) {
-                if (sm.isBehavior()) {
-                    c.type = TYPE_BEHAVIOR;
-                    break;
-                }
+            if (first.isBehavior()) {
+                c.type = TYPE_BEHAVIOR;
             }
             ZipEntry icon = findEntry(zf, "pack_icon.png");
             if (icon != null) {
