@@ -89,6 +89,9 @@ public final class BackupListDialog extends Dialog {
         LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(20), dp(16), dp(20), dp(14));
+        // v570.1：与 CustomAlertDialog 一致的不透明弹窗背景（LeviDialogTheme
+        // 窗口透明，之前无背景容器导致菜单全透明）
+        root.setBackground(context.getDrawable(R.drawable.bg_rounded_card));
 
         titleView = new TextView(context);
         titleView.setText(zh ? "导入实例备份" : "Import Instance Backup");
@@ -304,7 +307,7 @@ public final class BackupListDialog extends Dialog {
         LinearLayout row = new LinearLayout(context);
         row.setOrientation(LinearLayout.VERTICAL);
         row.setPadding(dp(14), dp(12), dp(14), dp(12));
-        row.setBackground(roundBg(0x14FFFFFF));
+        row.setBackground(roundBg(context.getColor(R.color.surface_high)));
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         rp.bottomMargin = dp(8);
@@ -363,7 +366,7 @@ public final class BackupListDialog extends Dialog {
         LinearLayout infoCard = new LinearLayout(context);
         infoCard.setOrientation(LinearLayout.VERTICAL);
         infoCard.setPadding(dp(14), dp(10), dp(14), dp(10));
-        infoCard.setBackground(roundBg(0x14FFFFFF));
+        infoCard.setBackground(roundBg(context.getColor(R.color.surface_high)));
         InstanceBackupManager.BackupManifest m = info.manifest;
         if (m == null) {
             infoCard.addView(kvRow(zh ? "状态" : "Status", zh ? "无法解析（文件损坏或非备份）"
@@ -383,7 +386,7 @@ public final class BackupListDialog extends Dialog {
         LinearLayout resCard = new LinearLayout(context);
         resCard.setOrientation(LinearLayout.VERTICAL);
         resCard.setPadding(dp(14), dp(10), dp(14), dp(10));
-        resCard.setBackground(roundBg(0x14FFFFFF));
+        resCard.setBackground(roundBg(context.getColor(R.color.surface_high)));
         resCard.addView(kvRow(zh ? "资源包（.mcpack/.mcaddon）" : "Resource packs",
                 String.valueOf(info.resourcePackCount)));
         resCard.addView(kvRow(zh ? "行为包" : "Behavior packs",
@@ -397,7 +400,7 @@ public final class BackupListDialog extends Dialog {
         LinearLayout playerCard = new LinearLayout(context);
         playerCard.setOrientation(LinearLayout.VERTICAL);
         playerCard.setPadding(dp(14), dp(10), dp(14), dp(10));
-        playerCard.setBackground(roundBg(0x14FFFFFF));
+        playerCard.setBackground(roundBg(context.getColor(R.color.surface_high)));
         playerCard.addView(kvRow(zh ? "Xbox 名字" : "Xbox gamertag",
                 emptyToDash(info.gamerTag)));
         playerCard.addView(kvRow(zh ? "XUID" : "XUID", emptyToDash(info.xuid)));
