@@ -131,6 +131,8 @@ public final class EasyTierVpnService extends VpnService {
             Log.i(TAG, "setTunFd(" + instance + ") = " + rc + " ip=" + ipv4);
             if (rc != 0) {
                 Log.e(TAG, "setTunFd 失败: " + EasyTierJNI.getLastError());
+                org.levimc.launcher.util.OnlineDebugLog.log("setTunFd 失败 rc=" + rc
+                        + ": " + EasyTierJNI.getLastError());
                 stopSelf();
                 return;
             }
@@ -173,6 +175,8 @@ public final class EasyTierVpnService extends VpnService {
             }
         } catch (Throwable t) {
             Log.e(TAG, "TUN 设置失败", t);
+            org.levimc.launcher.util.OnlineDebugLog.log("runTun 异常: "
+                    + t.getClass().getSimpleName() + " " + t.getMessage());
             stopSelf();
         } finally {
             running = false;
@@ -232,27 +236,35 @@ public final class EasyTierVpnService extends VpnService {
                 + " cidrs=" + java.util.Arrays.toString(cidrs)
                 + " + 兜底 10.144.0.0/16,10.126.126.0/24");
         try {
-            return builder.establish();
+            ParcelFileDescriptor fd = builder.establish();
+            if (fd == null) {
+                // v567：区分失败原因——establish 返回 null 通常是系统拒绝
+                // （无 VPN 授权/ZUI 上层拦截），写文件日志（logcat 会冻结）
+                org.levimc.launcher.util.OnlineDebugLog.log("TUN establish 返回 null（无授权或被系统拦截）");
+            }
+            return fd;
         } catch (Throwable t) {
             Log.e(TAG, "establish 异常", t);
+            org.levimc.launcher.util.OnlineDebugLog.log("TUN establish 异常: "
+                    + t.getClass().getSimpleName() + " " + t.getMessage());
             return null;
         }
     }
 
-    /** TUN 接口是否存在（/proc/net/dev 含 tun 行）。 */
+    /** TUN 接口是否存在（VpnService 的 tunN；tunl0 等内核隧道不算）。 */
     private boolean tunExists() {
         try {
-            java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader("/proc/net/dev"));
-            String line;
-            while ((line = r.readLine()) != null) {
-                // v566：精确匹配 tunN:——contains("tun") 会匹配内核 tunl0
-                // 隧道设备，VPN 被吊销后看门狗误判健康不重建（房主失联根因）
-                if (line.matches("\\s*tun[0-9]+:.*")) {
-                    r.close();
+            // v567：不用 /proc/net/dev——SELinux 拒绝 untrusted_app 读
+            // proc_net（avc denied 实测），且 contains("tun") 会误匹配
+            // 内核 tunl0 隧道设备导致看门狗失明（v566 教训）
+            java.util.Enumeration<java.net.NetworkInterface> ifs =
+                    java.net.NetworkInterface.getNetworkInterfaces();
+            while (ifs.hasMoreElements()) {
+                String n = ifs.nextElement().getName();
+                if (n.matches("tun[0-9]{1,2}")) {
                     return true;
                 }
             }
-            r.close();
             return false;
         } catch (Exception e) {
             // 读不到就当健康，避免误判重建

@@ -412,22 +412,20 @@ public final class EasyTierManager {
         t.start();
     }
 
-    /** TUN 接口是否存在（/proc/net/dev 含 tun 行）。 */
+    /** TUN 接口是否存在（VpnService 的 tunN；tunl0 等内核隧道不算）。 */
     private static boolean tunExists() {
         try {
-            java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader("/proc/net/dev"));
-            String line;
-            while ((line = r.readLine()) != null) {
-                // v566：必须精确匹配 tunN:（VpnService 接口名）——contains("tun")
-                // 会匹配内核自带 tunl0 隧道设备，导致 VPN 被系统杀掉后看门狗
-                // 误判健康永不重拉，房间中心永久失联（异地"未找到房主"的
-                // 根因之一：平板 VPN 死亡无人救，成员握手必然超时）。
-                if (line.matches("\\s*tun[0-9]+:.*")) {
-                    r.close();
+            // v567：不用 /proc/net/dev——SELinux 拒绝 untrusted_app 读
+            // proc_net（avc denied 实测），且 contains("tun") 会误匹配
+            // 内核 tunl0 隧道设备导致看门狗失明（v566 教训）
+            java.util.Enumeration<java.net.NetworkInterface> ifs =
+                    java.net.NetworkInterface.getNetworkInterfaces();
+            while (ifs.hasMoreElements()) {
+                String n = ifs.nextElement().getName();
+                if (n.matches("tun[0-9]{1,2}")) {
                     return true;
                 }
             }
-            r.close();
             return false;
         } catch (Exception e) {
             return true; // 读不到就当健康，避免误拉
