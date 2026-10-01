@@ -729,6 +729,12 @@ public final class RoomCenter {
                                     int port = iq.optInt("port", 19132);
                                     if (!hip.isEmpty()) {
                                         Log.i(TAG, "收到房主世界邀请: " + hip + ":" + port);
+                                        // v630：文件日志定位深链链路断点
+                                        org.levimc.launcher.util.OnlineDebugLog.log(
+                                                "成员收到房主世界邀请: " + hip + ":" + port
+                                                        + " 游戏运行中=" + org.levimc.launcher
+                                                        .core.minecraft.MinecraftActivityState
+                                                        .isRunning());
                                         for (Listener lst : listeners) {
                                             try {
                                                 lst.onInvite(hip, port);

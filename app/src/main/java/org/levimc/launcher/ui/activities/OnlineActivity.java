@@ -604,6 +604,8 @@ public final class OnlineActivity extends BaseActivity
                 intent.setAction(Intent.ACTION_VIEW);
                 intent.setData(Uri.parse(url));
                 startActivity(intent);
+                org.levimc.launcher.util.OnlineDebugLog.log(
+                        "onInvite: 游戏未运行，已发深链 IntentHandler: " + url);
                 Toast.makeText(this, "房主邀请进入世界，正在连接…",
                         Toast.LENGTH_SHORT).show();
             } catch (Exception e) {
