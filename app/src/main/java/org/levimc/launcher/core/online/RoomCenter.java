@@ -233,9 +233,17 @@ public final class RoomCenter {
     private static void hostLoop() {
         byte[] buf = new byte[4096];
         DatagramPacket p = new DatagramPacket(buf, buf.length);
+        // v565：房主收到任意成员包写文件日志（异地排查：区分"成员没发/
+        // 发了没到/房主没收到"三选一）
+        boolean hostFirstPacket = true;
         while (hostRunning) {
             try {
                 hostSocket.receive(p);
+                if (hostFirstPacket) {
+                    hostFirstPacket = false;
+                    org.levimc.launcher.util.OnlineDebugLog.log("房主收到首个成员包: "
+                            + p.getAddress().getHostAddress() + ":" + p.getPort());
+                }
                 String req = new String(p.getData(), 0, p.getLength(), "UTF-8");
                 int sep = req.indexOf('\0');
                 if (sep < 0) {
@@ -666,6 +674,9 @@ public final class RoomCenter {
                 }, "room-client-recv");
                 receiver.setDaemon(true);
                 receiver.start();
+                // v565：心跳发送计数——每 10 次写文件日志（异地排查：
+                // 若计数增长但房主端无"收到首个包"，说明包在虚拟网络内丢失）
+                int heartbeatSent = 0;
                 while (clientRunning) {
                     try {
                         long t0 = System.currentTimeMillis();
@@ -692,6 +703,12 @@ public final class RoomCenter {
                         byte[] out2 = hb.getBytes("UTF-8");
                         s.send(new DatagramPacket(out2, out2.length, target));
                     } catch (Exception ignored) {
+                    }
+                    heartbeatSent++;
+                    if (heartbeatSent % 10 == 0) {
+                        org.levimc.launcher.util.OnlineDebugLog.log("成员已发心跳 "
+                                + heartbeatSent + " 次 → " + target.getAddress().getHostAddress()
+                                + ":" + target.getPort());
                     }
                     // v534：kick 机制——状态变更时提前结束等待立即发心跳
                     try {

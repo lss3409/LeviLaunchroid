@@ -243,8 +243,13 @@ public final class OnlineActivity extends BaseActivity
                     peers.add(p);
                 }
             }
-            runOnUiThread(() -> EasyTierManager.get().join(this,
-                    parsed.networkName, parsed.networkSecret, this, peers));
+            runOnUiThread(() -> {
+                // v565：成员固定虚拟 IP（dhcp=false），不再让 DHCP 从房主网段分地址
+                String memberIp = EasyTierManager.memberIpv4For(PlayerIdentity.getClientId(this));
+                org.levimc.launcher.util.OnlineDebugLog.log("成员固定虚拟IP: " + memberIp);
+                EasyTierManager.get().join(this,
+                        parsed.networkName, parsed.networkSecret, this, peers, memberIp);
+            });
         }, "debug-join").start();
     }
 
@@ -874,8 +879,11 @@ public final class OnlineActivity extends BaseActivity
                     return;
                 }
                 setStepState(2, true);
+                // v565：成员固定虚拟 IP（dhcp=false），不再让 DHCP 从房主网段分地址
+                String memberIp = EasyTierManager.memberIpv4For(PlayerIdentity.getClientId(this));
+                org.levimc.launcher.util.OnlineDebugLog.log("成员固定虚拟IP: " + memberIp);
                 EasyTierManager.get().join(this, parsed.networkName, parsed.networkSecret,
-                        this, peers);
+                        this, peers, memberIp);
             });
         }, "lan-discover").start();
     }

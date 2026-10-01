@@ -75,6 +75,8 @@ public final class EasyTierManager {
      *  异地经中转时房主 DHCP 拿到的 IP 不一定是 10.144.144.144——成员端
      *  写死该 IP 会导致心跳连不上（双方都只显示 1 人）。 */
     private volatile String hostVirtualIp;
+    /** v565：peer 路由表签名（变化时才写文件日志，避免刷爆）。 */
+    private volatile String lastPeerSig = "";
     private Context appContext;
     private Listener listener;
 
@@ -106,16 +108,44 @@ public final class EasyTierManager {
 
     /** 加入网络。调用前必须已完成 VpnService.prepare 授权（由 Activity 把关）。 */
     public void join(Context ctx, String networkName, String networkSecret, Listener l) {
-        join(ctx, networkName, networkSecret, l, null);
+        join(ctx, networkName, networkSecret, l, null, null);
     }
 
     /** 加入网络。extraPeers 为附加的直连 peer（局域网/自建中转，如 tcp://192.168.1.2:11010）。 */
     public void join(Context ctx, String networkName, String networkSecret, Listener l,
                      java.util.List<String> extraPeers) {
-        start(ctx, networkName, networkSecret, l, extraPeers, null);
+        join(ctx, networkName, networkSecret, l, extraPeers, null);
     }
 
-    /** 创建房间（房主）：固定虚拟 IP + DHCP 关闭，成员 dhcp 以本机 IP 为网段基准分配。 */
+    /**
+     * 加入网络（v565）：memberIpv4 为成员固定虚拟 IP（含前缀，如 10.144.5.2/24）。
+     * 传 null 则回退 DHCP 分配。固定 IP 的原因：EasyTier 的 DHCP 是从路由表
+     * 第一个 peer 的网段里挑地址——成员通常分到房主网段（10.144.144.x），
+     * 目标 IP 落在本机 TUN 的 connected 网段内时内核走邻居解析（虚拟网卡
+     * 无 ARP 应答）包被丢弃，心跳发不出去——异地"未找到房主"/只显示
+     * 1 人的根因。分到异网段时走 via 路由则正常，所以随机性极强。
+     */
+    public void join(Context ctx, String networkName, String networkSecret, Listener l,
+                     java.util.List<String> extraPeers, String memberIpv4) {
+        start(ctx, networkName, networkSecret, l, extraPeers, memberIpv4, false);
+    }
+
+    /**
+     * v565：成员固定虚拟 IP 派生——按 clientId hash 取 10.144.X.Y/24，
+     * X 跳过 144（房主网段），保证成员与房主永远不同网段、同网段成员
+     * 间 IP 也不同（Y 亦 hash）。同设备同版本 clientId 不变，IP 稳定。
+     */
+    public static String memberIpv4For(String clientId) {
+        int h = clientId == null ? 0 : clientId.hashCode();
+        int x = 2 + Math.floorMod(h, 251);      // 2..252
+        if (x >= 144) {
+            x++;                                // 跳过房主网段 144 → 2..253 共 250 个网段
+        }
+        int y = 2 + Math.floorMod(h >>> 8, 250); // .2..251
+        return "10.144." + x + "." + y + "/24";
+    }
+
+    /** 创建房间（房主）：固定虚拟 IP + DHCP 关闭。 */
     public void host(Context ctx, String networkName, String networkSecret, Listener l,
                      String fixedIpv4) {
         host(ctx, networkName, networkSecret, l, fixedIpv4, null);
@@ -124,11 +154,11 @@ public final class EasyTierManager {
     /** 创建房间，extraPeers 合并中转服务器（房主也必须连中转，否则成员经中转找不到房主）。 */
     public void host(Context ctx, String networkName, String networkSecret, Listener l,
                      String fixedIpv4, java.util.List<String> extraPeers) {
-        start(ctx, networkName, networkSecret, l, extraPeers, fixedIpv4);
+        start(ctx, networkName, networkSecret, l, extraPeers, fixedIpv4, true);
     }
 
     private void start(Context ctx, String networkName, String networkSecret, Listener l,
-                       java.util.List<String> extraPeers, String fixedIpv4) {
+                       java.util.List<String> extraPeers, String fixedIpv4, boolean isHost) {
         synchronized (lock) {
             stopInternal();
             appContext = ctx.getApplicationContext();
@@ -143,7 +173,7 @@ public final class EasyTierManager {
                     EasyTierJNI.stopAllInstances();
                 } catch (Throwable ignored) {
                 }
-                runStart(networkName, networkSecret, extraPeers, fixedIpv4);
+                runStart(networkName, networkSecret, extraPeers, fixedIpv4, isHost);
             }, "easytier-mgr");
             worker.setDaemon(true);
             worker.start();
@@ -151,21 +181,29 @@ public final class EasyTierManager {
     }
 
     private void runStart(String networkName, String networkSecret,
-                          java.util.List<String> extraPeers, String fixedIpv4) {
-        // dhcp=true：IP 由网络内其他节点（房主固定 IP）决定网段后自动分配；
-        // 单机（无对端）时 EasyTier 不分配虚拟 IP，60s 后提示超时属预期。
-        // fixedIpv4 != null = 房主模式（dhcp=false + 固定虚拟 IP）。
+                          java.util.List<String> extraPeers, String fixedIpv4, boolean isHost) {
+        // fixedIpv4 != null = 固定虚拟 IP 模式（dhcp=false）：
+        //   isHost=true → 房主（带协议主机名，成员 RPC 匹配 paper-connect-server-* 发现房间中心）；
+        //   isHost=false → 成员固定派生 IP（v565：不再 DHCP——DHCP 会从房主
+        //   网段分地址导致内核邻居解析死路，心跳发不出去）。
+        // 单机（无对端）时 DHCP 不分配虚拟 IP，60s 后提示超时属预期。
         // 注意：EasyTier 官方公共节点已于 2026-05 全部下线（GitHub #2242，
         // 维护者确认"官方已经不提供公共节点了"）——组网必须靠直连 peer
         // （局域网自动发现/自建中转）。
+        String ipv4Line = "";
+        if (fixedIpv4 != null) {
+            // v565：CIDR 原样使用（成员固定 IP 自带 /24；房主传纯 IP 时补 /24，
+            // 纯 IP 可能被内核忽略导致 dhcp 生效、IP 随机分配——v561 教训）
+            ipv4Line = "ipv4 = \"" + (fixedIpv4.contains("/") ? fixedIpv4 : fixedIpv4 + "/24")
+                    + "\"\n";
+            org.levimc.launcher.util.OnlineDebugLog.log("组网固定IP模式: " + ipv4Line.trim()
+                    + (isHost ? "（房主）" : "（成员）"));
+        }
         String toml = "instance_name = \"" + INSTANCE_NAME + "\"\n"
                 + "dhcp = " + (fixedIpv4 == null ? "true" : "false") + "\n"
-                // v561：ipv4 用 CIDR 格式（EasyTier 2.6 配置规范；纯 IP 可能被
-                // 内核忽略导致 dhcp 生效、房主 IP 随机分配——成员端写死
-                // 10.144.144.144 连不上，异地"只显示 1 人"的根因之一）
-                + (fixedIpv4 != null ? "ipv4 = \"" + fixedIpv4 + "/24\"\n" : "")
+                + ipv4Line
                 // 房主节点带协议主机名，房客 RPC 匹配 paper-connect-server-* 发现房间中心
-                + (fixedIpv4 != null
+                + (isHost
                         ? "hostname = \"paper-connect-server-" + ROOM_CENTER_PORT + "\"\n" : "")
                 + "log_level = \"info\"\n"
                 // Android 内核默认不监听 11010（poll listeners 只有 ring://），
@@ -485,6 +523,42 @@ public final class EasyTierManager {
             }
             Log.i(TAG, "poll: running=" + info.running + " ip=" + info.virtualIp
                     + " cidrs=" + info.cidrs + " err=" + info.errorMsg);
+            // v565：peer 路由表变化时写文件日志（下次异地测试可直接判断
+            // 两端 EasyTier 是否真正看到对方、是 P2P 还是中继）
+            if (prp != null) {
+                java.util.List<String> sigs = new java.util.ArrayList<>();
+                for (int i = 0; i < prp.length(); i++) {
+                    JSONObject pair = prp.optJSONObject(i);
+                    if (pair == null) {
+                        continue;
+                    }
+                    JSONObject rt = pair.optJSONObject("route");
+                    JSONObject pr = pair.optJSONObject("peer");
+                    String hn = rt == null ? "" : rt.optString("hostname", "");
+                    String ip = "";
+                    if (rt != null) {
+                        JSONObject ipa = rt.optJSONObject("ipv4_addr");
+                        JSONObject adr = ipa == null ? null : ipa.optJSONObject("address");
+                        if (adr != null) {
+                            long a = adr.optLong("addr", -1);
+                            if (a > 0 && a <= 0xFFFFFFFFL) {
+                                ip = ((a >> 24) & 0xFF) + "." + ((a >> 16) & 0xFF)
+                                        + "." + ((a >> 8) & 0xFF) + "." + (a & 0xFF);
+                            }
+                        }
+                    }
+                    boolean p2p = pr != null
+                            && pr.optJSONArray("directly_connected_conns") != null
+                            && pr.optJSONArray("directly_connected_conns").length() > 0;
+                    sigs.add(hn + "|" + ip + "|" + (p2p ? "p2p" : "relay"));
+                }
+                java.util.Collections.sort(sigs);
+                String sig = sigs.toString();
+                if (!sig.equals(lastPeerSig)) {
+                    lastPeerSig = sig;
+                    org.levimc.launcher.util.OnlineDebugLog.log("peer 路由表变化: " + sig);
+                }
+            }
             return info;
         } catch (Throwable t) {
             Log.w(TAG, "解析网络信息失败", t);
