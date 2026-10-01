@@ -102,12 +102,19 @@ public class ImportPickerDialog {
             }
         });
 
-        TextView fromFiles = new TextView(context);
+        // v604：按钮按弹窗系统规范——MaterialButton + 个性化强调色
+        com.google.android.material.button.MaterialButton fromFiles =
+                new com.google.android.material.button.MaterialButton(
+                        context, null, com.google.android.material.button
+                                .MaterialButton.ICON_GRAVITY_TEXT_START);
         fromFiles.setText("📂 从文件管理器选择");
-        fromFiles.setTextColor(context.getColor(R.color.primary));
+        fromFiles.setTextAllCaps(false);
         fromFiles.setTextSize(13);
-        fromFiles.setGravity(Gravity.CENTER);
-        fromFiles.setPadding(0, (int) (14 * density), 0, 0);
+        LinearLayout.LayoutParams fbp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, (int) (42 * density));
+        fbp.topMargin = (int) (12 * density);
+        fromFiles.setLayoutParams(fbp);
+        org.levimc.launcher.util.AccentStyler.styleSecondary(context, fromFiles);
         fromFiles.setOnClickListener(v -> {
             dialog.dismiss();
             if (listener != null) {
@@ -120,15 +127,13 @@ public class ImportPickerDialog {
         Window w = dialog.getWindow();
         if (w != null) {
             w.setBackgroundDrawableResource(android.R.color.transparent);
-            // 限高：屏幕 80%，超出部分滚动
-            int maxH = (int) (context.getResources().getDisplayMetrics().heightPixels * 0.8f);
-            int maxW = (int) (context.getResources().getDisplayMetrics().widthPixels * 0.92f);
-            w.setLayout(maxW, ViewGroup.LayoutParams.WRAP_CONTENT);
-            root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
-                if (root.getHeight() > maxH) {
-                    LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) root.getLayoutParams();
-                    lp.height = maxH;
-                    root.setLayoutParams(lp);
+            // v604：弹窗比例/限高走 DialogSizer（与备份菜单/详情卡同规范）
+            int width = org.levimc.launcher.util.DialogSizer.dialogWidth(context, 500);
+            final int maxHeight = org.levimc.launcher.util.DialogSizer.dialogMaxHeight(context);
+            w.setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT);
+            root.post(() -> {
+                if (root.getHeight() > maxHeight) {
+                    w.setLayout(width, maxHeight);
                 }
             });
         }

@@ -88,36 +88,28 @@ public final class GlobalImportScanner {
         List<Candidate> out = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         File sd = Environment.getExternalStorageDirectory();
-
-        // 常见下载/接收目录（Android/data 各应用下载目录在
-        // MANAGE_EXTERNAL_STORAGE 权限下可读）
-        String[] dirs = {
-                "Download", "Documents", "DCIM", "Pictures", "Bluetooth",
-                "Android/data/com.tencent.mobileqq/Tencent/QQfile_recv",
-                "Android/data/com.tencent.mm/MicroMsg/Download",
-                "Android/data/tv.danmaku.bili/download",
-                "Android/data/com.alicloud.databox/download",
-        };
-        for (String d : dirs) {
-            File dir = new File(sd, d);
-            if (dir.isDirectory()) {
-                if (listener != null) {
-                    listener.onProgress(dir.getAbsolutePath());
-                }
-                scanDir(dir, 3, out, seen, false);
-            }
-        }
-        // 根目录浅扫一层（用户直接放根目录的文件）
+        // v604：全盘扫描（用户明确要求，不设目录白名单）——仅跳过
+        // 缓存/缩略图类目录与自己的数据目录，深度上限保护
         if (listener != null) {
             listener.onProgress(sd.getAbsolutePath());
         }
-        scanDir(sd, 1, out, seen, true);
+        scanDir(sd, 12, out, seen, listener);
         return out;
     }
 
     private static void scanDir(File dir, int depth, List<Candidate> out,
-                                Set<String> seen, boolean skipSubdirs) {
+                                Set<String> seen, Listener listener) {
         if (depth <= 0 || dir == null || !dir.isDirectory()) {
+            return;
+        }
+        String dn = dir.getName();
+        if (dn.equals(".thumbnails") || dn.equals("cache") || dn.equals("Cache")
+                || dn.equals(".cache") || dn.equals("tmp") || dn.equals("temp")) {
+            return;
+        }
+        // 跳过启动器自身与游戏目录（里面的包会被误扫）
+        String path = dir.getAbsolutePath();
+        if (path.contains("org.levimc.launcher") || path.contains("com.mojang")) {
             return;
         }
         File[] files = dir.listFiles();
@@ -137,9 +129,7 @@ public final class GlobalImportScanner {
                         out.add(c);
                         continue; // 命中后不再深挖其内部
                     }
-                    if (!skipSubdirs) {
-                        scanDir(f, depth - 1, out, seen, false);
-                    }
+                    scanDir(f, depth - 1, out, seen, listener);
                 } else if (f.isFile()) {
                     if (name.endsWith(".mcworld")) {
                         Candidate c = checkZipWorld(f);
