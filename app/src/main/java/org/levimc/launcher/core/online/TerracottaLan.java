@@ -43,7 +43,9 @@ public final class TerracottaLan {
 
     // ---------------- 房主侧：组播公告 ----------------
 
-    /** 房主开公告：对本机所有地址（含 TUN）组播发 MOTD/AD。 */
+    /** 房主开公告：对 TUN 虚拟网地址组播发 MOTD/AD（源 IP 固定为虚拟网 IP，
+     * 成员端收到后点连接直接走 EasyTier 虚拟网；回环禁用，房主自己的
+     * 游戏客户端不再看到自己的公告——v618 平板好友页刷屏 LAN World 的根因）。 */
     public static synchronized void startAnnounce(String motd) {
         stopAnnounce();
         if (motd != null && !motd.isEmpty()) {
@@ -51,24 +53,54 @@ public final class TerracottaLan {
         }
         announcing = true;
         Thread t = new Thread(() -> {
-            List<DatagramSocket> sockets = new ArrayList<>();
-            // 本机所有接口地址（含 tun0 虚拟网 IP）
-            for (InetAddress addr : localAddresses()) {
+            List<MulticastSocket> sockets = new ArrayList<>();
+            // 只从 TUN 虚拟网地址发（源 IP = 虚拟网 IP）；组网未就绪时
+            // 轮询等虚拟 IP 分配（最多 60s），超时才回退默认路由（同网 LAN 兜底）
+            InetAddress tunAddr = null;
+            for (int waited = 0; waited < 60_000 && announcing; waited += 1000) {
                 try {
-                    DatagramSocket s = new DatagramSocket(null);
-                    s.setReuseAddress(true);
-                    s.bind(new InetSocketAddress(addr, 0));
-                    if (addr.getAddress().length == 4) {
-                        s.setBroadcast(true);
+                    String vip = EasyTierManager.get().getVirtualIp();
+                    if (vip != null && !vip.isEmpty()) {
+                        tunAddr = InetAddress.getByName(vip);
+                        break;
                     }
-                    sockets.add(s);
-                } catch (Exception e) {
-                    Log.w(TAG, "公告 socket 绑定失败: " + addr, e);
+                } catch (Exception ignored) {
+                }
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    return;
                 }
             }
-            Log.i(TAG, "组播公告已启动，socket 数=" + sockets.size()
-                    + " 地址=" + localAddresses());
-            InetAddress group = InetAddress.getByName(GROUP_V4);
+            try {
+                MulticastSocket s = new MulticastSocket(null);
+                s.setReuseAddress(true);
+                if (tunAddr != null) {
+                    s.bind(new InetSocketAddress(tunAddr, 0));
+                } else {
+                    s.bind(new InetSocketAddress(0));
+                }
+                s.setLoopbackMode(true); // v619：禁用回环，防本机客户端刷屏
+                s.setTimeToLive(4);
+                sockets.add(s);
+                org.levimc.launcher.util.OnlineDebugLog.log(
+                        "TerracottaLan: 组播公告已启动，源地址="
+                                + (tunAddr != null ? tunAddr.getHostAddress() : "默认路由")
+                                + "，回环已禁用");
+            } catch (Exception e) {
+                Log.w(TAG, "公告 socket 绑定失败", e);
+                announcing = false;
+                return;
+            }
+            Log.i(TAG, "组播公告已启动，socket 数=" + sockets.size());
+            InetAddress group;
+            try {
+                group = InetAddress.getByName(GROUP_V4);
+            } catch (Exception e) {
+                Log.e(TAG, "组播地址解析失败", e);
+                announcing = false;
+                return;
+            }
             while (announcing) {
                 int port = LanRelayBridge.getLearnedWorldPort();
                 if (port > 0) {
@@ -86,7 +118,7 @@ public final class TerracottaLan {
                 String msg = "[MOTD]" + lastMotd + "[/MOTD][AD]"
                         + lastGamePort + "[/AD]";
                 byte[] data = msg.getBytes(StandardCharsets.UTF_8);
-                for (DatagramSocket s : sockets) {
+                for (MulticastSocket s : sockets) {
                     try {
                         s.send(new DatagramPacket(data, data.length, group, PORT));
                     } catch (Exception ignored) {
@@ -98,7 +130,7 @@ public final class TerracottaLan {
                     return;
                 }
             }
-            for (DatagramSocket s : sockets) {
+            for (MulticastSocket s : sockets) {
                 try {
                     s.close();
                 } catch (Exception ignored) {
