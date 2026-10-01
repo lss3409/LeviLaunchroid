@@ -292,13 +292,16 @@ public final class EasyTierVpnService extends VpnService {
         // 10.126.126.0/24（内核 DHCP 默认网段）两边 TUN 都要路由才能互通。
         builder.addRoute("10.144.0.0", 16);
         builder.addRoute("10.126.126.0", 24);
-        // v628：v623 的 224.0.2.60/32 组播路由回退——Android VpnService
-        // 默认不拦截组播/广播（组播永远走真实网络，netd 丢弃 VPN 网络
-        // socket 的组播包），组播进 TUN 不可行；且该路由会劫持游戏客户端
-        // 同网 LAN 发现的组播（v584 同热点原生发现会回归）。
+        // v641：定向广播路由进 TUN——Astral 异地局域网入口的真相（抓包
+        // 实锤：游戏客户端广播 ping 255.255.255.255:19132 匹配 Astral 的
+        // VPN 路由进 TUN，EasyTier 内核 is_all_peers_broadcast_ipv4 把广播
+        // 转发给所有 peer，对端写 TUN 模拟入站广播投递本机世界服务器，
+        // 真 pong 原路回——好友页原生显示异地局域网条目（真世界名）。
+        // 我们的 VPN 此前只路由虚拟网段，广播走真实 WiFi 异地直接丢。
+        builder.addRoute("255.255.255.255", 32);
         org.levimc.launcher.util.OnlineDebugLog.log("TUN 路由: ipv4=" + ipv4
                 + " cidrs=" + java.util.Arrays.toString(cidrs)
-                + " + 兜底 10.144.0.0/16,10.126.126.0/24");
+                + " + 兜底 10.144.0.0/16,10.126.126.0/24,广播 255.255.255.255/32");
         try {
             ParcelFileDescriptor fd = builder.establish();
             if (fd == null) {
