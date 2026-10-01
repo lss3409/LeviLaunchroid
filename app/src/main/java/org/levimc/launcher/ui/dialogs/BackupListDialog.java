@@ -55,10 +55,18 @@ public final class BackupListDialog extends Dialog {
         String gamerTag;
         String xuid;
         String clientId;
-        int resourcePackCount;
-        int behaviorPackCount;
-        int modCount;
         boolean bakedCacheIncluded;
+        /** 三级明细：类型 0=资源包(mcpack) 1=行为包(mcaddon) 2=模组 3=世界存档。 */
+        final List<ResItem> resources = new ArrayList<>();
+        final List<String> worlds = new ArrayList<>();
+    }
+
+    /** 资源明细项（三级菜单数据）。 */
+    private static final class ResItem {
+        int type;
+        String name;
+        byte[] icon;
+        long size;
     }
 
     private final Context context;
@@ -146,7 +154,8 @@ public final class BackupListDialog extends Dialog {
         setContentView(root);
         Window w = getWindow();
         if (w != null) {
-            w.setLayout(DialogSizer.dialogWidth(context, 440),
+            // v570.2：横向放宽（详情键值两列不挤），纵向仍由 DialogSizer 限高
+            w.setLayout(DialogSizer.dialogWidth(context, 500),
                     DialogSizer.dialogMaxHeight(context));
         }
     }
@@ -155,6 +164,7 @@ public final class BackupListDialog extends Dialog {
     @Override
     public void show() {
         super.show();
+        titleView.setText(zh ? "导入实例备份" : "Import Instance Backup");
         if (detailView != null) {
             contentContainer.removeView(detailView);
             detailView = null;
@@ -219,9 +229,12 @@ public final class BackupListDialog extends Dialog {
         }
     }
 
-    /** 详情数据：资源统计 + 玩家登录信息（枚举全部条目，仅在行点击时深读也
-     * 可以，但条目数不多，直接一并解析，行点击即可秒开详情）。 */
+    /** 详情数据：资源/模组/存档/玩家登录信息（枚举全部条目，行点击即可
+     * 秒开详情）。v570.2：分类修正——mcpack=资源包、mcaddon=行为包；
+     * 模组按 mods/ 直接子项计数（不再统计 mod 内部全部文件）；收集
+     * 世界存档名与 pack 图标（三级明细用）。 */
     private void parseContents(BackupInfo info) {
+        java.util.Set<String> modNames = new java.util.HashSet<>();
         try (ZipFile zip = new ZipFile(info.file)) {
             Enumeration<? extends ZipEntry> entries = zip.entries();
             while (entries.hasMoreElements()) {
@@ -235,19 +248,87 @@ public final class BackupListDialog extends Dialog {
                 } else if (n.startsWith("profile/") && n.endsWith("/minecraftpe/clientId.txt")) {
                     parseClientId(zip, e, info);
                 } else if (n.startsWith("profile/") && n.contains("/resource_packs/")
-                        && (n.endsWith(".mcpack") || n.endsWith(".mcaddon"))) {
-                    info.resourcePackCount++;
+                        && n.endsWith(".mcpack")) {
+                    ResItem item = parsePack(zip, e, 0);
+                    if (item != null) {
+                        info.resources.add(item);
+                    }
                 } else if (n.startsWith("profile/") && n.contains("/behavior_packs/")
-                        && (n.endsWith(".mcpack") || n.endsWith(".mcaddon"))) {
-                    info.behaviorPackCount++;
-                } else if (n.startsWith("profile/") && n.contains("/mods/")
-                        && !n.endsWith("/")) {
-                    info.modCount++;
+                        && n.endsWith(".mcaddon")) {
+                    ResItem item = parsePack(zip, e, 1);
+                    if (item != null) {
+                        info.resources.add(item);
+                    }
+                } else if (n.startsWith("profile/") && n.contains("/mods/")) {
+                    String rel = n.substring(n.indexOf("/mods/") + "/mods/".length());
+                    int slash = rel.indexOf('/');
+                    if (slash > 0) {
+                        modNames.add(rel.substring(0, slash));
+                    } else if (rel.endsWith(".zip")) {
+                        modNames.add(rel.substring(0, rel.length() - 4));
+                    }
+                } else if (n.startsWith("profile/") && n.contains("/minecraftWorlds/")) {
+                    String rel = n.substring(n.indexOf("/minecraftWorlds/") + "/minecraftWorlds/".length());
+                    int slash = rel.indexOf('/');
+                    if (slash > 0) {
+                        String world = rel.substring(0, slash);
+                        if (!info.worlds.contains(world)) {
+                            info.worlds.add(world);
+                        }
+                    }
                 } else if (n.startsWith("baked_cache/")) {
                     info.bakedCacheIncluded = true;
                 }
             }
         } catch (Exception ignored) {
+        }
+        for (String mod : modNames) {
+            ResItem item = new ResItem();
+            item.type = 2;
+            item.name = mod;
+            info.resources.add(item);
+        }
+    }
+
+    /** 解析 .mcpack/.mcaddon（内嵌 zip）：manifest 的 name/description/pack_icon。 */
+    private ResItem parsePack(ZipFile zip, ZipEntry e, int type) {
+        try {
+            ResItem item = new ResItem();
+            item.type = type;
+            item.size = e.getSize();
+            try (java.util.zip.ZipInputStream zin = new java.util.zip.ZipInputStream(
+                    zip.getInputStream(e))) {
+                java.util.zip.ZipEntry inner;
+                while ((inner = zin.getNextEntry()) != null) {
+                    String name = inner.getName();
+                    if (name.equals("manifest.json")) {
+                        byte[] data = readAll(zin);
+                        org.json.JSONObject obj = new org.json.JSONObject(
+                                new String(data, "UTF-8"));
+                        org.json.JSONObject header = obj.optJSONObject("header");
+                        if (header != null) {
+                            item.name = header.optString("name", null);
+                            if (item.name == null || item.name.isEmpty()) {
+                                item.name = e.getName().substring(
+                                        e.getName().lastIndexOf('/') + 1);
+                            }
+                        }
+                    } else if (item.icon == null && name.endsWith(".png")) {
+                        // pack_icon.png（manifest 里 pack_icon 字段指向的文件）
+                        byte[] data = readAll(zin);
+                        if (data.length < 256 * 1024) {
+                            item.icon = data;
+                        }
+                    }
+                    zin.closeEntry();
+                }
+            }
+            if (item.name == null || item.name.isEmpty()) {
+                item.name = e.getName().substring(e.getName().lastIndexOf('/') + 1);
+            }
+            return item;
+        } catch (Exception ignored) {
+            return null;
         }
     }
 
@@ -348,7 +429,7 @@ public final class BackupListDialog extends Dialog {
         return row;
     }
 
-    // ---------------- 二级详情 ----------------
+    // ---------------- 二级详情（抽屉式卡片） ----------------
 
     private void showDetail(BackupInfo info) {
         if (detailView != null) {
@@ -361,52 +442,86 @@ public final class BackupListDialog extends Dialog {
 
         LinearLayout detail = new LinearLayout(context);
         detail.setOrientation(LinearLayout.VERTICAL);
-
-        detail.addView(sectionTitle(zh ? "备份信息" : "Backup Info"));
-        LinearLayout infoCard = new LinearLayout(context);
-        infoCard.setOrientation(LinearLayout.VERTICAL);
-        infoCard.setPadding(dp(14), dp(10), dp(14), dp(10));
-        infoCard.setBackground(roundBg(context.getColor(R.color.surface_high)));
         InstanceBackupManager.BackupManifest m = info.manifest;
+
+        // 1. 备份信息卡（默认展开）
+        StringBuilder infoSummary = new StringBuilder();
+        if (m != null && m.versionName != null && !m.versionName.isEmpty()) {
+            infoSummary.append(m.versionName).append("  ");
+        }
+        infoSummary.append(formatTime(m != null ? m.createdAt : info.file.lastModified()));
+        View[] infoPair = drawerCard(zh ? "备份信息" : "Backup Info", infoSummary.toString(), true);
+        LinearLayout infoBody = (LinearLayout) infoPair[1];
         if (m == null) {
-            infoCard.addView(kvRow(zh ? "状态" : "Status", zh ? "无法解析（文件损坏或非备份）"
+            infoBody.addView(kvRow(zh ? "状态" : "Status", zh ? "无法解析（文件损坏或非备份）"
                     : "Unreadable (corrupted or not a backup)"));
         } else {
-            infoCard.addView(kvRow(zh ? "实例名" : "Name", m.instanceName));
-            infoCard.addView(kvRow(zh ? "版本" : "Version", m.versionName));
-            infoCard.addView(kvRow(zh ? "目录名" : "Directory", m.directoryName));
-            infoCard.addView(kvRow(zh ? "类型" : "Type",
+            infoBody.addView(kvRow(zh ? "版本" : "Version", m.versionName));
+            infoBody.addView(kvRow(zh ? "类型" : "Type",
                     m.installed ? (zh ? "已安装实例" : "Installed") : (zh ? "自建实例" : "Custom")));
-            infoCard.addView(kvRow(zh ? "创建时间" : "Created", formatTimeFull(m.createdAt)));
-            infoCard.addView(kvRow(zh ? "文件大小" : "Size", formatSize(info.size)));
+            infoBody.addView(kvRow(zh ? "创建时间" : "Created", formatTimeFull(m.createdAt)));
+            infoBody.addView(kvRow(zh ? "文件大小" : "Size", formatSize(info.size)));
+            infoBody.addView(kvRow(zh ? "烘培缓存" : "Baked cache",
+                    info.bakedCacheIncluded ? (zh ? "已包含" : "Included")
+                            : (zh ? "未包含" : "Not included")));
         }
-        detail.addView(infoCard);
+        detail.addView(infoPair[0]);
 
-        detail.addView(sectionTitle(zh ? "备份内容" : "Contents"));
-        LinearLayout resCard = new LinearLayout(context);
-        resCard.setOrientation(LinearLayout.VERTICAL);
-        resCard.setPadding(dp(14), dp(10), dp(14), dp(10));
-        resCard.setBackground(roundBg(context.getColor(R.color.surface_high)));
-        resCard.addView(kvRow(zh ? "资源包（.mcpack/.mcaddon）" : "Resource packs",
-                String.valueOf(info.resourcePackCount)));
-        resCard.addView(kvRow(zh ? "行为包" : "Behavior packs",
-                String.valueOf(info.behaviorPackCount)));
-        resCard.addView(kvRow(zh ? "模组（mods）" : "Mods", String.valueOf(info.modCount)));
-        resCard.addView(kvRow(zh ? "烘培地图缓存" : "Baked map cache",
-                info.bakedCacheIncluded ? (zh ? "已包含" : "Included") : (zh ? "未包含" : "Not included")));
-        detail.addView(resCard);
+        // 2. 世界存档卡
+        View[] worldPair = drawerCard(zh ? "世界存档" : "Worlds",
+                String.valueOf(info.worlds.size()), false);
+        LinearLayout worldBody = (LinearLayout) worldPair[1];
+        if (info.worlds.isEmpty()) {
+            worldBody.addView(smallText(zh ? "备份中无存档" : "No worlds in backup"));
+        } else {
+            for (String w : info.worlds) {
+                worldBody.addView(bulletRow(w));
+            }
+        }
+        detail.addView(worldPair[0]);
 
-        detail.addView(sectionTitle(zh ? "玩家登录信息" : "Player Account"));
-        LinearLayout playerCard = new LinearLayout(context);
-        playerCard.setOrientation(LinearLayout.VERTICAL);
-        playerCard.setPadding(dp(14), dp(10), dp(14), dp(10));
-        playerCard.setBackground(roundBg(context.getColor(R.color.surface_high)));
-        playerCard.addView(kvRow(zh ? "Xbox 名字" : "Xbox gamertag",
-                emptyToDash(info.gamerTag)));
-        playerCard.addView(kvRow(zh ? "XUID" : "XUID", emptyToDash(info.xuid)));
-        playerCard.addView(kvRow(zh ? "客户端 UUID" : "Client UUID", emptyToDash(info.clientId)));
-        detail.addView(playerCard);
+        // 3. 资源卡（三级：分类行 → 点击展开明细）
+        int packCount = 0;
+        int behCount = 0;
+        int modCount = 0;
+        for (ResItem r : info.resources) {
+            if (r.type == 0) {
+                packCount++;
+            } else if (r.type == 1) {
+                behCount++;
+            } else {
+                modCount++;
+            }
+        }
+        View[] resPair = drawerCard(zh ? "资源与模组" : "Resources & Mods",
+                packCount + " / " + behCount + " / " + modCount, false);
+        LinearLayout resBody = (LinearLayout) resPair[1];
+        resBody.addView(resCategoryRow(zh ? "资源包（.mcpack）" : "Resource packs (.mcpack)",
+                packCount, 0, info.resources));
+        resBody.addView(resCategoryRow(zh ? "行为包（.mcaddon）" : "Behavior packs (.mcaddon)",
+                behCount, 1, info.resources));
+        resBody.addView(resCategoryRow(zh ? "模组" : "Mods", modCount, 2, info.resources));
+        detail.addView(resPair[0]);
 
+        // 4. 玩家信息卡
+        boolean hasPlayer = (info.gamerTag != null && !info.gamerTag.isEmpty())
+                || (info.xuid != null && !info.xuid.isEmpty())
+                || (info.clientId != null && !info.clientId.isEmpty());
+        View[] playerPair = drawerCard(zh ? "玩家登录信息" : "Player Account",
+                hasPlayer ? emptyToDash(info.gamerTag) : (zh ? "无" : "None"), false);
+        LinearLayout playerBody = (LinearLayout) playerPair[1];
+        if (hasPlayer) {
+            playerBody.addView(kvRow(zh ? "Xbox 名字" : "Xbox gamertag",
+                    emptyToDash(info.gamerTag)));
+            playerBody.addView(kvRow(zh ? "XUID" : "XUID", emptyToDash(info.xuid)));
+            playerBody.addView(kvRow(zh ? "客户端 UUID" : "Client UUID",
+                    emptyToDash(info.clientId)));
+        } else {
+            playerBody.addView(smallText(zh ? "备份中无登录信息" : "No account in backup"));
+        }
+        detail.addView(playerPair[0]);
+
+        // 操作按钮
         Button restoreBtn = new Button(context);
         restoreBtn.setAllCaps(false);
         restoreBtn.setText(zh ? "恢复此备份" : "Restore This Backup");
@@ -426,7 +541,7 @@ public final class BackupListDialog extends Dialog {
         });
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(46));
-        bp.topMargin = dp(14);
+        bp.topMargin = dp(12);
         detail.addView(restoreBtn, bp);
 
         Button backBtn = new Button(context);
@@ -437,11 +552,169 @@ public final class BackupListDialog extends Dialog {
         backBtn.setBackgroundColor(Color.TRANSPARENT);
         backBtn.setOnClickListener(v -> show());
         detail.addView(backBtn, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(42)));
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(40)));
 
         detailView = detail;
         contentContainer.addView(detail);
         scrollView.post(() -> scrollView.scrollTo(0, 0));
+    }
+
+    /** 抽屉式分区卡：返回 [卡片根视图, 内容容器]。 */
+    private View[] drawerCard(String title, String summary, boolean expanded) {
+        LinearLayout card = new LinearLayout(context);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(12), dp(10), dp(12), dp(10));
+        card.setBackground(roundBg(context.getColor(R.color.surface_high)));
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        cp.bottomMargin = dp(8);
+        card.setLayoutParams(cp);
+
+        LinearLayout header = new LinearLayout(context);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView titleTv = new TextView(context);
+        titleTv.setText(title);
+        titleTv.setTextColor(accent);
+        titleTv.setTextSize(13);
+        titleTv.setTypeface(null, Typeface.BOLD);
+        header.addView(titleTv, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView summaryTv = new TextView(context);
+        summaryTv.setText(summary);
+        summaryTv.setTextColor(context.getColor(R.color.text_secondary));
+        summaryTv.setTextSize(11);
+        summaryTv.setPadding(dp(8), 0, 0, 0);
+        header.addView(summaryTv);
+
+        TextView arrow = new TextView(context);
+        arrow.setText(expanded ? "▾" : "▸");
+        arrow.setTextColor(context.getColor(R.color.text_secondary));
+        arrow.setTextSize(13);
+        arrow.setPadding(dp(8), 0, 0, 0);
+        header.addView(arrow);
+
+        card.addView(header);
+
+        LinearLayout body = new LinearLayout(context);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(0, dp(4), 0, 0);
+        body.setVisibility(expanded ? View.VISIBLE : View.GONE);
+        card.addView(body);
+
+        header.setOnClickListener(v -> {
+            boolean show = body.getVisibility() != View.VISIBLE;
+            body.setVisibility(show ? View.VISIBLE : View.GONE);
+            arrow.setText(show ? "▾" : "▸");
+        });
+        return new View[]{card, body};
+    }
+
+    /** 三级分类行：点开在下方展开该类别明细。 */
+    private View resCategoryRow(String title, int count, int type, List<ResItem> all) {
+        LinearLayout row = new LinearLayout(context);
+        row.setOrientation(LinearLayout.VERTICAL);
+
+        LinearLayout header = new LinearLayout(context);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(0, dp(5), 0, dp(5));
+        TextView t = new TextView(context);
+        t.setText(title);
+        t.setTextColor(context.getColor(R.color.on_surface));
+        t.setTextSize(12);
+        header.addView(t, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        TextView c = new TextView(context);
+        c.setText(String.valueOf(count));
+        c.setTextColor(context.getColor(R.color.text_secondary));
+        c.setTextSize(11);
+        header.addView(c);
+        row.addView(header);
+
+        LinearLayout items = new LinearLayout(context);
+        items.setOrientation(LinearLayout.VERTICAL);
+        items.setVisibility(View.GONE);
+        if (count == 0) {
+            TextView none = smallText(zh ? "（无）" : "(none)");
+            none.setPadding(0, dp(2), 0, dp(4));
+            items.addView(none);
+        } else {
+            for (ResItem item : all) {
+                if (item.type != type) {
+                    continue;
+                }
+                items.addView(resItemRow(item));
+            }
+        }
+        row.addView(items);
+        header.setOnClickListener(v -> {
+            boolean show = items.getVisibility() != View.VISIBLE;
+            items.setVisibility(show ? View.VISIBLE : View.GONE);
+        });
+        return row;
+    }
+
+    /** 三级明细行：图标 + 名字 + 大小。 */
+    private View resItemRow(ResItem item) {
+        LinearLayout row = new LinearLayout(context);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(8), dp(4), dp(4), dp(4));
+
+        android.widget.ImageView icon = new android.widget.ImageView(context);
+        if (item.icon != null && item.icon.length > 0) {
+            try {
+                android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeByteArray(
+                        item.icon, 0, item.icon.length);
+                if (bmp != null) {
+                    icon.setImageBitmap(bmp);
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        if (icon.getDrawable() == null) {
+            GradientDrawable ph = new GradientDrawable();
+            ph.setColor(accent);
+            ph.setCornerRadius(dp(6));
+            icon.setBackground(ph);
+        }
+        row.addView(icon, new LinearLayout.LayoutParams(dp(32), dp(32)));
+
+        TextView name = new TextView(context);
+        name.setText(item.name);
+        name.setTextColor(context.getColor(R.color.on_surface));
+        name.setTextSize(12);
+        name.setPadding(dp(8), 0, 0, 0);
+        row.addView(name, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        if (item.size > 0) {
+            TextView size = new TextView(context);
+            size.setText(formatSize(item.size));
+            size.setTextColor(context.getColor(R.color.text_secondary));
+            size.setTextSize(10);
+            row.addView(size);
+        }
+        return row;
+    }
+
+    private TextView bulletRow(String text) {
+        TextView tv = new TextView(context);
+        tv.setText("• " + text);
+        tv.setTextColor(context.getColor(R.color.on_surface));
+        tv.setTextSize(12);
+        tv.setPadding(0, dp(3), 0, dp(3));
+        return tv;
+    }
+
+    private TextView smallText(String text) {
+        TextView tv = new TextView(context);
+        tv.setText(text);
+        tv.setTextColor(context.getColor(R.color.text_secondary));
+        tv.setTextSize(11);
+        tv.setPadding(0, dp(2), 0, dp(2));
+        return tv;
     }
 
     // ---------------- 小工具 ----------------
@@ -459,17 +732,17 @@ public final class BackupListDialog extends Dialog {
     private View kvRow(String key, String value) {
         LinearLayout row = new LinearLayout(context);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setPadding(0, dp(4), 0, dp(4));
+        row.setPadding(0, dp(3), 0, dp(3));
         TextView k = new TextView(context);
         k.setText(key);
         k.setTextColor(context.getColor(R.color.text_secondary));
         k.setTextSize(12);
-        row.addView(k, new LinearLayout.LayoutParams(dp(120), LinearLayout.LayoutParams.WRAP_CONTENT));
+        row.addView(k, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         TextView v = new TextView(context);
         v.setText(value == null || value.isEmpty() ? "—" : value);
         v.setTextColor(context.getColor(R.color.on_surface));
         v.setTextSize(12);
-        row.addView(v, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        row.addView(v, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.4f));
         return row;
     }
 
