@@ -43,6 +43,8 @@ public final class GlobalImportScanner {
         public String path;
         /** pack_icon.png 原始字节（可能为 null，UI 用默认图标）。 */
         public byte[] icon;
+        /** v606：zip 内包含的子包名称（多包压缩包明细，三级菜单用）。 */
+        public List<String> subItems;
 
         public String typeLabel() {
             switch (type) {
@@ -117,17 +119,18 @@ public final class GlobalImportScanner {
             return;
         }
         for (File f : files) {
-            if (out.size() > 400) {
+            if (out.size() > 1500) {
                 return; // 上限保护
             }
             String name = f.getName().toLowerCase(Locale.US);
             try {
                 if (f.isDirectory()) {
-                    // 已解压的包/存档目录：完整性子目录检查
+                    // 已解压的包/存档目录：完整性子目录检查。
+                    // v606：命中后仍深挖子目录（父目录被识别不代表内部
+                    // 没有独立包——实测"UI整合包/"类目录命中后子包全漏）
                     Candidate c = checkFolder(f);
                     if (c != null && seen.add(c.path)) {
                         out.add(c);
-                        continue; // 命中后不再深挖其内部
                     }
                     scanDir(f, depth - 1, out, seen, listener);
                 } else if (f.isFile()) {
@@ -358,21 +361,55 @@ public final class GlobalImportScanner {
 
     private static void fillZipPackMeta(File f, Candidate c) {
         try (ZipFile zf = new ZipFile(f)) {
-            ZipEntry mf = findEntry(zf, "manifest.json");
-            if (mf != null) {
-                byte[] b = readZipEntry(zf, mf, 256 * 1024);
-                if (b != null) {
+            // v606：收集 zip 内全部 manifest 的名称（多包压缩包明细）
+            java.util.List<String> subs = new java.util.ArrayList<>();
+            java.util.Enumeration<? extends ZipEntry> en = zf.entries();
+            while (en.hasMoreElements()) {
+                ZipEntry e = en.nextElement();
+                if (e.isDirectory() || !e.getName().endsWith("manifest.json")) {
+                    continue;
+                }
+                byte[] b = readZipEntry(zf, e, 256 * 1024);
+                if (b == null) {
+                    continue;
+                }
+                try {
                     JSONObject root = new JSONObject(new String(b,
                             java.nio.charset.StandardCharsets.UTF_8));
                     JSONObject header = root.optJSONObject("header");
-                    if (header != null) {
-                        String n = header.optString("name", "");
-                        if (!n.isEmpty()) {
-                            c.name = n;
-                        }
-                        Object v = header.opt("version");
-                        if (v instanceof JSONObject) {
-                            c.version = ((JSONObject) v).optString("version", "");
+                    String n = header != null ? header.optString("name", "") : "";
+                    String mt = "";
+                    if (root.optJSONArray("modules") != null
+                            && root.optJSONArray("modules").length() > 0) {
+                        mt = root.optJSONArray("modules")
+                                .optJSONObject(0).optString("type", "");
+                    }
+                    if (!n.isEmpty()) {
+                        subs.add(n + ("data".equals(mt) ? "（行为包）" : "（资源包）"));
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+            if (!subs.isEmpty()) {
+                c.subItems = subs;
+                if (c.name == null || c.name.isEmpty() || c.name.equals(stripExt(f.getName()))) {
+                    c.name = subs.get(0);
+                }
+                // 多包时版本取第一个包的
+                if ((c.version == null || c.version.isEmpty()) && subs.size() > 0) {
+                    ZipEntry first = findEntry(zf, "manifest.json");
+                    if (first != null) {
+                        byte[] b = readZipEntry(zf, first, 256 * 1024);
+                        if (b != null) {
+                            JSONObject root = new JSONObject(new String(b,
+                                    java.nio.charset.StandardCharsets.UTF_8));
+                            JSONObject header = root.optJSONObject("header");
+                            if (header != null) {
+                                Object v = header.opt("version");
+                                if (v instanceof JSONObject) {
+                                    c.version = ((JSONObject) v).optString("version", "");
+                                }
+                            }
                         }
                     }
                 }
