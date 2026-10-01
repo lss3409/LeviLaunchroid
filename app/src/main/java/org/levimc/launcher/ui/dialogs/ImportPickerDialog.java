@@ -113,8 +113,9 @@ public class ImportPickerDialog {
 
         final List<GlobalImportScanner.Candidate>[] results = new List[]{null};
         final String[] query = {""};
+        final Runnable[] redrawRef = new Runnable[1];
 
-        Runnable redraw = () -> {
+        redrawRef[0] = () -> {
             content.removeAllViews();
             List<GlobalImportScanner.Candidate> list = results[0];
             if (list == null) {
@@ -151,7 +152,7 @@ public class ImportPickerDialog {
                 cards.addView(buildCategoryCard(context, g, count, density, accent,
                         textMain, cardBg, type == expandedType, v -> {
                             expandedType = (expandedType == type) ? -1 : type;
-                            redraw.run();
+                            redrawRef[0].run();
                         }));
             }
             // 展开的条目列表
@@ -185,7 +186,7 @@ public class ImportPickerDialog {
             @Override
             public void onTextChanged(CharSequence s, int a, int b, int c) {
                 query[0] = s.toString();
-                redraw.run();
+                redrawRef[0].run();
             }
 
             @Override
@@ -199,7 +200,7 @@ public class ImportPickerDialog {
                 expandedType = firstNonEmptyType(cachedCandidates);
             }
             status.setText("发现 " + cachedCandidates.size() + " 项，点分类卡展开");
-            redraw.run();
+            redrawRef[0].run();
         } else {
             GlobalImportScanner.scanAsync(new GlobalImportScanner.Listener() {
                 @Override
@@ -220,7 +221,7 @@ public class ImportPickerDialog {
                             }
                             status.setText("发现 " + candidates.size() + " 项，点分类卡展开");
                         }
-                        redraw.run();
+                        redrawRef[0].run();
                     });
                 }
             });
