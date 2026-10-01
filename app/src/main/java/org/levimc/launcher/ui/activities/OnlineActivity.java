@@ -1255,16 +1255,10 @@ public final class OnlineActivity extends BaseActivity
                     findViewById(R.id.online_qr_button),
                     findViewById(R.id.online_room_copy_button),
                     findViewById(R.id.online_room_share_button));
-            // v548：返回首页按钮文字染强调色（个性化兼容）；v571：灰底也染
-            // accent（用户反馈灰色背景不兼容个性化）
-            View backHome = findViewById(R.id.online_back_home_button);
-            org.levimc.launcher.util.AccentStyler.styleSecondary(this, backHome);
-            int accent = new org.levimc.launcher.util.PersonalizationManager(this).getAccentColor();
-            if (accent != 0 && backHome instanceof com.google.android.material.button.MaterialButton) {
-                ((com.google.android.material.button.MaterialButton) backHome)
-                        .setBackgroundTintList(android.content.res.ColorStateList.valueOf(
-                                Color.argb(70, Color.red(accent), Color.green(accent), Color.blue(accent))));
-            }
+            // v572：返回首页按钮用启动器主按钮背景（accent 实底白字，
+            // 与个性化联动）——v571 的半透明灰底方案用户不满意
+            org.levimc.launcher.util.AccentStyler.stylePrimary(this,
+                    findViewById(R.id.online_back_home_button));
         } catch (Throwable ignored) {
         }
     }

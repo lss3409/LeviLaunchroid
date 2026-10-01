@@ -230,6 +230,11 @@ public final class EasyTierManager {
             appContext = ctx.getApplicationContext();
             listener = l;
             virtualIp = null;
+            // v572：清上次会话的房主 IP 解析——残留值会让成员的 8s
+            // 快速判失败误以为"已看到房主 peer"，最近房间（房主已
+            // 解散）加入仍等满 20s 握手超时
+            hostVirtualIp = null;
+            lastPeerSig = "";
             active = true;
             state = State.STARTING;
             notifyState(State.STARTING, null);
@@ -410,6 +415,7 @@ public final class EasyTierManager {
             // 15s 才重拉一次，避免 5s 一次的"杀服务→重启→失败"风暴
             // （实测造成间歇卡顿 + 文件日志刷爆）
             long lastPull = 0;
+            int consecutiveFail = 0;
             while (active && state == State.CONNECTED) {
                 try {
                     Thread.sleep(5000);
@@ -426,9 +432,20 @@ public final class EasyTierManager {
                             continue;
                         }
                         lastPull = now;
+                        consecutiveFail++;
+                        // v572：连续 2 次重拉后 TUN 仍不存在——大概率是
+                        // VPN 授权被清（重装 APK）而非暂时性吊销，直接
+                        // 通知 UI 弹授权窗（不依赖 VpnService 内部回调）
+                        if (consecutiveFail >= 2) {
+                            org.levimc.launcher.util.OnlineDebugLog.log(
+                                    "看门狗连续重拉失败，请求 VPN 授权弹窗");
+                            notifyVpnAuthorizationRequired();
+                        }
                         Log.w(TAG, "看门狗：TUN 丢失，重新拉起 VpnService");
                         startVpn(virtualIp, lastCidrs);
                         continue;
+                    } else {
+                        consecutiveFail = 0;
                     }
                     Info info = pollInfo();
                     if (info != null && !info.running) {
