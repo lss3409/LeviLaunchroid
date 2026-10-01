@@ -130,7 +130,8 @@ public final class EasyTierManager {
             return null;
         }
         long deadline = System.currentTimeMillis() + timeoutMs;
-        while (System.currentTimeMillis() < deadline) {
+        // v581：先查一次再循环（timeoutMs=0 也能立即查询一次）
+        while (true) {
             try {
                 for (android.net.Network n : cm.getAllNetworks()) {
                     android.net.NetworkCapabilities nc = cm.getNetworkCapabilities(n);
@@ -140,13 +141,15 @@ public final class EasyTierManager {
                 }
             } catch (Throwable ignored) {
             }
+            if (System.currentTimeMillis() >= deadline) {
+                return null;
+            }
             try {
                 Thread.sleep(200);
             } catch (InterruptedException e) {
                 return null;
             }
         }
-        return null;
     }
 
     public State getState() {
@@ -468,7 +471,7 @@ public final class EasyTierManager {
         t.start();
     }
 
-    /** TUN 是否存活（VpnService 维护的存活标记文件，时间戳 <10s 视为活）。 */
+    /** TUN 是否存活（存活标记新鲜 + 系统 VPN 网络仍注册）。 */
     private static boolean tunExists() {
         try {
             // v575：NetworkInterface 枚举不到 VpnService 的 tun0（Android
@@ -480,8 +483,15 @@ public final class EasyTierManager {
                 return true;
             }
             java.io.File alive = new java.io.File(ctx.getFilesDir(), "vpn_tun_alive");
-            return alive.exists()
+            boolean markerFresh = alive.exists()
                     && System.currentTimeMillis() - alive.lastModified() < 10_000;
+            if (!markerFresh) {
+                return false;
+            }
+            // v581：系统拆 VPN 时 fd 仍有效、标记仍刷新（v580 实测两端
+            // dumpsys vpn 已空但标记在动）——必须再确认 TRANSPORT_VPN
+            // 网络仍注册，否则看门狗失明、虚拟网断了无人救
+            return waitForVpnNetwork(0) != null;
         } catch (Exception e) {
             return true; // 读不到就当健康，避免误拉
         }

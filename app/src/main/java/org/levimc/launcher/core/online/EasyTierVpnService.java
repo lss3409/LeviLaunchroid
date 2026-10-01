@@ -200,10 +200,16 @@ public final class EasyTierVpnService extends VpnService {
                     fdValid = false;
                 }
                 touchTunAlive();
-                boolean lost = revoked || !fdValid;
+                // v581：系统拆 VPN 时 fd 仍有效——再查系统 VPN 网络注册
+                // （v580 实测 dumpsys vpn 已空但 fd valid + 标记在刷）
+                boolean vpnRegistered = EasyTierManager.waitForVpnNetwork(0) != null;
+                boolean lost = revoked || !fdValid || !vpnRegistered;
                 if (!lost) {
                     reestablishCount = 0;
                     continue;
+                }
+                if (!vpnRegistered) {
+                    org.levimc.launcher.util.OnlineDebugLog.log("系统 VPN 注册已消失（fd 仍有效）——重建 TUN");
                 }
                 revoked = false;
                 reestablishCount++;
