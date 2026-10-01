@@ -121,9 +121,10 @@ public final class BackupListDialog extends Dialog {
         contentContainer = new LinearLayout(context);
         contentContainer.setOrientation(LinearLayout.VERTICAL);
         scrollView.addView(contentContainer);
-        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-        root.addView(scrollView, sp);
+        // v570.4：内容自适应高度（不再 weight 撑满屏高 78%——平板上
+        // 列表短时弹窗仍被拉成竖长条），超屏时由下方测量逻辑限高
+        root.addView(scrollView, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         loadingBar = new ProgressBar(context);
         loadingBar.setIndeterminate(true);
@@ -154,9 +155,17 @@ public final class BackupListDialog extends Dialog {
         setContentView(root);
         Window w = getWindow();
         if (w != null) {
-            // v570.2：横向放宽（详情键值两列不挤），纵向仍由 DialogSizer 限高
-            w.setLayout(DialogSizer.dialogWidth(context, 500),
-                    DialogSizer.dialogMaxHeight(context));
+            // v570.2：横向放宽（详情键值两列不挤）；v570.4：高度自适应内容，
+            // 超屏（78% 屏高）才压缩——平板/横屏内容短时不再被拉成竖长条，
+            // 手机显示不受影响（此前就是内容撑满 78%）
+            int width = DialogSizer.dialogWidth(context, 500);
+            final int maxHeight = DialogSizer.dialogMaxHeight(context);
+            w.setLayout(width, android.view.WindowManager.LayoutParams.WRAP_CONTENT);
+            root.post(() -> {
+                if (root.getHeight() > maxHeight) {
+                    w.setLayout(width, maxHeight);
+                }
+            });
         }
     }
 
@@ -409,8 +418,9 @@ public final class BackupListDialog extends Dialog {
 
     private View buildListRow(BackupInfo info) {
         LinearLayout row = new LinearLayout(context);
-        row.setOrientation(LinearLayout.VERTICAL);
-        row.setPadding(dp(14), dp(12), dp(14), dp(12));
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(14), dp(12), dp(10), dp(12));
         row.setBackground(roundBg(context.getColor(R.color.surface_high)));
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -419,6 +429,8 @@ public final class BackupListDialog extends Dialog {
         row.setClickable(true);
         row.setFocusable(true);
 
+        LinearLayout texts = new LinearLayout(context);
+        texts.setOrientation(LinearLayout.VERTICAL);
         String name = info.manifest != null && info.manifest.instanceName != null
                 && !info.manifest.instanceName.isEmpty()
                 ? info.manifest.instanceName
@@ -428,7 +440,7 @@ public final class BackupListDialog extends Dialog {
         nameTv.setTextColor(context.getColor(R.color.on_surface));
         nameTv.setTextSize(15);
         nameTv.setTypeface(null, Typeface.BOLD);
-        row.addView(nameTv);
+        texts.addView(nameTv);
 
         StringBuilder meta = new StringBuilder();
         if (info.manifest != null && info.manifest.versionName != null
@@ -446,7 +458,33 @@ public final class BackupListDialog extends Dialog {
         metaTv.setTextColor(context.getColor(R.color.text_secondary));
         metaTv.setTextSize(11);
         metaTv.setPadding(0, dp(3), 0, 0);
-        row.addView(metaTv);
+        texts.addView(metaTv);
+        row.addView(texts, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        // v570.4：一级行直接恢复按钮（无需进二级菜单）
+        Button restore = new Button(context);
+        restore.setAllCaps(false);
+        restore.setText(zh ? "恢复" : "Restore");
+        restore.setTextColor(Color.WHITE);
+        restore.setTextSize(12);
+        restore.setTypeface(null, Typeface.BOLD);
+        GradientDrawable rb = new GradientDrawable();
+        rb.setColor(accent);
+        rb.setCornerRadius(dp(8));
+        restore.setBackground(rb);
+        restore.setMinWidth(0);
+        restore.setMinimumWidth(0);
+        restore.setPadding(dp(14), 0, dp(14), 0);
+        restore.setOnClickListener(v -> {
+            File target = info.file;
+            dismiss();
+            if (listener != null) {
+                listener.onRestoreRequested(target);
+            }
+        });
+        row.addView(restore, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, dp(36)));
 
         row.setOnClickListener(v -> showDetail(info));
         return row;
