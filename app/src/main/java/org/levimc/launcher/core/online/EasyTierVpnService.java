@@ -197,6 +197,12 @@ public final class EasyTierVpnService extends VpnService {
                 // 成为默认网络，之后启动的应用（如 MC）socket 绑 VPN 网络，
                 // 无 allowBypass 时局域网广播/组播被静默丢弃——同网段
                 // 局域网联机入口消失。回落不影响虚拟网段流量（照走 VPN）。
+                // v566 注意：不能 addDisallowedApplication——游戏与本应用
+                // 同 UID，排除后游戏进程连房主虚拟 IP 会走真实网络失败；
+                // EasyTier 内核在移动端没有独立 socket（全部包写进 TUN fd），
+                // 排除也救不了它。内核中继包经 TUN→allowBypass 回落真实
+                // 网络（TUN 活着时正常；TUN 死亡由 tunExists 精确检测 +
+                // 看门狗自动重建兜底）。
                 .allowBypass()
                 .addAddress(ip, len)
                 .addDnsServer("223.5.5.5")
@@ -239,7 +245,9 @@ public final class EasyTierVpnService extends VpnService {
             java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader("/proc/net/dev"));
             String line;
             while ((line = r.readLine()) != null) {
-                if (line.contains("tun")) {
+                // v566：精确匹配 tunN:——contains("tun") 会匹配内核 tunl0
+                // 隧道设备，VPN 被吊销后看门狗误判健康不重建（房主失联根因）
+                if (line.matches("\\s*tun[0-9]+:.*")) {
                     r.close();
                     return true;
                 }
@@ -256,6 +264,7 @@ public final class EasyTierVpnService extends VpnService {
     public void onRevoke() {
         revoked = true;
         Log.w(TAG, "VPN 被系统吊销（其他 VPN 抢占或系统回收），看门狗将自动重建");
+        org.levimc.launcher.util.OnlineDebugLog.log("VPN 被系统吊销，看门狗重建中");
     }
 
     private Notification buildNotification() {
@@ -282,6 +291,7 @@ public final class EasyTierVpnService extends VpnService {
         running = false;
         closeTun();
         Log.i(TAG, "VPN 服务销毁");
+        org.levimc.launcher.util.OnlineDebugLog.log("VpnService onDestroy（系统杀服务或主动停止）");
         super.onDestroy();
     }
 

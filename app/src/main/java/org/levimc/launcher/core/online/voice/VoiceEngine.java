@@ -262,6 +262,16 @@ public final class VoiceEngine implements RoomCenter.Listener {
             if (socket == null || socket.isClosed()) {
                 socket = new DatagramSocket(null);
                 socket.setReuseAddress(true);
+                // v566：语音走虚拟网（成员间直连虚拟 IP），显式绑 VPN 网络
+                // 防"socket 早于 TUN 建立"绑旧网络竞态
+                android.net.Network vpnNet = EasyTierManager.waitForVpnNetwork(5_000);
+                if (vpnNet != null) {
+                    try {
+                        vpnNet.bindSocket(socket);
+                    } catch (Exception be) {
+                        Log.w(TAG, "语音 socket 绑定 VPN 网络失败", be);
+                    }
+                }
                 socket.bind(new InetSocketAddress("0.0.0.0", MIC_PORT));
             }
         } catch (Exception e) {

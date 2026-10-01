@@ -77,10 +77,51 @@ public final class EasyTierManager {
     private volatile String hostVirtualIp;
     /** v565：peer 路由表签名（变化时才写文件日志，避免刷爆）。 */
     private volatile String lastPeerSig = "";
-    private Context appContext;
+    private static volatile Context appContext;
     private Listener listener;
 
     private EasyTierManager() {
+    }
+
+    /** v566：供 RoomCenter/VoiceEngine 拿 VPN 网络绑定 socket 用。 */
+    public static Context getAppContext() {
+        return appContext;
+    }
+
+    /**
+     * v566：等待 VPN 网络出现（VpnService establish 完成、系统注册 TRANSPORT_VPN）。
+     * 业务 socket（房间中心/语音）显式绑到 VPN 网络，防止"socket 创建早于
+     * TUN 建立"时绑到旧网络（公网）导致心跳/语音丢失——v565 实测成员
+     * socket 比 TUN 早 8ms 创建。绑定时机由本方法控制。
+     */
+    public static android.net.Network waitForVpnNetwork(long timeoutMs) {
+        Context ctx = appContext;
+        if (ctx == null) {
+            return null;
+        }
+        android.net.ConnectivityManager cm =
+                (android.net.ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm == null) {
+            return null;
+        }
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                for (android.net.Network n : cm.getAllNetworks()) {
+                    android.net.NetworkCapabilities nc = cm.getNetworkCapabilities(n);
+                    if (nc != null && nc.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)) {
+                        return n;
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                return null;
+            }
+        }
+        return null;
     }
 
     public State getState() {
@@ -255,6 +296,13 @@ public final class EasyTierManager {
                 virtualIp = info.virtualIp;
                 lastCidrs = new java.util.ArrayList<>(info.cidrs);
                 startVpn(info.virtualIp, info.cidrs);
+                // v566：等 VPN 网络注册完成再报 CONNECTED（本线程是 worker，
+                // 可阻塞）——之后 RoomCenter/语音 socket 创建时可立即绑定，
+                // 避免主线程长等待（v565 竞态：socket 早于 TUN 创建绑旧网络）
+                android.net.Network vpnNet = waitForVpnNetwork(10_000);
+                if (vpnNet == null) {
+                    org.levimc.launcher.util.OnlineDebugLog.log("警告：VPN 网络 10s 未注册，业务 socket 将走默认网络");
+                }
                 Log.i(TAG, "已连接, 虚拟 IP = " + info.virtualIp);
                 notifyState(State.CONNECTED, info.virtualIp);
                 startWatchdog();
@@ -370,7 +418,11 @@ public final class EasyTierManager {
             java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader("/proc/net/dev"));
             String line;
             while ((line = r.readLine()) != null) {
-                if (line.contains("tun")) {
+                // v566：必须精确匹配 tunN:（VpnService 接口名）——contains("tun")
+                // 会匹配内核自带 tunl0 隧道设备，导致 VPN 被系统杀掉后看门狗
+                // 误判健康永不重拉，房间中心永久失联（异地"未找到房主"的
+                // 根因之一：平板 VPN 死亡无人救，成员握手必然超时）。
+                if (line.matches("\\s*tun[0-9]+:.*")) {
                     r.close();
                     return true;
                 }
