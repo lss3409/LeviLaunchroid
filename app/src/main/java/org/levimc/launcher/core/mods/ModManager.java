@@ -169,11 +169,26 @@ public class ModManager {
             return;
         }
 
+        // v578：enable 放工作线程 + 10s 超时——vivo 上加新模组后启动游戏
+        // 首次 enable 就死锁（BSChat 内部 futex 等待永不完成，平板无此
+        // 现象，tombstone 573 trace 同款栈）。超时后主线程继续启动游戏
+        // （该模组不生效但不闪退）；平板正常 1-2 秒完成不受影响。
         try {
-            nativeEnableLoadedMods();
-            modsEnabledOnce = true;
-        } catch (UnsatisfiedLinkError e) {
-            Log.e(TAG, "Failed to invoke nativeEnableLoadedMods", e);
+            Thread worker = new Thread(() -> {
+                try {
+                    nativeEnableLoadedMods();
+                    modsEnabledOnce = true;
+                } catch (UnsatisfiedLinkError e) {
+                    Log.e(TAG, "Failed to invoke nativeEnableLoadedMods", e);
+                }
+            }, "mod-enable");
+            worker.start();
+            worker.join(10_000);
+            if (worker.isAlive()) {
+                Log.e(TAG, "nativeEnableLoadedMods 超时（10s）——跳过死锁模组继续启动游戏");
+            }
+        } catch (InterruptedException e) {
+            Log.e(TAG, "nativeEnableLoadedMods 等待被中断", e);
         }
     }
 
