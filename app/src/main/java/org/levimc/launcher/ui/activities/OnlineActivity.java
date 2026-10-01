@@ -328,8 +328,7 @@ public final class OnlineActivity extends BaseActivity
         homeView.setVisibility(View.GONE);
         createView.setVisibility(View.GONE);
         roomView.setVisibility(View.VISIBLE);
-        roomView.setAlpha(0f);
-        roomView.animate().alpha(1f).setDuration(220).start();
+        // v574：删掉建房后的淡入过渡（一闪而过无意义，直接显示）
         populateRoom();
     }
 
@@ -908,6 +907,8 @@ public final class OnlineActivity extends BaseActivity
             if (vpnIntent != null) {
                 status.setVisibility(View.VISIBLE);
                 status.setText(getString(R.string.online_vpn_needed));
+                // v574：VPN 提示小字跟随个性化 accent（XML 里 primary 深绿）
+                status.setTextColor(accentColor());
                 startActivityForResult(vpnIntent, REQ_VPN);
             } else {
                 doJoinFromDialog(r.parsed);
@@ -989,7 +990,8 @@ public final class OnlineActivity extends BaseActivity
         }
         InviteCode.Result r = InviteCode.parse(InviteCode.formatInput(text));
         if (r.ok()) {
-            feedback.setTextColor(getResources().getColor(R.color.primary, getTheme()));
+            // v574：「邀请码有效」等提示小字跟随个性化 accent（原 primary 深绿）
+            feedback.setTextColor(accentColor());
             feedback.setText(getString(R.string.online_code_valid));
         } else {
             feedback.setTextColor(getResources().getColor(R.color.error, getTheme()));
