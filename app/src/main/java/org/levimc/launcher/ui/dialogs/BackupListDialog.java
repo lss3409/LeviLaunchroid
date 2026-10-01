@@ -58,7 +58,7 @@ public final class BackupListDialog extends Dialog {
         boolean bakedCacheIncluded;
         /** 三级明细：类型 0=资源包(mcpack) 1=行为包(mcaddon) 2=模组 3=世界存档。 */
         final List<ResItem> resources = new ArrayList<>();
-        final List<String> worlds = new ArrayList<>();
+        final List<ResItem> worlds = new ArrayList<>();
     }
 
     /** 资源明细项（三级菜单数据）。 */
@@ -272,8 +272,31 @@ public final class BackupListDialog extends Dialog {
                     int slash = rel.indexOf('/');
                     if (slash > 0) {
                         String world = rel.substring(0, slash);
-                        if (!info.worlds.contains(world)) {
-                            info.worlds.add(world);
+                        ResItem existing = null;
+                        for (ResItem w : info.worlds) {
+                            if (w.name.equals(world)) {
+                                existing = w;
+                                break;
+                            }
+                        }
+                        if (existing == null) {
+                            existing = new ResItem();
+                            existing.type = 3;
+                            existing.name = world;
+                            info.worlds.add(existing);
+                        }
+                        // v570.3：world_icon（启动器同款三文件名）
+                        String inner = rel.substring(slash + 1);
+                        if (existing.icon == null
+                                && (inner.equals("world_icon.jpeg")
+                                || inner.equals("world_icon.jpg")
+                                || inner.equals("world_icon.png"))) {
+                            try (java.io.InputStream in = zip.getInputStream(e)) {
+                                byte[] data = readAll(in);
+                                if (data.length < 512 * 1024) {
+                                    existing.icon = data;
+                                }
+                            }
                         }
                     }
                 } else if (n.startsWith("baked_cache/")) {
@@ -456,7 +479,8 @@ public final class BackupListDialog extends Dialog {
             infoBody.addView(kvRow(zh ? "状态" : "Status", zh ? "无法解析（文件损坏或非备份）"
                     : "Unreadable (corrupted or not a backup)"));
         } else {
-            infoBody.addView(kvRow(zh ? "版本" : "Version", m.versionName));
+            // v570.3：manifest.versionName 实际存的是 versionCode——文案用「版本号」
+            infoBody.addView(kvRow(zh ? "版本号" : "Version code", m.versionName));
             infoBody.addView(kvRow(zh ? "类型" : "Type",
                     m.installed ? (zh ? "已安装实例" : "Installed") : (zh ? "自建实例" : "Custom")));
             infoBody.addView(kvRow(zh ? "创建时间" : "Created", formatTimeFull(m.createdAt)));
@@ -474,8 +498,8 @@ public final class BackupListDialog extends Dialog {
         if (info.worlds.isEmpty()) {
             worldBody.addView(smallText(zh ? "备份中无存档" : "No worlds in backup"));
         } else {
-            for (String w : info.worlds) {
-                worldBody.addView(bulletRow(w));
+            for (ResItem w : info.worlds) {
+                worldBody.addView(resItemRow(w));
             }
         }
         detail.addView(worldPair[0]);
@@ -675,10 +699,23 @@ public final class BackupListDialog extends Dialog {
             }
         }
         if (icon.getDrawable() == null) {
-            GradientDrawable ph = new GradientDrawable();
-            ph.setColor(accent);
-            ph.setCornerRadius(dp(6));
-            icon.setBackground(ph);
+            // v570.3：无贴图用启动器内容管理同款默认图标
+            int fallback;
+            switch (item.type) {
+                case 1:
+                    fallback = R.drawable.ic_behavior;
+                    break;
+                case 2:
+                    fallback = R.drawable.ic_modules;
+                    break;
+                case 3:
+                    fallback = R.drawable.ic_world;
+                    break;
+                default:
+                    fallback = R.drawable.ic_photo;
+                    break;
+            }
+            icon.setImageResource(fallback);
         }
         row.addView(icon, new LinearLayout.LayoutParams(dp(32), dp(32)));
 
