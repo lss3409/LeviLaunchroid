@@ -300,56 +300,12 @@ public class SettingsActivity extends BaseActivity {
             } catch (Throwable ignored) {}
         });
 
-        // v570：后台使用开关恢复（v450 曾恒开隐藏）——打开时引导电池白名单
-        SwitchMaterial switchKeepBackground = findViewById(R.id.switch_keep_background);
-        if (switchKeepBackground != null) {
-            switchKeepBackground.setChecked(fs.isForegroundServiceEnabled());
-            switchKeepBackground.setOnCheckedChangeListener((btn, checked) -> {
-                fs.setForegroundServiceEnabled(checked);
-                if (checked) {
-                    requestBatteryExemptionIfNeeded();
-                }
-            });
-        }
-
-        // v450：性能监控悬浮窗开关已删除（功能整体移除）
-
-        // 登录入口开关已移除：登录按钮一直显示
-
-        SwitchMaterial switchAutoCloseGame = findViewById(R.id.switch_auto_close_game);
-        if (switchAutoCloseGame != null) {
-            switchAutoCloseGame.setChecked(fs.isAutoCloseGameOnLaunchNew());
-            switchAutoCloseGame.setOnCheckedChangeListener((btn, checked) -> {
-                fs.setAutoCloseGameOnLaunchNew(checked);
-            });
-        }
+        // v587：前台服务开关（官方原样——默认关，保活行为与官方一致）
+        SwitchMaterial switchForegroundService = findViewById(R.id.switch_foreground_service);
+        switchForegroundService.setChecked(fs.isForegroundServiceEnabled());
+        switchForegroundService.setOnCheckedChangeListener((btn, checked) -> fs.setForegroundServiceEnabled(checked));
 
         setupGlobalConfigSection();
-    }
-
-    /**
-     * v570：后台使用开关打开时申请电池优化豁免（通用 Doze 白名单授权，
-     * Android 6.0+ 全机型可用；vivo 的"后台耗电管理-允许后台耗电"等
-     * 厂商后台管理都涵盖该机制）。已在白名单或系统不支持时静默跳过。
-     */
-    private void requestBatteryExemptionIfNeeded() {
-        try {
-            android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
-            if (pm == null || pm.isIgnoringBatteryOptimizations(getPackageName())) {
-                return;
-            }
-            Intent intent = new Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-            intent.setData(Uri.parse("package:" + getPackageName()));
-            startActivity(intent);
-        } catch (Throwable t) {
-            // 个别机型/旧版本不支持该 action——回退跳应用详情页
-            try {
-                Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                intent.setData(Uri.parse("package:" + getPackageName()));
-                startActivity(intent);
-            } catch (Throwable ignored) {
-            }
-        }
     }
 
     private void setupGlobalConfigSection() {
@@ -782,16 +738,14 @@ public class SettingsActivity extends BaseActivity {
             switchLogcat.setTrackTintList(new ColorStateList(states, new int[]{trackChecked, 0xFF555555}));
         }
 
-        // v570：后台使用开关着色
-        SwitchMaterial switchKeepBackground = findViewById(R.id.switch_keep_background);
-        if (switchKeepBackground != null && accent != 0) {
+        // v587：前台服务开关着色（官方原样）
+        SwitchMaterial switchForegroundService = findViewById(R.id.switch_foreground_service);
+        if (switchForegroundService != null && accent != 0) {
             int[][] states = {{android.R.attr.state_checked}, {}};
-            switchKeepBackground.setThumbTintList(new ColorStateList(states, new int[]{accent, 0xFFAAAAAA}));
+            switchForegroundService.setThumbTintList(new ColorStateList(states, new int[]{accent, 0xFFAAAAAA}));
             int trackChecked = Color.argb(100, Color.red(accent), Color.green(accent), Color.blue(accent));
-            switchKeepBackground.setTrackTintList(new ColorStateList(states, new int[]{trackChecked, 0xFF555555}));
+            switchForegroundService.setTrackTintList(new ColorStateList(states, new int[]{trackChecked, 0xFF555555}));
         }
-
-        // v450：性能监控悬浮窗开关 tint 逻辑已随开关移除
 
         Button btnApplyStorage = findViewById(R.id.btn_apply_custom_storage_path);
         if (btnApplyStorage != null && accent != 0) {

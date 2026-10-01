@@ -37,7 +37,6 @@ import org.levimc.launcher.R;
 import org.levimc.launcher.core.minecraft.MinecraftActivityState;
 import org.levimc.launcher.core.minecraft.MinecraftProcessRestarter;
 import org.levimc.launcher.core.minecraft.MinecraftImportIntents;
-import org.levimc.launcher.core.minecraft.PendingLaunchManager;
 import org.levimc.launcher.core.minecraft.LaunchTrace;
 import org.levimc.launcher.core.minecraft.MinecraftLauncher;
 import org.levimc.launcher.core.mods.FileHandler;
@@ -650,18 +649,7 @@ import okhttp3.OkHttpClient;
         binding.launchButton.setEnabled(true);
         handleVersionDependentIntent();
         refreshContentCounts();
-        checkPendingLaunch();
         binding.getRoot().postDelayed(this::checkCrashReport, 900);
-    }
-
-    /** 关闭旧游戏重启后，自动启动待启动的版本。 */
-    private void checkPendingLaunch() {
-        GameVersion pending = PendingLaunchManager.consumePendingLaunch(this);
-        if (pending == null) return;
-        versionManager.selectVersion(pending);
-        viewModel.setCurrentVersion(pending);
-        setTextMinecraftVersion();
-        binding.getRoot().post(this::launchGame);
     }
 
     private void handleVersionDependentIntent() {
@@ -1174,15 +1162,7 @@ import okhttp3.OkHttpClient;
                 return;
             }
             trace.warning("Launch blocked", "Game already running");
-            if (FeatureSettings.getInstance().isAutoCloseGameOnLaunchNew()) {
-                // 开关开：记录待启动版本，关闭旧游戏，重启后自动启动新版本
-                PendingLaunchManager.setPendingLaunch(this, version);
-                android.app.Activity game = MinecraftActivityState.getCurrentActivity();
-                if (game != null && !game.isFinishing()) game.finish();
-            } else {
-                // 开关关：点击无效 + 提示
-                Toast.makeText(this, R.string.game_already_running, Toast.LENGTH_LONG).show();
-            }
+            Toast.makeText(this, R.string.game_already_running, Toast.LENGTH_LONG).show();
             binding.launchButton.setEnabled(true);
             return;
         }

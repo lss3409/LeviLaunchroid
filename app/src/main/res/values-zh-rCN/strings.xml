@@ -215,9 +215,6 @@
     <string name="instance_shortcut_add_button">添加快捷方式</string>
     <string name="instance_shortcut_not_supported">当前桌面启动器不支持固定快捷方式。</string>
     <string name="instance_shortcut_missing">该 Minecraft 版本已不存在。</string>
-    <string name="auto_close_game_title">启动新版本号时关闭旧游戏</string>
-    <string name="keep_background_title">后台使用</string>
-    <string name="keep_background_desc">通过前台服务让游戏在后台保持运行。开启时会申请电池优化豁免，降低系统杀掉游戏后台的概率。</string>
     <string name="custom_storage_path_reset">恢复默认</string>
     <string name="custom_storage_path_current">当前：%1$s</string>
     <string name="custom_storage_path_default">默认：%1$s</string>

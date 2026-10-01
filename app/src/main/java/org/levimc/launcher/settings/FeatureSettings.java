@@ -9,9 +9,8 @@ public class FeatureSettings {
     private boolean launcherManagedMcLoginEnabled = true;
     private boolean msLoginEnabled = false;
     private boolean logcatOverlayEnabled = false;
-    /** v450：前台服务恒开（设置页开关已隐藏）。 */
-    private boolean foregroundServiceEnabled = true;
-    private boolean autoCloseGameOnLaunchNew = false;
+    /** v587：前台服务默认值回退官方（false，设置页开关可开）。 */
+    private boolean foregroundServiceEnabled = false;
     private Boolean crashUploadEnabled = true;
 
     public enum StorageType {
@@ -55,14 +54,9 @@ public class FeatureSettings {
     public boolean isLogcatOverlayEnabled() { return logcatOverlayEnabled; }
     public void setLogcatOverlayEnabled(boolean enabled) { this.logcatOverlayEnabled = enabled; autoSave(); }
 
-    /** v570：后台使用开关恢复（v450 曾恒开隐藏；用户要求加回开关，
-     * 默认值仍为 true——老用户 prefs 里可能是 false 或缺失，
-     * 缺失时保持 true）。 */
+    /** v587：保活回退官方——默认关，设置页「前台服务」开关可开（官方行为）。 */
     public boolean isForegroundServiceEnabled() { return foregroundServiceEnabled; }
     public void setForegroundServiceEnabled(boolean enabled) { this.foregroundServiceEnabled = enabled; autoSave(); }
-
-    public boolean isAutoCloseGameOnLaunchNew() { return autoCloseGameOnLaunchNew; }
-    public void setAutoCloseGameOnLaunchNew(boolean enabled) { this.autoCloseGameOnLaunchNew = enabled; autoSave(); }
 
     public boolean isCrashUploadEnabled() { return crashUploadEnabled == null || crashUploadEnabled; }
     public void setCrashUploadEnabled(boolean enabled) { this.crashUploadEnabled = enabled; autoSave(); }

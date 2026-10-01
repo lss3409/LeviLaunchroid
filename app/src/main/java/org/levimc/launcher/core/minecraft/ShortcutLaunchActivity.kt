@@ -5,7 +5,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import org.levimc.launcher.R
-import org.levimc.launcher.settings.FeatureSettings
 import org.levimc.launcher.ui.activities.MainActivity
 import org.levimc.launcher.util.ShortcutHelper
 
@@ -42,17 +41,9 @@ class ShortcutLaunchActivity : Activity() {
                 return
             }
             // 不同版本号：Minecraft 是 native 单例，重复启动会冲突崩溃。
-            if (FeatureSettings.getInstance().isAutoCloseGameOnLaunchNew) {
-                // 开关开：关闭旧游戏，重启后自动启动新版本
-                PendingLaunchManager.setPendingLaunch(this, target)
-                MinecraftActivityState.getCurrentActivity()?.let {
-                    if (!it.isFinishing) it.finish()
-                }
-            } else {
-                // 开关关：点击无效 + 提示，并把旧游戏任务栈移回后台避免跳到旧游戏
-                Toast.makeText(this, R.string.game_already_running, Toast.LENGTH_LONG).show()
-                moveTaskToBack(true)
-            }
+            // v587：删自动关旧游戏开关（双后台配套回退），仅提示
+            Toast.makeText(this, R.string.game_already_running, Toast.LENGTH_LONG).show()
+            moveTaskToBack(true)
             finish()
             return
         }
