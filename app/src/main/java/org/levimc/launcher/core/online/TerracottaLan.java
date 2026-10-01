@@ -83,6 +83,13 @@ public final class TerracottaLan {
             try {
                 MulticastSocket s = new MulticastSocket(null);
                 s.setReuseAddress(true);
+                // v625：显式绑 VPN 网络再 bind——组播从 TUN 发出（EasyTier
+                // 内核捕获转发）。Android 组播 join/收发默认走真实网络
+                // 接口，不绑 VPN 网络则 TUN 入站组播不投递（v624 实测）。
+                android.net.Network vpnNet = EasyTierManager.waitForVpnNetwork(10_000);
+                if (vpnNet != null) {
+                    vpnNet.bindSocket(s);
+                }
                 if (tunAddr != null) {
                     s.bind(new InetSocketAddress(tunAddr, 0));
                 } else {
@@ -179,58 +186,70 @@ public final class TerracottaLan {
             if (!scanning) {
                 return;
             }
-            try (MulticastSocket ms = new MulticastSocket(PORT)) {
+            try {
+                MulticastSocket ms = new MulticastSocket(null);
                 ms.setReuseAddress(true);
-                // 对每个接口 join 组播（组播经 TUN 虚拟网进来时必须
-                // 在 tun0 上有成员资格，默认接口 join 收不到）
-                InetAddress group = InetAddress.getByName(GROUP_V4);
-                int joined = 0;
-                for (NetworkInterface ni : interfaces()) {
-                    try {
-                        ms.joinGroup(new InetSocketAddress(group, PORT), ni);
-                        joined++;
-                    } catch (Exception ignored) {
-                    }
+                // v625：显式绑 VPN 网络再 bind/join——TUN 入站的转发
+                // 组播只投递给 VPN 网络 join 的 socket
+                android.net.Network vpnNet = EasyTierManager.waitForVpnNetwork(10_000);
+                if (vpnNet != null) {
+                    vpnNet.bindSocket(ms);
                 }
+                ms.bind(new InetSocketAddress(PORT));
                 try {
-                    ms.joinGroup(group);
-                    joined++;
-                } catch (Exception e) {
-                    Log.w(TAG, "默认接口 join 组播失败", e);
-                }
-                org.levimc.launcher.util.OnlineDebugLog.log(
-                        "TerracottaLan: 组播扫描已启动 (" + GROUP_V4 + ":" + PORT
-                                + ")，已 join " + joined + " 个接口");
-                ms.setSoTimeout(2000);
-                byte[] buf = new byte[2048];
-                org.levimc.launcher.util.OnlineDebugLog.log(
-                        "TerracottaLan: 组播扫描已启动 (" + GROUP_V4 + ":" + PORT + ")");
-                while (scanning) {
-                    try {
-                        DatagramPacket p = new DatagramPacket(buf, buf.length);
-                        ms.receive(p);
-                        String text = new String(p.getData(), 0, p.getLength(),
-                                StandardCharsets.UTF_8);
-                        org.levimc.launcher.util.OnlineDebugLog.log(
-                                "TerracottaLan: 收到组播公告 from "
-                                        + p.getAddress().getHostAddress() + ":"
-                                        + p.getPort() + " len=" + p.getLength()
-                                        + " [" + text + "]");
-                        // 解析端口供后续使用
-                        int b = text.indexOf("[AD]");
-                        int e = text.indexOf("[/AD]");
-                        if (b >= 0 && e > b) {
-                            try {
-                                int port = Integer.parseInt(
-                                        text.substring(b + 4, e).trim());
-                                lastGamePort = port;
-                                org.levimc.launcher.util.OnlineDebugLog.log(
-                                        "TerracottaLan: 解析到服务器端口 " + port);
-                            } catch (NumberFormatException ignored) {
-                            }
+                    // 对每个接口 join 组播（组播经 TUN 虚拟网进来时必须
+                    // 在 tun0 上有成员资格，默认接口 join 收不到）
+                    InetAddress group = InetAddress.getByName(GROUP_V4);
+                    int joined = 0;
+                    for (NetworkInterface ni : interfaces()) {
+                        try {
+                            ms.joinGroup(new InetSocketAddress(group, PORT), ni);
+                            joined++;
+                        } catch (Exception ignored) {
                         }
-                    } catch (java.net.SocketTimeoutException ignored) {
                     }
+                    try {
+                        ms.joinGroup(group);
+                        joined++;
+                    } catch (Exception e) {
+                        Log.w(TAG, "默认接口 join 组播失败", e);
+                    }
+                    org.levimc.launcher.util.OnlineDebugLog.log(
+                            "TerracottaLan: 组播扫描已启动 (" + GROUP_V4 + ":" + PORT
+                                    + ")，已 join " + joined + " 个接口，VPN 绑定="
+                                    + (vpnNet != null));
+                    ms.setSoTimeout(2000);
+                    byte[] buf = new byte[2048];
+                    while (scanning) {
+                        try {
+                            DatagramPacket p = new DatagramPacket(buf, buf.length);
+                            ms.receive(p);
+                            String text = new String(p.getData(), 0, p.getLength(),
+                                    StandardCharsets.UTF_8);
+                            org.levimc.launcher.util.OnlineDebugLog.log(
+                                    "TerracottaLan: 收到组播公告 from "
+                                            + p.getAddress().getHostAddress() + ":"
+                                            + p.getPort() + " len=" + p.getLength()
+                                            + " [" + text + "]");
+                            // 解析端口供后续使用
+                            int b = text.indexOf("[AD]");
+                            int e = text.indexOf("[/AD]");
+                            if (b >= 0 && e > b) {
+                                try {
+                                    int port = Integer.parseInt(
+                                            text.substring(b + 4, e).trim());
+                                    lastGamePort = port;
+                                    org.levimc.launcher.util.OnlineDebugLog.log(
+                                            "TerracottaLan: 解析到服务器端口 " + port);
+                                } catch (NumberFormatException ignored) {
+                                }
+                            }
+                        } catch (java.net.SocketTimeoutException ignored) {
+                        }
+                    }
+                    ms.close();
+                } finally {
+                    ms.close();
                 }
             } catch (Exception e) {
                 Log.w(TAG, "组播扫描异常", e);
