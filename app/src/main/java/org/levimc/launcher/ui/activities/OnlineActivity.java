@@ -207,6 +207,11 @@ public final class OnlineActivity extends BaseActivity
             }
         });
 
+        // v580：LAN 公告抓包调试（同 WiFi 抓真实 MC 公告，修正 LanBridge 协议号）
+        if (getIntent().getBooleanExtra("debug_lan_dump", false)) {
+            org.levimc.launcher.core.online.LanBridge.startDebugDump();
+        }
+
         handleDebugJoinIntent(getIntent());
     }
 

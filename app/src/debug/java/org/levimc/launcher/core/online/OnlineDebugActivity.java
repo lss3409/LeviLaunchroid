@@ -22,6 +22,10 @@ public final class OnlineDebugActivity extends Activity {
         String code = getIntent().getStringExtra("debug_join_code");
         String peer = getIntent().getStringExtra("debug_join_peer");
         boolean host = getIntent().getBooleanExtra("debug_host", false);
+        // v580：LAN 公告抓包调试（同 WiFi 抓真实 MC 公告，修正 LanBridge 协议号）
+        if (getIntent().getBooleanExtra("debug_lan_dump", false)) {
+            fwd.putExtra("debug_lan_dump", true);
+        }
         if (code != null) {
             fwd.putExtra("debug_join_code", code);
         }

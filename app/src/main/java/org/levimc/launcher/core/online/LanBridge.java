@@ -78,6 +78,74 @@ public final class LanBridge {
         }
     }
 
+    // ---------------- v580：LAN 公告抓包调试（后门触发） ----------------
+
+    private static volatile boolean dumping;
+    private static Thread dumpThread;
+
+    /** 抓真实 MC 局域网公告（组播 224.0.2.60:19132 + 广播），hex 写文件日志——
+     * 用于实测修正 protocol 号与公告格式（McProtocol.VERSION 当前为占位值）。 */
+    public static synchronized void startDebugDump() {
+        stopDebugDump();
+        dumping = true;
+        dumpThread = new Thread(() -> {
+            java.net.MulticastSocket ms = null;
+            try {
+                ms = new java.net.MulticastSocket(LAN_PORT);
+                ms.setReuseAddress(true);
+                ms.joinGroup(java.net.InetAddress.getByName("224.0.2.60"));
+                ms.setSoTimeout(4000);
+                byte[] buf = new byte[2048];
+                org.levimc.launcher.util.OnlineDebugLog.log("LAN 抓包已启动（组播 224.0.2.60:" + LAN_PORT + "）");
+                while (dumping) {
+                    try {
+                        java.net.DatagramPacket p = new java.net.DatagramPacket(buf, buf.length);
+                        ms.receive(p);
+                        String hex = bytesToHex(p.getData(), Math.min(p.getLength(), 192));
+                        org.levimc.launcher.util.OnlineDebugLog.log("LAN 公告 from "
+                                + p.getAddress().getHostAddress() + ":" + p.getPort()
+                                + " len=" + p.getLength() + " [" + hex + "]");
+                        // 顺带把可读文本打出来（公告是明文 MOTD:...;AD:...）
+                        String text = new String(p.getData(), 0, p.getLength(), "UTF-8");
+                        if (text.startsWith("MOTD:")) {
+                            org.levimc.launcher.util.OnlineDebugLog.log("LAN 公告明文: " + text);
+                        }
+                    } catch (java.net.SocketTimeoutException ignored) {
+                    } catch (Exception e) {
+                        Log.w(TAG, "抓包异常", e);
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "抓包启动失败", e);
+            } finally {
+                if (ms != null) {
+                    try {
+                        ms.close();
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        }, "lan-dump");
+        dumpThread.setDaemon(true);
+        dumpThread.start();
+    }
+
+    public static synchronized void stopDebugDump() {
+        dumping = false;
+        if (dumpThread != null) {
+            dumpThread.interrupt();
+            dumpThread = null;
+        }
+    }
+
+    private static String bytesToHex(byte[] data, int len) {
+        StringBuilder sb = new StringBuilder(len * 2);
+        for (int i = 0; i < len; i++) {
+            sb.append(String.format(java.util.Locale.US, "%02x", data[i] & 0xFF));
+        }
+        return sb.toString();
+    }
+
     /**
      * 合成一条基岩版 LAN 公告：
      * "MOTD:<motd>;AD:<base64>"
