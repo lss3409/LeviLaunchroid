@@ -1175,6 +1175,9 @@
     <string name="online_step_unknown">检测中…</string>
     <string name="online_game_open">房主世界已开启，可直接加入游戏</string>
     <string name="online_game_wait">等待房主开启世界…</string>
+    <string name="online_host_invite">邀请进入世界</string>
+    <string name="online_world_opened">世界已开启（端口 %1$d），点邀请成员深链直达</string>
+    <string name="online_world_none">未检测到世界——请先在游戏里进存档开世界</string>
     <string name="online_step_relay">中继模式</string>
     <string name="online_room_latency_fmt">%1$d ms</string>
     <string name="online_host_you">%1$s（你）</string>

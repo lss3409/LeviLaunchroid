@@ -68,6 +68,12 @@ public final class OnlineActivity extends BaseActivity
     private TextView gameStatus;
     private LinearLayout playersContainer;
     private TextView createStatus;
+    // v600：房主侧世界状态 + 深链邀请按钮
+    private android.view.View hostWorldRow;
+    private TextView hostWorldState;
+    private final android.os.Handler worldPollHandler = new android.os.Handler(
+            android.os.Looper.getMainLooper());
+    private final Runnable worldPollRunnable = this::refreshHostWorldState;
 
     // v529：房主头像（成员端从玩家列表同步）+ 加入/离开横幅
     private String hostAvatarUrl;
@@ -154,6 +160,13 @@ public final class OnlineActivity extends BaseActivity
         hostAvatar = findViewById(R.id.online_host_avatar);
         hostName = findViewById(R.id.online_host_name);
         gameStatus = findViewById(R.id.online_room_game_status);
+        // v600：房主侧世界状态 + 深链邀请按钮
+        hostWorldRow = findViewById(R.id.online_host_world_row);
+        hostWorldState = findViewById(R.id.online_host_world_state);
+        findViewById(R.id.online_host_invite_button).setOnClickListener(v -> {
+            org.levimc.launcher.core.online.RoomCenter.sendInviteAll();
+            Toast.makeText(this, "已邀请成员进入世界（成员端深链直达）", Toast.LENGTH_SHORT).show();
+        });
         banner = findViewById(R.id.online_banner);
         flushBannerRunnable = () -> {
             List<String> joins = new ArrayList<>(pendingJoins);
@@ -390,6 +403,18 @@ public final class OnlineActivity extends BaseActivity
                 gameStatus.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
             }
         }
+        // v600：房主侧世界状态 + 深链邀请按钮（1s 轮询桥学到的世界端口）
+        if (hostWorldRow != null) {
+            if (isHost) {
+                hostWorldRow.setVisibility(View.VISIBLE);
+                refreshHostWorldState();
+                worldPollHandler.removeCallbacks(worldPollRunnable);
+                worldPollHandler.postDelayed(worldPollRunnable, 1000);
+            } else {
+                hostWorldRow.setVisibility(View.GONE);
+                worldPollHandler.removeCallbacks(worldPollRunnable);
+            }
+        }
         playersContainer.removeAllViews();
         // 初始占位（心跳回调后重建）：房主行已展示自己，列表不再重复
         TextView empty = new TextView(this);
@@ -397,6 +422,25 @@ public final class OnlineActivity extends BaseActivity
         empty.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
         empty.setTextSize(12);
         playersContainer.addView(empty);
+    }
+
+    /** v600：刷新房主世界状态（桥从公告源学到的世界端口），1s 轮询。 */
+    private void refreshHostWorldState() {
+        if (hostWorldState == null) {
+            return;
+        }
+        int wp = org.levimc.launcher.core.online.LanRelayBridge.getLearnedWorldPort();
+        if (wp > 0) {
+            hostWorldState.setText(getString(R.string.online_world_opened, wp));
+            hostWorldState.setTextColor(getResources().getColor(R.color.primary, getTheme()));
+        } else {
+            hostWorldState.setText(R.string.online_world_none);
+            hostWorldState.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+        }
+        if (isHost && hostWorldRow != null && hostWorldRow.getVisibility() == View.VISIBLE) {
+            worldPollHandler.removeCallbacks(worldPollRunnable);
+            worldPollHandler.postDelayed(worldPollRunnable, 1000);
+        }
     }
 
     private static String firstChar(String s) {
