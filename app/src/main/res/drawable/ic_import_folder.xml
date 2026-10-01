@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v614：用户提供的资源管理图标（文件夹），用于「从文件管理器选择」按钮贴图 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M788.48 298.67H409.6L307.2 204.8H139.95c-11.95 0-23.9 11.94-23.9 23.89v568.32c0 11.95 11.95 23.9 23.9 23.9h18.77l95.57-474.46h558.08v-29.01c0-13.66-11.94-18.78-23.89-18.78z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M896 802.13c0 52.91-47.79 98.99-102.4 98.99H139.95c-59.74 0-107.52-46.08-107.52-105.81V226.99c0-58.03 47.78-105.82 107.52-105.82h204.8l102.4 88.75h348.16c59.73 0 107.52 46.08 107.52 105.81v29.02h90.45L896 802.13z" />
+</vector>

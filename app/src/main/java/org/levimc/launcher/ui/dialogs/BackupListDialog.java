@@ -138,8 +138,13 @@ public final class BackupListDialog extends Dialog {
         // v609：底部按钮与导入同款——MaterialButton + 个性化强调色
         pickButton = new com.google.android.material.button.MaterialButton(context);
         pickButton.setAllCaps(false);
-        pickButton.setText(zh ? "从文件管理器选择…" : "Choose from Files…");
+        pickButton.setText(zh ? "从文件管理器选择" : "Choose from Files");
         pickButton.setTextSize(13);
+        // v614：文件夹贴图（用户提供 SVG），白图标配强调色底
+        pickButton.setIconResource(R.drawable.ic_import_folder);
+        pickButton.setIconTint(android.content.res.ColorStateList.valueOf(Color.WHITE));
+        pickButton.setIconGravity(com.google.android.material.button.MaterialButton.ICON_GRAVITY_TEXT_START);
+        pickButton.setIconPadding(dp(6));
         pickButton.setMinWidth(0);
         pickButton.setMinimumWidth(0);
         pickButton.setOnClickListener(v -> {
