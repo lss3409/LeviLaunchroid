@@ -61,6 +61,9 @@ public final class LanRelayBridge {
     /** v637：同网原生发现检测（本机接口外来的 0x01 公告=同网有真服务器，
      * 禁用合成 pong 防重复条目——同网原生发现本来就该工作）。 */
     private static volatile boolean sameLan;
+    /** v639：世界端口学到的时刻（世界加载完成后端口才对外可用——用户
+     * 实测"深链端口给太早，存档还没进去端口就出来了"）。 */
+    private static volatile long worldReadyTs;
     /** 基岩版 RakNet 标准 magic（ping/pong 校验字段）。 */
     private static final byte[] MAGIC = new byte[]{
             0x00, (byte) 0xff, (byte) 0xff, 0x00,
@@ -77,10 +80,15 @@ public final class LanRelayBridge {
         Thread t = new Thread(() -> {
             while (running) {
                 try {
-                    // v636：世界端口学到后主动 ping 本机世界服务器，缓存真
-                    // pong（含服务器 GUID），经 c:lan 同步成员端——成员秒回
-                    // 合成 pong，条目立即显示（真 pong 穿隧道超客户端超时）
-                    if (worldPort > 0 && proxy != null && !proxy.isClosed()) {
+                    // v639：端口学到后延迟 8s 才对外可用（世界加载缓冲——
+                    // 用户实测"端口给太早，存档还没进去端口就出来了"）
+                    int readyWp = (worldPort > 0
+                            && System.currentTimeMillis() - worldReadyTs >= 8000)
+                            ? worldPort : 0;
+                    // v636：世界就绪后主动 ping 本机世界服务器，缓存真 pong
+                    //（含服务器 GUID），经 c:lan 同步成员端——成员秒回合成
+                    // pong，条目立即显示（真 pong 穿隧道超客户端超时）
+                    if (readyWp > 0 && proxy != null && !proxy.isClosed()) {
                         byte[] ping = new byte[33];
                         ping[0] = 0x01;
                         long tm = System.currentTimeMillis();
@@ -92,7 +100,7 @@ public final class LanRelayBridge {
                                 InetAddress.getByName("127.0.0.1"), worldPort));
                     }
                     RoomCenter.sendLanAnnounce(
-                            cachedPong != null ? cachedPong : new byte[0], worldPort);
+                            cachedPong != null ? cachedPong : new byte[0], readyWp);
                 } catch (Exception e) {
                     if (running) {
                         Log.w(TAG, "房主公告同步异常", e);
@@ -124,12 +132,14 @@ public final class LanRelayBridge {
             startProxy();
             Log.i(TAG, "异地入口桥已启动（成员/客户端）房主=" + host);
         }
-        // v638：房主世界开着（wp>0）→ 成员端注入 4445 组播公告
-        //（Astral multicast.rs 同款：游戏客户端原生消费 224.0.2.60:4445
-        // 的 [MOTD]/[AD] 公告显示局域网条目——v618 平板刷屏实锤 1.26
-        // Android 客户端监听该组播）。AD 固定 19132=本机桥端口，客户端
-        // 点条目连本机 WiFi IP:19132 → lanSock → 隧道 → 房主世界。
-        if (port > 0) {
+        // v638：房主世界就绪（wp>0 且真 pong 已缓存=服务器可应答）→
+        // 成员端注入 4445 组播公告（Astral multicast.rs 同款：游戏客户端
+        // 原生消费 224.0.2.60:4445 的 [MOTD]/[AD] 公告显示局域网条目——
+        // v618 平板刷屏实锤 1.26.45 客户端监听该组播；注意 1.26.40 客户端
+        // 不监听——vivo 版本差异）。AD 固定 19132=本机桥端口，客户端点
+        // 条目连本机 WiFi IP:19132 → lanSock → 隧道 → 房主世界。
+        // v639：pong 缓存就绪才注入（世界可应答，防端口过早）。
+        if (port > 0 && cachedPong != null) {
             startMulticastInject();
         }
     }
@@ -333,6 +343,7 @@ public final class LanRelayBridge {
                 if (serverSide && head == 0x01 && sport > 1024
                         && worldPort != sport) {
                     worldPort = sport;
+                    worldReadyTs = System.currentTimeMillis(); // v639：就绪计时
                     org.levimc.launcher.util.OnlineDebugLog.log(
                             "异地桥(服务器): 公告源端口学习为世界端口 " + sport);
                 }
