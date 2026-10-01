@@ -110,7 +110,7 @@ public final class LanRelayBridge {
         Log.i(TAG, "异地入口桥已启动（房主/世界服务器）");
     }
 
-    /** 成员（客户端）收到 c:lan：启动代理 + 缓存 pong 模板。 */
+    /** 成员（客户端）收到 c:lan：启动代理 + 缓存 pong 模板 + 4445 组播注入。 */
     public static synchronized void onAnnounce(byte[] reply, String host,
                                                int port, String nick) {
         peerIp = host;
@@ -124,6 +124,55 @@ public final class LanRelayBridge {
             startProxy();
             Log.i(TAG, "异地入口桥已启动（成员/客户端）房主=" + host);
         }
+        // v638：房主世界开着（wp>0）→ 成员端注入 4445 组播公告
+        //（Astral multicast.rs 同款：游戏客户端原生消费 224.0.2.60:4445
+        // 的 [MOTD]/[AD] 公告显示局域网条目——v618 平板刷屏实锤 1.26
+        // Android 客户端监听该组播）。AD 固定 19132=本机桥端口，客户端
+        // 点条目连本机 WiFi IP:19132 → lanSock → 隧道 → 房主世界。
+        if (port > 0) {
+            startMulticastInject();
+        }
+    }
+
+    private static volatile boolean injecting;
+    private static java.net.MulticastSocket injectSock;
+
+    /** v638：成员端 4445 组播公告注入（源=本机 WiFi IP，客户端条目指向本机桥）。 */
+    private static synchronized void startMulticastInject() {
+        if (injecting) {
+            return;
+        }
+        injecting = true;
+        Thread t = new Thread(() -> {
+            try {
+                injectSock = new java.net.MulticastSocket(null);
+                injectSock.setReuseAddress(true);
+                if (lanIp != null) {
+                    injectSock.bind(new InetSocketAddress(lanIp, 0));
+                } else {
+                    injectSock.bind(new InetSocketAddress(0));
+                }
+                injectSock.setLoopbackMode(true); // 防本机发现器吃回注入（风暴）
+                injectSock.setTimeToLive(1);
+                InetAddress group = InetAddress.getByName("224.0.2.60");
+                byte[] data = ("[MOTD]PaperConnect 房主世界[/MOTD][AD]19132[/AD]")
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                org.levimc.launcher.util.OnlineDebugLog.log(
+                        "异地桥(成员): 4445 组播公告注入已启动（AD=19132）");
+                while (injecting && injectSock != null && !injectSock.isClosed()) {
+                    injectSock.send(new DatagramPacket(data, data.length, group, 4445));
+                    try {
+                        Thread.sleep(1500);
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "4445 注入异常", e);
+            }
+        }, "lan-inject-4445");
+        t.setDaemon(true);
+        t.start();
     }
 
     public static synchronized void stopHost() {
@@ -141,6 +190,7 @@ public final class LanRelayBridge {
 
     private static synchronized void stopAll() {
         running = false;
+        injecting = false;
         if (proxy != null) {
             try {
                 proxy.close();
@@ -154,6 +204,13 @@ public final class LanRelayBridge {
             } catch (Exception ignored) {
             }
             lanSock = null;
+        }
+        if (injectSock != null) {
+            try {
+                injectSock.close();
+            } catch (Exception ignored) {
+            }
+            injectSock = null;
         }
         clients.clear();
         worldPort = 0;
