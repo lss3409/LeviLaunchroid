@@ -151,11 +151,14 @@ public class ImportPickerDialog {
                     filtered.add(c);
                 }
             }
-            // 分类卡（固定区一行四个，单展开位切换）
+            // 分类卡（固定区一行四个，单展开位切换）；
+            // v616：卡片区与条目区间距 8dp——修"卡片与条目重叠"
             LinearLayout cards = new LinearLayout(context);
             cards.setOrientation(LinearLayout.HORIZONTAL);
-            cardsHost.addView(cards, new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            LinearLayout.LayoutParams cardsLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            cardsLp.bottomMargin = (int) (8 * density);
+            cardsHost.addView(cards, cardsLp);
             for (int g = 0; g < GROUPS.length; g++) {
                 final int type = GROUPS[g][0];
                 int count = 0;
