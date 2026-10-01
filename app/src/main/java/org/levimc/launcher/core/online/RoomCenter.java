@@ -261,6 +261,8 @@ public final class RoomCenter {
     /** v633：成员端缓存房主世界端口/地址（c:lan 同步），主动深链用。 */
     public static volatile int lastWorldPort;
     public static volatile String lastHostIp;
+    /** v634：端口缓存更新时间（深链前校验新鲜度，防旧世界端口）。 */
+    public static volatile long lastWorldPortTime;
 
     public static void sendLanAnnounce(byte[] replyData, int worldPort) {
         DatagramSocket s = hostSocket;
@@ -712,6 +714,9 @@ public final class RoomCenter {
                                     // 联机页「进入房主世界」主动深链用
                                     lastWorldPort = wp;
                                     lastHostIp = p.getAddress().getHostAddress();
+                                    // v634：端口新鲜度时间戳（世界每次重开端口随机变，
+                                    // 深链前校验防连到上一次世界的旧端口）
+                                    lastWorldPortTime = System.currentTimeMillis();
                                     // v588：data 可空（1.26 服务器不广播，成员侧合成
                                     // pong）；nick 为成员合成 pong 的世界名
                                     String nick = lq.optString("nick", "");

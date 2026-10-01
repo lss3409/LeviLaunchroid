@@ -189,7 +189,11 @@ public final class OnlineActivity extends BaseActivity
                         Toast.LENGTH_SHORT).show();
                 return;
             }
-            launchDeepLink("minecraft://connect?serverUrl=" + hip + "&serverPort=" + wp,
+            // v634：深链固定连 19132（v598 房主桥端口）——桥在房主侧持续
+            // 监听虚拟网 19132 并透明转发到真实世界端口（127.0.0.1:wp），
+            // 世界每次重开端口随机变也无需同步（实测直连世界端口 2168
+            // 旧值 InitialConnection-13 的根因）。wp 仅作状态显示。
+            launchDeepLink("minecraft://connect?serverUrl=" + hip + "&serverPort=19132",
                     "正在连接房主世界…");
         });
         banner = findViewById(R.id.online_banner);
@@ -675,10 +679,12 @@ public final class OnlineActivity extends BaseActivity
             return;
         }
         runOnUiThread(() -> {
+            // v634：深链固定连 19132（房主桥端口，动态转发真实世界端口，
+            // 免端口同步竞态），收到邀请里的 port 仅日志参考
             String url = "minecraft://connect?serverUrl=" + hostIp
-                    + "&serverPort=" + port;
+                    + "&serverPort=19132";
             org.levimc.launcher.util.OnlineDebugLog.log(
-                    "onInvite: 收到房主邀请，深链 " + url);
+                    "onInvite: 收到房主邀请(参考端口" + port + ")，深链 " + url);
             // v633：深链直连统一走公共入口（游戏运行中先结束，退出后补发）
             launchDeepLink(url, "房主邀请进入世界，正在连接…");
         });
