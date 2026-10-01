@@ -45,6 +45,8 @@ public class SplashActivity extends BaseActivity {
         super.onCreate(savedInstanceState);
         // v549：启动器活跃时间戳（详情卡「最近在线」随心跳广播）
         org.levimc.launcher.core.online.PlayerIdentity.touchLastActive(this);
+        // v564：联机调试文件日志初始化（vivo logcat 抓不到应用日志）
+        org.levimc.launcher.util.OnlineDebugLog.init(this);
         binding = ActivitySplashBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
