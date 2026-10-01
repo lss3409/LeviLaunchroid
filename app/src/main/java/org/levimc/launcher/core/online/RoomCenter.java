@@ -582,6 +582,8 @@ public final class RoomCenter {
 
     /** v534：最近成员端 clientId（c:bye 用）。 */
     private static volatile String currentClientId;
+    /** v562：成员端首包日志一次性标志（文件日志防刷）。 */
+    private static volatile boolean firstRosterLogged;
 
     private static void clientLoop(String hostIp, String name, String clientId, Listener l) {
         while (clientRunning) {
@@ -633,6 +635,12 @@ public final class RoomCenter {
                                 }
                             } else {
                                 List<Player> list = parsePlayers(text);
+                                // v562：首次收到房主响应写文件日志（vivo logcat 不可用）
+                                if (!firstRosterLogged) {
+                                    firstRosterLogged = true;
+                                    org.levimc.launcher.util.OnlineDebugLog.log(
+                                            "成员端收到房主首个响应，名单 " + list.size() + " 人");
+                                }
                                 long rtt = -1;
                                 try {
                                     JSONObject o = new JSONObject(text);

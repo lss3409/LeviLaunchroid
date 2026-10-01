@@ -213,13 +213,18 @@ public final class EasyTierVpnService extends VpnService {
                     }
                 }
             }
-        } else {
-            // 虚拟网段覆盖：10.144.0.0/16（房主固定网段）+
-            // 10.126.126.0/24（内核 DHCP 默认网段，OSPF 未同步时的分配结果）——
-            // 成员可能拿到任一网段，两边 TUN 都要路由才能双向互通。
-            builder.addRoute("10.144.0.0", 16);
-            builder.addRoute("10.126.126.0", 24);
         }
+        // v562：兜底网段无条件加（不再走 else）——poll 的 cidrs 在异地/部分
+        // 网络下路由学习不全（成员端可能只有自己 DHCP 网段），发往房主
+        // 固定网段 10.144.x.x 的心跳不进 TUN 直接丢失，表现=组网成功但
+        // 房间中心不通（"未找到房主"/双方只显示 1 人，异地高发、局域网
+        // 恰好路由学全所以一直正常）。10.144.0.0/16（房主固定网段）+
+        // 10.126.126.0/24（内核 DHCP 默认网段）两边 TUN 都要路由才能互通。
+        builder.addRoute("10.144.0.0", 16);
+        builder.addRoute("10.126.126.0", 24);
+        org.levimc.launcher.util.OnlineDebugLog.log("TUN 路由: ipv4=" + ipv4
+                + " cidrs=" + java.util.Arrays.toString(cidrs)
+                + " + 兜底 10.144.0.0/16,10.126.126.0/24");
         try {
             return builder.establish();
         } catch (Throwable t) {

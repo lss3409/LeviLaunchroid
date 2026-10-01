@@ -101,6 +101,7 @@ public final class OnlineActivity extends BaseActivity
         if (joinDialog != null) {
             joinDialog.dismiss();
         }
+        org.levimc.launcher.util.OnlineDebugLog.log("握手超时触发——20s 未见房主名单，断开");
         EasyTierManager.get().stop(this);
         RoomCenter.stopClient();
         LanDiscovery.stopHost();
@@ -497,6 +498,8 @@ public final class OnlineActivity extends BaseActivity
                     if (p.isRoomHost) {
                         roomHandshakeDone = true;
                         handshakeHandler.removeCallbacks(handshakeTimeout);
+                        org.levimc.launcher.util.OnlineDebugLog.log(
+                                "握手成功——收到房主名单（" + list.size() + " 人）");
                         break;
                     }
                 }
@@ -1405,6 +1408,9 @@ public final class OnlineActivity extends BaseActivity
                         hostIp = HOST_IPV4;
                     }
                     android.util.Log.i("OnlineActivity", "连接房主: " + hostIp);
+                    org.levimc.launcher.util.OnlineDebugLog.log("成员连接房主: " + hostIp
+                            + "（路由表解析=" + EasyTierManager.get().getHostVirtualIp()
+                            + "）本机虚拟IP=" + EasyTierManager.get().getVirtualIp());
                     RoomCenter.startClient(hostIp, nick, cid, this::onRoomPlayers);
                     // v561：加入握手确认——20 秒内收不到房主玩家列表
                     // 即判定房间已解散（此前"房主不在也能加入成功"）
