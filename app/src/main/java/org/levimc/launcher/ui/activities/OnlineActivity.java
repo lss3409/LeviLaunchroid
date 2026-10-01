@@ -270,6 +270,11 @@ public final class OnlineActivity extends BaseActivity
             LanDiscovery.startHost(hr.parsed.networkName);
             // v620：debug 后门建房同样启组播公告（v617 只在 doHostRoom 接了，
             // debug_host 路径漏接导致自动化测试时公告线程从未启动）
+            // v622：debug_announce_port 强制公告端口（无游戏验证组播链路用）
+            int dbgPort = intent.getIntExtra("debug_announce_port", 0);
+            if (dbgPort > 0) {
+                org.levimc.launcher.core.online.TerracottaLan.debugPort = dbgPort;
+            }
             org.levimc.launcher.core.online.TerracottaLan.startAnnounce(
                     PlayerIdentity.getNickname(this));
             List<String> relayPeers = RelayStore.load(this);
@@ -307,6 +312,8 @@ public final class OnlineActivity extends BaseActivity
 
     /** 调试路径的显式 peer 直连加入（无授权弹窗时用）。 */
     private void debugJoin(InviteCode.Parsed parsed, String explicitPeer) {
+        // v622：debug 加入同样启组播扫描（v617 只在 doJoinFromDialog 接了）
+        org.levimc.launcher.core.online.TerracottaLan.startScan();
         new Thread(() -> {
             List<String> peers = new ArrayList<>();
             peers.add(explicitPeer);

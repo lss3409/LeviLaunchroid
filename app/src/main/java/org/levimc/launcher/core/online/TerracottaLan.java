@@ -37,6 +37,8 @@ public final class TerracottaLan {
     private static volatile boolean scanning;
     private static volatile String lastMotd = "PaperConnect 房间";
     private static volatile int lastGamePort;
+    /** v622：调试强制公告端口（>0 时忽略桥学到的端口，用于无游戏验证组播链路）。 */
+    public static volatile int debugPort;
 
     private TerracottaLan() {
     }
@@ -108,11 +110,12 @@ public final class TerracottaLan {
                 return;
             }
             while (announcing) {
-                int port = LanRelayBridge.getLearnedWorldPort();
+                int port = debugPort > 0 ? debugPort : LanRelayBridge.getLearnedWorldPort();
                 if (port > 0) {
                     lastGamePort = port;
                 }
-                // 世界未开启时不发公告（Terracotta 语义：开世界才公告）
+                // 世界未开启时不发公告（Terracotta 语义：开世界才公告；
+                // debugPort 强制时例外）
                 if (lastGamePort <= 0) {
                     try {
                         Thread.sleep(INTERVAL_MS);
