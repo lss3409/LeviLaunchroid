@@ -134,13 +134,14 @@ public final class BackupListDialog extends Dialog {
         lp.topMargin = dp(14);
         root.addView(loadingBar, lp);
 
-        // 底部按钮：从文件管理器选择（一级列表为空时也可见）
-        Button pickButton = new Button(context);
+        // v609：底部按钮与导入同款——MaterialButton + 个性化强调色
+        com.google.android.material.button.MaterialButton pickButton =
+                new com.google.android.material.button.MaterialButton(context);
         pickButton.setAllCaps(false);
         pickButton.setText(zh ? "从文件管理器选择…" : "Choose from Files…");
-        pickButton.setTextColor(accent);
         pickButton.setTextSize(13);
-        pickButton.setBackgroundColor(Color.TRANSPARENT);
+        pickButton.setMinWidth(0);
+        pickButton.setMinimumWidth(0);
         pickButton.setOnClickListener(v -> {
             dismiss();
             if (listener != null) {
@@ -151,6 +152,7 @@ public final class BackupListDialog extends Dialog {
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(42));
         bp.topMargin = dp(6);
         root.addView(pickButton, bp);
+        org.levimc.launcher.util.AccentStyler.stylePrimary(context, pickButton);
 
         setContentView(root);
         Window w = getWindow();
