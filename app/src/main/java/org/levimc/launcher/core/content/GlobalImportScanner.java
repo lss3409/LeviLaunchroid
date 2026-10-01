@@ -43,8 +43,10 @@ public final class GlobalImportScanner {
         public String path;
         /** pack_icon.png 原始字节（可能为 null，UI 用默认图标）。 */
         public byte[] icon;
-        /** v606：zip 内包含的子包名称（多包压缩包明细，三级菜单用）。 */
-        public List<String> subItems;
+        /** v606：zip 内包含的子包（多包压缩包明细，二级菜单跳转用）。 */
+        public List<SubManifest> subManifests;
+        /** v609：存档 level.dat 解析出的有用信息（二级菜单显示）。 */
+        public LevelInfo levelInfo;
 
         public String typeLabel() {
             switch (type) {
@@ -58,6 +60,29 @@ public final class GlobalImportScanner {
                     return "结构";
             }
         }
+    }
+
+    /** v609：zip 内子包清单信息（manifest.json 关键字段）。 */
+    public static class SubManifest {
+        public String name = "";
+        public String type = ""; // data=行为包 / resources=资源包
+        public String version = "";
+        public String description = "";
+        /** 依赖的包 uuid 列表（addon 的 dependencies 字段）。 */
+        public List<String> dependencies;
+
+        public boolean isBehavior() {
+            return "data".equals(type);
+        }
+    }
+
+    /** v609：存档 level.dat 解析信息（二级菜单显示）。 */
+    public static class LevelInfo {
+        public String version = "";
+        public String seed = "";
+        public String gameType = "";
+        public String levelName = "";
+        public long lastPlayed;
     }
 
     public interface Listener {
@@ -125,25 +150,27 @@ public final class GlobalImportScanner {
             String name = f.getName().toLowerCase(Locale.US);
             try {
                 if (f.isDirectory()) {
-                    // 已解压的包/存档目录：完整性子目录检查。
-                    // v606：命中后仍深挖子目录（父目录被识别不代表内部
-                    // 没有独立包——实测"UI整合包/"类目录命中后子包全漏）
-                    Candidate c = checkFolder(f);
+                    // v609：文件夹只认完整 mcworld（五件套齐全），
+                    // 不再识别解压的资源包文件夹
+                    Candidate c = checkWorldFolder(f);
                     if (c != null && seen.add(c.path)) {
                         out.add(c);
                     }
                     scanDir(f, depth - 1, out, seen, listener);
                 } else if (f.isFile()) {
-                    // v605：跳过自己的备份/包格式（本质 zip 会被误判）
+                    // v609：跳过自己的备份/包格式；只认 mc 系列后缀，
+                    // 不再扫通用 .zip
                     if (name.endsWith(".levibackup") || name.endsWith(".levipack")) {
                         continue;
                     }
                     if (name.endsWith(".mcworld")) {
+                        // 内容校验：必须含 level.dat，否则排除
                         Candidate c = checkZipWorld(f);
                         if (c != null && seen.add(c.path)) {
                             out.add(c);
                         }
                     } else if (name.endsWith(".mcpack") || name.endsWith(".mcaddon")) {
+                        // 内容校验：必须含 manifest.json，否则排除
                         Candidate c = checkZipPack(f);
                         if (c != null && seen.add(c.path)) {
                             out.add(c);
@@ -158,11 +185,6 @@ public final class GlobalImportScanner {
                         if (seen.add(c.path)) {
                             out.add(c);
                         }
-                    } else if (name.endsWith(".zip")) {
-                        Candidate c = checkZip(f);
-                        if (c != null && seen.add(c.path)) {
-                            out.add(c);
-                        }
                     }
                 }
             } catch (Throwable ignored) {
@@ -170,86 +192,32 @@ public final class GlobalImportScanner {
         }
     }
 
-    /** 检查文件夹：manifest.json（资源/行为包）、level.dat（存档）、.mcstructure。 */
-    private static Candidate checkFolder(File dir) {
-        File manifest = new File(dir, "manifest.json");
+    /**
+     * v609：文件夹只认完整 mcworld——五件套必须齐全：
+     * db 文件夹 + level.dat + level.dat_old + levelname.txt + world_icon.jpeg。
+     */
+    private static Candidate checkWorldFolder(File dir) {
         File levelDat = new File(dir, "level.dat");
+        File levelDatOld = new File(dir, "level.dat_old");
         File levelName = new File(dir, "levelname.txt");
-        if (levelDat.isFile()) {
-            // v605：Java 版世界目录也有 level.dat——region/ 目录（.mca）
-            // 是 Java 特征，基岩存档有 db/（leveldb）；Java 世界跳过
-            File region = new File(dir, "region");
-            File db = new File(dir, "db");
-            if (region.isDirectory() && !db.isDirectory()) {
-                return null;
-            }
-            Candidate c = new Candidate();
-            c.type = TYPE_WORLD;
-            c.name = readText(levelName, 64).trim();
-            if (c.name.isEmpty()) {
-                c.name = dir.getName();
-            }
-            c.file = dir;
-            c.size = dirSize(dir);
-            c.path = dir.getAbsolutePath();
-            File icon = new File(dir, "world_icon.jpeg");
-            if (!icon.isFile()) {
-                icon = new File(dir, "world_icon.png");
-            }
-            c.icon = readBytes(icon, 2 * 1024 * 1024);
-            return c;
+        File worldIcon = new File(dir, "world_icon.jpeg");
+        File db = new File(dir, "db");
+        if (!levelDat.isFile() || !levelDatOld.isFile() || !levelName.isFile()
+                || !worldIcon.isFile() || !db.isDirectory()) {
+            return null;
         }
-        if (manifest.isFile()) {
-            try {
-                JSONObject root = new JSONObject(readText(manifest, 256 * 1024));
-                JSONObject header = root.optJSONObject("header");
-                String name = header != null ? header.optString("name", "") : "";
-                String ver = "";
-                if (header != null) {
-                    Object v = header.opt("version");
-                    if (v instanceof JSONObject) {
-                        ver = ((JSONObject) v).optString("version", "");
-                    }
-                }
-                String moduleType = "";
-                if (root.optJSONArray("modules") != null
-                        && root.optJSONArray("modules").length() > 0) {
-                    moduleType = root.optJSONArray("modules")
-                            .optJSONObject(0).optString("type", "");
-                }
-                Candidate c = new Candidate();
-                if ("data".equals(moduleType)) {
-                    c.type = TYPE_BEHAVIOR;
-                } else {
-                    c.type = TYPE_RESOURCE;
-                }
-                c.name = name.isEmpty() ? dir.getName() : name;
-                c.version = ver;
-                c.file = dir;
-                c.size = dirSize(dir);
-                c.path = dir.getAbsolutePath();
-                File icon = new File(dir, "pack_icon.png");
-                c.icon = readBytes(icon, 2 * 1024 * 1024);
-                return c;
-            } catch (Throwable ignored) {
-            }
+        Candidate c = new Candidate();
+        c.type = TYPE_WORLD;
+        c.name = readText(levelName, 64).trim();
+        if (c.name.isEmpty()) {
+            c.name = dir.getName();
         }
-        // 结构文件目录
-        File[] subs = dir.listFiles();
-        if (subs != null) {
-            for (File s : subs) {
-                if (s.isFile() && s.getName().toLowerCase(Locale.US).endsWith(".mcstructure")) {
-                    Candidate c = new Candidate();
-                    c.type = TYPE_STRUCTURE;
-                    c.name = s.getName();
-                    c.file = dir;
-                    c.size = dirSize(dir);
-                    c.path = dir.getAbsolutePath();
-                    return c;
-                }
-            }
-        }
-        return null;
+        c.file = dir;
+        c.size = dirSize(dir);
+        c.path = dir.getAbsolutePath();
+        c.icon = readBytes(worldIcon, 2 * 1024 * 1024);
+        c.levelInfo = parseLevelDat(readBytes(levelDat, 16 * 1024 * 1024));
+        return c;
     }
 
     private static Candidate checkZipWorld(File f) {
@@ -259,6 +227,7 @@ public final class GlobalImportScanner {
         c.file = f;
         c.size = f.length();
         c.path = f.getAbsolutePath();
+        boolean hasLevelDat = false;
         try (ZipFile zf = new ZipFile(f)) {
             ZipEntry ln = zf.getEntry("levelname.txt");
             if (ln != null) {
@@ -274,12 +243,23 @@ public final class GlobalImportScanner {
             if (icon != null) {
                 c.icon = readZipEntry(zf, icon, 2 * 1024 * 1024);
             }
+            // v609：内容校验——必须含 level.dat（基岩存档），否则排除
+            ZipEntry ld = findEntry(zf, "level.dat");
+            if (ld != null) {
+                hasLevelDat = true;
+                byte[] ldBytes = readZipEntry(zf, ld, 16 * 1024 * 1024);
+                c.levelInfo = parseLevelDat(ldBytes);
+            }
         } catch (Throwable ignored) {
+        }
+        if (!hasLevelDat) {
+            return null;
         }
         return c;
     }
 
     private static Candidate checkZipPack(File f) {
+        // v609：内容校验——manifest.json 缺失的排除（防止伪装后缀）
         Candidate c = new Candidate();
         c.type = f.getName().toLowerCase(Locale.US).endsWith(".mcaddon")
                 ? TYPE_BEHAVIOR : TYPE_RESOURCE;
@@ -287,82 +267,19 @@ public final class GlobalImportScanner {
         c.file = f;
         c.size = f.length();
         c.path = f.getAbsolutePath();
-        fillZipPackMeta(f, c);
+        if (!fillZipPackMeta(f, c)) {
+            return null;
+        }
         return c;
     }
 
-    /** .zip 内检视：level.dat=存档（区分 Java/基岩），manifest.json=包，.mcstructure=结构。 */
-    private static Candidate checkZip(File f) {
+    /**
+     * v609：解析包 zip 内全部 manifest（多包 addon 的 bp/rp 子包收集），
+     * 返回是否至少含一个 manifest（缺失即伪包排除）。
+     */
+    private static boolean fillZipPackMeta(File f, Candidate c) {
         try (ZipFile zf = new ZipFile(f)) {
-            java.util.Enumeration<? extends ZipEntry> en = zf.entries();
-            boolean hasLevelDat = false;
-            boolean hasManifest = false;
-            boolean hasStructure = false;
-            boolean hasBedrockDb = false;   // db/CURRENT 等 = 基岩 leveldb 存档
-            boolean hasJavaRegion = false;  // region/*.mca = Java 世界
-            while (en.hasMoreElements()) {
-                String n = en.nextElement().getName().toLowerCase(Locale.US);
-                if (n.endsWith("level.dat")) {
-                    hasLevelDat = true;
-                } else if (n.endsWith("manifest.json")) {
-                    hasManifest = true;
-                } else if (n.endsWith(".mcstructure")) {
-                    hasStructure = true;
-                } else if (n.startsWith("db/") || n.endsWith("/current")
-                        || n.equals("current") || n.startsWith("db")) {
-                    hasBedrockDb = true;
-                } else if (n.endsWith(".mca") || n.startsWith("region/")) {
-                    hasJavaRegion = true;
-                }
-            }
-            if (hasLevelDat) {
-                // v605：Java 版世界 zip 也含 level.dat（region/*.mca 特征）
-                // ——跳过；基岩存档有 db/（leveldb）或 levelname.txt
-                if (hasJavaRegion && !hasBedrockDb) {
-                    return null;
-                }
-                return checkZipWorld(f);
-            }
-            if (hasManifest) {
-                Candidate c = checkZipPack(f);
-                // mcaddon 含 data 模块 → 行为包
-                try (ZipFile zf2 = new ZipFile(f)) {
-                    ZipEntry mf = findEntry(zf2, "manifest.json");
-                    if (mf != null) {
-                        byte[] b = readZipEntry(zf2, mf, 256 * 1024);
-                        if (b != null) {
-                            JSONObject root = new JSONObject(new String(b,
-                                    java.nio.charset.StandardCharsets.UTF_8));
-                            if (root.optJSONArray("modules") != null
-                                    && root.optJSONArray("modules").length() > 0) {
-                                String mt = root.optJSONArray("modules")
-                                        .optJSONObject(0).optString("type", "");
-                                c.type = "data".equals(mt) ? TYPE_BEHAVIOR : TYPE_RESOURCE;
-                            }
-                        }
-                    }
-                } catch (Throwable ignored) {
-                }
-                return c;
-            }
-            if (hasStructure) {
-                Candidate c = new Candidate();
-                c.type = TYPE_STRUCTURE;
-                c.name = stripExt(f.getName());
-                c.file = f;
-                c.size = f.length();
-                c.path = f.getAbsolutePath();
-                return c;
-            }
-        } catch (Throwable ignored) {
-        }
-        return null;
-    }
-
-    private static void fillZipPackMeta(File f, Candidate c) {
-        try (ZipFile zf = new ZipFile(f)) {
-            // v606：收集 zip 内全部 manifest 的名称（多包压缩包明细）
-            java.util.List<String> subs = new java.util.ArrayList<>();
+            List<SubManifest> subs = new ArrayList<>();
             java.util.Enumeration<? extends ZipEntry> en = zf.entries();
             while (en.hasMoreElements()) {
                 ZipEntry e = en.nextElement();
@@ -377,48 +294,116 @@ public final class GlobalImportScanner {
                     JSONObject root = new JSONObject(new String(b,
                             java.nio.charset.StandardCharsets.UTF_8));
                     JSONObject header = root.optJSONObject("header");
-                    String n = header != null ? header.optString("name", "") : "";
-                    String mt = "";
+                    SubManifest sm = new SubManifest();
+                    sm.name = header != null ? header.optString("name", "") : "";
+                    Object v = header != null ? header.opt("version") : null;
+                    if (v instanceof JSONObject) {
+                        sm.version = ((JSONObject) v).optString("version", "");
+                    }
+                    sm.description = header != null ? header.optString("description", "") : "";
                     if (root.optJSONArray("modules") != null
                             && root.optJSONArray("modules").length() > 0) {
-                        mt = root.optJSONArray("modules")
+                        sm.type = root.optJSONArray("modules")
                                 .optJSONObject(0).optString("type", "");
                     }
-                    if (!n.isEmpty()) {
-                        subs.add(n + ("data".equals(mt) ? "（行为包）" : "（资源包）"));
+                    // v609：依赖包 uuid 收集（addon 的 dependencies 字段）
+                    if (root.optJSONArray("dependencies") != null) {
+                        sm.dependencies = new ArrayList<>();
+                        for (int i = 0; i < root.optJSONArray("dependencies").length(); i++) {
+                            JSONObject dep = root.optJSONArray("dependencies").optJSONObject(i);
+                            if (dep != null && dep.has("uuid")) {
+                                sm.dependencies.add(dep.optString("uuid"));
+                            }
+                        }
+                    }
+                    if (!sm.name.isEmpty() || sm.type != null) {
+                        subs.add(sm);
                     }
                 } catch (Throwable ignored) {
                 }
             }
-            if (!subs.isEmpty()) {
-                c.subItems = subs;
-                if (c.name == null || c.name.isEmpty() || c.name.equals(stripExt(f.getName()))) {
-                    c.name = subs.get(0);
-                }
-                // 多包时版本取第一个包的
-                if ((c.version == null || c.version.isEmpty()) && subs.size() > 0) {
-                    ZipEntry first = findEntry(zf, "manifest.json");
-                    if (first != null) {
-                        byte[] b = readZipEntry(zf, first, 256 * 1024);
-                        if (b != null) {
-                            JSONObject root = new JSONObject(new String(b,
-                                    java.nio.charset.StandardCharsets.UTF_8));
-                            JSONObject header = root.optJSONObject("header");
-                            if (header != null) {
-                                Object v = header.opt("version");
-                                if (v instanceof JSONObject) {
-                                    c.version = ((JSONObject) v).optString("version", "");
-                                }
-                            }
-                        }
-                    }
+            if (subs.isEmpty()) {
+                return false;
+            }
+            c.subManifests = subs;
+            SubManifest first = subs.get(0);
+            if (c.name.isEmpty() || c.name.equals(stripExt(f.getName()))) {
+                c.name = first.name.isEmpty() ? stripExt(f.getName()) : first.name;
+            }
+            if (c.version.isEmpty()) {
+                c.version = first.version;
+            }
+            // 含行为包子包时类型定行为包
+            for (SubManifest sm : subs) {
+                if (sm.isBehavior()) {
+                    c.type = TYPE_BEHAVIOR;
+                    break;
                 }
             }
             ZipEntry icon = findEntry(zf, "pack_icon.png");
             if (icon != null) {
                 c.icon = readZipEntry(zf, icon, 2 * 1024 * 1024);
             }
+            return true;
         } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /** v609：解析存档 level.dat（NBT）——版本/种子/模式/最后游玩时间。 */
+    private static LevelInfo parseLevelDat(byte[] data) {
+        if (data == null || data.length < 8) {
+            return null;
+        }
+        try {
+            org.levimc.launcher.core.content.nbt.BedrockNbtReader reader =
+                    new org.levimc.launcher.core.content.nbt.BedrockNbtReader();
+            org.levimc.launcher.core.content.nbt.NbtTag root = reader.readFromBytes(data);
+            if (root == null) {
+                return null;
+            }
+            LevelInfo info = new LevelInfo();
+            org.levimc.launcher.core.content.nbt.NbtTag ln = root.getTag("LevelName");
+            if (ln != null) {
+                info.levelName = ln.getString();
+            }
+            // lastOpenedWithVersion: int 数组 [major, minor, patch, revision]
+            org.levimc.launcher.core.content.nbt.NbtTag lv = root.getTag("lastOpenedWithVersion");
+            if (lv != null) {
+                StringBuilder sb = new StringBuilder();
+                if (lv.getType() == org.levimc.launcher.core.content.nbt.NbtTag.TAG_INT_ARRAY) {
+                    int[] arr = lv.getIntArray();
+                    for (int x : arr) {
+                        if (sb.length() > 0) {
+                            sb.append('.');
+                        }
+                        sb.append(x);
+                    }
+                } else if (lv.getType() == org.levimc.launcher.core.content.nbt.NbtTag.TAG_LIST) {
+                    for (org.levimc.launcher.core.content.nbt.NbtTag o : lv.getList()) {
+                        if (sb.length() > 0) {
+                            sb.append('.');
+                        }
+                        sb.append(o.getValue());
+                    }
+                }
+                info.version = sb.toString();
+            }
+            org.levimc.launcher.core.content.nbt.NbtTag seed = root.getTag("RandomSeed");
+            if (seed != null && seed.getValue() != null) {
+                info.seed = String.valueOf(seed.getValue());
+            }
+            org.levimc.launcher.core.content.nbt.NbtTag gt = root.getTag("GameType");
+            if (gt != null && gt.getValue() != null) {
+                info.gameType = String.valueOf(gt.getValue());
+            }
+            org.levimc.launcher.core.content.nbt.NbtTag lp = root.getTag("LastPlayed");
+            if (lp != null && lp.getValue() instanceof Number) {
+                info.lastPlayed = ((Number) lp.getValue()).longValue();
+            }
+            return info;
+        } catch (Throwable ignored) {
+            return null;
         }
     }
 
