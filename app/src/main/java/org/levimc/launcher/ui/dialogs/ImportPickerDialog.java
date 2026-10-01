@@ -4,7 +4,7 @@ import android.app.Dialog;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -49,14 +49,14 @@ public class ImportPickerDialog {
 
         TextView title = new TextView(context);
         title.setText("扫描手机中的可导入内容");
-        title.setTextColor(Color.WHITE);
+        title.setTextColor(context.getColor(R.color.on_surface));
         title.setTextSize(16);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         root.addView(title);
 
         TextView status = new TextView(context);
         status.setText("正在扫描…");
-        status.setTextColor(0xFF9E9E9E);
+        status.setTextColor(context.getColor(R.color.text_secondary));
         status.setTextSize(12);
         status.setPadding(0, (int) (6 * density), 0, (int) (10 * density));
         root.addView(status);
@@ -71,7 +71,7 @@ public class ImportPickerDialog {
 
         TextView empty = new TextView(context);
         empty.setText("未发现可导入内容\n（存档 .mcworld / 资源包 .mcpack / 行为包 .mcaddon / 结构 .mcstructure，支持 zip 与已解压文件夹）");
-        empty.setTextColor(0xFF9E9E9E);
+        empty.setTextColor(context.getColor(R.color.text_secondary));
         empty.setTextSize(12);
         empty.setGravity(Gravity.CENTER);
         empty.setPadding(0, (int) (24 * density), 0, (int) (24 * density));
@@ -104,7 +104,7 @@ public class ImportPickerDialog {
 
         TextView fromFiles = new TextView(context);
         fromFiles.setText("📂 从文件管理器选择");
-        fromFiles.setTextColor(0xFF8AB4F8);
+        fromFiles.setTextColor(context.getColor(R.color.primary));
         fromFiles.setTextSize(13);
         fromFiles.setGravity(Gravity.CENTER);
         fromFiles.setPadding(0, (int) (14 * density), 0, 0);
@@ -140,7 +140,7 @@ public class ImportPickerDialog {
         LinearLayout row = new LinearLayout(context);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setBackgroundResource(R.drawable.bg_rounded_card);
+        row.setBackground(roundBg(context, context.getColor(R.color.surface_high)));
         row.setPadding((int) (12 * density), (int) (10 * density),
                 (int) (12 * density), (int) (10 * density));
         LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(
@@ -185,7 +185,7 @@ public class ImportPickerDialog {
 
         TextView name = new TextView(context);
         name.setText(c.name);
-        name.setTextColor(Color.WHITE);
+        name.setTextColor(context.getColor(R.color.on_surface));
         name.setTextSize(13);
         name.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         name.setMaxLines(1);
@@ -195,13 +195,13 @@ public class ImportPickerDialog {
         TextView meta = new TextView(context);
         String ver = c.version == null || c.version.isEmpty() ? "" : " · v" + c.version;
         meta.setText(c.typeLabel() + ver + " · " + formatSize(c.size));
-        meta.setTextColor(0xFF9E9E9E);
+        meta.setTextColor(context.getColor(R.color.text_secondary));
         meta.setTextSize(11);
         info.addView(meta);
 
         TextView path = new TextView(context);
         path.setText(c.path);
-        path.setTextColor(0xFF6E6E6E);
+        path.setTextColor(context.getColor(R.color.text_secondary));
         path.setTextSize(10);
         path.setMaxLines(1);
         path.setEllipsize(android.text.TextUtils.TruncateAt.START);
@@ -214,6 +214,13 @@ public class ImportPickerDialog {
             }
         });
         return row;
+    }
+
+    private static GradientDrawable roundBg(Context context, int color) {
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(color);
+        g.setCornerRadius(12 * context.getResources().getDisplayMetrics().density);
+        return g;
     }
 
     private static String formatSize(long bytes) {
