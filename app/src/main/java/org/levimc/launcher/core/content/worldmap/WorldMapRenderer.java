@@ -2179,14 +2179,66 @@ public class WorldMapRenderer {
     /** 初始化缓存目录（应用私有 files/map_cache/）。 */
     public static void initCacheDir(android.content.Context ctx) {
         try {
-            java.io.File base = new java.io.File(ctx.getExternalFilesDir(null), "map_cache");
+            // v569：缓存目录迁到 Download/LeviLauncher/Cache/map_cache
+            // （扩展数据统一放 Download/LeviLauncher 下，之前散在
+            // Android/data 应用私有目录，文件管理器不可见且卸载即丢）
+            java.io.File base = org.levimc.launcher.util.LauncherStorage.getBakedMapCacheDir(ctx);
             if (!base.isDirectory() && !base.mkdirs()) {
                 base = new java.io.File(ctx.getFilesDir(), "map_cache");
                 base.mkdirs();
             }
+            // 旧目录（Android/data/.../files/map_cache）一次性整体迁移
+            java.io.File oldBase = new java.io.File(ctx.getExternalFilesDir(null), "map_cache");
+            if (oldBase.isDirectory() && !oldBase.equals(base)) {
+                java.io.File[] oldChildren = oldBase.listFiles();
+                if (oldChildren != null && oldChildren.length > 0) {
+                    java.io.File[] newChildren = base.listFiles();
+                    if (newChildren == null || newChildren.length == 0) {
+                        for (java.io.File child : oldChildren) {
+                            if (!moveCacheChild(child, new java.io.File(base, child.getName()))) {
+                                Log.w(TAG, "缓存迁移失败（保留在旧目录）: " + child.getName());
+                            }
+                        }
+                    }
+                }
+            }
             sCacheBase = base;
         } catch (Exception e) {
             Log.w(TAG, "缓存目录初始化失败", e);
+        }
+    }
+
+    /** v569：迁移单个缓存子项——先 rename（同卷瞬时），失败回退递归复制后删除。 */
+    private static boolean moveCacheChild(java.io.File src, java.io.File dst) {
+        try {
+            if (src.renameTo(dst)) {
+                return true;
+            }
+            if (src.isDirectory()) {
+                if (!dst.mkdirs()) {
+                    return false;
+                }
+                java.io.File[] children = src.listFiles();
+                if (children != null) {
+                    for (java.io.File child : children) {
+                        if (!moveCacheChild(child, new java.io.File(dst, child.getName()))) {
+                            return false;
+                        }
+                    }
+                }
+            } else {
+                try (java.io.InputStream in = new java.io.FileInputStream(src);
+                     java.io.OutputStream out = new java.io.FileOutputStream(dst)) {
+                    byte[] buf = new byte[131072];
+                    int len;
+                    while ((len = in.read(buf)) > 0) {
+                        out.write(buf, 0, len);
+                    }
+                }
+            }
+            return src.delete() || !src.exists();
+        } catch (Exception e) {
+            return false;
         }
     }
 

@@ -3335,7 +3335,9 @@ public class NbtViewerActivity extends BaseActivity {
                 int pz = fMap.playerBlockZ;
                 int sx = fMap.spawnBlockX;
                 int sz = fMap.spawnBlockZ;
-                File dir = new File("/sdcard/Download/LeviLauncher");
+                // v569：HTML 导出挪到专门的 Exports/maps/ 目录（不再散在
+                // LeviLauncher 根目录）
+                File dir = org.levimc.launcher.util.LauncherStorage.getMapsExportDir(NbtViewerActivity.this);
                 if (!dir.exists()) {
                     dir.mkdirs();
                 }

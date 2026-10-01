@@ -152,13 +152,26 @@ public class ModManager {
         }
     }
 
+    /** v569：进程内只启用一次——防 Activity 重建时重复 enable（见 enableLoadedMods）。 */
+    private static volatile boolean modsEnabledOnce;
+
     public static void enableLoadedMods() {
+        // v569：进程内只启用一次。vivo 实测退后台回前台时 MinecraftActivity
+        // 被系统重建，onCreate 再次调用本方法，native mod（BSChat
+        // libbschat.so）的 enable 重入在主线程 futex 死锁 → ANR 杀进程
+        // （tombstone 568 trace：runCppLifecycle → mutex::lock →
+        // __futex_wait_ex_owner 卡 16 秒）。游戏彻底退出后再进是新进程，
+        // 本标志复位，不受影响。
+        if (modsEnabledOnce) {
+            return;
+        }
         if (!ensurePreloaderLoaded()) {
             return;
         }
 
         try {
             nativeEnableLoadedMods();
+            modsEnabledOnce = true;
         } catch (UnsatisfiedLinkError e) {
             Log.e(TAG, "Failed to invoke nativeEnableLoadedMods", e);
         }

@@ -433,6 +433,30 @@ public final class LauncherStorage {
         return dir;
     }
 
+    /** v569：扩展数据根目录：Download/LeviLauncher/Exports（HTML 地图导出等）。 */
+    public static File getExportsRoot(Context context) {
+        File dir = new File(android.os.Environment.getExternalStorageDirectory(),
+                "Download/LeviLauncher/Exports");
+        ensureDir(dir);
+        return dir;
+    }
+
+    /** v569：HTML 地图导出目录：Exports/maps/。 */
+    public static File getMapsExportDir(Context context) {
+        File dir = new File(getExportsRoot(context), "maps");
+        ensureDir(dir);
+        return dir;
+    }
+
+    /** v569：扩展缓存目录：Download/LeviLauncher/Cache/map_cache（烘培地图数据，
+     * 从应用私有 Android/data 迁出，统一放 Download/LeviLauncher 下）。 */
+    public static File getBakedMapCacheDir(Context context) {
+        File dir = new File(android.os.Environment.getExternalStorageDirectory(),
+                "Download/LeviLauncher/Cache/map_cache");
+        ensureDir(dir);
+        return dir;
+    }
+
     public static void ensureNoMedia(Context context) {
         try {
             File noMediaFile = new File(getAppRoot(context), NO_MEDIA_FILE);

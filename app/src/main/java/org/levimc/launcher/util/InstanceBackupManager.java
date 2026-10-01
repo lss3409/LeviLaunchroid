@@ -63,6 +63,8 @@ public class InstanceBackupManager {
     private static final String SHARED_PREFIX = "shared/";
     private static final String RUNTIME_LIBS_PREFIX = "runtime_libs/";
     private static final String PACKAGE_PREFIX = "package/";
+    /** v569：烘培地图缓存（Download/LeviLauncher/Cache/map_cache）随备份捎带。 */
+    private static final String BAKED_CACHE_PREFIX = "baked_cache/";
     private static final String DOWNLOAD_RELATIVE_PATH =
             Environment.DIRECTORY_DOWNLOADS + "/LeviLauncher/Backups/minecraft item";
     private static final Gson GSON = new GsonBuilder().serializeNulls().setPrettyPrinting().create();
@@ -156,6 +158,11 @@ public class InstanceBackupManager {
                     File runtimeLibDir = MinecraftLauncher.getRuntimeLibDir(context, manifest.profileId);
                     zipDirectory(runtimeLibDir, RUNTIME_LIBS_PREFIX, zos, addedEntries,
                             copiedBytes, totalBytes, lastProgress, callback);
+
+                    // v569：烘培地图缓存捎上（不存在则跳过；缓存大时备份
+                    // 体积会明显增大，恢复端会解回新缓存目录）
+                    zipDirectory(LauncherStorage.getBakedMapCacheDir(context), BAKED_CACHE_PREFIX,
+                            zos, addedEntries, copiedBytes, totalBytes, lastProgress, callback);
 
                     for (NamedSource source : packageSources) {
                         zipSingleFile(source.file, source.entryPath, zos, addedEntries,
@@ -434,6 +441,8 @@ public class InstanceBackupManager {
             total += countFileBytes(LauncherStorage.getSharedRoot(context));
         }
         total += countFileBytes(MinecraftLauncher.getRuntimeLibDir(context, version.getStorageProfileId()));
+        // v569：烘培缓存计入进度（不捎则进度条会提前到 100%）
+        total += countFileBytes(LauncherStorage.getBakedMapCacheDir(context));
         for (NamedSource source : packageSources) {
             total += Math.max(0L, source.file.length());
         }
@@ -702,6 +711,10 @@ public class InstanceBackupManager {
                 if (entryName.startsWith(RUNTIME_LIBS_PREFIX)) {
                     return new RestoreTarget(targetRuntimeRoot, relativePath);
                 }
+                // v569：烘培缓存解回新缓存目录
+                if (entryName.startsWith(BAKED_CACHE_PREFIX)) {
+                    return new RestoreTarget(LauncherStorage.getBakedMapCacheDir(context), relativePath);
+                }
                 return null;
             });
             updateCustomMetadata(targetName, manifest, sharedRestoredIntoProfile);
@@ -740,6 +753,10 @@ public class InstanceBackupManager {
             }
             if (entryName.startsWith(RUNTIME_LIBS_PREFIX)) {
                 return new RestoreTarget(runtimeRoot, relativePath);
+            }
+            // v569：烘培缓存解回新缓存目录
+            if (entryName.startsWith(BAKED_CACHE_PREFIX)) {
+                return new RestoreTarget(LauncherStorage.getBakedMapCacheDir(context), relativePath);
             }
             return null;
         });
@@ -913,6 +930,10 @@ public class InstanceBackupManager {
         }
         if (entryName.startsWith(PACKAGE_PREFIX)) {
             return entryName.substring(PACKAGE_PREFIX.length());
+        }
+        // v569：烘培缓存条目
+        if (entryName.startsWith(BAKED_CACHE_PREFIX)) {
+            return entryName.substring(BAKED_CACHE_PREFIX.length());
         }
         return null;
     }
