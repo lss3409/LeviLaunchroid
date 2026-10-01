@@ -50,6 +50,14 @@ public final class LanRelayBridge {
     /** 本机客户端源地址 → 最近活跃时间（应答回路由）。 */
     private static final Map<InetSocketAddress, Long> clients =
             new ConcurrentHashMap<>();
+    /** v636：真世界服务器 pong 模板（房主缓存→c:lan 同步→成员秒回合成）。 */
+    private static volatile byte[] cachedPong;
+    /** 基岩版 RakNet 标准 magic（ping/pong 校验字段）。 */
+    private static final byte[] MAGIC = new byte[]{
+            0x00, (byte) 0xff, (byte) 0xff, 0x00,
+            (byte) 0xfe, (byte) 0xfe, (byte) 0xfe, (byte) 0xfe,
+            (byte) 0xfd, (byte) 0xfd, (byte) 0xfd, (byte) 0xfd,
+            0x12, 0x34, 0x56, 0x78};
 
     /** 房主（世界服务器）开桥：启动服务器侧代理 + 周期 c:lan。 */
     public static synchronized void startHost() {
@@ -60,7 +68,25 @@ public final class LanRelayBridge {
         Thread t = new Thread(() -> {
             while (running) {
                 try {
-                    RoomCenter.sendLanAnnounce(new byte[0], worldPort);
+                    // v636：世界端口学到后主动 ping 本机世界服务器，缓存真
+                    // pong（含服务器 GUID/世界名），经 c:lan 同步给成员端——
+                    // 成员收到客户端 ping 时用模板秒回合成 pong（真 pong 穿
+                    // 隧道延迟超客户端等待超时，条目永远不显示——Astral 同款
+                    // 方案：真 pong 缓存 + 成员端秒回）
+                    if (worldPort > 0 && proxy != null && !proxy.isClosed()) {
+                        byte[] ping = new byte[33];
+                        ping[0] = 0x01;
+                        long tm = System.currentTimeMillis();
+                        for (int i = 0; i < 8; i++) {
+                            ping[1 + i] = (byte) (tm >> (8 * i));
+                        }
+                        System.arraycopy(MAGIC, 0, ping, 9, 16);
+                        // client GUID 8 字节留零
+                        proxy.send(new DatagramPacket(ping, ping.length,
+                                InetAddress.getByName("127.0.0.1"), worldPort));
+                    }
+                    RoomCenter.sendLanAnnounce(
+                            cachedPong != null ? cachedPong : new byte[0], worldPort);
                 } catch (Exception e) {
                     if (running) {
                         Log.w(TAG, "房主公告同步异常", e);
@@ -78,10 +104,14 @@ public final class LanRelayBridge {
         Log.i(TAG, "异地入口桥已启动（房主/世界服务器）");
     }
 
-    /** 成员（客户端）收到 c:lan：启动客户端侧代理。 */
-    public static synchronized void onAnnounce(byte[] ignoredReply, String host,
+    /** 成员（客户端）收到 c:lan：启动客户端侧代理 + 缓存 pong 模板。 */
+    public static synchronized void onAnnounce(byte[] reply, String host,
                                                int port, String nick) {
         peerIp = host;
+        // v636：reply = 房主缓存的世界服务器真 pong（0x1C 开头）
+        if (reply != null && reply.length > 17 && (reply[0] & 0xFF) == 0x1C) {
+            cachedPong = reply;
+        }
         if (!running) {
             running = true;
             serverSide = false;
@@ -116,6 +146,7 @@ public final class LanRelayBridge {
         clients.clear();
         worldPort = 0;
         peerIp = null;
+        cachedPong = null;
     }
 
     private static synchronized void startProxy() {
@@ -182,6 +213,13 @@ public final class LanRelayBridge {
                             sendToClients(data);
                         }
                     } else if (src.startsWith("127.")) {
+                        // v636：本机世界服务器真 pong → 缓存模板（成员端秒回用）
+                        if (serverSide && head == 0x1C) {
+                            cachedPong = data;
+                            org.levimc.launcher.util.OnlineDebugLog.log(
+                                    "异地桥(服务器): 缓存世界 pong " + data.length
+                                            + " 字节（c:lan 同步成员端）");
+                        }
                         // 本机服务器应答 → 对端 19132
                         proxy.send(new DatagramPacket(data, data.length,
                                 InetAddress.getByName(peer), ANN_PORT));
@@ -196,6 +234,20 @@ public final class LanRelayBridge {
                         }
                         clients.put(new InetSocketAddress(src, sport),
                                 System.currentTimeMillis());
+                        // v636：成员端收到本机客户端 ping 且已有 pong 模板——
+                        // 秒回合成 pong（替换 magic 为 ping 里的），游戏好友页
+                        // 立即显示局域网世界条目；ping 仍照常转发房主双保险
+                        if (!serverSide && head == 0x01 && cachedPong != null) {
+                            byte[] pong = cachedPong.clone();
+                            if (data.length >= 25) {
+                                // pong magic 在 offset 17（0x1C+time8+GUID8）
+                                System.arraycopy(data, 9, pong, 17, 16);
+                            }
+                            proxy.send(new DatagramPacket(pong, pong.length,
+                                    InetAddress.getByName(src), sport));
+                            org.levimc.launcher.util.OnlineDebugLog.log(
+                                    "异地桥(成员): 秒回合成 pong → " + src + ":" + sport);
+                        }
                         proxy.send(new DatagramPacket(data, data.length,
                                 InetAddress.getByName(peer), ANN_PORT));
                     }
