@@ -550,7 +550,10 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         backupOnPauseIfNeeded()
         val shouldRestartAfterNormalExit = shouldRestartAfterNormalExit()
         if (shouldRestartAfterNormalExit) {
-            ModManager.disableAndUnloadLoadedMods()
+            // v577：native unload 挪后台线程——BSChat 的 C++ 卸载生命周期
+            // 在主线程会卡死（与 enable 死锁同源），退出游戏后启动器
+            // 主线程挂掉 → MainActivity 黑屏（平板实测）
+            Thread({ ModManager.disableAndUnloadLoadedMods() }, "mod-unload").start()
             prepareNormalExitCleanup()
             scheduleNormalExitProcessRestart()
         }
@@ -594,7 +597,9 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         } catch (t: Throwable) {
         }
         stopHardcoreBackupScheduler()
-        ModManager.disableAndUnloadLoadedMods()
+        // v577：native unload 挪后台线程（主线程跑 BSChat unload 会卡死
+        // → 返回启动器黑屏，与 onPause 处同因）
+        Thread({ ModManager.disableAndUnloadLoadedMods() }, "mod-unload").start()
         val shouldPrepareNormalExit = shouldRestartAfterNormalExit()
         if (shouldPrepareNormalExit) {
             prepareNormalExitCleanup()
