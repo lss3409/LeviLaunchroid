@@ -272,7 +272,7 @@ public class ImportPickerDialog {
         Window w = dialog.getWindow();
         if (w != null) {
             w.setBackgroundDrawableResource(android.R.color.transparent);
-            int width = DialogSizer.dialogWidth(context, 680);
+            int width = DialogSizer.dialogWidth(context, 560);
             final int maxHeight = DialogSizer.dialogMaxHeight(context);
             w.setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT);
             root.post(() -> {

@@ -24,12 +24,19 @@ public final class DialogSizer {
      *  UiScaleManager.applyScale 写进 densityDpi——弹窗 dp 自动联动，
      *  不再叠加固定 0.85（此前双重缩小导致弹窗过窄）；
      *  用户把个性化缩放调小 = densityDpi 变小 = 弹窗物理变小、
-     *  屏占比更接近平板布局。 */
+     *  屏占比更接近平板布局。
+     *  v612：Material 3 规范——大屏（非手机）对话框距屏幕边缘至少
+     *  56dp（expanded breakpoint 留空余），不再贴满屏幕；手机保持
+     *  90% 屏宽（compact breakpoint）。 */
     public static int dialogWidth(Context ctx, int idealDp) {
         DisplayMetrics dm = ctx.getResources().getDisplayMetrics();
         int ideal = (int) (idealDp * dm.density);
-        int screenCap = (int) (dm.widthPixels * 0.9f);
-        return Math.min(screenCap, ideal);
+        if (isPhone(ctx)) {
+            return Math.min((int) (dm.widthPixels * 0.9f), ideal);
+        }
+        // 大屏：宽度 = min(理想宽, 屏宽 − 56dp×2 边距)
+        int marginCap = (int) (dm.widthPixels - 56 * dm.density * 2);
+        return Math.min(ideal, Math.max(0, marginCap));
     }
 
     /** 弹窗内容最大高度（px）：屏幕高 78%，防按钮被挤出屏幕（手机尤其）。 */
