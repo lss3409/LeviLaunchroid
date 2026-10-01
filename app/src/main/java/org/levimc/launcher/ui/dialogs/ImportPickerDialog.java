@@ -97,8 +97,9 @@ public class ImportPickerDialog {
         content.addView(empty);
 
         final List<GlobalImportScanner.Candidate>[] results = new List[]{null};
+        final Runnable[] showLevel1Ref = new Runnable[1];
 
-        Runnable showLevel1 = () -> {
+        showLevel1Ref[0] = () -> {
             content.removeAllViews();
             List<GlobalImportScanner.Candidate> list = results[0];
             if (list == null || list.isEmpty()) {
@@ -119,7 +120,7 @@ public class ImportPickerDialog {
                     content.addView(buildCard(context, c, textMain, textSub, cardBg,
                             density, accent, () -> showLevel2(content, c, context,
                                     textMain, textSub, cardBg, density, accent,
-                                    listener, dialog, showLevel1)));
+                                    listener, dialog, showLevel1Ref[0])));
                 }
             }
         };
@@ -127,7 +128,7 @@ public class ImportPickerDialog {
         if (cachedCandidates != null) {
             results[0] = cachedCandidates;
             status.setText("发现 " + cachedCandidates.size() + " 项，点击卡片查看详情");
-            showLevel1.run();
+            showLevel1Ref[0].run();
         } else {
             GlobalImportScanner.scanAsync(new GlobalImportScanner.Listener() {
                 @Override
@@ -145,7 +146,7 @@ public class ImportPickerDialog {
                         } else {
                             status.setText("发现 " + candidates.size() + " 项，点击卡片查看详情");
                         }
-                        showLevel1.run();
+                        showLevel1Ref[0].run();
                     });
                 }
             });
