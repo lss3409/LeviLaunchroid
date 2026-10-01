@@ -95,7 +95,27 @@ public final class OnlineActivity extends BaseActivity
     private final android.os.Handler handshakeHandler = new android.os.Handler(
             android.os.Looper.getMainLooper());
     private boolean roomHandshakeDone = true;
-    private final Runnable handshakeTimeout = () -> {
+    /** v571：VPN 授权弹窗是否正在显示（防重复弹）。 */
+    private boolean vpnAuthDialogShowing;
+    private final Runnable handshakeTimeout = () -> failHandshake(
+            "握手超时触发——20s 未见房主名单，断开");
+
+    /** v571：8s 快速判失败——EasyTier 路由表里一直没有房主 peer
+     * （getHostVirtualIp 为 null）说明房主不在网络（最近房间/房主已
+     * 解散），不必等满 20s 握手超时；房主在线时 peer 通常 3-5s 内出现。 */
+    private final Runnable fastFailCheck = () -> {
+        if (isHost || roomHandshakeDone || isFinishing()) {
+            return;
+        }
+        if (EasyTierManager.get().getHostVirtualIp() != null) {
+            // 已看到房主 peer，等正常握手
+            return;
+        }
+        failHandshake("8s 未见房主 peer（路由表无 paper-connect-server）——快速判定房间已解散");
+    };
+
+    /** 握手失败统一出口（避免两个 Runnable 互相前向引用）。 */
+    private void failHandshake(String reason) {
         if (isHost || roomHandshakeDone || isFinishing()) {
             return;
         }
@@ -103,14 +123,16 @@ public final class OnlineActivity extends BaseActivity
         if (joinDialog != null) {
             joinDialog.dismiss();
         }
-        org.levimc.launcher.util.OnlineDebugLog.log("握手超时触发——20s 未见房主名单，断开");
+        handshakeHandler.removeCallbacks(handshakeTimeout);
+        handshakeHandler.removeCallbacks(fastFailCheck);
+        org.levimc.launcher.util.OnlineDebugLog.log(reason);
         EasyTierManager.get().stop(this);
         RoomCenter.stopClient();
         LanDiscovery.stopHost();
         Toast.makeText(this, R.string.online_host_not_found, Toast.LENGTH_LONG).show();
         showHome();
         setHomeState(EasyTierManager.State.IDLE, null);
-    };
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -170,6 +192,20 @@ public final class OnlineActivity extends BaseActivity
 
         refreshRecent();
         setHomeState(EasyTierManager.State.IDLE, null);
+
+        // v571：VPN 授权失效（重装 APK 清授权）时自动弹授权窗——
+        // establish 持续失败时 VpnService 回调此处，30s 节流
+        EasyTierManager.setVpnAuthRequiredCallback(() -> {
+            if (vpnAuthDialogShowing || isFinishing()) {
+                return;
+            }
+            Intent vpnIntent = VpnService.prepare(this);
+            if (vpnIntent != null) {
+                vpnAuthDialogShowing = true;
+                Toast.makeText(this, R.string.online_vpn_needed, Toast.LENGTH_SHORT).show();
+                startActivityForResult(vpnIntent, REQ_VPN);
+            }
+        });
 
         handleDebugJoinIntent(getIntent());
     }
@@ -514,6 +550,7 @@ public final class OnlineActivity extends BaseActivity
                     if (p.isRoomHost) {
                         roomHandshakeDone = true;
                         handshakeHandler.removeCallbacks(handshakeTimeout);
+                    handshakeHandler.removeCallbacks(fastFailCheck);
                         org.levimc.launcher.util.OnlineDebugLog.log(
                                 "握手成功——收到房主名单（" + list.size() + " 人）");
                         break;
@@ -1008,6 +1045,12 @@ public final class OnlineActivity extends BaseActivity
         if (stepViews == null) {
             return;
         }
+        // v571：步骤点用个性化 accent 色（bg_state_dot_ok 是 primary 深绿，
+        // 不跟随个性化）
+        int accent = new org.levimc.launcher.util.PersonalizationManager(this).getAccentColor();
+        if (accent == 0) {
+            accent = getResources().getColor(R.color.primary, getTheme());
+        }
         for (int i = 0; i < stepViews.length; i++) {
             View step = (View) stepViews[i].getParent();
             View dot = step.findViewWithTag("dot");
@@ -1015,16 +1058,24 @@ public final class OnlineActivity extends BaseActivity
             boolean isDone = i < active || done && i <= active && i != active;
             boolean isActive = i == active;
             if (isDone) {
-                dot.setBackgroundResource(R.drawable.bg_state_dot_ok);
+                applyDotColor(dot, accent);
                 label.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
             } else if (isActive) {
-                dot.setBackgroundResource(R.drawable.bg_state_dot_ok);
-                label.setTextColor(getResources().getColor(R.color.primary, getTheme()));
+                applyDotColor(dot, accent);
+                label.setTextColor(accent);
             } else {
                 dot.setBackgroundResource(R.drawable.bg_state_dot_idle);
                 label.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
             }
         }
+    }
+
+    /** 步骤点染 accent（椭圆实心）。 */
+    private static void applyDotColor(View dot, int color) {
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        g.setColor(color);
+        dot.setBackground(g);
     }
 
     // ---------- 最近房间 ----------
@@ -1204,9 +1255,16 @@ public final class OnlineActivity extends BaseActivity
                     findViewById(R.id.online_qr_button),
                     findViewById(R.id.online_room_copy_button),
                     findViewById(R.id.online_room_share_button));
-            // v548：返回首页按钮文字染强调色（个性化兼容，灰底保留）
-            org.levimc.launcher.util.AccentStyler.styleSecondary(this,
-                    findViewById(R.id.online_back_home_button));
+            // v548：返回首页按钮文字染强调色（个性化兼容）；v571：灰底也染
+            // accent（用户反馈灰色背景不兼容个性化）
+            View backHome = findViewById(R.id.online_back_home_button);
+            org.levimc.launcher.util.AccentStyler.styleSecondary(this, backHome);
+            int accent = new org.levimc.launcher.util.PersonalizationManager(this).getAccentColor();
+            if (accent != 0 && backHome instanceof com.google.android.material.button.MaterialButton) {
+                ((com.google.android.material.button.MaterialButton) backHome)
+                        .setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                                Color.argb(70, Color.red(accent), Color.green(accent), Color.blue(accent))));
+            }
         } catch (Throwable ignored) {
         }
     }
@@ -1215,6 +1273,7 @@ public final class OnlineActivity extends BaseActivity
         // v561：清理加入握手超时计时
         roomHandshakeDone = true;
         handshakeHandler.removeCallbacks(handshakeTimeout);
+                    handshakeHandler.removeCallbacks(fastFailCheck);
         EasyTierManager.get().stop(this);
         LanDiscovery.stopHost();
         RoomCenter.stopHost();
@@ -1294,6 +1353,7 @@ public final class OnlineActivity extends BaseActivity
         if (requestCode != REQ_VPN) {
             return;
         }
+        vpnAuthDialogShowing = false;
         if (resultCode == RESULT_OK && pendingHostParsed != null) {
             // v568：建房授权完成，继续建房
             InviteCode.Parsed hp = pendingHostParsed;
@@ -1453,10 +1513,15 @@ public final class OnlineActivity extends BaseActivity
                             + "）本机虚拟IP=" + EasyTierManager.get().getVirtualIp());
                     RoomCenter.startClient(hostIp, nick, cid, this::onRoomPlayers);
                     // v561：加入握手确认——20 秒内收不到房主玩家列表
-                    // 即判定房间已解散（此前"房主不在也能加入成功"）
+                    // 即判定房间已解散（此前"房主不在也能加入成功"）；
+                    // v571：8 秒无房主 peer 快速失败（最近房间/房主已
+                    // 解散时不必干等 20 秒）
                     roomHandshakeDone = false;
                     handshakeHandler.removeCallbacks(handshakeTimeout);
+                    handshakeHandler.removeCallbacks(fastFailCheck);
+                    handshakeHandler.removeCallbacks(fastFailCheck);
                     handshakeHandler.postDelayed(handshakeTimeout, 20_000L);
+                    handshakeHandler.postDelayed(fastFailCheck, 8_000L);
                 }
                 break;
             case FAILED:

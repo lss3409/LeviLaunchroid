@@ -78,6 +78,10 @@ public final class EasyTierManager {
     /** v565：peer 路由表签名（变化时才写文件日志，避免刷爆）。 */
     private volatile String lastPeerSig = "";
     private static volatile Context appContext;
+    /** v571：VPN 授权失效时回调 UI 弹授权窗（重装 APK 后 vivo/ZUI 清授权，
+     * establish 永远失败——看门狗拉不起来，必须重新走 prepare 弹窗）。 */
+    private static volatile Runnable vpnAuthRequiredCallback;
+    private static volatile long lastVpnAuthNotify;
     private Listener listener;
 
     private EasyTierManager() {
@@ -87,6 +91,27 @@ public final class EasyTierManager {
     public static Context getAppContext() {
         return appContext;
     }
+
+    /** v571：UI 注册 VPN 授权失效回调（OnlineActivity onCreate）。 */
+    public static void setVpnAuthRequiredCallback(Runnable cb) {
+        vpnAuthRequiredCallback = cb;
+    }
+
+    /** v571：VpnService establish 失败时调用（30s 节流，避免重试循环狂弹）。 */
+    public static void notifyVpnAuthorizationRequired() {
+        long now = System.currentTimeMillis();
+        if (now - lastVpnAuthNotify < 30_000) {
+            return;
+        }
+        lastVpnAuthNotify = now;
+        Runnable cb = vpnAuthRequiredCallback;
+        if (cb != null) {
+            sMainHandler.post(cb);
+        }
+    }
+
+    private static final android.os.Handler sMainHandler =
+            new android.os.Handler(android.os.Looper.getMainLooper());
 
     /**
      * v566：等待 VPN 网络出现（VpnService establish 完成、系统注册 TRANSPORT_VPN）。
@@ -381,6 +406,10 @@ public final class EasyTierManager {
      */
     private void startWatchdog() {
         Thread t = new Thread(() -> {
+            // v571：重拉节流——establish 持续失败（未授权等）时至少隔
+            // 15s 才重拉一次，避免 5s 一次的"杀服务→重启→失败"风暴
+            // （实测造成间歇卡顿 + 文件日志刷爆）
+            long lastPull = 0;
             while (active && state == State.CONNECTED) {
                 try {
                     Thread.sleep(5000);
@@ -392,6 +421,11 @@ public final class EasyTierManager {
                 }
                 try {
                     if (!tunExists()) {
+                        long now = System.currentTimeMillis();
+                        if (now - lastPull < 15_000) {
+                            continue;
+                        }
+                        lastPull = now;
                         Log.w(TAG, "看门狗：TUN 丢失，重新拉起 VpnService");
                         startVpn(virtualIp, lastCidrs);
                         continue;

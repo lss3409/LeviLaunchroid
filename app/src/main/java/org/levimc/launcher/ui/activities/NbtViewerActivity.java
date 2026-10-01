@@ -304,6 +304,8 @@ public class NbtViewerActivity extends BaseActivity {
             binding.layerStructure.setButtonTintList(accentCsl);
             binding.layerSlime.setButtonTintList(accentCsl);
             binding.layerStructDetect.setButtonTintList(accentCsl);
+            // v571：矿石勾选漏了（v481 清单没含 layerOre，深绿不兼容个性化）
+            binding.layerOre.setButtonTintList(accentCsl);
         }
 
         binding.nbtBack.setOnClickListener(v -> finish());

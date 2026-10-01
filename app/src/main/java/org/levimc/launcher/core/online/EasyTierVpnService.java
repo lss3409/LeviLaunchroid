@@ -278,6 +278,9 @@ public final class EasyTierVpnService extends VpnService {
                 // v567：区分失败原因——establish 返回 null 通常是系统拒绝
                 // （无 VPN 授权/ZUI 上层拦截），写文件日志（logcat 会冻结）
                 org.levimc.launcher.util.OnlineDebugLog.log("TUN establish 返回 null（无授权或被系统拦截）");
+                // v571：通知 UI 弹 VPN 授权窗（重装 APK 后授权被清，
+                // 不弹窗的话建房/加入永远失败，只能用户手动去设置里找）
+                org.levimc.launcher.core.online.EasyTierManager.notifyVpnAuthorizationRequired();
             }
             return fd;
         } catch (Throwable t) {
