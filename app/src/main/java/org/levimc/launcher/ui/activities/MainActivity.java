@@ -158,6 +158,22 @@ import okhttp3.OkHttpClient;
         initAccountHeader();
         initializeAfterMigrationGate();
         // v555：更新日志弹窗已删除（用户要求）
+        // v601：深链待启动记忆——游戏退出流程重启后自动补发邀请深链
+        // （成员端游戏运行中收到邀请时先结束会话的场景）
+        String pendingDeeplink = org.levimc.launcher.ui.activities.OnlineActivity
+                .consumePendingDeepLink(this);
+        if (pendingDeeplink != null) {
+            binding.getRoot().postDelayed(() -> {
+                try {
+                    Intent i = new Intent(this,
+                            org.levimc.launcher.ui.activities.IntentHandler.class);
+                    i.setAction(Intent.ACTION_VIEW);
+                    i.setData(Uri.parse(pendingDeeplink));
+                    startActivity(i);
+                } catch (Exception ignored) {
+                }
+            }, 1200);
+        }
     }
 
     @Override

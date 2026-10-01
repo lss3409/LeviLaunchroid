@@ -577,11 +577,25 @@ public final class OnlineActivity extends BaseActivity
         }
         runOnUiThread(() -> {
             try {
+                String url = "minecraft://connect?serverUrl=" + hostIp
+                        + "&serverPort=" + port;
+                // v601：游戏运行中不处理深链（1.26 实测）——先结束会话，
+                // 退出流程完成后启动器自动重启并补发深链（待启动记忆）
+                if (org.levimc.launcher.core.minecraft.MinecraftActivityState.isRunning()) {
+                    savePendingDeepLink(this, url);
+                    android.app.Activity game = org.levimc.launcher.core.minecraft
+                            .MinecraftActivityState.getCurrentActivity();
+                    if (game != null && !game.isFinishing()) {
+                        game.finish();
+                    }
+                    Toast.makeText(this, "房主邀请进入世界，正在重启游戏连接…",
+                            Toast.LENGTH_SHORT).show();
+                    return;
+                }
                 Intent intent = new Intent(this,
                         org.levimc.launcher.ui.activities.IntentHandler.class);
                 intent.setAction(Intent.ACTION_VIEW);
-                intent.setData(Uri.parse("minecraft://connect?serverUrl="
-                        + hostIp + "&serverPort=" + port));
+                intent.setData(Uri.parse(url));
                 startActivity(intent);
                 Toast.makeText(this, "房主邀请进入世界，正在连接…",
                         Toast.LENGTH_SHORT).show();
@@ -589,6 +603,28 @@ public final class OnlineActivity extends BaseActivity
                 Toast.makeText(this, "邀请连接失败", Toast.LENGTH_SHORT).show();
             }
         });
+    }
+
+    // ---- v601：深链待启动记忆（游戏退出流程重启进程后由 MainActivity 消费） ----
+
+    private static final String PREFS_DEEPLINK = "pending_deeplink";
+    private static final String KEY_DL_URL = "url";
+
+    static void savePendingDeepLink(android.content.Context c, String url) {
+        c.getApplicationContext().getSharedPreferences(PREFS_DEEPLINK,
+                android.content.Context.MODE_PRIVATE).edit()
+                .putString(KEY_DL_URL, url).apply();
+    }
+
+    /** 读取并清除待启动深链（无则返回 null）。 */
+    public static String consumePendingDeepLink(android.content.Context c) {
+        android.content.SharedPreferences p = c.getApplicationContext()
+                .getSharedPreferences(PREFS_DEEPLINK, android.content.Context.MODE_PRIVATE);
+        String url = p.getString(KEY_DL_URL, null);
+        if (url != null) {
+            p.edit().remove(KEY_DL_URL).apply();
+        }
+        return url;
     }
 
     /** 玩家列表心跳回调（工作线程）。 */
