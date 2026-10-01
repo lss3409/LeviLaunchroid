@@ -108,7 +108,7 @@ public class ImportPickerDialog {
                         context, null, com.google.android.material.button
                                 .MaterialButton.ICON_GRAVITY_TEXT_START);
         fromFiles.setText("📂 从文件管理器选择");
-        fromFiles.setTextAllCaps(false);
+        fromFiles.setAllCaps(false);
         fromFiles.setTextSize(13);
         LinearLayout.LayoutParams fbp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, (int) (42 * density));
