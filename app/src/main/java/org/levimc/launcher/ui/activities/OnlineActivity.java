@@ -135,6 +135,7 @@ public final class OnlineActivity extends BaseActivity
         EasyTierManager.get().stop(this);
         RoomCenter.stopClient();
         LanDiscovery.stopHost();
+        org.levimc.launcher.core.online.TerracottaLan.stopScan();
         Toast.makeText(this, R.string.online_host_not_found, Toast.LENGTH_LONG).show();
         showHome();
         setHomeState(EasyTierManager.State.IDLE, null);
@@ -868,6 +869,10 @@ public final class OnlineActivity extends BaseActivity
         roomState.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
         showRoom();
         LanDiscovery.startHost(parsed.networkName);
+        // v617：Terracotta 式组播公告实验（对含 TUN 在内的所有本机地址
+        // 组播发 [MOTD]/[AD] 到 224.0.2.60:4445，看 EasyTier 是否转发组播）
+        org.levimc.launcher.core.online.TerracottaLan.startAnnounce(
+                PlayerIdentity.getNickname(this));
         List<String> relayPeers = RelayStore.load(this);
         EasyTierManager.get().host(this, parsed.networkName, parsed.networkSecret, this,
                 HOST_IPV4, relayPeers);
@@ -1020,6 +1025,9 @@ public final class OnlineActivity extends BaseActivity
         currentCode = rawToCode(parsed);
         isHost = false;
         setStepState(1, true);
+        // v617：成员侧组播扫描实验（join 224.0.2.60:4445 收房主公告，
+        // 验证 EasyTier 虚拟网是否转发组播，日志写 OnlineDebugLog 文件）
+        org.levimc.launcher.core.online.TerracottaLan.startScan();
         new Thread(() -> {
             List<String> peers = new ArrayList<>(LanDiscovery.discover(parsed.networkName, 1500)); // v537：局域网发现 3s→1.5s
             // 合并固定中转：异地/流量联机时局域网发现不到房主，必须靠中转牵线（v511 修复）
@@ -1367,6 +1375,8 @@ public final class OnlineActivity extends BaseActivity
         LanBridge.stopHost();
         org.levimc.launcher.core.online.LanRelayBridge.stopHost();
         org.levimc.launcher.core.online.LanRelayBridge.stopClient();
+        org.levimc.launcher.core.online.TerracottaLan.stopAnnounce();
+        org.levimc.launcher.core.online.TerracottaLan.stopScan();
         org.levimc.launcher.core.online.voice.VoiceEngine.get(this).stop();
         RoomCenter.roomCode = null;
         RoomCenter.hostGameOpen = false;
