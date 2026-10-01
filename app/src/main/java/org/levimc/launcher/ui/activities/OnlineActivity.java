@@ -235,8 +235,10 @@ public final class OnlineActivity extends BaseActivity
             currentCode = rawToCode(hr.parsed);
             isHost = true;
             roomCodeText.setText("P/" + currentCode);
-            createStatus.setText(getString(R.string.online_connecting_kernel));
-            showCreate();
+            // v576：跳过创建中间页，直接进房间页（见 doHostRoom）
+            roomState.setText(getString(R.string.online_step_unknown));
+            roomState.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+            showRoom();
             // v568：建房同样需要 VPN 授权（此前只有加入流程有 prepare，
             // 房主重装后无授权时 TUN 建立失败且永远不弹授权窗）
             Intent vpnIntent = VpnService.prepare(this);
@@ -775,8 +777,11 @@ public final class OnlineActivity extends BaseActivity
 
     /** v568：建房通用流程（授权完成后调用）。 */
     private void doHostRoom(InviteCode.Parsed parsed) {
-        createStatus.setText(getString(R.string.online_connecting_kernel));
-        showCreate();
+        // v576：跳过创建中间页（邀请码/二维码页组网 1 秒就切走根本点不上，
+        // 房间页已有完整的邀请码/复制/分享功能）——直接进房间页
+        roomState.setText(getString(R.string.online_step_unknown));
+        roomState.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+        showRoom();
         LanDiscovery.startHost(parsed.networkName);
         List<String> relayPeers = RelayStore.load(this);
         EasyTierManager.get().host(this, parsed.networkName, parsed.networkSecret, this,
