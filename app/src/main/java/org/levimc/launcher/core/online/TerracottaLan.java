@@ -161,6 +161,24 @@ public final class TerracottaLan {
         stopScan();
         scanning = true;
         Thread t = new Thread(() -> {
+            // v624：必须等 VPN 建立后再 bind+join——VPN 前创建的 socket
+            // 绑定真实网络（WiFi），TUN 入站的转发组播不会投递给真实
+            // 网络接口 join 的 socket（组播接收按接口）。VPN 建立后创建
+            // 的未 protect socket 绑定 VPN 网络，join 默认接口=VPN，
+            // 转发组播（内核写 TUN 模拟入站）才能投递。
+            for (int waited = 0; waited < 90_000 && scanning; waited += 1000) {
+                if (EasyTierManager.get().getState() == EasyTierManager.State.CONNECTED) {
+                    break;
+                }
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    return;
+                }
+            }
+            if (!scanning) {
+                return;
+            }
             try (MulticastSocket ms = new MulticastSocket(PORT)) {
                 ms.setReuseAddress(true);
                 // 对每个接口 join 组播（组播经 TUN 虚拟网进来时必须
