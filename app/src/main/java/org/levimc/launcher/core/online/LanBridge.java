@@ -83,51 +83,77 @@ public final class LanBridge {
     private static volatile boolean dumping;
     private static Thread dumpThread;
 
-    /** 抓真实 MC 局域网公告（组播 224.0.2.60:19132 + 广播），hex 写文件日志——
-     * 用于实测修正 protocol 号与公告格式（McProtocol.VERSION 当前为占位值）。 */
+    /** 抓真实 MC 局域网公告（组播 224.0.2.60 多端口 + 广播），hex 写文件日志——
+     * 用于实测修正 protocol 号与公告格式（McProtocol.VERSION 当前为占位值）。
+     * v582：1.26 公告端口不再固定 19132，多端口并发监听。 */
     public static synchronized void startDebugDump() {
         stopDebugDump();
         dumping = true;
-        dumpThread = new Thread(() -> {
-            java.net.MulticastSocket ms = null;
-            try {
-                ms = new java.net.MulticastSocket(LAN_PORT);
-                ms.setReuseAddress(true);
-                ms.joinGroup(java.net.InetAddress.getByName("224.0.2.60"));
-                ms.setSoTimeout(4000);
-                byte[] buf = new byte[2048];
-                org.levimc.launcher.util.OnlineDebugLog.log("LAN 抓包已启动（组播 224.0.2.60:" + LAN_PORT + "）");
-                while (dumping) {
+        int[] ports = {19132, 2168, 4445, 19133};
+        for (int port : ports) {
+            int p = port;
+            Thread t = new Thread(() -> {
+                java.net.MulticastSocket ms = null;
+                java.net.DatagramSocket bs = null;
+                try {
+                    ms = new java.net.MulticastSocket(p);
+                    ms.setReuseAddress(true);
                     try {
-                        java.net.DatagramPacket p = new java.net.DatagramPacket(buf, buf.length);
-                        ms.receive(p);
-                        String hex = bytesToHex(p.getData(), Math.min(p.getLength(), 192));
-                        org.levimc.launcher.util.OnlineDebugLog.log("LAN 公告 from "
-                                + p.getAddress().getHostAddress() + ":" + p.getPort()
-                                + " len=" + p.getLength() + " [" + hex + "]");
-                        // 顺带把可读文本打出来（公告是明文 MOTD:...;AD:...）
-                        String text = new String(p.getData(), 0, p.getLength(), "UTF-8");
-                        if (text.startsWith("MOTD:")) {
-                            org.levimc.launcher.util.OnlineDebugLog.log("LAN 公告明文: " + text);
-                        }
-                    } catch (java.net.SocketTimeoutException ignored) {
-                    } catch (Exception e) {
-                        Log.w(TAG, "抓包异常", e);
-                    }
-                }
-            } catch (Exception e) {
-                Log.w(TAG, "抓包启动失败", e);
-            } finally {
-                if (ms != null) {
-                    try {
-                        ms.close();
+                        ms.joinGroup(java.net.InetAddress.getByName("224.0.2.60"));
                     } catch (Exception ignored) {
                     }
+                    ms.setSoTimeout(4000);
+                    // 同时监听广播（部分版本发 255.255.255.255）
+                    try {
+                        bs = new java.net.DatagramSocket(null);
+                        bs.setReuseAddress(true);
+                        bs.bind(new java.net.InetSocketAddress("0.0.0.0", p));
+                        bs.setSoTimeout(4000);
+                    } catch (Exception ignored) {
+                    }
+                    byte[] buf = new byte[2048];
+                    org.levimc.launcher.util.OnlineDebugLog.log("LAN 抓包已启动（端口 " + p + "）");
+                    while (dumping) {
+                        try {
+                            java.net.DatagramPacket pkt = new java.net.DatagramPacket(buf, buf.length);
+                            if (ms != null) {
+                                ms.receive(pkt);
+                            } else {
+                                bs.receive(pkt);
+                            }
+                            String hex = bytesToHex(pkt.getData(), Math.min(pkt.getLength(), 192));
+                            org.levimc.launcher.util.OnlineDebugLog.log("LAN 公告 from "
+                                    + pkt.getAddress().getHostAddress() + ":" + pkt.getPort()
+                                    + " len=" + pkt.getLength() + " [" + hex + "]");
+                            String text = new String(pkt.getData(), 0, pkt.getLength(), "UTF-8");
+                            if (text.startsWith("MOTD:")) {
+                                org.levimc.launcher.util.OnlineDebugLog.log("LAN 公告明文: " + text);
+                            }
+                        } catch (java.net.SocketTimeoutException ignored) {
+                        } catch (Exception e) {
+                            Log.w(TAG, "抓包异常", e);
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "抓包启动失败(端口 " + p + ")", e);
+                } finally {
+                    if (ms != null) {
+                        try {
+                            ms.close();
+                        } catch (Exception ignored) {
+                        }
+                    }
+                    if (bs != null) {
+                        try {
+                            bs.close();
+                        } catch (Exception ignored) {
+                        }
+                    }
                 }
-            }
-        }, "lan-dump");
-        dumpThread.setDaemon(true);
-        dumpThread.start();
+            }, "lan-dump-" + p);
+            t.setDaemon(true);
+            t.start();
+        }
     }
 
     public static synchronized void stopDebugDump() {
