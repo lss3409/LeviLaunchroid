@@ -61,6 +61,12 @@ public final class TerracottaLan {
                 try {
                     String vip = EasyTierManager.get().getVirtualIp();
                     if (vip != null && !vip.isEmpty()) {
+                        // v621：virtualIp 带前缀（如 10.144.144.144/24），
+                        // getByName 解析失败导致公告线程空转 60s
+                        int slash = vip.indexOf('/');
+                        if (slash > 0) {
+                            vip = vip.substring(0, slash);
+                        }
                         tunAddr = InetAddress.getByName(vip);
                         break;
                     }
