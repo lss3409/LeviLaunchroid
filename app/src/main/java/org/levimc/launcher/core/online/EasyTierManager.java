@@ -279,7 +279,7 @@ public final class EasyTierManager {
                 // 房主节点带协议主机名，房客 RPC 匹配 paper-connect-server-* 发现房间中心
                 + (isHost
                         ? "hostname = \"paper-connect-server-" + ROOM_CENTER_PORT + "\"\n" : "")
-                + "log_level = \"info\"\n"
+                + "log_level = \"trace\"\n" // v627 诊断：trace 看 USER_PACKET 组播转发（测完改回 info）
                 // Android 内核默认不监听 11010（poll listeners 只有 ring://），
                 // 必须显式开启监听，局域网直连/中转才能连进本机。
                 + "listeners = [\"tcp://0.0.0.0:11010\", \"udp://0.0.0.0:11010\"]\n"
