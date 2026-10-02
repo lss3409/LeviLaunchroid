@@ -61,7 +61,7 @@ The fork is based on the upstream codebase around v1.5.22 (commit `2e52effc`), t
 
 ### Launcher experience
 - **Update checker rewritten** – GitHub Releases direct links with multi-mirror fallback (for users behind restricted networks), progress bar and silent background download; three-state result (failed / up-to-date / update)
-- **Liquid-glass effect** (Prismal) and an accent-color system across all dialogs/buttons
+- **Accent-color system** across all dialogs and buttons
 - **Complete translations for all 11 languages** – 简体中文, English, Español, Português, 日本語, Tiếng Việt, Bahasa Indonesia, हिन्दी, Français, Русский, Türkçe
 - **Home-screen shortcuts** for game versions
 - News module, app renamed to **LBBL**
@@ -173,7 +173,7 @@ LBBL（Levi Better Bedrock Launcher）是 [LeviLaunchroid](https://github.com/Li
 
 ### 启动器体验
 - **更新检查重写** – GitHub Releases 直链 + 多镜像回退（受限网络可用），进度条 + 静默后台下载；三态结果（失败 / 已最新 / 有更新）
-- **液态玻璃效果**（Prismal）+ 全弹窗/按钮的强调色系统
+- **强调色系统** – 全弹窗/按钮随个性化颜色即时变色
 - **11 语言全量翻译** – 简体中文、英语、西班牙语、葡萄牙语、日语、越南语、印尼语、印地语、法语、俄语、土耳其语
 - 游戏版本**桌面快捷方式**
 - 新闻模块，应用更名 **LBBL**
