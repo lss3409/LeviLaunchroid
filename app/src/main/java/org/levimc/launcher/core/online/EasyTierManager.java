@@ -283,18 +283,24 @@ public final class EasyTierManager {
                 // v690：恢复 UDP 打洞（撤销 v635 禁用）——同地异网场景
                 // 打洞成功率高且延迟低，强制 TCP 中继绕 VPS 反而使游戏
                 // ping 应答偶发超时→客户端移除局域网条目。
-                // v691：开启 KCP——实测蜂窝 UDP 打洞丢包 25~50%（v690 日志
-                // loss_rate 0.25~0.5），公告与 ping 应答随机丢失导致条目
-                // 不恒久；KCP 在 UDP 隧道上做 ARQ 重传恢复丢包（VPS 侧
-                // feature_flag kcp_input=true 已支持）。
-                + "enable_kcp_proxy = true\n"
+                // v691/v692：开启 KCP——实测蜂窝 UDP 打洞丢包 25~50%
+                // （v690 日志 loss_rate 0.25~0.5），公告与 ping 应答随机
+                // 丢失导致条目不恒久；KCP 在 UDP 隧道上做 ARQ 重传恢复
+                // 丢包（VPS 侧 feature_flag kcp_input=true 已支持）。
+                // 注意：EasyTier 的 CLI flag 参数必须放 [flags] 段
+                // （Config.flags: HashMap），写在顶层会被 serde 静默忽略
+                // （v691 无效的根因——已从顶层移除）。
 
                 // Android 内核默认不监听 11010（poll listeners 只有 ring://），
                 // 必须显式开启监听，局域网直连/中转才能连进本机。
                 + "listeners = [\"tcp://0.0.0.0:11010\", \"udp://0.0.0.0:11010\"]\n"
                 + "[network_identity]\n"
                 + "network_name = \"" + networkName + "\"\n"
-                + "network_secret = \"" + networkSecret + "\"\n";
+                + "network_secret = \"" + networkSecret + "\"\n"
+                // v692：CLI flag 参数必须在 [flags] 段（Config.flags: HashMap），
+                // 顶层同名键会被 serde 静默忽略
+                + "[flags]\n"
+                + "enable_kcp_proxy = true\n";
         if (extraPeers != null) {
             for (String uri : extraPeers) {
                 if (uri != null && !uri.isEmpty()) {
