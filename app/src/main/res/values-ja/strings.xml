@@ -1820,4 +1820,29 @@ LBBL を開く → オンライン → 参加、コードを貼り付け</string
     <string name="online_room_created_fmt">ルームを作成しました ✓
 招待コード：P/%1$s
 （同じ Wi-Fi の友達がこのコードで参加できます）</string>
+    <!-- v0.0.11 新词条（2026-10-03） -->
+    <string name="scan_type_world">ワールド</string>
+    <string name="scan_type_resource">リソースパック</string>
+    <string name="scan_type_behavior">ビヘイビアーパック</string>
+    <string name="scan_type_structure">ストラクチャー</string>
+    <string name="game_mode_label">ゲームモード：%1$s</string>
+    <string name="game_mode_unknown">不明</string>
+    <string name="game_mode_survival">サバイバル</string>
+    <string name="game_mode_creative">クリエイティブ</string>
+    <string name="game_mode_adventure">アドベンチャー</string>
+    <string name="game_mode_spectator">スペクテイター</string>
+    <string name="import_failed_item">%1$s のインポートに失敗しました：%2$s</string>
+    <string name="import_nothing">何もインポートされませんでした</string>
+    <string name="import_summary">インポート済み：%1$s</string>
+    <string name="import_error_header">エラー：</string>
+    <string name="import_failed_generic">インポートに失敗しました：%1$s</string>
+    <string name="import_count_worlds">ワールド：%1$d</string>
+    <string name="import_count_resources">リソースパック：%1$d</string>
+    <string name="import_count_behaviors">ビヘイビアーパック：%1$d</string>
+    <string name="import_count_skins">スキンパック：%1$d</string>
+    <string name="import_count_structures">ストラクチャー：%1$d</string>
+    <string name="nbt_export_title">ワールドのHTMLをエクスポート中</string>
+    <string name="nbt_export_failed">エクスポートに失敗しました：%1$s</string>
+    <string name="nbt_export_progress">エクスポート中… %1$s%%</string>
+    <string name="nbt_export_done">エクスポート完了：%1$s</string>
 </resources>

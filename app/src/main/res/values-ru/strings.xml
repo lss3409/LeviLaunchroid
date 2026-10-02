@@ -1853,4 +1853,29 @@
     <string name="online_room_created_fmt">Комната создана ✓
 Код приглашения: P/%1$s
 (Друзья в той же сети Wi-Fi могут присоединиться по этому коду)</string>
+    <!-- v0.0.11 新词条（2026-10-03） -->
+    <string name="scan_type_world">Мир</string>
+    <string name="scan_type_resource">Пакет ресурсов</string>
+    <string name="scan_type_behavior">Пакет поведения</string>
+    <string name="scan_type_structure">Структура</string>
+    <string name="game_mode_label">Режим игры: %1$s</string>
+    <string name="game_mode_unknown">Неизвестно</string>
+    <string name="game_mode_survival">Выживание</string>
+    <string name="game_mode_creative">Творческий</string>
+    <string name="game_mode_adventure">Приключение</string>
+    <string name="game_mode_spectator">Наблюдатель</string>
+    <string name="import_failed_item">Не удалось импортировать %1$s: %2$s</string>
+    <string name="import_nothing">Ничего не было импортировано</string>
+    <string name="import_summary">Импортировано: %1$s</string>
+    <string name="import_error_header">Ошибки:</string>
+    <string name="import_failed_generic">Не удалось импортировать: %1$s</string>
+    <string name="import_count_worlds">Миры: %1$d</string>
+    <string name="import_count_resources">Пакеты ресурсов: %1$d</string>
+    <string name="import_count_behaviors">Пакеты поведения: %1$d</string>
+    <string name="import_count_skins">Пакеты скинов: %1$d</string>
+    <string name="import_count_structures">Структуры: %1$d</string>
+    <string name="nbt_export_title">Экспорт мира в HTML</string>
+    <string name="nbt_export_failed">Не удалось экспортировать: %1$s</string>
+    <string name="nbt_export_progress">Экспорт… %1$s%%</string>
+    <string name="nbt_export_done">Экспорт завершен: %1$s</string>
 </resources>

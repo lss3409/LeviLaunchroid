@@ -1849,4 +1849,29 @@ LBBL → Çevrimiçi → Katıl\'ı aç, sonra kodu yapıştır</string>
     <string name="online_room_created_fmt">Oda oluşturuldu ✓
 Davet kodu: P/%1$s
 (Aynı Wi-Fi\'deki arkadaşlar bu kodla katılabilir)</string>
+    <!-- v0.0.11 新词条（2026-10-03） -->
+    <string name="scan_type_world">Dünya</string>
+    <string name="scan_type_resource">Kaynak Paketi</string>
+    <string name="scan_type_behavior">Davranış Paketi</string>
+    <string name="scan_type_structure">Yapı</string>
+    <string name="game_mode_label">Oyun Modu: %1$s</string>
+    <string name="game_mode_unknown">Bilinmiyor</string>
+    <string name="game_mode_survival">Hayatta Kalma</string>
+    <string name="game_mode_creative">Yaratıcı</string>
+    <string name="game_mode_adventure">Macera</string>
+    <string name="game_mode_spectator">İzleyici</string>
+    <string name="import_failed_item">%1$s içe aktarılamadı: %2$s</string>
+    <string name="import_nothing">Hiçbir şey içe aktarılmadı</string>
+    <string name="import_summary">İçe aktarıldı: %1$s</string>
+    <string name="import_error_header">Hatalar:</string>
+    <string name="import_failed_generic">İçe aktarma başarısız: %1$s</string>
+    <string name="import_count_worlds">Dünyalar: %1$d</string>
+    <string name="import_count_resources">Kaynak Paketleri: %1$d</string>
+    <string name="import_count_behaviors">Davranış Paketleri: %1$d</string>
+    <string name="import_count_skins">Kaplama Paketleri: %1$d</string>
+    <string name="import_count_structures">Yapılar: %1$d</string>
+    <string name="nbt_export_title">Dünya HTML\'i Dışa Aktarılıyor</string>
+    <string name="nbt_export_failed">Dışa aktarma başarısız: %1$s</string>
+    <string name="nbt_export_progress">Dışa aktarılıyor… %1$s%%</string>
+    <string name="nbt_export_done">Dışa aktarma tamamlandı: %1$s</string>
 </resources>

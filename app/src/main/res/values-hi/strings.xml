@@ -1850,4 +1850,29 @@ LBBL खोलें → ऑनलाइन → जुड़ें, फिर �
     <string name="online_room_created_fmt">रूम बन गया ✓
 आमंत्रण कोड: P/%1$s
 (एक ही Wi-Fi पर मौजूद दोस्त इस कोड से जुड़ सकते हैं)</string>
+    <!-- v0.0.11 新词条（2026-10-03） -->
+    <string name="scan_type_world">दुनिया</string>
+    <string name="scan_type_resource">रिसोर्स पैक</string>
+    <string name="scan_type_behavior">बिहेवियर पैक</string>
+    <string name="scan_type_structure">संरचना</string>
+    <string name="game_mode_label">गेम मोड: %1$s</string>
+    <string name="game_mode_unknown">अज्ञात</string>
+    <string name="game_mode_survival">सर्वाइवल</string>
+    <string name="game_mode_creative">क्रिएटिव</string>
+    <string name="game_mode_adventure">एडवेंचर</string>
+    <string name="game_mode_spectator">स्पेक्टेटर</string>
+    <string name="import_failed_item">%1$s का आयात विफल: %2$s</string>
+    <string name="import_nothing">कुछ भी आयात नहीं किया गया</string>
+    <string name="import_summary">आयातित: %1$s</string>
+    <string name="import_error_header">त्रुटियाँ:</string>
+    <string name="import_failed_generic">आयात विफल: %1$s</string>
+    <string name="import_count_worlds">दुनिया: %1$d</string>
+    <string name="import_count_resources">रिसोर्स पैक: %1$d</string>
+    <string name="import_count_behaviors">बिहेवियर पैक: %1$d</string>
+    <string name="import_count_skins">स्किन पैक: %1$d</string>
+    <string name="import_count_structures">संरचनाएँ: %1$d</string>
+    <string name="nbt_export_title">दुनिया का HTML निर्यात हो रहा है</string>
+    <string name="nbt_export_failed">निर्यात विफल: %1$s</string>
+    <string name="nbt_export_progress">निर्यात हो रहा है… %1$s%%</string>
+    <string name="nbt_export_done">निर्यात पूर्ण: %1$s</string>
 </resources>

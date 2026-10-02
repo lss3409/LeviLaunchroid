@@ -1846,4 +1846,29 @@ Buka LBBL → Online → Gabung, lalu tempel kodenya</string>
     <string name="online_room_created_fmt">Ruangan dibuat ✓
 Kode undangan: P/%1$s
 (Teman di Wi-Fi yang sama dapat bergabung dengan kode ini)</string>
+    <!-- v0.0.11 新词条（2026-10-03） -->
+    <string name="scan_type_world">Dunia</string>
+    <string name="scan_type_resource">Paket Sumber Daya</string>
+    <string name="scan_type_behavior">Paket Perilaku</string>
+    <string name="scan_type_structure">Struktur</string>
+    <string name="game_mode_label">Mode Permainan: %1$s</string>
+    <string name="game_mode_unknown">Tidak diketahui</string>
+    <string name="game_mode_survival">Bertahan Hidup</string>
+    <string name="game_mode_creative">Kreatif</string>
+    <string name="game_mode_adventure">Petualangan</string>
+    <string name="game_mode_spectator">Penonton</string>
+    <string name="import_failed_item">Gagal mengimpor %1$s: %2$s</string>
+    <string name="import_nothing">Tidak ada yang diimpor</string>
+    <string name="import_summary">Diimpor: %1$s</string>
+    <string name="import_error_header">Kesalahan:</string>
+    <string name="import_failed_generic">Impor gagal: %1$s</string>
+    <string name="import_count_worlds">Dunia: %1$d</string>
+    <string name="import_count_resources">Paket Sumber Daya: %1$d</string>
+    <string name="import_count_behaviors">Paket Perilaku: %1$d</string>
+    <string name="import_count_skins">Paket Skin: %1$d</string>
+    <string name="import_count_structures">Struktur: %1$d</string>
+    <string name="nbt_export_title">Mengekspor HTML Dunia</string>
+    <string name="nbt_export_failed">Ekspor gagal: %1$s</string>
+    <string name="nbt_export_progress">Mengekspor… %1$s%%</string>
+    <string name="nbt_export_done">Ekspor selesai: %1$s</string>
 </resources>

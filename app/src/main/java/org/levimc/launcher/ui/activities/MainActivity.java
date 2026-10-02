@@ -385,9 +385,9 @@ import okhttp3.OkHttpClient;
             final String url = AccountTextUtils.sanitizeUrl(active.xboxAvatarUrl);
             if (url != null) {
                 accountExecutor.execute(() -> {
-                    try {
-                        okhttp3.OkHttpClient client = new okhttp3.OkHttpClient();
-                        okhttp3.Response imgResp = client.newCall(new okhttp3.Request.Builder().url(url).build()).execute();
+                    // v0.0.11：try-with-resources 关闭 Response（此前泄漏连接）
+                    try (okhttp3.Response imgResp = new okhttp3.OkHttpClient()
+                            .newCall(new okhttp3.Request.Builder().url(url).build()).execute()) {
                         final android.graphics.Bitmap bmp = (imgResp.isSuccessful() && imgResp.body() != null) ? android.graphics.BitmapFactory.decodeStream(imgResp.body().byteStream()) : null;
                         runOnUiThread(() -> { if (bmp != null) headerAvatar.setImageBitmap(bmp); });
                     } catch (Exception ignored) {}

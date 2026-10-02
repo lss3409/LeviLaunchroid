@@ -1852,4 +1852,29 @@ Mở LBBL → Trực tuyến → Tham gia, sau đó dán mã</string>
     <string name="online_room_created_fmt">Đã tạo phòng ✓
 Mã mời: P/%1$s
 (Bạn bè dùng cùng Wi-Fi có thể tham gia bằng mã này)</string>
+    <!-- v0.0.11 新词条（2026-10-03） -->
+    <string name="scan_type_world">Thế giới</string>
+    <string name="scan_type_resource">Gói tài nguyên</string>
+    <string name="scan_type_behavior">Gói hành vi</string>
+    <string name="scan_type_structure">Cấu trúc</string>
+    <string name="game_mode_label">Chế độ chơi: %1$s</string>
+    <string name="game_mode_unknown">Không xác định</string>
+    <string name="game_mode_survival">Sinh tồn</string>
+    <string name="game_mode_creative">Sáng tạo</string>
+    <string name="game_mode_adventure">Phiêu lưu</string>
+    <string name="game_mode_spectator">Quan sát</string>
+    <string name="import_failed_item">Không thể nhập %1$s: %2$s</string>
+    <string name="import_nothing">Không có gì được nhập</string>
+    <string name="import_summary">Đã nhập: %1$s</string>
+    <string name="import_error_header">Lỗi:</string>
+    <string name="import_failed_generic">Nhập không thành công: %1$s</string>
+    <string name="import_count_worlds">Thế giới: %1$d</string>
+    <string name="import_count_resources">Gói tài nguyên: %1$d</string>
+    <string name="import_count_behaviors">Gói hành vi: %1$d</string>
+    <string name="import_count_skins">Gói skin: %1$d</string>
+    <string name="import_count_structures">Cấu trúc: %1$d</string>
+    <string name="nbt_export_title">Đang xuất HTML thế giới</string>
+    <string name="nbt_export_failed">Xuất không thành công: %1$s</string>
+    <string name="nbt_export_progress">Đang xuất… %1$s%%</string>
+    <string name="nbt_export_done">Đã xuất xong: %1$s</string>
 </resources>

@@ -6,11 +6,9 @@ import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
-import android.util.Base64;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -61,10 +59,6 @@ public class SettingsActivity extends BaseActivity {
     private ActivityResultLauncher<Intent> permissionResultLauncher;
     private ActivityResultLauncher<Intent> bgImagePickerLauncher;
     private ActivityResultLauncher<Uri> folderPickerLauncher;
-    private int updateButtonTapCount = 0;
-    private long lastUpdateButtonTapTime = 0;
-    private static final int EASTER_EGG_TAP_COUNT = 3;
-    private static final long TAP_TIMEOUT_MS = 2000;
 
     private TextView tabBasic;
     private TextView tabPersonalize;
@@ -76,7 +70,6 @@ public class SettingsActivity extends BaseActivity {
     private View sectionMigration;
     private View sectionAbout;
 
-    private static final String KEY_SELECTED_TAB = "selected_tab_index";
     private int selectedTabIndex = 0;
 
     private PersonalizationManager personalizationManager;
@@ -163,12 +156,6 @@ public class SettingsActivity extends BaseActivity {
         if (tabScroll != null) {
             tabScroll.post(() -> tabScroll.scrollTo(0, 0));
         }
-    }
-
-    @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-        outState.putInt(KEY_SELECTED_TAB, selectedTabIndex);
     }
 
     /** v711：检查更新卡片（关于 tab）——版本显示 + 手动检查按钮。 */
@@ -1186,33 +1173,6 @@ public class SettingsActivity extends BaseActivity {
         intent.putExtra(WebViewActivity.EXTRA_URL, url);
         intent.putExtra(WebViewActivity.EXTRA_TITLE, title);
         startActivity(intent);
-    }
-
-    private void handleUpdateButtonClick() {
-        long currentTime = System.currentTimeMillis();
-
-        if (currentTime - lastUpdateButtonTapTime > TAP_TIMEOUT_MS) {
-            updateButtonTapCount = 0;
-        }
-
-        updateButtonTapCount++;
-        lastUpdateButtonTapTime = currentTime;
-
-        if (updateButtonTapCount >= EASTER_EGG_TAP_COUNT) {
-            updateButtonTapCount = 0;
-            triggerEasterEgg();
-        }
-    }
-
-    private void triggerEasterEgg() {
-        try {
-            String encoded = "aHR0cHM6Ly95b3V0dS5iZS9GdHV0TEE2M0NwOD9zaT1CSExEWHZLOTZPZ1A0NUI4";
-            String url = new String(Base64.decode(encoded, Base64.DEFAULT));
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-            startActivity(intent);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 
     private void setupNavBar() {

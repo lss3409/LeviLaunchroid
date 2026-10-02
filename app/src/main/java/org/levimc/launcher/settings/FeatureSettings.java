@@ -7,7 +7,9 @@ public class FeatureSettings {
     private static Context appContext;
     private boolean versionIsolationEnabled = false;
     private boolean launcherManagedMcLoginEnabled = true;
-    private boolean msLoginEnabled = false;
+    /** v0.0.11：登录入口不再受开关控制（设置页开关已随 tab 改版移除，
+     *  BaseActivity.refreshNavAccountUI 不再读取此字段）；字段保留兼容旧存档。 */
+    private boolean msLoginEnabled = true;
     private boolean logcatOverlayEnabled = false;
     /** v704：前台服务默认开启（用户实测 v490 不杀后台，联机掉线根因）；设置页开关可关。 */
     private boolean foregroundServiceEnabled = true;

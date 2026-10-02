@@ -1823,4 +1823,29 @@ Abra LBBL → Online → Entrar e cole o código</string>
     <string name="online_room_created_fmt">Sala criada ✓
 Código de convite: P/%1$s
 (Amigos no mesmo Wi-Fi podem entrar com este código)</string>
+    <!-- v0.0.11 新词条（2026-10-03） -->
+    <string name="scan_type_world">Mundo</string>
+    <string name="scan_type_resource">Pacote de recursos</string>
+    <string name="scan_type_behavior">Pacote de comportamento</string>
+    <string name="scan_type_structure">Estrutura</string>
+    <string name="game_mode_label">Modo de jogo: %1$s</string>
+    <string name="game_mode_unknown">Desconhecido</string>
+    <string name="game_mode_survival">Sobrevivência</string>
+    <string name="game_mode_creative">Criativo</string>
+    <string name="game_mode_adventure">Aventura</string>
+    <string name="game_mode_spectator">Espectador</string>
+    <string name="import_failed_item">Falha ao importar %1$s: %2$s</string>
+    <string name="import_nothing">Nada foi importado</string>
+    <string name="import_summary">Importado: %1$s</string>
+    <string name="import_error_header">Erros:</string>
+    <string name="import_failed_generic">Falha na importação: %1$s</string>
+    <string name="import_count_worlds">Mundos: %1$d</string>
+    <string name="import_count_resources">Pacotes de recursos: %1$d</string>
+    <string name="import_count_behaviors">Pacotes de comportamento: %1$d</string>
+    <string name="import_count_skins">Pacotes de skins: %1$d</string>
+    <string name="import_count_structures">Estruturas: %1$d</string>
+    <string name="nbt_export_title">Exportando HTML do mundo</string>
+    <string name="nbt_export_failed">Falha ao exportar: %1$s</string>
+    <string name="nbt_export_progress">Exportando… %1$s%%</string>
+    <string name="nbt_export_done">Exportação concluída: %1$s</string>
 </resources>

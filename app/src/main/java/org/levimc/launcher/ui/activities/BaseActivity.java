@@ -342,13 +342,8 @@ public class BaseActivity extends AppCompatActivity {
         if (!navBarInjected) return;
         View signIn = findViewById(R.id.nav_sign_in_button);
         View avatarContainer = findViewById(R.id.nav_account_avatar_container);
-        // 默认关闭登录入口（盗版无法登录微软），设置里可开关
-        if (!FeatureSettings.getInstance().isMsLoginEnabled()) {
-            if (signIn != null) signIn.setVisibility(View.GONE);
-            if (avatarContainer != null) avatarContainer.setVisibility(View.GONE);
-            clearNavAvatar();
-            return;
-        }
+        // v0.0.11：登录入口一直显示（设置页开关已随 tab 改版移除，
+        // msLoginEnabled 无写入方——此前新装用户非主页永远看不到登录入口）
         java.util.List<MsftAccountStore.MsftAccount> list = MsftAccountStore.list(this);
         MsftAccountStore.MsftAccount active = null;
         for (MsftAccountStore.MsftAccount a : list) if (a.active) { active = a; break; }
