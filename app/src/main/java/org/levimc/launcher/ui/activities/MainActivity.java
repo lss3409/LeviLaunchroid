@@ -165,6 +165,13 @@ import okhttp3.OkHttpClient;
         // 冷启动场景）。补发前先等游戏完全退出（运行中发深链 1.26 不
         // 处理——v601 实测根因）。
         firePendingDeepLink();
+
+        // v711：自动检查更新（每天一次限频；有新版本弹更新弹窗）
+        org.levimc.launcher.core.updates.UpdateChecker.checkAsync(this, false, u -> {
+            if (u != null && !isFinishing()) {
+                org.levimc.launcher.core.updates.UpdateChecker.showUpdateDialog(this, u);
+            }
+        });
     }
 
     private volatile boolean deepLinkFiring = false;

@@ -98,6 +98,7 @@ public class SettingsActivity extends BaseActivity {
         DynamicAnim.applyPressScaleRecursively(findViewById(android.R.id.content));
 
         setupNavBar();
+        setupUpdateCheck();
 
         personalizationManager = new PersonalizationManager(this);
 
@@ -160,6 +161,37 @@ public class SettingsActivity extends BaseActivity {
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
         outState.putInt(KEY_SELECTED_TAB, selectedTabIndex);
+    }
+
+    /** v711：检查更新卡片（关于 tab）——版本显示 + 手动检查按钮。 */
+    private void setupUpdateCheck() {
+        try {
+            TextView verText = findViewById(R.id.check_update_version);
+            if (verText != null) {
+                android.content.pm.PackageInfo pi = getPackageManager()
+                        .getPackageInfo(getPackageName(), 0);
+                verText.setText("当前版本 " + (pi != null ? pi.versionName : "?"));
+            }
+            View btn = findViewById(R.id.check_update_button);
+            if (btn != null) {
+                org.levimc.launcher.util.AccentStyler.stylePrimary(this, btn);
+                btn.setOnClickListener(v -> {
+                    Toast.makeText(this, R.string.check_update_checking,
+                            Toast.LENGTH_SHORT).show();
+                    org.levimc.launcher.core.updates.UpdateChecker.checkAsync(
+                            this, true, u -> {
+                                if (u == null) {
+                                    Toast.makeText(this, R.string.check_update_latest,
+                                            Toast.LENGTH_SHORT).show();
+                                } else {
+                                    org.levimc.launcher.core.updates.UpdateChecker
+                                            .showUpdateDialog(this, u);
+                                }
+                            });
+                });
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     private void initTabs() {
