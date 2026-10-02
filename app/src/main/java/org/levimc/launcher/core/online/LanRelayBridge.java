@@ -187,16 +187,14 @@ public final class LanRelayBridge {
             startProxy();
             Log.i(TAG, "异地入口桥已启动（成员/客户端）房主=" + host);
         }
-        // v638：房主世界就绪（wp>0 且真 pong 已缓存=服务器可应答）→
-        // 成员端注入 4445 组播公告（Astral multicast.rs 同款：游戏客户端
+        // v638：成员端注入 4445 组播公告（Astral multicast.rs 同款：游戏客户端
         // 原生消费 224.0.2.60:4445 的 [MOTD]/[AD] 公告显示局域网条目——
         // v618 平板刷屏实锤 1.26.45 客户端监听该组播；注意 1.26.40 客户端
         // 不监听——vivo 版本差异）。AD 固定 19132=本机桥端口，客户端点
         // 条目连本机 WiFi IP:19132 → lanSock → 隧道 → 房主世界。
-        // v639：pong 缓存就绪才注入（世界可应答，防端口过早）。
-        if (port > 0 && cachedPong != null) {
-            startMulticastInject();
-        }
+        // v688：改为无条件注入（显示优先）——原门控 port>0 && cachedPong!=null
+        // 依赖 wp 学习链，链断则注入不发、条目永不出现。
+        startMulticastInject();
     }
 
     private static volatile boolean injecting;
@@ -217,7 +215,13 @@ public final class LanRelayBridge {
                 } else {
                     injectSock.bind(new InetSocketAddress(0));
                 }
-                injectSock.setLoopbackMode(true); // 防本机发现器吃回注入（风暴）
+                // v688：开启组播回环——本机游戏客户端才能收到注入公告。
+                // v638 曾关闭回环防"风暴"，但关闭后本机客户端根本收不到
+                // 注入公告，条目只能靠虚拟网单播公告（端口被 proxy 抢占，
+                // pong 源地址与条目地址不符被客户端丢弃——条目 1 秒消失的
+                // 根因链）。注入公告固定 GUID 固定 MOTD，客户端条目稳定，
+                // 不会重演 v618 刷屏（那是房主真公告 GUID 变化所致）。
+                injectSock.setLoopbackMode(false);
                 injectSock.setTimeToLive(1);
                 InetAddress group = InetAddress.getByName("224.0.2.60");
                 byte[] data = ("[MOTD]PaperConnect 房主世界[/MOTD][AD]19132[/AD]")
