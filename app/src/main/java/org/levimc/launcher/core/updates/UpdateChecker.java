@@ -205,6 +205,11 @@ public final class UpdateChecker {
         if (u == null || u.version.isEmpty()) {
             return;
         }
+        // v0.0.12：网络慢导致回调晚到时 Activity 可能已销毁，
+        // 弹窗会 BadTokenException 崩溃（vivo 手机检查更新实测）
+        if (activity.isFinishing() || activity.isDestroyed()) {
+            return;
+        }
         StringBuilder msg = new StringBuilder();
         msg.append(activity.getString(R.string.update_msg_new_version, u.version)).append('\n');
         if (u.body != null && !u.body.isEmpty()) {

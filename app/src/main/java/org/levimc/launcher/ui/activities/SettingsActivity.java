@@ -176,6 +176,11 @@ public class SettingsActivity extends BaseActivity {
                             Toast.LENGTH_SHORT).show();
                     org.levimc.launcher.core.updates.UpdateChecker.checkAsync(
                             this, true, (status, u) -> {
+                                // v0.0.12：检查慢时用户可能已退出设置页，
+                                // Activity 销毁后弹窗会 BadTokenException 崩溃（vivo 实测）
+                                if (isFinishing() || isDestroyed()) {
+                                    return;
+                                }
                                 if (status == org.levimc.launcher.core.updates
                                         .UpdateChecker.RESULT_UPDATE) {
                                     org.levimc.launcher.core.updates.UpdateChecker

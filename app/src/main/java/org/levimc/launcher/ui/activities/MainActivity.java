@@ -169,7 +169,7 @@ import okhttp3.OkHttpClient;
         // v711：自动检查更新（每天一次限频；有新版本弹更新弹窗）
         org.levimc.launcher.core.updates.UpdateChecker.checkAsync(this, false, (status, u) -> {
             if (status == org.levimc.launcher.core.updates.UpdateChecker.RESULT_UPDATE
-                    && u != null && !isFinishing()) {
+                    && u != null && !isFinishing() && !isDestroyed()) {
                 org.levimc.launcher.core.updates.UpdateChecker.showUpdateDialog(this, u);
             }
         });
