@@ -1,6 +1,6 @@
 <resources>
     <!-- Common -->
-    <string name="app_name">LeviLauncher</string>
+    <string name="app_name">LBBL</string>
     <string name="minecraft">Minecraft</string>
     <string name="launch">Khởi Chạy</string>
     <string name="beta_badge">Thử Nghiệm</string>

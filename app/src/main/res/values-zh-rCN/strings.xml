@@ -1,6 +1,6 @@
 <resources>
     <!-- Common -->
-    <string name="app_name">LeviLauncher</string>
+    <string name="app_name">LBBL</string>
     <string name="minecraft">Minecraft</string>
     <string name="launch">启动</string>
 
@@ -60,7 +60,7 @@
 
     <!-- Permissions -->
     <string name="storage_permission_title">存储权限</string>
-    <string name="storage_permission_message">LeviLauncher 需要访问所有文件才能正常安装和运行 Minecraft。如果不授予，启动器可能无法安装版本或保存游戏数据。</string>
+    <string name="storage_permission_message">LBBL 需要访问所有文件才能正常安装和运行 Minecraft。如果不授予，启动器可能无法安装版本或保存游戏数据。</string>
     <string name="grant_permission">授予权限</string>
     <string name="cancel">取消</string>
 
@@ -137,7 +137,7 @@
     <string name="repair">修复</string>
     <string name="repair_libs_dialog_subtitle">正在准备游戏库文件</string>
     <string name="storage_migration_title">需要迁移存储目录</string>
-    <string name="storage_migration_message">LeviLauncher 必须先将数据从 games/org.levimc 迁移到 %1$s，才能继续使用。
+    <string name="storage_migration_message">LBBL 必须先将数据从 games/org.levimc 迁移到 %1$s，才能继续使用。
 
 这次存储迁移是为了满足 Google Play 上架合规要求，不得不这么做。旧目录会保持不变，但迁移后不再作为运行目录使用。
 
@@ -159,11 +159,11 @@
 
 旧的 games/org.levimc 目录未被删除，后续不再使用。</string>
     <string name="storage_migration_partial_title">迁移未完成</string>
-    <string name="storage_migration_partial_message">%1$d/%2$d 个文件未能复制。必须完成迁移后才能继续使用 LeviLauncher。</string>
+    <string name="storage_migration_partial_message">%1$d/%2$d 个文件未能复制。必须完成迁移后才能继续使用 LBBL。</string>
     <string name="storage_migration_failed_title">迁移失败</string>
     <string name="storage_migration_failed_message">迁移无法继续：%1$s
 
-必须完成迁移后才能继续使用 LeviLauncher。</string>
+必须完成迁移后才能继续使用 LBBL。</string>
     <string name="migration_cleanup_title">清理历史目录</string>
     <string name="migration_cleanup_desc">仅在确认所有实例都能正常启动，世界、资源包、行为包和设置均未缺失后，再移除旧的 games/org.levimc 目录。删除后无法再从该历史目录恢复数据。</string>
     <string name="migration_cleanup_button">清理历史目录</string>
@@ -316,13 +316,13 @@
     <string name="ms_choose_other_method">其他方式</string>
     <string name="ms_default_browser_no_private_mode">默认浏览器不支持隐私登录，请更新浏览器或使用 WebView 登录。</string>
     <string name="ms_device_code_authorized">微软已批准登录，正在完成…</string>
-    <string name="ms_device_code_browser_note">LeviLauncher 会以隐私会话打开默认浏览器，自动填入代码并请求新的微软登录。</string>
+    <string name="ms_device_code_browser_note">LBBL 会以隐私会话打开默认浏览器，自动填入代码并请求新的微软登录。</string>
     <string name="ms_device_code_browser_opened">请在浏览器中完成新的微软登录，然后返回此处。</string>
     <string name="ms_device_code_checking">正在检查微软登录结果…</string>
     <string name="ms_device_code_copied">代码已复制</string>
     <string name="ms_device_code_copy">复制代码</string>
     <string name="ms_device_code_expires">代码将于 %1$d:%2$02d 后过期</string>
-    <string name="ms_device_code_instructions">打开微软设备登录页，输入此代码并批准访问，LeviLauncher 会自动完成。</string>
+    <string name="ms_device_code_instructions">打开微软设备登录页，输入此代码并批准访问，LBBL 会自动完成。</string>
     <string name="ms_device_code_label">微软设备代码</string>
     <string name="ms_device_code_login">使用浏览器继续</string>
     <string name="ms_device_code_login_desc">以隐私会话打开浏览器，设备代码已自动填入。</string>
@@ -335,7 +335,7 @@
     <string name="ms_device_code_waiting">等待你在浏览器中完成操作…</string>
     <string name="ms_device_code_waiting_code">--------</string>
     <string name="ms_feature_disabled_title">功能已禁用</string>
-    <string name="ms_feature_disabled_desc">请在设置中启用“使用 LeviLauncher 登录 Minecraft”以管理微软账号。</string>
+    <string name="ms_feature_disabled_desc">请在设置中启用“使用 LBBL 登录 Minecraft”以管理微软账号。</string>
     <string name="ms_login_header_subtitle">安全登录 Minecraft</string>
     <string name="ms_login_missing_code">微软未返回登录代码，请重新登录或使用设备代码登录。</string>
     <string name="ms_login_retrying">连接中断，正在安全重试…</string>
@@ -343,7 +343,7 @@
     <string name="ms_login_state_failed">无法验证微软登录响应，请重新登录。</string>
     <string name="ms_no_browser">此设备上没有可用的浏览器。</string>
     <string name="ms_webview_login">打开内嵌登录</string>
-    <string name="ms_webview_login_desc">无需离开 LeviLauncher 即可登录，适用于浏览器流程不可用时。</string>
+    <string name="ms_webview_login_desc">无需离开 LBBL 即可登录，适用于浏览器流程不可用时。</string>
     <string name="ms_webview_option_title">内嵌 WebView</string>
     
     <string name="theme_title">主题模式</string>
@@ -368,8 +368,8 @@
     <string name="dialog_positive_ok">确定</string>
 
 
-    <string name="eula_title">LeviLauncher 用户协议</string>
-    <string name="eula_message"><b>欢迎使用 LeviLauncher</b>\n\n使用本软件即表示您同意：\n\n• 此为<b>非官方</b> Minecraft 启动器\n• 您需拥有<b>合法授权</b>的 Minecraft 副本\n• 禁止任何形式的盗版或作弊行为\n• 模组/资源包使用风险自负\n• 与 Mojang/Microsoft 无关联\n\n继续使用视为接受条款</string>
+    <string name="eula_title">LBBL 用户协议</string>
+    <string name="eula_message"><b>欢迎使用 LBBL</b>\n\n使用本软件即表示您同意：\n\n• 此为<b>非官方</b> Minecraft 启动器\n• 您需拥有<b>合法授权</b>的 Minecraft 副本\n• 禁止任何形式的盗版或作弊行为\n• 模组/资源包使用风险自负\n• 与 Mojang/Microsoft 无关联\n\n继续使用视为接受条款</string>
     <string name="eula_agree">接受</string>
     <string name="eula_exit">拒绝</string>
 
@@ -665,8 +665,8 @@
     <string name="external_mods_open_link">打开链接</string>
     <string name="external_mods_external_dialog_title">外部下载</string>
     <string name="external_mods_ad_dialog_title">广告支持下载</string>
-    <string name="external_mods_external_dialog_message">%1$s 使用 LeviLauncher 之外的下载页面。\n\n1. 点击「打开链接」并下载 .levipack 或 .so 文件。\n2. 返回 LeviLauncher 并打开模组页。\n3. 点击「扫描」。\n4. 在要导入的模组旁点击「添加」。\n\n扫描仅检查主下载文件夹。如果浏览器把文件保存到了其他位置，请先将文件移动过去。</string>
-    <string name="external_mods_ad_dialog_message">%1$s 使用其开发者选择的广告支持下载页面。LeviLauncher 不控制该页面或其广告。\n\n1. 点击「打开链接」并下载 .levipack 或 .so 文件。\n2. 返回 LeviLauncher 并打开模组页。\n3. 点击「扫描」。\n4. 在要导入的模组旁点击「添加」。\n\n扫描仅检查主下载文件夹。只下载模组文件本身，不要安装无关应用或允许通知。</string>
+    <string name="external_mods_external_dialog_message">%1$s 使用 LBBL 之外的下载页面。\n\n1. 点击「打开链接」并下载 .levipack 或 .so 文件。\n2. 返回 LBBL 并打开模组页。\n3. 点击「扫描」。\n4. 在要导入的模组旁点击「添加」。\n\n扫描仅检查主下载文件夹。如果浏览器把文件保存到了其他位置，请先将文件移动过去。</string>
+    <string name="external_mods_ad_dialog_message">%1$s 使用其开发者选择的广告支持下载页面。LBBL 不控制该页面或其广告。\n\n1. 点击「打开链接」并下载 .levipack 或 .so 文件。\n2. 返回 LBBL 并打开模组页。\n3. 点击「扫描」。\n4. 在要导入的模组旁点击「添加」。\n\n扫描仅检查主下载文件夹。只下载模组文件本身，不要安装无关应用或允许通知。</string>
     <string name="external_mods_by_author">by %1$s</string>
     <string name="external_mods_version">模组 %1$s</string>
     <string name="external_mods_minecraft_versions">Minecraft %1$s</string>
@@ -768,7 +768,7 @@
     <string name="ms_login_failed">Microsoft 登录失败</string>
     <string name="ms_login_failed_detail">登录失败：%1$s</string>
     <string name="xbox_avatar">Xbox头像</string>
-    <string name="launcher_managed_mc_login">使用 LeviLauncher 登录 Minecraft</string>
+    <string name="launcher_managed_mc_login">使用 LBBL 登录 Minecraft</string>
     <string name="ms_login_label">登录显示</string>
     <string name="ms_login_desc">控制右上角登录按钮的显示与隐藏。</string>
     <string name="dialog_title_login_required">需要登录</string>
@@ -777,7 +777,7 @@
     <string name="disable_launcher_login_and_continue">关闭</string>
     <string name="sign_in">登录</string>
     <string name="ms_account_subtitle_format">用户ID：%1$s • 更新：%2$s</string>
-    <string name="about_footer_github">GitHub: https://github.com/LiteLDev/LeviLaunchroid</string>
+    <string name="about_footer_github">GitHub: https://github.com/LiteLDev/LBBL</string>
 
     <string name="label_current_account">当前账号</string>
     <string name="label_other_accounts">其他账号</string>
@@ -1138,7 +1138,7 @@
     <string name="online_vpn_needed">联机需要系统 VPN 授权，请允许</string>
     <string name="online_vpn_cancelled">已取消 VPN 授权，未加入网络</string>
     <string name="online_err_connect_fmt">连接失败：%1$s</string>
-    <string name="online_vpn_session">LeviLaunchroid 联机</string>
+    <string name="online_vpn_session">LBBL 联机</string>
     <string name="online_vpn_notif_channel">联机组网</string>
     <string name="online_vpn_notif_title">联机组网运行中</string>
     <string name="online_vpn_notif_text">正在维持联机网络连接</string>
@@ -1157,10 +1157,10 @@
     <string name="online_room_code_label">房间码</string>
     <string name="online_players_label">玩家</string>
     <string name="online_leave">退出房间</string>
-    <string name="online_share_brand">LeviLaunchroid</string>
+    <string name="online_share_brand">LBBL</string>
     <string name="online_share_brand_sub">PaperConnect · 联机邀请</string>
     <string name="online_share_card_tag">联机邀请</string>
-    <string name="online_share_qr_hint">用 Levi 启动器扫描，或在联机页粘贴邀请码加入</string>
+    <string name="online_share_qr_hint">用 LBBL 启动器扫描，或在联机页粘贴邀请码加入</string>
     <string name="online_share_copy_button">复制邀请码</string>
     <string name="online_share_send_button">分享给朋友</string>
     <string name="online_relay_add">添加</string>
@@ -1204,9 +1204,9 @@
     <string name="online_greet_evening">晚上好，%1$s</string>
     <string name="online_state_idle">未连接</string>
     <string name="online_state_connected_fmt">已连接 · 虚拟 IP %1$s</string>
-    <string name="online_share_text">【LeviLaunchroid 联机邀请】
+    <string name="online_share_text">【LBBL 联机邀请】
 来我的世界联机！邀请码：P/%1$s
-打开 Levi 启动器 → 联机 → 加入房间，粘贴邀请码即可</string>
+打开 LBBL 启动器 → 联机 → 加入房间，粘贴邀请码即可</string>
     <string name="online_state_discovering">正在局域网内寻找房主…</string>
     <string name="online_my_room">我的房间</string>
     <string name="online_room_hint">同 WiFi（或已配置中转）的好友输入此码即可加入</string>
@@ -1285,7 +1285,7 @@
     <string name="tag_custom">自定义</string>
     <string name="vanilla_prefix">原版 %s</string>
     <string name="about_page_title">关于</string>
-    <string name="about_subtitle">LeviLauncher — 现代 Minecraft 基岩版启动器</string>
+    <string name="about_subtitle">LBBL — 现代 Minecraft 基岩版启动器</string>
     <string name="about_authors_title">👥 作者与维护者</string>
     <string name="about_author_name">DreamGuXiang</string>
     <string name="about_author_badge">作者</string>
@@ -1339,7 +1339,7 @@
     <string name="unsupported_version_title">不支持的版本</string>
     <string name="unsupported_version_msg">此启动器不支持早于 1.21.80 的 Minecraft 版本。</string>
     <string name="news_title">启动器新闻</string>
-    <string name="news_subtitle">来自 LeviLauncher 团队的更新、公告和重要通知。</string>
+    <string name="news_subtitle">来自 LBBL 团队的更新、公告和重要通知。</string>
     <string name="news_enable_notifications">启用通知</string>
     <string name="news_refresh">刷新新闻</string>
     <string name="news_empty">暂时还没有发布新闻。</string>
@@ -1349,7 +1349,7 @@
     <string name="news_refresh_failed">无法刷新。正在显示已保存的新闻。</string>
     <string name="news_unread_description">启动器新闻，%1$d 条未读</string>
     <string name="news_notification_channel">启动器新闻</string>
-    <string name="news_notification_channel_description">LeviLauncher 的新公告和重要通知</string>
+    <string name="news_notification_channel_description">LBBL 的新公告和重要通知</string>
 
     <!-- 内容列表选择与批量操作（同步自上游） -->
     <string name="select">选择</string>

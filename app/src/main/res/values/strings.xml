@@ -1,6 +1,6 @@
 <resources>
     <!-- Common -->
-    <string name="app_name">LeviLauncher</string>
+    <string name="app_name">LBBL</string>
     <string name="minecraft">Minecraft</string>
     <string name="launch">Launch</string>
     <string name="beta_badge">Beta</string>
@@ -24,7 +24,7 @@
     <string name="about_title">☕ About</string>
     <string name="copyright">©2024–2026 LeviMC. All rights reserved.</string>
     <string name="font_license">This app uses the Misans font.</string>
-    <string name="about_footer_github">GitHub: https://github.com/LiteLDev/LeviLaunchroid</string>
+    <string name="about_footer_github">GitHub: https://github.com/LiteLDev/LBBL</string>
     <string name="quick_actions_title">Quick Actions</string>
     <string name="content_mgmt_section_title">Content Management</string>
     <string name="misc_section_title">Miscellaneous</string>
@@ -60,7 +60,7 @@
 
     <!-- Permissions -->
     <string name="storage_permission_title">Storage Permission</string>
-    <string name="storage_permission_message">LeviLauncher needs access to all files to install and run Minecraft correctly. Without this permission, the launcher may not be able to install versions or save game data.</string>
+    <string name="storage_permission_message">LBBL needs access to all files to install and run Minecraft correctly. Without this permission, the launcher may not be able to install versions or save game data.</string>
     <string name="grant_permission">Grant</string>
     <string name="cancel">Cancel</string>
 
@@ -175,7 +175,7 @@
     <string name="repair_libs_dialog_subtitle">Preparing game library files</string>
 
     <string name="storage_migration_title">Storage Migration Required</string>
-    <string name="storage_migration_message">LeviLauncher must migrate data from games/org.levimc to %1$s before continuing.
+    <string name="storage_migration_message">LBBL must migrate data from games/org.levimc to %1$s before continuing.
 
 This storage change is required for Google Play listing compliance. The old directory will be kept untouched, but it will no longer be used after migration.
 
@@ -197,11 +197,11 @@ Migration may take a while. You can leave the app in the background while it run
 
 The old games/org.levimc directory was not deleted and is no longer used.</string>
     <string name="storage_migration_partial_title">Migration Incomplete</string>
-    <string name="storage_migration_partial_message">%1$d of %2$d files could not be copied. Migration must complete before LeviLauncher can continue.</string>
+    <string name="storage_migration_partial_message">%1$d of %2$d files could not be copied. Migration must complete before LBBL can continue.</string>
     <string name="storage_migration_failed_title">Migration Failed</string>
     <string name="storage_migration_failed_message">Migration could not continue: %1$s
 
-Migration must complete before LeviLauncher can continue.</string>
+Migration must complete before LBBL can continue.</string>
     <string name="migration_cleanup_title">Clean Historical Directory</string>
     <string name="migration_cleanup_desc">Only remove the old games/org.levimc directory after you have confirmed every instance launches normally and worlds, resource packs, behavior packs, and settings are not missing. Deleted historical data cannot be restored from this directory.</string>
     <string name="migration_cleanup_button">Clean Historical Directory</string>
@@ -346,8 +346,8 @@ Migration must complete before LeviLauncher can continue.</string>
 
     <string name="error_no_browser">No browser available</string>
 
-    <string name="eula_title">LeviLauncher License Agreement</string>
-    <string name="eula_message"><b>Welcome to LeviLauncher</b>\n\nBy using this software you agree to:\n\n• This is an <b>unofficial</b> Minecraft launcher\n• You must own a <b>licensed</b> copy of Minecraft\n• Any form of piracy or cheating is prohibited\n• Mods/resource packs are used at your own risk\n• Not affiliated with Mojang/Microsoft\n\nContinued use constitutes agreement</string>
+    <string name="eula_title">LBBL License Agreement</string>
+    <string name="eula_message"><b>Welcome to LBBL</b>\n\nBy using this software you agree to:\n\n• This is an <b>unofficial</b> Minecraft launcher\n• You must own a <b>licensed</b> copy of Minecraft\n• Any form of piracy or cheating is prohibited\n• Mods/resource packs are used at your own risk\n• Not affiliated with Mojang/Microsoft\n\nContinued use constitutes agreement</string>
     <string name="eula_agree">Accept</string>
     <string name="eula_exit">Decline</string>
 
@@ -704,8 +704,8 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="external_mods_open_link">Open Link</string>
     <string name="external_mods_external_dialog_title">External Download</string>
     <string name="external_mods_ad_dialog_title">Ad-Supported Download</string>
-    <string name="external_mods_external_dialog_message">%1$s uses a download page outside LeviLauncher.\n\n1. Tap Open Link and download the .levipack or .so file.\n2. Return to LeviLauncher and open Mods.\n3. Tap Scan.\n4. Tap Add next to the mod you want to import.\n\nScan checks only the main Downloads folder. Move the file there if your browser saved it somewhere else.</string>
-    <string name="external_mods_ad_dialog_message">%1$s uses an ad-supported download page chosen by its developer. LeviLauncher does not control that page or its ads.\n\n1. Tap Open Link and download the .levipack or .so file.\n2. Return to LeviLauncher and open Mods.\n3. Tap Scan.\n4. Tap Add next to the mod you want to import.\n\nScan checks only the main Downloads folder. Only download the mod file; do not install unrelated apps or allow notifications.</string>
+    <string name="external_mods_external_dialog_message">%1$s uses a download page outside LBBL.\n\n1. Tap Open Link and download the .levipack or .so file.\n2. Return to LBBL and open Mods.\n3. Tap Scan.\n4. Tap Add next to the mod you want to import.\n\nScan checks only the main Downloads folder. Move the file there if your browser saved it somewhere else.</string>
+    <string name="external_mods_ad_dialog_message">%1$s uses an ad-supported download page chosen by its developer. LBBL does not control that page or its ads.\n\n1. Tap Open Link and download the .levipack or .so file.\n2. Return to LBBL and open Mods.\n3. Tap Scan.\n4. Tap Add next to the mod you want to import.\n\nScan checks only the main Downloads folder. Only download the mod file; do not install unrelated apps or allow notifications.</string>
     <string name="external_mods_by_author">by %1$s</string>
     <string name="external_mods_version">Mod %1$s</string>
     <string name="external_mods_minecraft_versions">Minecraft %1$s</string>
@@ -819,9 +819,9 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="ms_device_code_login_desc">Open a private browser session with the device code already filled in.</string>
     <string name="ms_webview_login">Open embedded sign-in</string>
     <string name="ms_webview_option_title">Embedded WebView</string>
-    <string name="ms_webview_login_desc">Sign in without leaving LeviLauncher. Use this when the browser flow is unavailable.</string>
+    <string name="ms_webview_login_desc">Sign in without leaving LBBL. Use this when the browser flow is unavailable.</string>
     <string name="ms_device_code_title">Sign in with Device Code</string>
-    <string name="ms_device_code_instructions">Open Microsoft’s device sign-in page, enter this code, then approve access. LeviLauncher will finish automatically.</string>
+    <string name="ms_device_code_instructions">Open Microsoft’s device sign-in page, enter this code, then approve access. LBBL will finish automatically.</string>
     <string name="ms_device_code_label">Microsoft device code</string>
     <string name="ms_device_code_requesting">Requesting a secure code…</string>
     <string name="ms_device_code_waiting_code">--------</string>
@@ -835,7 +835,7 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="ms_device_code_copied">Code copied</string>
     <string name="ms_device_code_open_browser">Open Microsoft sign-in</string>
     <string name="ms_device_code_step_title">Complete sign-in in your browser</string>
-    <string name="ms_device_code_browser_note">LeviLauncher opens your default browser in a private session, fills the code automatically, and requests a fresh Microsoft sign-in.</string>
+    <string name="ms_device_code_browser_note">LBBL opens your default browser in a private session, fills the code automatically, and requests a fresh Microsoft sign-in.</string>
     <string name="ms_choose_other_method">Other method</string>
     <string name="ms_no_browser">No browser is available on this device.</string>
     <string name="ms_default_browser_no_private_mode">Your default browser does not support private sign-in. Update it or use WebView login.</string>
@@ -848,7 +848,7 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="ms_active_badge">Active</string>
     <string name="ms_account_subtitle_format">User ID: %1$s • Updated: %2$s</string>
     <string name="xbox_avatar">Xbox avatar</string>
-    <string name="launcher_managed_mc_login">Sign in to Minecraft with LeviLauncher</string>
+    <string name="launcher_managed_mc_login">Sign in to Minecraft with LBBL</string>
     <string name="ms_login_label">Show sign-in</string>
     <string name="ms_login_desc">Show or hide the sign-in button in the top-right corner.</string>
     <string name="dialog_title_login_required">Sign-in required</string>
@@ -857,7 +857,7 @@ Migration must complete before LeviLauncher can continue.</string>
     <string name="disable_launcher_login_and_continue">Close</string>
 
     <string name="ms_feature_disabled_title">Feature Disabled</string>
-    <string name="ms_feature_disabled_desc">Please enable \'Sign in to Minecraft with LeviLauncher\' in Settings to manage Microsoft accounts.</string>
+    <string name="ms_feature_disabled_desc">Please enable \'Sign in to Minecraft with LBBL\' in Settings to manage Microsoft accounts.</string>
     <string name="ms_activated">Activated</string>
 
     <!-- Popup labels -->
@@ -1150,7 +1150,7 @@ Virtual IP: %1$s
     <string name="online_vpn_needed">Online play requires VPN permission. Please allow it.</string>
     <string name="online_vpn_cancelled">VPN permission cancelled, not joined</string>
     <string name="online_err_connect_fmt">Connection failed: %1$s</string>
-    <string name="online_vpn_session">LeviLaunchroid Online</string>
+    <string name="online_vpn_session">LBBL Online</string>
     <string name="online_vpn_notif_channel">Online network</string>
     <string name="online_vpn_notif_title">Online network active</string>
     <string name="online_vpn_notif_text">Maintaining the online network connection</string>
@@ -1168,10 +1168,10 @@ Virtual IP: %1$s
     <string name="online_room_code_label">Room Code</string>
     <string name="online_players_label">Players</string>
     <string name="online_leave">Leave Room</string>
-    <string name="online_share_brand">LeviLaunchroid</string>
+    <string name="online_share_brand">LBBL</string>
     <string name="online_share_brand_sub">PaperConnect · Online invite</string>
     <string name="online_share_card_tag">Invite</string>
-    <string name="online_share_qr_hint">Scan with Levi Launcher, or paste the code in the Online tab</string>
+    <string name="online_share_qr_hint">Scan with LBBL, or paste the code in the Online tab</string>
     <string name="online_share_copy_button">Copy</string>
     <string name="online_share_send_button">Share to friends</string>
     <string name="online_relay_add">Add</string>
@@ -1214,9 +1214,9 @@ Virtual IP: %1$s
     <string name="online_greet_evening">Good evening, %1$s</string>
     <string name="online_state_idle">Not connected</string>
     <string name="online_state_connected_fmt">Connected · Virtual IP %1$s</string>
-    <string name="online_share_text">【LeviLaunchroid Invite】
+    <string name="online_share_text">【LBBL Invite】
 Join my Minecraft world! Invite code: P/%1$s
-Open Levi Launcher → Online → Join, then paste the code</string>
+Open LBBL → Online → Join, then paste the code</string>
     <string name="online_state_discovering">Looking for host on the local network…</string>
     <string name="online_my_room">Your Room</string>
     <string name="online_room_hint">Friends on the same Wi-Fi (or via relay) can join with this code</string>
@@ -1291,7 +1291,7 @@ Invite code: P/%1$s
     <string name="vanilla_prefix">Vanilla %s</string>
 
     <string name="about_page_title">About</string>
-    <string name="about_subtitle">LeviLauncher — A Modern Minecraft Bedrock Launcher</string>
+    <string name="about_subtitle">LBBL — A Modern Minecraft Bedrock Launcher</string>
     <string name="about_authors_title">👥 Authors &amp; Maintainers</string>
     <string name="about_author_name">DreamGuXiang</string>
     <string name="about_author_badge">Author</string>
@@ -1389,7 +1389,7 @@ Invite code: P/%1$s
     <string name="hardcore_no_change_skip">世界自上次备份后无变化，跳过重复备份</string>
     <string name="hardcore_settings_applied">设置已生效</string>
     <string name="news_title">Launcher news</string>
-    <string name="news_subtitle">Updates, announcements, and important notices from the LeviLauncher team.</string>
+    <string name="news_subtitle">Updates, announcements, and important notices from the LBBL team.</string>
     <string name="news_enable_notifications">Enable notifications</string>
     <string name="news_refresh">Refresh news</string>
     <string name="news_empty">No news has been published yet.</string>
@@ -1399,7 +1399,7 @@ Invite code: P/%1$s
     <string name="news_refresh_failed">Could not refresh. Showing saved news.</string>
     <string name="news_unread_description">Launcher news, %1$d unread</string>
     <string name="news_notification_channel">Launcher news</string>
-    <string name="news_notification_channel_description">New LeviLauncher announcements and important notices</string>
+    <string name="news_notification_channel_description">New LBBL announcements and important notices</string>
 
     <!-- Content list selection & batch (synced from upstream) -->
     <string name="select">Select</string>

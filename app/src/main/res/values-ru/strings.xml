@@ -1,6 +1,6 @@
 <resources>
     <!-- Общее -->
-    <string name="app_name">LeviLauncher</string>
+    <string name="app_name">LBBL</string>
     <string name="minecraft">Minecraft</string>
     <string name="launch">Запустить</string>
     <string name="beta_badge">Бета</string>
