@@ -798,9 +798,10 @@ public class FileManagerActivity extends BaseActivity {
                 editorText.setText(content);
                 applyingHighlight = false;
                 scheduleHighlight();
-                // v675：滚动条刷新改延迟序列（100/300/1000ms），
-                // 覆盖 layout pass 完成前的各阶段，确保首次打开即显示
-                scheduleScrollBarRefresh();
+                // v677（本质修复）：setText 后同步强制测量，让 Layout 立即建立，
+                // 滚动条同帧正确计算，不再依赖延迟探测
+                forceEditorLayout();
+                updateEditorScrollBar();
             }
         }
         editorFileWritable = ui.getWritable();
@@ -934,7 +935,8 @@ public class FileManagerActivity extends BaseActivity {
             editorText.setSelection(Math.min(selStart, editorText.length()), Math.min(selEnd, editorText.length()));
         } catch (IndexOutOfBoundsException ignored) {}
         applyingHighlight = false;
-        // 高亮重设文本后恢复滚动位置
+        // 高亮重设文本后：同步重建 layout 并恢复滚动位置
+        forceEditorLayout();
         editorText.post(() -> editorText.scrollTo(0, scrollY));
         editorText.post(this::updateEditorScrollBar);
     }
@@ -944,6 +946,20 @@ public class FileManagerActivity extends BaseActivity {
         highlightHandler.postDelayed(this::updateEditorScrollBar, 100);
         highlightHandler.postDelayed(this::updateEditorScrollBar, 300);
         highlightHandler.postDelayed(this::updateEditorScrollBar, 1000);
+    }
+
+    /**
+     * v677：以当前尺寸同步强制测量，立即建立文本 Layout。
+     * setText 后 TextView 的 layout 要等下一帧布局流程才建立，
+     * 滚动条计算依赖它——同步测量让首次打开即可正确显示。
+     */
+    private void forceEditorLayout() {
+        int w = editorText.getWidth();
+        int h = editorText.getHeight();
+        if (w <= 0 || h <= 0) return;
+        editorText.measure(
+                View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY));
     }
 
     /** 同步可拖动滚动条的视口比例与滚动位置（layout 未就绪时自愈重试，v676）。 */
