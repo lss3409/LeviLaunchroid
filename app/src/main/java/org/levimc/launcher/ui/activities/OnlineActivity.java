@@ -1872,6 +1872,11 @@ public final class OnlineActivity extends BaseActivity
         }
         if (isHost) {
             LanDiscovery.startHost(r.parsed.networkName);
+            // v685：恢复路径补启局域网公告桥——正常建房流程有这两行，
+            // v645 恢复路径漏了：房主桥不启动 = 无 MOTD 单播、无 ping 应答，
+            // 成员端完全看不到局域网入口
+            org.levimc.launcher.core.online.LanRelayBridge.startHost();
+            LanBridge.startHost(PlayerIdentity.getNickname(this));
             List<String> relayPeers = RelayStore.load(this);
             EasyTierManager.get().host(this, r.parsed.networkName, r.parsed.networkSecret, this,
                     HOST_IPV4, relayPeers);
