@@ -711,10 +711,13 @@ public class ImportPickerDialog {
         // 提前声明供「取消」按钮引用
         final Runnable[] updateBottomRef = new Runnable[1];
 
-        // v657：取消按钮 UI 兼容——弹窗同款 TextButton 扁平样式
-        //（Widget.MaterialComponents.Button.TextButton），文字染个性化强调色
-        MaterialButton batchCancel = new MaterialButton(new android.view.ContextThemeWrapper(
-                context, com.google.android.material.R.style.Widget_MaterialComponents_Button_TextButton));
+        // v657/v659：取消按钮 UI 兼容——Material 官方文字按钮构造
+        //（borderlessButtonStyle attr = TextButton 扁平样式）。注意：
+        // ContextThemeWrapper(TextButton 样式) 对 MaterialButton 无效——
+        // 它构造时读 theme 的 materialButtonStyle attr 而非样式本身，
+        // 导致文字色仍是主题默认深绿（像素实测 (27,94,32)）。
+        MaterialButton batchCancel = new MaterialButton(context, null,
+                com.google.android.material.R.attr.borderlessButtonStyle);
         batchCancel.setAllCaps(false);
         batchCancel.setText("取消");
         batchCancel.setTextSize(13);

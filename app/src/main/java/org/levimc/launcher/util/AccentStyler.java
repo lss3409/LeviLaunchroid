@@ -52,7 +52,9 @@ public final class AccentStyler {
         for (View v : buttons) {
             if (v instanceof MaterialButton) {
                 MaterialButton b = (MaterialButton) v;
-                b.setTextColor(accent);
+                // v659：MaterialButton 用 ColorStateList 设置文字色
+                //（setTextColor(int) 在部分 Material 版本被样式状态色覆盖）
+                b.setTextColor(android.content.res.ColorStateList.valueOf(accent));
             } else if (v instanceof android.widget.TextView) {
                 ((android.widget.TextView) v).setTextColor(accent);
             }
