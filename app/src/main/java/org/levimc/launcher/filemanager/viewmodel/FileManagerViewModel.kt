@@ -224,6 +224,8 @@ class FileManagerViewModel constructor(
     fun cutEntry(entry: FmEntry) {
         store.setClipboard(FmClipboard(listOf(entry.path), true))
     }
+    /** 清除剪贴板（v666 UI 横幅取消按钮）。 */
+    fun clearClipboard() = store.setClipboard(null)
     fun requestPaste() = pasteCtr.requestPaste()
     fun resolvePasteConflict(resolution: ConflictResolution) = pasteCtr.resolvePasteConflict(resolution)
 

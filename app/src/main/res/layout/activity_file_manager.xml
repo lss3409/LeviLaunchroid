@@ -6,174 +6,391 @@
     android:orientation="vertical"
     android:background="@color/background">
 
+    <!-- 顶栏 -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="32dp"
-        android:gravity="center_vertical"
+        android:layout_height="56dp"
         android:orientation="horizontal"
-        android:paddingHorizontal="8dp">
+        android:gravity="center_vertical"
+        android:paddingHorizontal="4dp">
 
         <ImageView
-            android:id="@+id/fm_back"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:padding="6dp"
+            android:id="@+id/fm_btn_back"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:padding="10dp"
             android:src="@drawable/ic_arrow_back"
-            android:contentDescription="@string/back"
-            android:clickable="true"
-            android:focusable="true"
             android:background="?attr/selectableItemBackgroundBorderless"
-            app:tint="@color/on_surface" />
+            app:tint="@color/on_surface"
+            android:contentDescription="@null" />
 
         <TextView
-            android:id="@+id/fm_title"
+            android:id="@+id/fm_txt_path"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:fontFamily="@font/misans"
-            android:text="@string/file_manager_title"
-            android:textColor="@color/on_surface"
-            android:textSize="14sp"
-            android:textStyle="bold"
             android:maxLines="1"
-            android:ellipsize="middle" />
+            android:ellipsize="start"
+            android:paddingHorizontal="4dp"
+            android:textSize="15sp"
+            android:textColor="@color/on_surface"
+            android:background="?android:attr/selectableItemBackground" />
 
         <ImageView
-            android:id="@+id/fm_close"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:padding="6dp"
-            android:src="@drawable/ic_close"
-            android:contentDescription="@string/cancel"
-            android:clickable="true"
-            android:focusable="true"
+            android:id="@+id/fm_btn_search"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_search"
             android:background="?attr/selectableItemBackgroundBorderless"
-            app:tint="@color/on_surface" />
+            app:tint="@color/on_surface"
+            android:contentDescription="@null" />
+
+        <ImageView
+            android:id="@+id/fm_btn_sort"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_sort"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/on_surface"
+            android:contentDescription="@null" />
+
+        <ImageView
+            android:id="@+id/fm_btn_multi"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_multi"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/on_surface"
+            android:contentDescription="@null" />
+
+        <ImageView
+            android:id="@+id/fm_btn_more"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_more_vert"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/on_surface"
+            android:contentDescription="@null" />
     </LinearLayout>
 
-    <HorizontalScrollView
+    <!-- 剪贴板横幅 -->
+    <LinearLayout
+        android:id="@+id/fm_clip_bar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingHorizontal="16dp"
-        android:paddingTop="4dp"
-        android:paddingBottom="8dp"
-        android:scrollbars="none"
-        android:overScrollMode="never">
+        android:layout_height="44dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:visibility="gone"
+        android:paddingStart="12dp"
+        android:paddingEnd="4dp">
 
-        <LinearLayout
-            android:id="@+id/fm_path_container"
-            android:layout_width="wrap_content"
+        <TextView
+            android:id="@+id/fm_txt_clip"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="horizontal" />
-    </HorizontalScrollView>
+            android:layout_weight="1"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textSize="13sp"
+            android:textColor="@color/text_secondary" />
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/fm_list"
+        <ImageView
+            android:id="@+id/fm_btn_clip_paste"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:padding="8dp"
+            android:src="@drawable/ic_paste"
+            app:tint="@color/on_surface"
+            android:contentDescription="@null" />
+
+        <ImageView
+            android:id="@+id/fm_btn_clip_cancel"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:padding="8dp"
+            android:src="@drawable/ic_close"
+            app:tint="@color/on_surface"
+            android:contentDescription="@null" />
+    </LinearLayout>
+
+    <!-- 内容区 -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_weight="1">
 
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal">
+
+            <!-- 横屏左侧导航栏 -->
+            <LinearLayout
+                android:id="@+id/fm_nav_rail"
+                android:layout_width="76dp"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:paddingTop="8dp">
+
+                <LinearLayout
+                    android:id="@+id/fm_rail_home"
+                    android:layout_width="match_parent"
+                    android:layout_height="72dp"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:background="?android:attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_house"
+                        app:tint="@color/on_surface"
+                        android:contentDescription="@null" />
+
+                    <TextView
+                        android:id="@+id/fm_rail_home_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="10sp"
+                        android:textColor="@color/text_secondary" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/fm_rail_trash"
+                    android:layout_width="match_parent"
+                    android:layout_height="72dp"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:background="?android:attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_delete"
+                        app:tint="@color/on_surface"
+                        android:contentDescription="@null" />
+
+                    <TextView
+                        android:id="@+id/fm_rail_trash_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="10sp"
+                        android:textColor="@color/text_secondary" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/fm_recycler"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="8dp"
+                    android:scrollbars="vertical" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/fm_trash_recycler"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone"
+                    android:clipToPadding="false"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="8dp"
+                    android:scrollbars="vertical" />
+
+                <TextView
+                    android:id="@+id/fm_empty"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone"
+                    android:gravity="center"
+                    android:textSize="14sp"
+                    android:textColor="@color/text_secondary" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 任务进度横幅 -->
+        <LinearLayout
+            android:id="@+id/fm_task_banner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:padding="12dp"
+            android:background="@color/background">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/fm_task_text"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:textSize="12sp"
+                    android:textColor="@color/text_secondary" />
+
+                <ImageView
+                    android:id="@+id/fm_btn_task_cancel"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_close"
+                    app:tint="@color/on_surface"
+                    android:contentDescription="@null" />
+            </LinearLayout>
+
+            <ProgressBar
+                android:id="@+id/fm_task_progress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="6dp"
+                android:layout_marginTop="6dp"
+                android:max="1000" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- 竖屏底栏 -->
     <LinearLayout
-        android:id="@+id/fm_audio_panel"
+        android:id="@+id/fm_bottom_bar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingHorizontal="16dp"
-        android:paddingVertical="8dp"
-        android:visibility="gone">
+        android:layout_height="60dp"
+        android:orientation="horizontal">
 
-        <ImageView
-            android:id="@+id/fm_audio_play_pause"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_marginEnd="8dp"
-            android:padding="6dp"
-            android:src="@drawable/ic_pause"
-            android:contentDescription="@null"
-            android:clickable="true"
-            android:focusable="true"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            app:tint="@color/on_surface" />
-
-        <TextView
-            android:id="@+id/fm_audio_name"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:fontFamily="@font/misans"
-            android:textColor="@color/on_surface"
-            android:textSize="12sp"
-            android:maxLines="1"
-            android:ellipsize="middle"
-            android:maxWidth="120dp" />
-
-        <TextView
-            android:id="@+id/fm_audio_current"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="4dp"
-            android:fontFamily="@font/misans"
-            android:textColor="@color/text_secondary"
-            android:textSize="11sp" />
-
-        <SeekBar
-            android:id="@+id/fm_audio_seek"
+        <LinearLayout
+            android:id="@+id/fm_bottom_home"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:layout_weight="1"
-            android:progressTint="@color/primary"
-            android:thumbTint="@color/primary" />
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="?android:attr/selectableItemBackground">
 
-        <TextView
-            android:id="@+id/fm_audio_duration"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:fontFamily="@font/misans"
-            android:textColor="@color/text_secondary"
-            android:textSize="11sp" />
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_house"
+                app:tint="@color/on_surface"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/fm_bottom_home_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="10sp"
+                android:textColor="@color/text_secondary" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/fm_bottom_trash"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="?android:attr/selectableItemBackground">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_delete"
+                app:tint="@color/on_surface"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/fm_bottom_trash_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="10sp"
+                android:textColor="@color/text_secondary" />
+        </LinearLayout>
     </LinearLayout>
 
+    <!-- 多选操作条 -->
     <LinearLayout
+        android:id="@+id/fm_selection_bar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="end"
+        android:layout_height="56dp"
         android:orientation="horizontal"
-        android:paddingHorizontal="16dp"
-        android:paddingVertical="10dp">
+        android:visibility="gone"
+        android:gravity="center_vertical">
 
-        <Button
-            android:id="@+id/fm_paste_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:backgroundTint="@color/secondary"
-            android:fontFamily="@font/misans"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:paddingHorizontal="16dp"
-            android:paddingVertical="6dp"
-            android:text="@string/paste"
-            android:textAllCaps="false"
-            android:textColor="@color/on_secondary"
-            android:textSize="12sp"
-            android:visibility="gone" />
+        <ImageView
+            android:id="@+id/fm_btn_sel_all"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:padding="12dp"
+            android:src="@drawable/ic_check"
+            app:tint="@color/on_surface"
+            android:contentDescription="@null" />
 
-        <Button
-            android:id="@+id/fm_new_folder_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:backgroundTint="@color/primary"
-            android:fontFamily="@font/misans"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:paddingHorizontal="16dp"
-            android:paddingVertical="6dp"
-            android:text="@string/new_folder"
-            android:textAllCaps="false"
-            android:textColor="@color/on_primary"
-            android:textSize="12sp" />
+        <ImageView
+            android:id="@+id/fm_btn_sel_copy"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:padding="12dp"
+            android:src="@drawable/ic_online_copy"
+            app:tint="@color/on_surface"
+            android:contentDescription="@null" />
+
+        <ImageView
+            android:id="@+id/fm_btn_sel_cut"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:padding="12dp"
+            android:src="@drawable/ic_edit"
+            app:tint="@color/on_surface"
+            android:contentDescription="@null" />
+
+        <ImageView
+            android:id="@+id/fm_btn_sel_compress"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:padding="12dp"
+            android:src="@drawable/ic_export"
+            app:tint="@color/on_surface"
+            android:contentDescription="@null" />
+
+        <ImageView
+            android:id="@+id/fm_btn_sel_delete"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:padding="12dp"
+            android:src="@drawable/ic_delete"
+            app:tint="@color/on_surface"
+            android:contentDescription="@null" />
+
+        <ImageView
+            android:id="@+id/fm_btn_sel_exit"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:padding="12dp"
+            android:src="@drawable/ic_close"
+            app:tint="@color/on_surface"
+            android:contentDescription="@null" />
     </LinearLayout>
 
 </LinearLayout>
