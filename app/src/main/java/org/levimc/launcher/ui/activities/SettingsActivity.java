@@ -178,7 +178,8 @@ public class SettingsActivity extends BaseActivity {
             if (verText != null) {
                 android.content.pm.PackageInfo pi = getPackageManager()
                         .getPackageInfo(getPackageName(), 0);
-                verText.setText("当前版本 " + (pi != null ? pi.versionName : "?"));
+                verText.setText(getString(R.string.update_current_version,
+                        pi != null ? pi.versionName : "?"));
             }
             View btn = findViewById(R.id.check_update_button);
             if (btn != null) {

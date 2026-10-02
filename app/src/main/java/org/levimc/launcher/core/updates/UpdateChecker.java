@@ -206,14 +206,14 @@ public final class UpdateChecker {
             return;
         }
         StringBuilder msg = new StringBuilder();
-        msg.append("发现新版本 ").append(u.version).append('\n');
+        msg.append(activity.getString(R.string.update_msg_new_version, u.version)).append('\n');
         if (u.body != null && !u.body.isEmpty()) {
             msg.append('\n').append(u.body);
         }
         if (!u.apkUrls.isEmpty()) {
-            msg.append("\n\n点击「下载更新」直接下载安装包");
+            msg.append("\n\n").append(activity.getString(R.string.update_msg_direct_download));
         } else if (u.cloudDriveLink != null && !u.cloudDriveLink.isEmpty()) {
-            msg.append("\n\n点击「去下载」打开网盘下载页面");
+            msg.append("\n\n").append(activity.getString(R.string.update_msg_browser_download));
         }
         android.widget.TextView tv = new android.widget.TextView(activity);
         tv.setText(msg.toString());
@@ -224,12 +224,13 @@ public final class UpdateChecker {
                 0, 0);
         org.levimc.launcher.ui.dialogs.CustomAlertDialog dialog =
                 new org.levimc.launcher.ui.dialogs.CustomAlertDialog(activity);
-        dialog.setTitleText("发现新版本");
+        dialog.setTitleText(activity.getString(R.string.update_dialog_title));
         dialog.setCustomView(tv);
         if (!u.apkUrls.isEmpty()) {
-            dialog.setPositiveButton("下载更新", d -> downloadAndInstall(activity, u));
+            dialog.setPositiveButton(activity.getString(R.string.update_download_btn),
+                    d -> downloadAndInstall(activity, u));
         } else if (u.cloudDriveLink != null && !u.cloudDriveLink.isEmpty()) {
-            dialog.setPositiveButton("去下载", d -> {
+            dialog.setPositiveButton(activity.getString(R.string.update_browser_btn), d -> {
                 try {
                     activity.startActivity(new Intent(Intent.ACTION_VIEW,
                             Uri.parse(u.cloudDriveLink)));
@@ -237,9 +238,9 @@ public final class UpdateChecker {
                 }
             });
         } else {
-            dialog.setPositiveButton("知道了", null);
+            dialog.setPositiveButton(activity.getString(R.string.update_ok_btn), null);
         }
-        dialog.setNegativeButton("稍后", null);
+        dialog.setNegativeButton(activity.getString(R.string.update_later_btn), null);
         dialog.show();
     }
 
@@ -272,9 +273,9 @@ public final class UpdateChecker {
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         org.levimc.launcher.ui.dialogs.CustomAlertDialog dialog =
                 new org.levimc.launcher.ui.dialogs.CustomAlertDialog(activity);
-        dialog.setTitleText("正在下载 " + u.version);
+        dialog.setTitleText(activity.getString(R.string.update_downloading_title, u.version));
         dialog.setCustomView(box);
-        dialog.setNegativeButton("隐藏", null);
+        dialog.setNegativeButton(activity.getString(R.string.update_hide_btn), null);
         dialog.show();
         final java.util.concurrent.atomic.AtomicBoolean dialogShown =
                 new java.util.concurrent.atomic.AtomicBoolean(true);
@@ -333,7 +334,8 @@ public final class UpdateChecker {
                                 activity.startActivity(install);
                             } catch (Throwable t) {
                                 android.widget.Toast.makeText(activity,
-                                        "无法打开安装器：" + t.getClass().getSimpleName(),
+                                        activity.getString(R.string.update_installer_failed,
+                                                t.getClass().getSimpleName()),
                                         android.widget.Toast.LENGTH_SHORT).show();
                             }
                         }
@@ -351,7 +353,7 @@ public final class UpdateChecker {
                 }
                 if (!activity.isFinishing()) {
                     android.widget.Toast.makeText(activity,
-                            "所有下载源均失败，请稍后重试",
+                            R.string.update_download_all_failed,
                             android.widget.Toast.LENGTH_SHORT).show();
                 }
             });
@@ -371,7 +373,7 @@ public final class UpdateChecker {
         NotificationCompat.Builder b = new NotificationCompat.Builder(app, CHANNEL_UPDATE)
                 .setSmallIcon(R.drawable.ic_notification_leaf)
                 .setColor(accent)
-                .setContentTitle("正在下载更新")
+                .setContentTitle(app.getString(R.string.update_notif_downloading))
                 .setContentText(fmtMB(downloaded) + " MB"
                         + (total > 0 ? " / " + fmtMB(total) + " MB" : ""))
                 .setOngoing(true)
@@ -404,8 +406,8 @@ public final class UpdateChecker {
         NotificationCompat.Builder b = new NotificationCompat.Builder(app, CHANNEL_UPDATE)
                 .setSmallIcon(R.drawable.ic_notification_leaf)
                 .setColor(accent)
-                .setContentTitle("更新下载完成")
-                .setContentText("点击安装")
+                .setContentTitle(app.getString(R.string.update_notif_done))
+                .setContentText(app.getString(R.string.update_notif_tap_install))
                 .setAutoCancel(true)
                 .setContentIntent(pi);
         try {
@@ -432,8 +434,9 @@ public final class UpdateChecker {
             return;
         }
         NotificationChannel ch = new NotificationChannel(
-                CHANNEL_UPDATE, "更新下载", NotificationManager.IMPORTANCE_LOW);
-        ch.setDescription("更新包下载进度");
+                CHANNEL_UPDATE, app.getString(R.string.update_notif_channel),
+                NotificationManager.IMPORTANCE_LOW);
+        ch.setDescription(app.getString(R.string.update_notif_channel_desc));
         manager.createNotificationChannel(ch);
     }
 
