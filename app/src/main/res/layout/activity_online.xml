@@ -167,12 +167,14 @@
                     android:orientation="vertical" />
             </LinearLayout>
 
-            <!-- 并排两大卡片 -->
+            <!-- 并排两大卡片（v644：与底部胶囊功能重复，Astral 空闲态只有
+                 胶囊按钮——隐藏保留 id 引用防崩溃） -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
-                android:orientation="horizontal">
+                android:orientation="horizontal"
+                android:visibility="gone">
 
                 <LinearLayout
                     android:id="@+id/online_create_card"

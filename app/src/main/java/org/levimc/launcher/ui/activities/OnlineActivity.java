@@ -95,6 +95,10 @@ public final class OnlineActivity extends BaseActivity
     private boolean formatting;
     private InviteCode.Parsed pendingJoin;
     private String currentCode; // 当前房间码（房主生成/成员加入）
+    /** v644：会话静态快照（退出联机页不退出房间——Astral 同款逻辑，
+     * 重开联机页时从快照恢复房间视图；组网由静态单例维持）。 */
+    private static volatile String sCode;
+    private static volatile boolean sHost;
     private android.app.Dialog joinDialog;
     private boolean isHost;
     private final List<InviteCode.Parsed> pendingParsed = new ArrayList<>();
@@ -436,6 +440,10 @@ public final class OnlineActivity extends BaseActivity
         roomView.setVisibility(View.VISIBLE);
         // v574：删掉建房后的淡入过渡（一闪而过无意义，直接显示）
         populateRoom();
+        // v644：会话静态快照（Astral 逻辑：退出联机页不退出房间，
+        // 重新打开联机页从快照恢复房间显示）
+        sCode = currentCode;
+        sHost = isHost;
     }
 
     /** 房间视图数据填充。 */
