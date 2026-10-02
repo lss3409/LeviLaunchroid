@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- v701：蜂窝信号贴图（2 格） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp"
-    android:viewportWidth="48" android:viewportHeight="30">
-    <path android:fillColor="#FF000000" android:pathData="M28,30 L28,8 L31,4 L36,4 L39,8 L39,30 Z M42,30 L42,2 L45,0 L48,0 L48,30 Z" />
+    android:viewportWidth="1024" android:viewportHeight="832">
+    <path android:fillColor="#FF5C626B" android:pathData="M896,0 L1024,0 L1024,832 L896,832 Z M597,192 L725,192 L725,832 L597,832 Z" />
 </vector>
