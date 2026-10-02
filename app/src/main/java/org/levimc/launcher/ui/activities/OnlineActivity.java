@@ -639,6 +639,10 @@ public final class OnlineActivity extends BaseActivity
         }
     }
 
+    private int dp(int v) {
+        return (int) (v * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
     /** 邀请码二维码弹窗（v505）。 */
     private void showQrDialog() {
         if (currentCode == null) {
