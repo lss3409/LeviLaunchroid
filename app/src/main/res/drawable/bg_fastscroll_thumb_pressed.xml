@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v661：fastScroll thumb 按压态（加深） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#FF5F5F5F" />
+    <corners android:radius="8dp" />
+    <size android:width="5dp" />
+</shape>

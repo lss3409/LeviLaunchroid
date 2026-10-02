@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v653：实例页可拖动滑条 thumb（细长圆角条，强调色 tint 由代码设置） -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="#FF8A8A8A" />
-    <corners android:radius="8dp" />
-    <size android:width="5dp" />
-</shape>
+<!-- v661：RecyclerView fastScroll 的 thumb/track 必须是 StateListDrawable
+     （1.2.1 构造时强转，shape 直接引用会 ClassCastException 崩溃） -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true" android:drawable="@drawable/bg_fastscroll_thumb_pressed" />
+    <item android:drawable="@drawable/bg_fastscroll_thumb_normal" />
+</selector>
