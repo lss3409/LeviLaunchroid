@@ -74,13 +74,15 @@
                 android:indeterminateTint="@color/primary"
                 android:visibility="gone" />
 
-            <!-- v642：Astral 风格风景欢迎卡 -->
+            <!-- v642：Astral 风格风景欢迎卡；v699：clipToOutline 按背景圆角裁切
+                 子 View——底部山形剪影是满宽矩形，不裁会把卡片底部两圆角盖成直角 -->
             <FrameLayout
                 android:id="@+id/online_scenery_card"
                 android:layout_width="match_parent"
                 android:layout_height="180dp"
                 android:layout_marginTop="14dp"
-                android:background="@drawable/bg_scenery_card">
+                android:background="@drawable/bg_scenery_card"
+                android:clipToOutline="true">
 
                 <ImageView
                     android:layout_width="match_parent"
