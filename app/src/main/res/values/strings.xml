@@ -1866,4 +1866,12 @@ Invite code: P/%1$s
     <string name="fm_ui_exit_multi">退出多选</string>
     <string name="fm_ui_confirm_clear_trash">将永久删除回收站中全部 %1$d 个项目，不可恢复。</string>
     <string name="fm_ui_task">任务进行中</string>
+    <string name="fm_ui_editor_save">保存</string>
+    <string name="fm_ui_editor_saved">已保存</string>
+    <string name="fm_ui_editor_save_failed">保存失败</string>
+    <string name="fm_ui_editor_readonly">此文件只读</string>
+    <string name="fm_ui_editor_unsaved_title">未保存的修改</string>
+    <string name="fm_ui_editor_unsaved_msg">有未保存的修改，是否保存？</string>
+    <string name="fm_ui_editor_save_exit">保存并退出</string>
+    <string name="fm_ui_editor_discard">放弃修改</string>
 </resources>

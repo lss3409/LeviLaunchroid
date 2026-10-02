@@ -58,10 +58,11 @@ public class FmDialogs {
 
     private static CustomAlertDialog lastDialog;
 
-    /** 弹窗前关闭上一个文件管理器对话框。 */
+    /** 弹窗前关闭上一个文件管理器对话框；点击屏幕外可关闭（与导入扫描弹窗一致）。 */
     private static void trackShow(CustomAlertDialog dialog) {
         dismissLast();
         lastDialog = dialog;
+        dialog.setCanceledOnTouchOutside(true);
         dialog.show();
     }
 
@@ -219,7 +220,7 @@ public class FmDialogs {
             if (entry.isDirectory()) {
                 vm.enterDirectory(entry);
             } else {
-                openFile(a, entry);
+                openFile(a, vm, entry);
             }
         });
         items.add(a.getString(R.string.fm_ui_copy));
@@ -250,14 +251,12 @@ public class FmDialogs {
                 trackShow(dialog);
     }
 
-    /** 文件打开：文本类走内置编辑器，其余交系统。 */
-    public static void openFile(BaseActivity a, FmEntry entry) {
+    /** 文件打开：文本类走内置语法高亮编辑器，其余交系统。 */
+    public static void openFile(BaseActivity a, FileManagerViewModel vm, FmEntry entry) {
         String name = entry.getName().toLowerCase(Locale.ROOT);
         for (String suffix : TEXT_SUFFIX) {
             if (name.endsWith(suffix)) {
-                Intent intent = new Intent(a, TextEditorActivity.class);
-                intent.putExtra(TextEditorActivity.EXTRA_PATH, entry.getPath().toString());
-                a.startActivity(intent);
+                vm.editorOpen(entry.getPath());
                 return;
             }
         }

@@ -47,18 +47,20 @@ public class FmEntryAdapter extends RecyclerView.Adapter<FmEntryAdapter.Holder> 
     private final int accent;
     private final int textPrimary;
     private final int textSecondary;
+    private final int pageBg;
     private int viewType = VIEW_LIST;
 
     private static final SimpleDateFormat FMT = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
 
     public FmEntryAdapter(Listener listener, Set<String> selection, boolean multiSelect,
-                          int accent, int textPrimary, int textSecondary) {
+                          int accent, int textPrimary, int textSecondary, int pageBg) {
         this.listener = listener;
         this.selection = selection;
         this.multiSelect = multiSelect;
         this.accent = accent;
         this.textPrimary = textPrimary;
         this.textSecondary = textSecondary;
+        this.pageBg = pageBg;
     }
 
     public void setViewType(int type) {
@@ -160,14 +162,16 @@ public class FmEntryAdapter extends RecyclerView.Adapter<FmEntryAdapter.Holder> 
     }
 
     private void applySelectionStyle(View v, boolean selected) {
-        GradientDrawable bg = (GradientDrawable) v.getBackground().mutate();
+        // 照 ImportPickerDialog：每次新建 drawable（不 mutate 共享背景），blend 页面底色与 accent
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(12 * v.getResources().getDisplayMetrics().density);
         if (selected) {
+            bg.setColor(blend(pageBg, accent, 0.18f));
             bg.setStroke((int) (2 * v.getResources().getDisplayMetrics().density), accent);
-            bg.setColor(blend(accent, Color.TRANSPARENT, 0.18f));
         } else {
-            bg.setStroke(0, Color.TRANSPARENT);
             bg.setColor(Color.TRANSPARENT);
         }
+        v.setBackground(bg);
     }
 
     private static int blend(int fg, int bg, float ratio) {

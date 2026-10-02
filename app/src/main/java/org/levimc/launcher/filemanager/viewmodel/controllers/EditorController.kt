@@ -82,6 +82,12 @@ class EditorController(
         store.updateEditorUi { it.copy(dirty = true) }
     }
 
+    /** 关闭编辑器（清空状态，返回文件列表；v668）。 */
+    fun close() {
+        saveJob?.cancel()
+        store.updateEditorUi { EditorUiState() }
+    }
+
     /**
      * 保存当前内容到文件
      */

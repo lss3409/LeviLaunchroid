@@ -4,7 +4,13 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.Editable;
+import android.text.Spannable;
+import android.text.TextWatcher;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -28,7 +34,10 @@ import org.levimc.launcher.filemanager.ui.FmDialogs;
 import org.levimc.launcher.filemanager.ui.FmEntryAdapter;
 import org.levimc.launcher.filemanager.ui.FmFlowBridgeKt;
 import org.levimc.launcher.filemanager.ui.FmTrashAdapter;
+import org.levimc.launcher.filemanager.editor.EditorState;
+import org.levimc.launcher.filemanager.ui.FmHighlighter;
 import org.levimc.launcher.filemanager.viewmodel.DialogIntent;
+import org.levimc.launcher.filemanager.viewmodel.EditorUiState;
 import org.levimc.launcher.filemanager.viewmodel.FileManagerUiState;
 import org.levimc.launcher.filemanager.viewmodel.FileManagerViewModel;
 import org.levimc.launcher.filemanager.viewmodel.FmInitState;
@@ -75,6 +84,20 @@ public class FileManagerActivity extends BaseActivity {
     private View navRail;
     private View bottomBar;
     private View selectionBar;
+    private View topBar;
+    private View contentFrame;
+
+    // 内置编辑器（v668）
+    private View editorRoot;
+    private TextView editorName;
+    private TextView editorDirty;
+    private TextView editorSave;
+    private EditText editorText;
+    private boolean applyingHighlight;
+    private boolean editorUserEdited;
+    private boolean exitConfirmShown;
+    private final Handler highlightHandler = new Handler(Looper.getMainLooper());
+    private final Runnable highlightTask = this::runHighlight;
 
     private FmEntryAdapter entryAdapter;
     private FmTrashAdapter trashAdapter;
@@ -85,6 +108,7 @@ public class FileManagerActivity extends BaseActivity {
     private int accent;
     private int onSurface;
     private int textSecondary;
+    private int pageBg;
 
     private final ActivityResultLauncher<Intent> safLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -132,6 +156,7 @@ public class FileManagerActivity extends BaseActivity {
         accent = new PersonalizationManager(this).getAccentColor();
         onSurface = getResources().getColor(R.color.on_surface, getTheme());
         textSecondary = getResources().getColor(R.color.text_secondary, getTheme());
+        pageBg = getResources().getColor(R.color.background, getTheme());
 
         String rootPath = getIntent().getStringExtra(EXTRA_PATH);
         if (rootPath == null || rootPath.isEmpty()) {
@@ -165,8 +190,10 @@ public class FileManagerActivity extends BaseActivity {
         });
         FmFlowBridgeKt.collectFlow(this, vm.getState(), this::onState);
         FmFlowBridgeKt.collectFlow(this, vm.getSearchUi(), this::onSearchUi);
+        FmFlowBridgeKt.collectFlow(this, vm.getEditorUi(), this::onEditorUi);
         FmFlowBridgeKt.collectFlow(this, vm.getErrorEvents(), msg ->
                 Toast.makeText(this, msg, Toast.LENGTH_SHORT).show());
+        setupEditor();
     }
 
     private void bindViews() {
@@ -182,6 +209,13 @@ public class FileManagerActivity extends BaseActivity {
         navRail = findViewById(R.id.fm_nav_rail);
         bottomBar = findViewById(R.id.fm_bottom_bar);
         selectionBar = findViewById(R.id.fm_selection_bar);
+        topBar = findViewById(R.id.fm_top_bar);
+        contentFrame = findViewById(R.id.fm_content_frame);
+        editorRoot = findViewById(R.id.fm_editor_root);
+        editorName = findViewById(R.id.fm_editor_name);
+        editorDirty = findViewById(R.id.fm_editor_dirty);
+        editorSave = findViewById(R.id.fm_editor_save);
+        editorText = findViewById(R.id.fm_editor_text);
     }
 
     private FmEntryAdapter.Listener entryListener() {
@@ -191,7 +225,7 @@ public class FileManagerActivity extends BaseActivity {
                 if (entry.isDirectory()) {
                     vm.enterDirectory(entry);
                 } else {
-                    FmDialogs.openFile(FileManagerActivity.this, entry);
+                    FmDialogs.openFile(FileManagerActivity.this, vm, entry);
                 }
             }
 
@@ -209,7 +243,7 @@ public class FileManagerActivity extends BaseActivity {
 
     private void setupAdapters() {
         entryAdapter = new FmEntryAdapter(entryListener(), java.util.Collections.emptySet(),
-                false, accent, onSurface, textSecondary);
+                false, accent, onSurface, textSecondary, pageBg);
         recycler.setAdapter(entryAdapter);
 
         trashAdapter = new FmTrashAdapter(new FmTrashAdapter.Listener() {
@@ -225,7 +259,7 @@ public class FileManagerActivity extends BaseActivity {
             public void onItemLongClick(TrashItemView item) {
                 vm.toggleTrashSelection(item.getUuid());
             }
-        }, java.util.Collections.emptySet(), false, accent, onSurface, textSecondary);
+        }, java.util.Collections.emptySet(), false, accent, onSurface, textSecondary, pageBg);
         trashRecycler.setAdapter(trashAdapter);
         trashRecycler.setLayoutManager(new LinearLayoutManager(this));
     }
@@ -389,7 +423,7 @@ public class FileManagerActivity extends BaseActivity {
         // 热路径防护：任务进度等高频更新不重建适配器，只按引用比较增量刷新
         if (entryAdapter == null || entryAdapter.getBoundList() != s.getVisibleEntries()) {
             entryAdapter = new FmEntryAdapter(entryListener(), s.getSelection(), s.getMultiSelect(),
-                    accent, onSurface, textSecondary);
+                    accent, onSurface, textSecondary, pageBg);
             entryAdapter.setViewType(landscape ? FmEntryAdapter.VIEW_CARD : FmEntryAdapter.VIEW_LIST);
             recycler.setAdapter(entryAdapter);
             entryAdapter.submit(s.getVisibleEntries());
@@ -507,6 +541,148 @@ public class FileManagerActivity extends BaseActivity {
         lastSearchUi = ui;
     }
 
+    // ---------------- 内置编辑器（v668） ----------------
+
+    private void setupEditor() {
+        editorSave.setText(R.string.fm_ui_editor_save);
+        editorSave.setTextColor(accent != 0 ? accent : onSurface);
+        editorSave.setOnClickListener(v ->
+                vm.editorSave(done -> Toast.makeText(this,
+                        done ? R.string.fm_ui_editor_saved : R.string.fm_ui_editor_save_failed,
+                        Toast.LENGTH_SHORT).show()));
+        findViewById(R.id.fm_editor_back).setOnClickListener(v -> requestEditorClose());
+        editorText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                if (applyingHighlight) return;
+                editorUserEdited = true;
+                vm.editorTextChanged();
+                scheduleHighlight();
+            }
+        });
+    }
+
+    private void onEditorUi(EditorUiState ui) {
+        if (ui.getPath() == null) {
+            hideEditor();
+            exitConfirmShown = false;
+            return;
+        }
+        showEditor();
+        editorName.setText(ui.getPath().getFileName() != null
+                ? ui.getPath().getFileName().toString() : ui.getPath().toString());
+
+        // 内容：加载完成后且用户尚未编辑才写入（避免重置光标/覆盖输入）
+        if (ui.getState() instanceof EditorState.Success && !editorUserEdited) {
+            String content = ((EditorState.Success) ui.getState()).getContent();
+            if (!content.equals(editorText.getText().toString())) {
+                applyingHighlight = true;
+                editorText.setText(content);
+                applyingHighlight = false;
+                scheduleHighlight();
+            }
+        }
+        boolean writable = ui.getWritable() && !ui.getSaving();
+        editorText.setEnabled(writable);
+        if (!ui.getWritable()) {
+            editorText.setHint(R.string.fm_ui_editor_readonly);
+        }
+        editorDirty.setVisibility(ui.getDirty() ? View.VISIBLE : View.GONE);
+        editorDirty.setText(ui.getDirty() ? "●" : "");
+
+        if (ui.getExitConfirm() && !exitConfirmShown) {
+            exitConfirmShown = true;
+            showExitConfirmDialog();
+        } else if (!ui.getExitConfirm()) {
+            exitConfirmShown = false;
+        }
+        if (ui.getError() != null && !ui.getError().isEmpty()) {
+            Toast.makeText(this, ui.getError(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void showExitConfirmDialog() {
+        new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this)
+                .setTitleText(getString(R.string.fm_ui_editor_unsaved_title))
+                .setMessage(getString(R.string.fm_ui_editor_unsaved_msg))
+                .setPositiveButton(getString(R.string.fm_ui_editor_save_exit), v -> {
+                    exitConfirmShown = false;
+                    vm.editorSave(done -> {
+                        if (done) vm.editorClose();
+                    });
+                })
+                .setNegativeButton(getString(R.string.fm_ui_editor_discard), v -> {
+                    exitConfirmShown = false;
+                    vm.editorCancelExitConfirm();
+                    vm.editorClose();
+                })
+                .setNeutralButton(getString(R.string.cancel), v -> {
+                    exitConfirmShown = false;
+                    vm.editorCancelExitConfirm();
+                })
+                .show();
+    }
+
+    private void requestEditorClose() {
+        if (editorRoot.getVisibility() != View.VISIBLE) return;
+        if (vm.editorHasDirty()) {
+            vm.editorRequestExitConfirm();
+        } else {
+            vm.editorClose();
+        }
+    }
+
+    private void showEditor() {
+        topBar.setVisibility(View.GONE);
+        clipBar.setVisibility(View.GONE);
+        contentFrame.setVisibility(View.GONE);
+        bottomBar.setVisibility(View.GONE);
+        selectionBar.setVisibility(View.GONE);
+        editorRoot.setVisibility(View.VISIBLE);
+    }
+
+    private void hideEditor() {
+        if (editorRoot.getVisibility() != View.VISIBLE) return;
+        editorRoot.setVisibility(View.GONE);
+        editorUserEdited = false;
+        editorText.setText("");
+        highlightHandler.removeCallbacks(highlightTask);
+        topBar.setVisibility(View.VISIBLE);
+        contentFrame.setVisibility(View.VISIBLE);
+        renderClipboard(lastState);
+        renderSelectionBar();
+    }
+
+    private void scheduleHighlight() {
+        highlightHandler.removeCallbacks(highlightTask);
+        highlightHandler.postDelayed(highlightTask, 300);
+    }
+
+    private void runHighlight() {
+        String name = editorName.getText().toString();
+        Spannable sp = FmHighlighter.apply(editorText.getText().toString(), name, isDarkTheme());
+        applyingHighlight = true;
+        int selStart = editorText.getSelectionStart();
+        int selEnd = editorText.getSelectionEnd();
+        editorText.setText(sp);
+        try {
+            editorText.setSelection(Math.min(selStart, editorText.length()), Math.min(selEnd, editorText.length()));
+        } catch (IndexOutOfBoundsException ignored) {}
+        applyingHighlight = false;
+    }
+
+    private boolean isDarkTheme() {
+        return (getResources().getConfiguration().uiMode
+                & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+    }
+
     // ---------------- 对话框分发 ----------------
 
     private String dialogKey(DialogIntent intent) {
@@ -621,6 +797,10 @@ public class FileManagerActivity extends BaseActivity {
 
     @Override
     public void onBackPressed() {
+        if (editorRoot.getVisibility() == View.VISIBLE) {
+            requestEditorClose();
+            return;
+        }
         if (showingTrash) {
             showFiles();
             return;

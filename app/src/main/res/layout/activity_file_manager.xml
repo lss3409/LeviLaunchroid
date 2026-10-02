@@ -8,6 +8,7 @@
 
     <!-- 顶栏 -->
     <LinearLayout
+        android:id="@+id/fm_top_bar"
         android:layout_width="match_parent"
         android:layout_height="56dp"
         android:orientation="horizontal"
@@ -119,6 +120,7 @@
 
     <!-- 内容区 -->
     <FrameLayout
+        android:id="@+id/fm_content_frame"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
@@ -391,6 +393,76 @@
             android:src="@drawable/ic_close"
             app:tint="@color/on_surface"
             android:contentDescription="@null" />
+    </LinearLayout>
+
+    <!-- 内置文本编辑器页（v668，默认隐藏） -->
+    <LinearLayout
+        android:id="@+id/fm_editor_root"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="4dp">
+
+            <ImageView
+                android:id="@+id/fm_editor_back"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:padding="10dp"
+                android:src="@drawable/ic_arrow_back"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                app:tint="@color/on_surface"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/fm_editor_name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:maxLines="1"
+                android:ellipsize="middle"
+                android:paddingHorizontal="4dp"
+                android:textSize="15sp"
+                android:textColor="@color/on_surface" />
+
+            <TextView
+                android:id="@+id/fm_editor_dirty"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:textColor="@color/text_secondary"
+                android:paddingEnd="4dp" />
+
+            <TextView
+                android:id="@+id/fm_editor_save"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:gravity="center"
+                android:paddingHorizontal="12dp"
+                android:textSize="15sp"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+        </LinearLayout>
+
+        <EditText
+            android:id="@+id/fm_editor_text"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="top|start"
+            android:inputType="textMultiLine|textNoSuggestions"
+            android:typeface="monospace"
+            android:textSize="14sp"
+            android:lineSpacingExtra="2dp"
+            android:padding="12dp"
+            android:background="@color/background"
+            android:scrollbars="vertical"
+            android:textIsSelectable="true" />
     </LinearLayout>
 
 </LinearLayout>

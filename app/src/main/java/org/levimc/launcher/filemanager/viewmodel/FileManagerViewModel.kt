@@ -324,6 +324,8 @@ class FileManagerViewModel constructor(
 
     /** 打开文件并异步加载内容 */
     fun editorOpen(path: Path) = editorCtr.open(path)
+    /** 关闭编辑器（v668） */
+    fun editorClose() = editorCtr.close()
     /** 编辑器内容变化回调 */
     fun editorTextChanged() = editorCtr.onTextChanged()
     /** 保存编辑器内容 */
