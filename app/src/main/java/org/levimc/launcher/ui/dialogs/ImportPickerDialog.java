@@ -77,6 +77,94 @@ public class ImportPickerDialog {
                 return t;
             });
 
+    // v648：扫描结果持久化缓存——打开弹窗立即显示上次结果，后台重扫刷新
+    private static final String CACHE_FILE = "import_scan_cache.json";
+
+    private static void saveScanCache(Context context, List<GlobalImportScanner.Candidate> list) {
+        if (list == null) {
+            return;
+        }
+        try {
+            org.json.JSONArray arr = new org.json.JSONArray();
+            for (GlobalImportScanner.Candidate c : list) {
+                org.json.JSONObject o = new org.json.JSONObject();
+                o.put("path", c.path);
+                o.put("type", c.type);
+                o.put("name", c.name == null ? "" : c.name);
+                o.put("size", c.size);
+                o.put("version", c.version == null ? "" : c.version);
+                o.put("skinPack", c.skinPack);
+                o.put("subCount", c.subManifests == null ? 0 : c.subManifests.size());
+                o.put("levelName", c.levelInfo != null ? c.levelInfo.levelName : "");
+                arr.put(o);
+            }
+            try (java.io.FileOutputStream fos = context.getApplicationContext()
+                    .openFileOutput(CACHE_FILE, Context.MODE_PRIVATE)) {
+                fos.write(arr.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** 读持久化缓存（icon 不存——由后台线程按路径重新提取）。 */
+    private static List<GlobalImportScanner.Candidate> loadScanCache(Context context) {
+        try {
+            java.io.File f = new java.io.File(
+                    context.getApplicationContext().getFilesDir(), CACHE_FILE);
+            if (!f.exists()) {
+                return null;
+            }
+            byte[] raw = new byte[(int) f.length()];
+            try (java.io.FileInputStream fis = new java.io.FileInputStream(f)) {
+                int off = 0;
+                while (off < raw.length) {
+                    int n = fis.read(raw, off, raw.length - off);
+                    if (n <= 0) {
+                        break;
+                    }
+                    off += n;
+                }
+            }
+            org.json.JSONArray arr = new org.json.JSONArray(
+                    new String(raw, java.nio.charset.StandardCharsets.UTF_8));
+            List<GlobalImportScanner.Candidate> out = new ArrayList<>();
+            for (int i = 0; i < arr.length(); i++) {
+                org.json.JSONObject o = arr.optJSONObject(i);
+                if (o == null) {
+                    continue;
+                }
+                String path = o.optString("path", "");
+                java.io.File file = new java.io.File(path);
+                if (!file.exists()) {
+                    continue; // 文件已删/改名，跳过
+                }
+                GlobalImportScanner.Candidate c = new GlobalImportScanner.Candidate();
+                c.type = o.optInt("type");
+                c.name = o.optString("name", file.getName());
+                c.file = file;
+                c.size = o.optLong("size");
+                c.path = path;
+                c.version = o.optString("version", "");
+                c.skinPack = o.optBoolean("skinPack", false);
+                out.add(c);
+            }
+            return out.isEmpty() ? null : out;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /** v648：调试日志（宽度排查用，files/import_debug.log）。 */
+    private static void dbg(Context context, String msg) {
+        try {
+            try (java.io.FileOutputStream fos = context.getApplicationContext()
+                    .openFileOutput("import_debug.log", Context.MODE_APPEND)) {
+                fos.write((msg + "\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
     private static final int[][] GROUPS = {
             {GlobalImportScanner.TYPE_WORLD, 0},
             {GlobalImportScanner.TYPE_RESOURCE, 0},
@@ -156,6 +244,13 @@ public class ImportPickerDialog {
         final long[] lastFlush = {0L};
         final boolean[] pendingFlush = {false};
         final boolean[] closed = {false};
+        // v648：已知路径去重（持久化缓存加载后，重扫发现的新增项跳过已有）
+        final java.util.Set<String> knownPaths = new java.util.HashSet<>();
+        android.util.DisplayMetrics dmd = context.getResources().getDisplayMetrics();
+        dbg(context, "show: density=" + dmd.density + " widthPixels=" + dmd.widthPixels
+                + " heightPixels=" + dmd.heightPixels
+                + " dialogWidth=" + DialogSizer.dialogWidth(context, 560)
+                + " isPhone=" + DialogSizer.isPhone(context));
 
         redrawRef[0] = () -> {
             cardsHost.removeAllViews();
@@ -291,6 +386,17 @@ public class ImportPickerDialog {
             content.addView(placeholder);
             int live = GlobalImportScanner.liveCount();
             status.setText(live > 0 ? "正在扫描…（已有 " + live + " 项）" : "正在扫描…");
+            // v648：持久化缓存——打开弹窗立即显示上次扫描结果，后台重扫刷新
+            List<GlobalImportScanner.Candidate> cached = loadScanCache(context);
+            if (cached != null) {
+                results[0] = cached;
+                for (GlobalImportScanner.Candidate c : cached) {
+                    knownPaths.add(c.path);
+                }
+                expandedType = firstNonEmptyType(cached);
+                status.setText("已载入上次结果 " + cached.size() + " 项，正在刷新…");
+                redrawRef[0].run();
+            }
             // v647：批量刷新——150ms 合并一批增量（只 append 新行+更新计数，
             // 不做全量重建，扫描期间列表平滑增长）
             final Runnable[] flushRef = new Runnable[1];
@@ -353,6 +459,10 @@ public class ImportPickerDialog {
                         if (closed[0]) {
                             return;
                         }
+                        // v648：持久化缓存里已显示的条目不重复追加
+                        if (!knownPaths.add(c.path)) {
+                            return;
+                        }
                         List<GlobalImportScanner.Candidate> list = results[0];
                         list.add(c);
                         cachedCandidates = list;
@@ -379,6 +489,8 @@ public class ImportPickerDialog {
                     runOnUi(context, () -> {
                         cachedCandidates = candidates;
                         scanComplete = true;
+                        // v648：完整结果写持久化缓存（下次打开立即显示）
+                        saveScanCache(context, candidates);
                         if (closed[0]) {
                             return;
                         }
@@ -428,14 +540,28 @@ public class ImportPickerDialog {
         final int[] widthArr = new int[]{DialogSizer.dialogWidth(context, 560)};
         final int[] maxHArr = new int[]{DialogSizer.dialogMaxHeight(context)};
         final LinearLayout[] rootRef = new LinearLayout[]{root};
+        // v648：限高幂等化——扫描增量刷新每 150ms 调一次，原「先 WRAP 后
+        // 检查再 maxH」两帧横跳导致弹窗高度一抽一抽；改为超过一次即锁死
+        // maxH 不再回 WRAP（内容少于上限时弹窗保持紧凑，锁定后不再抖动）
+        final boolean[] heightLocked = {false};
+        final boolean[] sizeLogged = {false};
         Runnable relimit = () -> {
             Window ww = wRef[0];
             if (ww == null) {
                 return;
             }
-            ww.setLayout(widthArr[0], ViewGroup.LayoutParams.WRAP_CONTENT);
             rootRef[0].post(() -> {
+                if (!sizeLogged[0]) {
+                    sizeLogged[0] = true;
+                    dbg(context, "relimit: root=" + rootRef[0].getWidth() + "x"
+                            + rootRef[0].getHeight() + " widthArr=" + widthArr[0]
+                            + " maxH=" + maxHArr[0] + " locked=" + heightLocked[0]);
+                }
+                if (heightLocked[0]) {
+                    return;
+                }
                 if (rootRef[0].getHeight() > maxHArr[0]) {
+                    heightLocked[0] = true;
                     ww.setLayout(widthArr[0], maxHArr[0]);
                 }
             });
@@ -961,6 +1087,34 @@ public class ImportPickerDialog {
         iv.setColorFilter(tintColor);
         byte[] data = c.icon;
         if (data == null) {
+            // v648：持久化缓存恢复的候选无 icon 字节——后台从原文件提取
+            final java.io.File srcFile = c.file;
+            final int srcType = c.type;
+            thumbPool.execute(() -> {
+                try {
+                    byte[] ext = GlobalImportScanner.extractIcon(srcFile, srcType);
+                    if (ext == null) {
+                        return;
+                    }
+                    Bitmap bmp2 = BitmapFactory.decodeByteArray(ext, 0, ext.length);
+                    if (bmp2 == null) {
+                        return;
+                    }
+                    float density2 = context.getResources().getDisplayMetrics().density;
+                    Bitmap out2 = centerCropRound(bmp2, sizePx, (int) (10 * density2));
+                    synchronized (thumbCache) {
+                        thumbCache.put(cacheKey, out2);
+                    }
+                    iv.post(() -> {
+                        if (iv.getParent() != null) {
+                            iv.setImageBitmap(out2);
+                            iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                            iv.setColorFilter(null);
+                        }
+                    });
+                } catch (Throwable ignored) {
+                }
+            });
             return;
         }
         thumbPool.execute(() -> {

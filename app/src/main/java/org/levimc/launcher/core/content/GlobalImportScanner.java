@@ -412,6 +412,37 @@ public final class GlobalImportScanner {
         }
     }
 
+    /** v648：从原文件重新提取图标（持久化缓存恢复用，后台线程调用）。
+     *  世界→world_icon.jpeg；包→zip/folder 内 pack_icon.png；结构→null。 */
+    public static byte[] extractIcon(File f, int type) {
+        if (f == null || !f.exists()) {
+            return null;
+        }
+        try {
+            if (type == TYPE_WORLD) {
+                return f.isDirectory() ? readBytes(new File(f, "world_icon.jpeg"), 2 * 1024 * 1024)
+                        : readIconFromZip(f);
+            }
+            if (type == TYPE_RESOURCE || type == TYPE_BEHAVIOR) {
+                return f.isDirectory() ? readBytes(new File(f, "pack_icon.png"), 2 * 1024 * 1024)
+                        : readIconFromZip(f);
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    private static byte[] readIconFromZip(File f) {
+        try (java.util.zip.ZipFile zf = new java.util.zip.ZipFile(f)) {
+            ZipEntry icon = findEntry(zf, "pack_icon.png");
+            if (icon != null) {
+                return readZipEntry(zf, icon, 2 * 1024 * 1024);
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
     /** v609：解析存档 level.dat（NBT）——版本/种子/模式/最后游玩时间。 */
     private static LevelInfo parseLevelDat(byte[] data) {
         if (data == null || data.length < 8) {
