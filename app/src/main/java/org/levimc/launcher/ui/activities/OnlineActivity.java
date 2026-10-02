@@ -89,6 +89,9 @@ public final class OnlineActivity extends BaseActivity
     private InviteCode.Parsed pendingHostParsed;
     private String currentCode; // 当前房间码（房主生成/成员加入）
     private android.app.Dialog joinDialog;
+    /** v0.0.22：分享卡防重入——主线程卡顿（vivo 主题系统阻塞）期间连点
+     *  会排队后批量弹窗叠加；已有弹窗显示时直接忽略后续点击。 */
+    private android.app.Dialog shareDialog;
     private boolean isHost;
     private final List<InviteCode.Parsed> pendingParsed = new ArrayList<>();
     /** v561：成员加入后等待房主握手的超时计时（20s 未见房主 = 房间已解散）。 */
@@ -919,6 +922,10 @@ public final class OnlineActivity extends BaseActivity
     // ---------- 加入房间弹窗 ----------
 
     private void showJoinDialog() {
+        // v0.0.22：防重入（同分享卡——卡顿期间连点不再叠加弹窗）
+        if (joinDialog != null && joinDialog.isShowing()) {
+            return;
+        }
         View v = getLayoutInflater().inflate(R.layout.dialog_join, null);
         EditText input = v.findViewById(R.id.join_code_input);
         TextView feedback = v.findViewById(R.id.join_feedback);
@@ -1341,6 +1348,11 @@ public final class OnlineActivity extends BaseActivity
         if (currentCode == null) {
             return;
         }
+        // v0.0.22：防重入——弹窗已在显示时忽略重复点击（避免卡顿期间
+        // 点击排队恢复后弹窗叠加）
+        if (shareDialog != null && shareDialog.isShowing()) {
+            return;
+        }
         View v = getLayoutInflater().inflate(R.layout.dialog_share_code, null);
         ((TextView) v.findViewById(R.id.share_code_text)).setText("P/" + currentCode);
         // v542：大邀请码与「联机邀请」标签跟随个性化强调色
@@ -1366,6 +1378,12 @@ public final class OnlineActivity extends BaseActivity
             android.util.Log.i("OnlineActivity", "分享卡: 系统分享点击");
             dialog.dismiss();
             systemShareCode();
+        });
+        shareDialog = dialog;
+        dialog.setOnDismissListener(d -> {
+            if (shareDialog == dialog) {
+                shareDialog = null;
+            }
         });
         dialog.show();
         // v0.0.21：二维码生成移到后台线程——首次点击卡顿根因
