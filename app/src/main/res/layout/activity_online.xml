@@ -167,14 +167,12 @@
                     android:orientation="vertical" />
             </LinearLayout>
 
-            <!-- 并排两大卡片（v644：与底部胶囊功能重复，Astral 空闲态只有
-                 胶囊按钮——隐藏保留 id 引用防崩溃） -->
+            <!-- 并排两大卡片（用户定稿：保留——已适配良好） -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
-                android:orientation="horizontal"
-                android:visibility="gone">
+                android:orientation="horizontal">
 
                 <LinearLayout
                     android:id="@+id/online_create_card"
@@ -274,7 +272,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical" />
 
-            <!-- v642：Astral 底部行——版本信息 + 创建/加入胶囊按钮 -->
+            <!-- v642：版本信息行（胶囊按钮已按用户要求移除——大卡片保留） -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -290,42 +288,6 @@
                     android:fontFamily="@font/misans"
                     android:textColor="@color/text_secondary"
                     android:textSize="11sp" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/online_create_pill"
-                    style="@style/Widget.MaterialComponents.Button"
-                    android:layout_width="52dp"
-                    android:layout_height="52dp"
-                    android:layout_marginStart="10dp"
-                    android:backgroundTint="@color/primary"
-                    app:cornerRadius="26dp"
-                    app:icon="@drawable/ic_online_create"
-                    app:iconGravity="textStart"
-                    app:iconPadding="0dp"
-                    app:iconSize="24dp"
-                    app:iconTint="@color/on_primary"
-                    android:contentDescription="@string/online_create_coming"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:padding="0dp" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/online_join_pill"
-                    style="@style/Widget.MaterialComponents.Button"
-                    android:layout_width="52dp"
-                    android:layout_height="52dp"
-                    android:layout_marginStart="10dp"
-                    android:backgroundTint="@color/primary"
-                    app:cornerRadius="26dp"
-                    app:icon="@drawable/ic_online_join"
-                    app:iconGravity="textStart"
-                    app:iconPadding="0dp"
-                    app:iconSize="24dp"
-                    app:iconTint="@color/on_primary"
-                    android:contentDescription="@string/online_join_section"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:padding="0dp" />
             </LinearLayout>
 
         </LinearLayout>
@@ -499,6 +461,15 @@
                     android:textColor="@color/primary"
                     android:textSize="14sp"
                     android:textStyle="bold" />
+
+                <!-- v645：四格梯形信号格（手机信号样式，按延迟点亮） -->
+                <ImageView
+                    android:id="@+id/online_room_signal"
+                    android:layout_width="22dp"
+                    android:layout_height="18dp"
+                    android:layout_marginEnd="6dp"
+                    android:contentDescription="@string/online_room_signal"
+                    android:src="@drawable/ic_signal_4" />
 
                 <TextView
                     android:id="@+id/online_room_latency"

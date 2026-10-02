@@ -1189,6 +1189,8 @@
     <string name="online_world_none">未检测到世界——请先在游戏里进存档开世界</string>
     <string name="online_step_relay">中继模式</string>
     <string name="online_room_latency_fmt">%1$d ms</string>
+    <string name="online_room_signal">网络延迟信号</string>
+    <string name="online_restoring_room">正在恢复房间…</string>
     <string name="online_host_you">%1$s（你）</string>
     <string name="online_host_unknown">房主</string>
     <string name="online_players_empty">等待玩家加入…</string>

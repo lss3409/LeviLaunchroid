@@ -17,6 +17,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -63,6 +64,7 @@ public final class OnlineActivity extends BaseActivity
     private TextView roomCodeText2;
     private TextView roomState;
     private TextView roomLatency;
+    private ImageView roomSignal;
     private TextView hostAvatar;
     private TextView hostName;
     private TextView gameStatus;
@@ -110,6 +112,10 @@ public final class OnlineActivity extends BaseActivity
     private boolean roomHandshakeDone = true;
     /** v571：VPN 授权弹窗是否正在显示（防重复弹）。 */
     private boolean vpnAuthDialogShowing;
+    /** v645：本 Activity 实例是否已尝试过房间自动恢复（防重复触发）。 */
+    private boolean restoreAttempted;
+    /** v645：房间恢复流程是否正在进行（VPN 授权回来后走静默加入而非弹窗流程）。 */
+    private boolean restoringRoom;
     private final Runnable handshakeTimeout = () -> failHandshake(
             "握手超时触发——20s 未见房主名单，断开");
 
@@ -164,6 +170,7 @@ public final class OnlineActivity extends BaseActivity
         roomCodeText2 = findViewById(R.id.online_room_code2);
         roomState = findViewById(R.id.online_room_state);
         roomLatency = findViewById(R.id.online_room_latency);
+        roomSignal = findViewById(R.id.online_room_signal);
         hostAvatar = findViewById(R.id.online_host_avatar);
         hostName = findViewById(R.id.online_host_name);
         gameStatus = findViewById(R.id.online_room_game_status);
@@ -243,8 +250,6 @@ public final class OnlineActivity extends BaseActivity
         } catch (Exception e) {
             verInfo.setText("LeviLaunchroid");
         }
-        findViewById(R.id.online_create_pill).setOnClickListener(v -> onCreateRoomClicked());
-        findViewById(R.id.online_join_pill).setOnClickListener(v -> showJoinDialog());
         refreshBookmarks();
         findViewById(R.id.online_disconnect_button).setOnClickListener(v -> onLeaveClicked());
         findViewById(R.id.online_leave_button).setOnClickListener(v -> onLeaveClicked());
@@ -640,6 +645,10 @@ public final class OnlineActivity extends BaseActivity
             tv.setTextSize(13);
             tv.setTypeface(getResources().getFont(R.font.misans));
             tv.setCompoundDrawablesWithIntrinsicBounds(0, 0, 0, 0);
+            // v645：TextView 默认不消费点击——必须显式可点击
+            tv.setClickable(true);
+            tv.setFocusable(true);
+            tv.setBackgroundResource(org.levimc.launcher.R.drawable.bg_rounded_card);
             tv.setOnClickListener(v -> {
                 // 一键加入收藏房间
                 InviteCode.Result r = InviteCode.parse(
@@ -652,7 +661,10 @@ public final class OnlineActivity extends BaseActivity
                         "从收藏加入房间: " + it.code);
                 showRoomJoinFlow(r.parsed);
             });
-            list.addView(tv);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.topMargin = dp(6);
+            list.addView(tv, lp);
         }
     }
 
@@ -758,6 +770,39 @@ public final class OnlineActivity extends BaseActivity
             roomState.setText(getString(R.string.online_step_unknown));
             roomState.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
         }
+    }
+
+    /** v645：四格梯形信号格（手机信号样式）——房主恒满格；成员按心跳延迟点亮：
+     *  <40 四格绿 / <80 三格黄绿 / <150 两格黄 / 其余一格红；无数据一格灰。 */
+    private void updateSignalBars(long rttMs) {
+        if (roomSignal == null) {
+            return;
+        }
+        int bars;
+        int color;
+        if (RoomCenter.isHost) {
+            bars = 4;
+            color = getResources().getColor(R.color.primary, getTheme());
+        } else if (rttMs <= 0) {
+            bars = 1;
+            color = getResources().getColor(R.color.text_secondary, getTheme());
+        } else if (rttMs < 40) {
+            bars = 4;
+            color = 0xFF4CAF50;
+        } else if (rttMs < 80) {
+            bars = 3;
+            color = 0xFF8BC34A;
+        } else if (rttMs < 150) {
+            bars = 2;
+            color = getResources().getColor(R.color.warning, getTheme());
+        } else {
+            bars = 1;
+            color = getResources().getColor(R.color.error, getTheme());
+        }
+        roomSignal.setImageResource(bars == 4 ? R.drawable.ic_signal_4
+                : bars == 3 ? R.drawable.ic_signal_3
+                : bars == 2 ? R.drawable.ic_signal_2 : R.drawable.ic_signal_1);
+        roomSignal.setColorFilter(color);
     }
 
     /** 玩家行（v502/v529/v544）：首字头像（有 URL 时 Glide 覆盖）+ 昵称 + 房主皇冠 + 自己高亮。
@@ -893,6 +938,7 @@ public final class OnlineActivity extends BaseActivity
             if (!roomView.isShown() && joinDialog == null) {
                 return;
             }
+            updateSignalBars(rttMs);
             if (rttMs > 0) {
                 roomLatency.setText(getString(R.string.online_room_latency_fmt, rttMs));
                 // v529（清单 #25）：延迟颜色分级 <50 绿 / 50-100 黄 / >100 红
@@ -1617,6 +1663,8 @@ public final class OnlineActivity extends BaseActivity
         org.levimc.launcher.core.online.voice.VoiceEngine.get(this).stop();
         RoomCenter.roomCode = null;
         RoomCenter.hostGameOpen = false;
+        // v645：主动退出才清除恒久化状态（此后不再自动恢复）
+        org.levimc.launcher.core.online.RoomStateStore.clear(this);
         currentCode = null;
         isHost = false;
         showHome();
@@ -1694,9 +1742,22 @@ public final class OnlineActivity extends BaseActivity
             InviteCode.Parsed hp = pendingHostParsed;
             pendingHostParsed = null;
             doHostRoom(hp);
+            restoringRoom = false;
         } else if (resultCode == RESULT_OK && !pendingParsed.isEmpty()) {
-            doJoinFromDialog(pendingParsed.remove(0));
+            // v645：恢复房间的静默加入不走弹窗流程（弹窗在恢复场景不存在）
+            if (restoringRoom) {
+                restoringRoom = false;
+                restoreJoin(pendingParsed.remove(0));
+            } else {
+                doJoinFromDialog(pendingParsed.remove(0));
+            }
         } else {
+            // v645：取消授权且正在恢复房间时回首页（避免卡在"正在恢复"视图）
+            if (restoringRoom) {
+                restoringRoom = false;
+                showHome();
+                setHomeState(EasyTierManager.State.IDLE, null);
+            }
             pendingParsed.clear();
             pendingHostParsed = null;
             if (joinDialog != null) {
@@ -1760,7 +1821,84 @@ public final class OnlineActivity extends BaseActivity
             // （此前新实例 onCreate 只显示首页，用户看到"重新联机"）
             restoreRoomIfConnected();
             onState(s, EasyTierManager.get().getVirtualIp());
+        } else if (s != EasyTierManager.State.STARTING && s != EasyTierManager.State.WAIT_IP) {
+            // v645：房间恒久化——进程被杀后静态区清空，按持久化快照自动恢复
+            // （进行中的组网流程不干扰）
+            maybeRestoreRoom();
         }
+    }
+
+    /** v645：进程被杀后自动恢复房间（照搬 Astral 恒久房间逻辑）——
+     *  有持久化快照且当前无活动房间/组网流程时，按原码重建（房主）或静默加入（成员）。 */
+    private void maybeRestoreRoom() {
+        if (restoreAttempted) {
+            return;
+        }
+        restoreAttempted = true;
+        if (RoomCenter.roomCode != null || joinDialog != null) {
+            return;
+        }
+        org.levimc.launcher.core.online.RoomStateStore.State st =
+                org.levimc.launcher.core.online.RoomStateStore.load(this);
+        if (st == null) {
+            return;
+        }
+        InviteCode.Result r = InviteCode.parse(InviteCode.formatInput(st.code));
+        if (!r.ok()) {
+            org.levimc.launcher.core.online.RoomStateStore.clear(this);
+            return;
+        }
+        org.levimc.launcher.util.OnlineDebugLog.log("检测到持久化房间，自动恢复（"
+                + (st.isHost ? "房主" : "成员") + "）: " + st.code);
+        restoringRoom = true;
+        currentCode = rawToCode(r.parsed);
+        isHost = st.isHost;
+        roomCodeText.setText("P/" + currentCode);
+        roomState.setText(getString(R.string.online_restoring_room));
+        roomState.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+        showRoom();
+        // 与正常建房/加入一致：先过 VPN 授权（未授权时 TUN 建不起来）
+        Intent vpnIntent = VpnService.prepare(this);
+        if (vpnIntent != null) {
+            if (isHost) {
+                pendingHostParsed = r.parsed;
+            } else {
+                pendingParsed.clear();
+                pendingParsed.add(r.parsed);
+            }
+            Toast.makeText(this, "请允许 VPN 连接以恢复房间", Toast.LENGTH_SHORT).show();
+            startActivityForResult(vpnIntent, REQ_VPN);
+            return;
+        }
+        if (isHost) {
+            LanDiscovery.startHost(r.parsed.networkName);
+            List<String> relayPeers = RelayStore.load(this);
+            EasyTierManager.get().host(this, r.parsed.networkName, r.parsed.networkSecret, this,
+                    HOST_IPV4, relayPeers);
+        } else {
+            restoreJoin(r.parsed);
+        }
+        restoringRoom = false;
+    }
+
+    /** v645：恢复房间的静默加入（不走加入弹窗——弹窗在恢复场景不存在）。 */
+    private void restoreJoin(InviteCode.Parsed parsed) {
+        setStepState(1, true);
+        new Thread(() -> {
+            List<String> peers = new ArrayList<>(LanDiscovery.discover(parsed.networkName, 1500));
+            for (String p : RelayStore.load(this)) {
+                if (!peers.contains(p)) {
+                    peers.add(p);
+                }
+            }
+            runOnUiThread(() -> {
+                String memberIp = EasyTierManager.memberIpv4For(PlayerIdentity.getClientId(this));
+                org.levimc.launcher.util.OnlineDebugLog.log("自动恢复加入房间: "
+                        + parsed.networkName + " 本机IP=" + memberIp);
+                EasyTierManager.get().join(this, parsed.networkName, parsed.networkSecret,
+                        this, peers, memberIp);
+            });
+        }, "room-restore-join").start();
     }
 
     /** v545：组网仍连接且有房间时，直接恢复房间视图。 */
@@ -1806,6 +1944,8 @@ public final class OnlineActivity extends BaseActivity
                 // v521：会话状态写入静态区，供游戏内悬浮窗读取
                 RoomCenter.roomCode = currentCode;
                 RoomCenter.isHost = isHost;
+                // v645：房间恒久化——进程被杀后重开联机页自动恢复
+                org.levimc.launcher.core.online.RoomStateStore.save(this, currentCode, isHost);
                 // v524：游戏正在前台时立即挂悬浮窗（否则要等游戏下次 onResume 才出现）
                 try {
                     if (org.levimc.launcher.core.minecraft.MinecraftActivityState.isRunning()) {

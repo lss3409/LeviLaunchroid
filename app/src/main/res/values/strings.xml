@@ -1197,6 +1197,8 @@ Virtual IP: %1$s
     <string name="online_world_none">World not detected - open a world in the game first</string>
     <string name="online_step_relay">Relay Mode</string>
     <string name="online_room_latency_fmt">%1$d ms</string>
+    <string name="online_room_signal">Network latency signal</string>
+    <string name="online_restoring_room">Restoring room…</string>
     <string name="online_host_you">%1$s (You)</string>
     <string name="online_host_unknown">Host</string>
     <string name="online_players_empty">Waiting for players…</string>
