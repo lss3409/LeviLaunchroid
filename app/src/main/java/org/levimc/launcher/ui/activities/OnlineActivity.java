@@ -148,8 +148,33 @@ public final class OnlineActivity extends BaseActivity
 
         refreshRecent();
         setHomeState(EasyTierManager.State.IDLE, null);
+        // v694：欢迎语（v642 功能移植回 v560 联机页）+ 当前时间显示
+        updateGreeting();
 
         handleDebugJoinIntent(getIntent());
+    }
+
+    /** v694：按时段问候（凌晨/早上/中午/下午好 + 昵称 + 当前时间）。 */
+    private void updateGreeting() {
+        TextView greeting = findViewById(R.id.online_scenery_greeting);
+        if (greeting == null) {
+            return;
+        }
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        int hour = cal.get(java.util.Calendar.HOUR_OF_DAY);
+        int greetRes;
+        if (hour < 5) {
+            greetRes = R.string.online_greet_night;
+        } else if (hour < 12) {
+            greetRes = R.string.online_greet_morning;
+        } else if (hour < 18) {
+            greetRes = R.string.online_greet_noon;
+        } else {
+            greetRes = R.string.online_greet_evening;
+        }
+        String time = new java.text.SimpleDateFormat("HH:mm",
+                java.util.Locale.getDefault()).format(new java.util.Date());
+        greeting.setText(getString(greetRes, PlayerIdentity.getNickname(this)) + "  " + time);
     }
 
     /**
