@@ -372,16 +372,16 @@ import okhttp3.OkHttpClient;
 
         MsftAccountStore.MsftAccount active = getActiveAccount();
         headerName.setText(AccountTextUtils.displayNameOrNotSigned(this, active));
-        // v708：当前账号 Bedrock 皮肤（Geyser API 按 XUID 拉取；无 XUID 隐藏）
+        // v709：当前账号 Bedrock 皮肤（登录态 XSTS → 微软官方 profile API，
+        // VPS 转发；无 XUID 隐藏）
         if (headerSkin != null) {
             if (active != null && !TextUtils.isEmpty(active.xuid)) {
                 headerSkin.setVisibility(View.VISIBLE);
-                try {
-                    com.bumptech.glide.Glide.with(this)
-                            .load("https://api.geysermc.org/v2/skin/" + active.xuid)
-                            .into(headerSkin);
-                } catch (Exception ignored) {
-                }
+                org.levimc.launcher.core.auth.SkinService.loadSkin(this, active.xuid, bmp -> {
+                    if (bmp != null && headerSkin.getParent() != null) {
+                        headerSkin.setImageBitmap(bmp);
+                    }
+                });
             } else {
                 headerSkin.setVisibility(View.GONE);
             }
