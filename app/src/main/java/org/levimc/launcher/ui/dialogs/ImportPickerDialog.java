@@ -811,7 +811,28 @@ public class ImportPickerDialog {
                 }
                 // 固定区高度 = 当前 root 高 - scroll 区高（与内容无关）
                 int fixed = Math.max(0, rootRef[0].getHeight() - scroll.getHeight());
-                // 主动测量条目区完整内容高度（不等下一帧布局）
+                // v660：先按条目数估算高度（免全树 measure——v655 每次
+                // 内容变化全量 measure 200 条两列卡片整树，是点击卡顿
+                // 回归的主因）。估算明显装得下就直接 WRAP 不 measure。
+                List<GlobalImportScanner.Candidate> list = results[0];
+                int items = 0;
+                if (list != null && expandedType >= 0) {
+                    for (GlobalImportScanner.Candidate c : list) {
+                        if (c.type == expandedType
+                                && (query[0].isEmpty() || c.name.toLowerCase(Locale.US)
+                                        .contains(query[0].toLowerCase(Locale.US)))) {
+                            items++;
+                        }
+                    }
+                }
+                int rowH = (int) (160 * density); // 两列/单行行高估算（偏保守）
+                int est = items == 0 ? 0
+                        : (int) Math.ceil(items / (gridMode ? 2.0 : 1.0)) * rowH;
+                if (est + fixed < maxHArr[0] * 0.92) {
+                    ww.setLayout(widthArr[0], ViewGroup.LayoutParams.WRAP_CONTENT);
+                    return;
+                }
+                // 接近/超过上限才真 measure（一次性决策，同值设置不重布局）
                 int wSpec = View.MeasureSpec.makeMeasureSpec(
                         Math.max(1, scroll.getWidth()), View.MeasureSpec.EXACTLY);
                 content.measure(wSpec, View.MeasureSpec.makeMeasureSpec(
