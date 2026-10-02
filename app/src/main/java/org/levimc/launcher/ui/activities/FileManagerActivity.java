@@ -797,6 +797,9 @@ public class FileManagerActivity extends BaseActivity {
                 applyingHighlight = true;
                 editorText.setText(content);
                 applyingHighlight = false;
+                android.util.Log.d("FmScrollBar", "setText len=" + content.length()
+                        + " w=" + editorText.getWidth() + " h=" + editorText.getHeight()
+                        + " scrollbarH=" + editorScrollBar.getHeight());
                 scheduleHighlight();
                 // v677（本质修复）：setText 后同步强制测量，让 Layout 立即建立，
                 // 滚动条同帧正确计算，不再依赖延迟探测
@@ -967,16 +970,21 @@ public class FileManagerActivity extends BaseActivity {
         android.text.Layout layout = editorText.getLayout();
         if (layout == null || editorText.getHeight() <= 0) {
             // 布局尚未完成：延迟重试直到就绪
+            android.util.Log.d("FmScrollBar", "retry: layout=" + (layout != null)
+                    + " textH=" + editorText.getHeight());
             highlightHandler.postDelayed(this::updateEditorScrollBar, 200);
             return;
         }
         int contentH = layout.getHeight();
         int viewH = editorText.getHeight();
         if (contentH <= viewH) {
+            android.util.Log.d("FmScrollBar", "GONE: contentH=" + contentH + " viewH=" + viewH);
             editorScrollBar.update(1f, 0f);
             return;
         }
         int maxScroll = contentH - viewH;
+        android.util.Log.d("FmScrollBar", "VISIBLE: contentH=" + contentH + " viewH=" + viewH
+                + " ratio=" + (float) viewH / contentH);
         editorScrollBar.update((float) viewH / contentH,
                 maxScroll <= 0 ? 0f : (float) editorText.getScrollY() / maxScroll);
     }
