@@ -130,28 +130,31 @@ public class ContentManagementActivity extends BaseActivity {
     }
 
     private void setupUI() {
-        binding.importContentButton.setOnClickListener(v -> {
-            // v602：导入按钮改为全局扫描可视化选择（存档/资源包/行为包/
-            // 结构，zip 与已解压文件夹都能识别），兜底走原文件管理器
-            org.levimc.launcher.ui.dialogs.ImportPickerDialog.show(this,
-                    new org.levimc.launcher.ui.dialogs.ImportPickerDialog.Listener() {
-                        @Override
-                        public void onPick(java.io.File file) {
-                            handleImport(java.util.Collections.singletonList(
-                                    android.net.Uri.fromFile(file)));
-                        }
-
-                        @Override
-                        public void onPickFromFiles() {
-                            startImport();
-                        }
-                    });
-        });
+        // v602/v707：导入按钮与共享文件夹导入按钮同款——全局扫描可视化
+        // 选择（存档/资源包/行为包/结构），兜底走原文件管理器
+        binding.importContentButton.setOnClickListener(v -> showImportPicker());
         binding.versionText.setOnClickListener(v -> showVersionPicker());
-        binding.viewSharedFolderButton.setOnClickListener(v -> showSharedFolderPicker());
+        binding.viewSharedFolderButton.setOnClickListener(v -> showImportPicker());
 
         setupCategoryButtons();
         setupContentCountObservers();
+    }
+
+    /** v707：扫描菜单公共入口（导入按钮/共享文件夹导入按钮共用）。 */
+    private void showImportPicker() {
+        org.levimc.launcher.ui.dialogs.ImportPickerDialog.show(this,
+                new org.levimc.launcher.ui.dialogs.ImportPickerDialog.Listener() {
+                    @Override
+                    public void onPick(java.io.File file) {
+                        handleImport(java.util.Collections.singletonList(
+                                android.net.Uri.fromFile(file)));
+                    }
+
+                    @Override
+                    public void onPickFromFiles() {
+                        startImport();
+                    }
+                });
     }
 
     private void showVersionPicker() {
@@ -468,10 +471,6 @@ public class ContentManagementActivity extends BaseActivity {
 
     private void setCount(TextView textView, int labelRes, int count) {
         textView.setText(getString(labelRes) + " (" + count + ")");
-    }
-
-    private void showSharedFolderPicker() {
-        startActivity(new Intent(this, SharedFolderActivity.class));
     }
 
     private void openContentList(int contentType) {

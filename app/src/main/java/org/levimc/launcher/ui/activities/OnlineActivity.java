@@ -101,6 +101,8 @@ public final class OnlineActivity extends BaseActivity
     private boolean restoreAttempted;
     /** v645：房间恢复流程是否正在进行（VPN 授权回来后走静默加入而非弹窗流程）。 */
     private boolean restoringRoom;
+    /** v707：全局恢复尝试冷却（防频繁切 tab 反复触发组网启动/停止风暴）。 */
+    private static volatile long sLastRestoreAttempt;
     private final Runnable handshakeTimeout = () -> failHandshake(
             "握手超时触发——20s 未见房主名单，断开");
 
@@ -1602,6 +1604,13 @@ public final class OnlineActivity extends BaseActivity
             return;
         }
         restoreAttempted = true;
+        // v707：全局冷却 15s——频繁切 tab 反复创建联机页实例时，
+        // 不能每次都触发组网启动/停止
+        long now = System.currentTimeMillis();
+        if (now - sLastRestoreAttempt < 15_000) {
+            return;
+        }
+        sLastRestoreAttempt = now;
         if (RoomCenter.roomCode != null || joinDialog != null) {
             return;
         }
@@ -1614,6 +1623,14 @@ public final class OnlineActivity extends BaseActivity
             RoomStateStore.clear(this);
             return;
         }
+        // v707：恢复流程不弹 VPN 授权系统框——切 tab 路过联机页时弹系统框
+        // 会与快速切换抢焦点（SettingsActivity ANR 黑屏根因，19:06 实锤：
+        // vpndialogs 前台 + FocusEvent 5s 超时）。未授权时静默放弃本次恢复，
+        // 用户主动建房/加入时正常弹窗。
+        if (VpnService.prepare(this) != null) {
+            org.levimc.launcher.util.OnlineDebugLog.log("自动恢复放弃：VPN 未授权，跳过");
+            return;
+        }
         org.levimc.launcher.util.OnlineDebugLog.log("检测到持久化房间，自动恢复（"
                 + (st.isHost ? "房主" : "成员") + "）: " + st.code);
         restoringRoom = true;
@@ -1623,19 +1640,6 @@ public final class OnlineActivity extends BaseActivity
         roomState.setText(getString(R.string.online_restoring_room));
         roomState.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
         showRoom();
-        // 与正常建房/加入一致：先过 VPN 授权（未授权时 TUN 建不起来）
-        Intent vpnIntent = VpnService.prepare(this);
-        if (vpnIntent != null) {
-            if (isHost) {
-                pendingHostParsed = r.parsed;
-            } else {
-                pendingParsed.clear();
-                pendingParsed.add(r.parsed);
-            }
-            Toast.makeText(this, "请允许 VPN 连接以恢复房间", Toast.LENGTH_SHORT).show();
-            startActivityForResult(vpnIntent, REQ_VPN);
-            return;
-        }
         if (isHost) {
             LanDiscovery.startHost(r.parsed.networkName);
             // v685 教训：恢复路径必须补启局域网公告桥——正常建房流程有
