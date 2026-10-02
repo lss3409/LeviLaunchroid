@@ -179,6 +179,8 @@ public class ImportPickerDialog {
         Dialog dialog = new Dialog(context);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         float density = context.getResources().getDisplayMetrics().density;
+        // v651：手机专属布局——条目两列网格 + 分类卡收小（平板保持原样）
+        final boolean phone = DialogSizer.isPhone(context);
         int accent = new org.levimc.launcher.util.PersonalizationManager(context).getAccentColor();
         int textMain = context.getColor(R.color.on_surface);
         int textSub = context.getColor(R.color.text_secondary);
@@ -246,6 +248,8 @@ public class ImportPickerDialog {
         final boolean[] closed = {false};
         // v648：已知路径去重（持久化缓存加载后，重扫发现的新增项跳过已有）
         final java.util.Set<String> knownPaths = new java.util.HashSet<>();
+        // v651：手机两列网格——增量 append 时凑对的暂存（单数个等下一个）
+        final GlobalImportScanner.Candidate[] pendingSingle = new GlobalImportScanner.Candidate[1];
         android.util.DisplayMetrics dmd = context.getResources().getDisplayMetrics();
         dbg(context, "show: density=" + dmd.density + " widthPixels=" + dmd.widthPixels
                 + " heightPixels=" + dmd.heightPixels
@@ -291,7 +295,7 @@ public class ImportPickerDialog {
                     }
                 }
                 View card = buildCategoryCard(context, g, count, density, accent,
-                        textMain, cardBg, type == expandedType, v -> {
+                        textMain, cardBg, type == expandedType, phone, v -> {
                             // v610：单展开位——必须始终有一个分类展开
                             // （点已展开卡不再收起，避免下方出现大空缺）
                             expandedType = type;
@@ -309,18 +313,44 @@ public class ImportPickerDialog {
                 gap.setTextSize(4);
                 content.addView(gap);
                 boolean any = false;
-                for (GlobalImportScanner.Candidate c : filtered) {
-                    if (c.type != expandedType) {
-                        continue;
+                // v651：手机两列网格（一横列两个竖版卡片）；平板保持单行列表
+                if (phone) {
+                    GlobalImportScanner.Candidate single = null;
+                    for (GlobalImportScanner.Candidate c : filtered) {
+                        if (c.type != expandedType) {
+                            continue;
+                        }
+                        any = true;
+                        if (single == null) {
+                            single = c;
+                        } else {
+                            content.addView(buildGridRow(context, single, c, textMain, textSub,
+                                    cardBg, density, accent, listener, dialog, redrawRef[0],
+                                    content, search, status));
+                            single = null;
+                        }
                     }
-                    any = true;
-                    content.addView(buildItemRow(context, c, textMain, textSub, cardBg,
-                            density, accent, listener, dialog, redrawRef[0], content,
-                            search, status));
+                    if (single != null) {
+                        // 单数个：占半格，右半留空
+                        content.addView(buildGridRow(context, single, null, textMain, textSub,
+                                cardBg, density, accent, listener, dialog, redrawRef[0],
+                                content, search, status));
+                    }
+                } else {
+                    for (GlobalImportScanner.Candidate c : filtered) {
+                        if (c.type != expandedType) {
+                            continue;
+                        }
+                        any = true;
+                        content.addView(buildItemRow(context, c, textMain, textSub, cardBg,
+                                density, accent, listener, dialog, redrawRef[0], content,
+                                search, status));
+                    }
                 }
                 if (!any) {
                     TextView t = new TextView(context);
                     t.setText("该分类暂无匹配内容");
+                    t.setTag("empty"); // v651：增量 append 前删占位
                     t.setTextColor(textSub);
                     t.setTextSize(12);
                     t.setGravity(Gravity.CENTER);
@@ -334,6 +364,8 @@ public class ImportPickerDialog {
             }
             // v647：全量重建后增量游标对齐（已发现的候选都已渲染）
             rendered[0] = list.size();
+            // v651：全量重建后两列凑对暂存清零（重建已含单数项）
+            pendingSingle[0] = null;
         };
 
         // v646：搜索防抖 300ms——每敲一个字符不再立即全量重建列表
@@ -409,11 +441,29 @@ public class ImportPickerDialog {
                 if (list == null) {
                     return;
                 }
+                // v651：新增条目前删掉空态占位（「该分类暂无匹配内容」）
+                View emptyView = content.findViewWithTag("empty");
+                if (emptyView != null) {
+                    content.removeView(emptyView);
+                }
                 for (int i = rendered[0]; i < list.size(); i++) {
                     GlobalImportScanner.Candidate c = list.get(i);
-                    if (c.type == expandedType
-                            && (query[0].isEmpty() || c.name.toLowerCase(Locale.US)
+                    if (c.type != expandedType
+                            || (!query[0].isEmpty() && !c.name.toLowerCase(Locale.US)
                                     .contains(query[0].toLowerCase(Locale.US)))) {
+                        continue;
+                    }
+                    if (phone) {
+                        // v651：两列网格——凑对追加，单数暂存等下一个
+                        if (pendingSingle[0] == null) {
+                            pendingSingle[0] = c;
+                        } else {
+                            content.addView(buildGridRow(context, pendingSingle[0], c, textMain,
+                                    textSub, cardBg, density, accent, listener, dialog,
+                                    redrawRef[0], content, search, status));
+                            pendingSingle[0] = null;
+                        }
+                    } else {
                         content.addView(buildItemRow(context, c, textMain, textSub, cardBg,
                                 density, accent, listener, dialog, redrawRef[0], content,
                                 search, status));
@@ -592,15 +642,17 @@ public class ImportPickerDialog {
         return GROUPS[0][0];
     }
 
-    /** 分类卡：图标 + 名称 + 数量，选中态 accent 描边。 */
+    /** 分类卡：图标 + 名称 + 数量，选中态 accent 描边。
+     *  v651：手机（phone）收小——高 46dp/图标 16dp/字号 10，
+     *  给条目区腾出更多纵向空间（平板保持原尺寸）。 */
     private static View buildCategoryCard(Context context, int group, int count,
                                           float density, int accent, int textMain,
-                                          int cardBg, boolean selected,
+                                          int cardBg, boolean selected, boolean phone,
                                           View.OnClickListener onClick) {
         LinearLayout card = new LinearLayout(context);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER);
-        int pad = (int) (8 * density);
+        int pad = (int) ((phone ? 5 : 8) * density);
         card.setPadding(pad, pad, pad, pad);
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(cardBg);
@@ -610,7 +662,7 @@ public class ImportPickerDialog {
         }
         card.setBackground(bg);
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0,
-                (int) (72 * density), 1f);
+                (int) ((phone ? 46 : 72) * density), 1f);
         if (group > 0) {
             cp.leftMargin = (int) (6 * density);
         }
@@ -621,20 +673,138 @@ public class ImportPickerDialog {
         icon.setImageResource(ICONS[group]);
         // v615：分类卡图标灰色（对齐内容管理分类图标观感）
         icon.setColorFilter(0xFF8A8A8A);
+        int iconDp = phone ? 16 : 22;
         icon.setLayoutParams(new LinearLayout.LayoutParams(
-                (int) (22 * density), (int) (22 * density)));
+                (int) (iconDp * density), (int) (iconDp * density)));
         card.addView(icon);
 
         TextView label = new TextView(context);
         label.setTag("count"); // v647：增量扫描更新计数用
         label.setText(LABELS[group] + (count > 0 ? "  " + count : ""));
         label.setTextColor(textMain);
-        label.setTextSize(11);
+        label.setTextSize(phone ? 10 : 11);
         label.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        llp.topMargin = (int) (4 * density);
+        llp.topMargin = (int) ((phone ? 2 : 4) * density);
         card.addView(label, llp);
+        return card;
+    }
+
+    /** v651：两列网格行——两个竖版条目卡片并排（手机专属，一横列两个实例）。 */
+    private static View buildGridRow(Context context, GlobalImportScanner.Candidate c1,
+                                     GlobalImportScanner.Candidate c2, int textMain,
+                                     int textSub, int cardBg, float density, int accent,
+                                     Listener listener, Dialog dialog, Runnable redraw,
+                                     LinearLayout content, EditText search, TextView status) {
+        LinearLayout row = new LinearLayout(context);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        rp.bottomMargin = (int) (6 * density);
+        row.setLayoutParams(rp);
+        row.addView(buildGridItem(context, c1, textMain, textSub, cardBg, density, accent,
+                listener, dialog, redraw, content, search, status), new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        if (c2 != null) {
+            LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            lp2.leftMargin = (int) (6 * density);
+            row.addView(buildGridItem(context, c2, textMain, textSub, cardBg, density, accent,
+                    listener, dialog, redraw, content, search, status), lp2);
+        } else {
+            // 单数个：右半留空占位保持左卡半宽
+            View spacer = new View(context);
+            LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(
+                    0, 1, 1f);
+            lp2.leftMargin = (int) (6 * density);
+            row.addView(spacer, lp2);
+        }
+        return row;
+    }
+
+    /** v651：两列网格里的竖版条目卡——图标上、名字/版本下、导入按钮底部。 */
+    private static View buildGridItem(Context context, GlobalImportScanner.Candidate c,
+                                      int textMain, int textSub, int cardBg, float density,
+                                      int accent, Listener listener, Dialog dialog,
+                                      Runnable redraw, LinearLayout content,
+                                      EditText search, TextView status) {
+        LinearLayout card = new LinearLayout(context);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER_HORIZONTAL);
+        card.setBackground(roundBg(context, cardBg));
+        card.setPadding((int) (10 * density), (int) (10 * density),
+                (int) (10 * density), (int) (10 * density));
+
+        int iconSize = (int) (44 * density);
+        LinearLayout iconWrap = new LinearLayout(context);
+        iconWrap.setGravity(Gravity.CENTER);
+        iconWrap.setLayoutParams(new LinearLayout.LayoutParams(iconSize, iconSize));
+        iconWrap.setBackground(roundBg(context, context.getColor(R.color.background)));
+        ImageView icon = new ImageView(context);
+        icon.setLayoutParams(new LinearLayout.LayoutParams(iconSize, iconSize));
+        applyThumb(context, icon, c, iconSize, textSub);
+        iconWrap.addView(icon);
+        card.addView(iconWrap);
+
+        TextView name = new TextView(context);
+        name.setText(org.levimc.launcher.util.McFormatUtils.format(c.name));
+        name.setTextColor(textMain);
+        name.setTextSize(12);
+        name.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        name.setMaxLines(2);
+        name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        name.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams nlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        nlp.topMargin = (int) (6 * density);
+        card.addView(name, nlp);
+
+        TextView meta = new TextView(context);
+        String ver = c.version == null || c.version.isEmpty() ? "" : "v" + c.version + " · ";
+        String subs = c.subManifests != null && c.subManifests.size() > 1
+                ? "含" + c.subManifests.size() + "包 · " : "";
+        meta.setText(ver + subs + formatSize(c.size));
+        meta.setTextColor(textSub);
+        meta.setTextSize(10);
+        meta.setMaxLines(1);
+        meta.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        meta.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        mlp.topMargin = (int) (3 * density);
+        card.addView(meta, mlp);
+
+        MaterialButton importBtn = new MaterialButton(context);
+        importBtn.setAllCaps(false);
+        importBtn.setText("导入");
+        importBtn.setTextSize(11);
+        importBtn.setPadding(0, 0, 0, 0);
+        importBtn.setMinWidth(0);
+        importBtn.setMinimumWidth(0);
+        importBtn.setMinHeight(0);
+        importBtn.setMinimumHeight(0);
+        importBtn.setInsetTop(0);
+        importBtn.setInsetBottom(0);
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, (int) (28 * density));
+        blp.topMargin = (int) (8 * density);
+        importBtn.setLayoutParams(blp);
+        AccentStyler.stylePrimary(context, importBtn);
+        importBtn.setOnClickListener(v -> {
+            dialog.dismiss();
+            if (listener != null) {
+                listener.onPick(c.file);
+            }
+        });
+        card.addView(importBtn, blp);
+
+        // 点卡片本体（图标/文字区）→ 二级详情
+        View.OnClickListener toDetail = v -> showDetail(content, context, c, textMain,
+                textSub, cardBg, density, accent, listener, dialog, redraw, search, status);
+        iconWrap.setOnClickListener(toDetail);
+        name.setOnClickListener(toDetail);
+        meta.setOnClickListener(toDetail);
         return card;
     }
 
