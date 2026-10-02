@@ -43,10 +43,13 @@ public class CustomAlertDialog extends Dialog {
     private boolean mDismissing;
     private Runnable mDismissAnimationEndListener;
     /** v539：点外部关闭开关（onCreate 里硬编码 false 会覆盖外部设置，改用字段）。 */
-    private boolean mCanceledOnTouchOutside = false;
+    /** v0.0.16：恢复 Dialog 原生默认（外点关闭默认开启）；
+     *  特殊弹窗显式 setCanceledOnTouchOutside(false) 关闭。 */
+    private boolean mCanceledOnTouchOutside = true;
     /** v548：弹窗最大宽度（dp），内容少的弹窗可调小让背景"刚刚好"。
      *  v557：默认 360dp（横版比例——用户反馈 340 太窄导致内容竖堆）。 */
     private int mMaxWidthDp = 360;
+    private int mMinWidthDp = 0;
 
     public CustomAlertDialog(Context context) {
         // v549：固定 LeviDialogTheme——游戏进程（MinecraftActivity 非 AppCompat）
@@ -123,6 +126,13 @@ public class CustomAlertDialog extends Dialog {
     /** v548：设置弹窗最大宽度（dp），默认 400。 */
     public CustomAlertDialog setMaxWidthDp(int maxWidthDp) {
         this.mMaxWidthDp = maxWidthDp;
+        return this;
+    }
+
+    /** v0.0.16：设置手机模式最小宽度（dp），0 = 用默认 280dp。
+     *  内容为横版长条（如图标+文本横排）的弹窗设大一点保持横版比例。 */
+    public CustomAlertDialog setMinWidthDp(int minWidthDp) {
+        this.mMinWidthDp = minWidthDp;
         return this;
     }
 
@@ -282,8 +292,10 @@ public class CustomAlertDialog extends Dialog {
             View root = findViewById(R.id.dialog_root);
             if (root != null) {
                 if (phone) {
-                    root.setMinimumWidth(org.levimc.launcher.util.DialogSizer
-                            .dialogMinWidthPx(getContext()));
+                    // v0.0.16：调用方可用 setMinWidthDp 覆盖默认 280dp
+                    // （横版长条内容的弹窗保持横版比例）
+                    int minDp = mMinWidthDp > 0 ? mMinWidthDp : 280;
+                    root.setMinimumWidth((int) (minDp * density));
                 }
                 root.post(() -> {
                     if (!isShowing()) {
