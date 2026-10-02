@@ -77,27 +77,7 @@ public final class EasyTierVpnService extends VpnService {
             stopSelf();
             return START_NOT_STICKY;
         }
-        // v573：终止旧 runTun 循环（服务可能已在运行，看门狗重拉时
-        // 直接复用本实例带新参数重建，不再经过 ACTION_STOP 重启）
-        running = false;
-        closeTun();
-        running = true;
-        try {
-            startForeground(NOTIF_ID, buildNotification());
-        } catch (Throwable fg) {
-            // v568：app 处于后台时 Android 15+/ZUI 拒绝前台服务启动
-            // （ForegroundServiceStartNotAllowedException）——不崩溃，
-            // 停止并等 Manager 看门狗在 app 前台时重拉（tombstone 567 根因）
-            Log.w(TAG, "startForeground 被拒（后台限制），等看门狗重拉", fg);
-            org.levimc.launcher.util.OnlineDebugLog.log("startForeground 被拒（app 在后台）: "
-                    + fg.getClass().getSimpleName());
-            try {
-                Thread.sleep(2000);
-            } catch (InterruptedException ignored) {
-            }
-            stopSelf();
-            return START_NOT_STICKY;
-        }
+        startForeground(NOTIF_ID, buildNotification());
         Thread t = new Thread(() -> runTun(lastInstance, lastIpv4, lastCidrs), "easytier-vpn");
         t.setDaemon(true);
         t.start();
@@ -141,42 +121,18 @@ public final class EasyTierVpnService extends VpnService {
     private void runTun(String instance, String ipv4, String[] cidrs) {
         int reestablishCount = 0;
         try {
-            // v568：establish 失败（未授权/系统拦截）不再 stopSelf——停止中
-            // 实例被看门狗重拉时 startForeground 会抛异常崩进程（tombstone
-            // 567）。改循环重试：用户稍后授权（如建房流程补的 prepare 弹窗）
-            // 时自动恢复，无需重启服务。
-            while (running) {
-                tun = establishTun(ipv4, cidrs);
-                if (tun != null) {
-                    break;
-                }
-                try {
-                    Thread.sleep(3000);
-                } catch (InterruptedException e) {
-                    return;
-                }
-            }
+            tun = establishTun(ipv4, cidrs);
             if (tun == null) {
-                Log.e(TAG, "TUN 建立失败且服务已停止");
+                Log.e(TAG, "TUN 建立失败（可能用户拒绝了 VPN 授权）");
+                stopSelf();
                 return;
             }
-            // v568：setTunFd 失败也重试（内核实例可能刚重建尚未就绪），
-            // 不 stopSelf（停止中实例被重拉会崩进程，tombstone 567 教训）
-            int rc;
-            while (running) {
-                rc = EasyTierJNI.setTunFd(instance, tun.getFd());
-                Log.i(TAG, "setTunFd(" + instance + ") = " + rc + " ip=" + ipv4);
-                if (rc == 0) {
-                    break;
-                }
+            int rc = EasyTierJNI.setTunFd(instance, tun.getFd());
+            Log.i(TAG, "setTunFd(" + instance + ") = " + rc + " ip=" + ipv4);
+            if (rc != 0) {
                 Log.e(TAG, "setTunFd 失败: " + EasyTierJNI.getLastError());
-                org.levimc.launcher.util.OnlineDebugLog.log("setTunFd 失败 rc=" + rc
-                        + ": " + EasyTierJNI.getLastError() + "，3s 后重试");
-                try {
-                    Thread.sleep(3000);
-                } catch (InterruptedException e) {
-                    return;
-                }
+                stopSelf();
+                return;
             }
             running = true;
             // v515 看门狗：TUN 被吊销（其他 VPN 抢占/系统回收）后自动重建
@@ -188,28 +144,10 @@ public final class EasyTierVpnService extends VpnService {
                 if (!running) {
                     break;
                 }
-                // v575：TUN 存活判定直接用 tun fd 有效性——NetworkInterface
-                // 枚举不到 VpnService 的 tun0（Android 对应用隐藏），v573 改
-                // 枚举后看门狗恒判"丢失"，TUN 建立 0.8s 就被自己拆掉，
-                // 每 5s 一轮建拆风暴（拖垮系统、引发进游戏闪退的元凶）
-                boolean fdValid;
-                try {
-                    fdValid = tun != null && tun.getFileDescriptor() != null
-                            && tun.getFileDescriptor().valid();
-                } catch (Throwable t) {
-                    fdValid = false;
-                }
-                touchTunAlive();
-                // v581：系统拆 VPN 时 fd 仍有效——再查系统 VPN 网络注册
-                // （v580 实测 dumpsys vpn 已空但 fd valid + 标记在刷）
-                boolean vpnRegistered = EasyTierManager.waitForVpnNetwork(0) != null;
-                boolean lost = revoked || !fdValid || !vpnRegistered;
+                boolean lost = revoked || !tunExists();
                 if (!lost) {
                     reestablishCount = 0;
                     continue;
-                }
-                if (!vpnRegistered) {
-                    org.levimc.launcher.util.OnlineDebugLog.log("系统 VPN 注册已消失（fd 仍有效）——重建 TUN");
                 }
                 revoked = false;
                 reestablishCount++;
@@ -235,8 +173,6 @@ public final class EasyTierVpnService extends VpnService {
             }
         } catch (Throwable t) {
             Log.e(TAG, "TUN 设置失败", t);
-            org.levimc.launcher.util.OnlineDebugLog.log("runTun 异常: "
-                    + t.getClass().getSimpleName() + " " + t.getMessage());
             stopSelf();
         } finally {
             running = false;
@@ -261,12 +197,6 @@ public final class EasyTierVpnService extends VpnService {
                 // 成为默认网络，之后启动的应用（如 MC）socket 绑 VPN 网络，
                 // 无 allowBypass 时局域网广播/组播被静默丢弃——同网段
                 // 局域网联机入口消失。回落不影响虚拟网段流量（照走 VPN）。
-                // v566 注意：不能 addDisallowedApplication——游戏与本应用
-                // 同 UID，排除后游戏进程连房主虚拟 IP 会走真实网络失败；
-                // EasyTier 内核在移动端没有独立 socket（全部包写进 TUN fd），
-                // 排除也救不了它。内核中继包经 TUN→allowBypass 回落真实
-                // 网络（TUN 活着时正常；TUN 死亡由 tunExists 精确检测 +
-                // 看门狗自动重建兜底）。
                 .allowBypass()
                 .addAddress(ip, len)
                 .addDnsServer("223.5.5.5")
@@ -283,58 +213,33 @@ public final class EasyTierVpnService extends VpnService {
                     }
                 }
             }
+        } else {
+            // 虚拟网段覆盖：10.144.0.0/16（房主固定网段）+
+            // 10.126.126.0/24（内核 DHCP 默认网段，OSPF 未同步时的分配结果）——
+            // 成员可能拿到任一网段，两边 TUN 都要路由才能双向互通。
+            builder.addRoute("10.144.0.0", 16);
+            builder.addRoute("10.126.126.0", 24);
         }
-        // v562：兜底网段无条件加（不再走 else）——poll 的 cidrs 在异地/部分
-        // 网络下路由学习不全（成员端可能只有自己 DHCP 网段），发往房主
-        // 固定网段 10.144.x.x 的心跳不进 TUN 直接丢失，表现=组网成功但
-        // 房间中心不通（"未找到房主"/双方只显示 1 人，异地高发、局域网
-        // 恰好路由学全所以一直正常）。10.144.0.0/16（房主固定网段）+
-        // 10.126.126.0/24（内核 DHCP 默认网段）两边 TUN 都要路由才能互通。
-        builder.addRoute("10.144.0.0", 16);
-        builder.addRoute("10.126.126.0", 24);
-        // v641：定向广播路由进 TUN——Astral 异地局域网入口的真相（抓包
-        // 实锤：游戏客户端广播 ping 255.255.255.255:19132 匹配 Astral 的
-        // VPN 路由进 TUN，EasyTier 内核 is_all_peers_broadcast_ipv4 把广播
-        // 转发给所有 peer，对端写 TUN 模拟入站广播投递本机世界服务器，
-        // 真 pong 原路回——好友页原生显示异地局域网条目（真世界名）。
-        // 我们的 VPN 此前只路由虚拟网段，广播走真实 WiFi 异地直接丢。
-        builder.addRoute("255.255.255.255", 32);
-        org.levimc.launcher.util.OnlineDebugLog.log("TUN 路由: ipv4=" + ipv4
-                + " cidrs=" + java.util.Arrays.toString(cidrs)
-                + " + 兜底 10.144.0.0/16,10.126.126.0/24,广播 255.255.255.255/32");
         try {
-            ParcelFileDescriptor fd = builder.establish();
-            if (fd == null) {
-                // v567：区分失败原因——establish 返回 null 通常是系统拒绝
-                // （无 VPN 授权/ZUI 上层拦截），写文件日志（logcat 会冻结）
-                org.levimc.launcher.util.OnlineDebugLog.log("TUN establish 返回 null（无授权或被系统拦截）");
-                // v571：通知 UI 弹 VPN 授权窗（重装 APK 后授权被清，
-                // 不弹窗的话建房/加入永远失败，只能用户手动去设置里找）
-                org.levimc.launcher.core.online.EasyTierManager.notifyVpnAuthorizationRequired();
-            }
-            return fd;
+            return builder.establish();
         } catch (Throwable t) {
             Log.e(TAG, "establish 异常", t);
-            org.levimc.launcher.util.OnlineDebugLog.log("TUN establish 异常: "
-                    + t.getClass().getSimpleName() + " " + t.getMessage());
             return null;
         }
     }
 
-    /** TUN 接口是否存在（VpnService 的 tunN；tunl0 等内核隧道不算）。 */
+    /** TUN 接口是否存在（/proc/net/dev 含 tun 行）。 */
     private boolean tunExists() {
         try {
-            // v567：不用 /proc/net/dev——SELinux 拒绝 untrusted_app 读
-            // proc_net（avc denied 实测），且 contains("tun") 会误匹配
-            // 内核 tunl0 隧道设备导致看门狗失明（v566 教训）
-            java.util.Enumeration<java.net.NetworkInterface> ifs =
-                    java.net.NetworkInterface.getNetworkInterfaces();
-            while (ifs.hasMoreElements()) {
-                String n = ifs.nextElement().getName();
-                if (n.matches("tun[0-9]{1,2}")) {
+            java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader("/proc/net/dev"));
+            String line;
+            while ((line = r.readLine()) != null) {
+                if (line.contains("tun")) {
+                    r.close();
                     return true;
                 }
             }
+            r.close();
             return false;
         } catch (Exception e) {
             // 读不到就当健康，避免误判重建
@@ -346,7 +251,6 @@ public final class EasyTierVpnService extends VpnService {
     public void onRevoke() {
         revoked = true;
         Log.w(TAG, "VPN 被系统吊销（其他 VPN 抢占或系统回收），看门狗将自动重建");
-        org.levimc.launcher.util.OnlineDebugLog.log("VPN 被系统吊销，看门狗重建中");
     }
 
     private Notification buildNotification() {
@@ -373,7 +277,6 @@ public final class EasyTierVpnService extends VpnService {
         running = false;
         closeTun();
         Log.i(TAG, "VPN 服务销毁");
-        org.levimc.launcher.util.OnlineDebugLog.log("VpnService onDestroy（系统杀服务或主动停止）");
         super.onDestroy();
     }
 
@@ -384,26 +287,6 @@ public final class EasyTierVpnService extends VpnService {
             } catch (Exception ignored) {
             }
             tun = null;
-        }
-        // v575：存活标记随 TUN 生命周期（Manager 看门狗跨进程判断用）
-        try {
-            java.io.File alive = new java.io.File(getFilesDir(), "vpn_tun_alive");
-            if (alive.exists()) {
-                alive.delete();
-            }
-        } catch (Throwable ignored) {
-        }
-    }
-
-    /** v575：刷新 TUN 存活标记时间戳（runTun 看门狗循环里调用）。 */
-    private void touchTunAlive() {
-        try {
-            java.io.File alive = new java.io.File(getFilesDir(), "vpn_tun_alive");
-            if (!alive.exists()) {
-                alive.createNewFile();
-            }
-            alive.setLastModified(System.currentTimeMillis());
-        } catch (Throwable ignored) {
         }
     }
 }

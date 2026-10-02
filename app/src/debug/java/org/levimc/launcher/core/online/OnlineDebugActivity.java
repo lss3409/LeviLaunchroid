@@ -22,12 +22,6 @@ public final class OnlineDebugActivity extends Activity {
         String code = getIntent().getStringExtra("debug_join_code");
         String peer = getIntent().getStringExtra("debug_join_peer");
         boolean host = getIntent().getBooleanExtra("debug_host", false);
-        boolean dinv = getIntent().getBooleanExtra("debug_invite", false);
-        boolean dinvOnce = getIntent().getBooleanExtra("debug_invite_once", false);
-        // v580：LAN 公告抓包调试（同 WiFi 抓真实 MC 公告，修正 LanBridge 协议号）
-        if (getIntent().getBooleanExtra("debug_lan_dump", false)) {
-            fwd.putExtra("debug_lan_dump", true);
-        }
         if (code != null) {
             fwd.putExtra("debug_join_code", code);
         }
@@ -36,12 +30,6 @@ public final class OnlineDebugActivity extends Activity {
         }
         if (host) {
             fwd.putExtra("debug_host", true);
-        }
-        if (dinvOnce) {
-            fwd.putExtra("debug_invite_once", true);
-        }
-        if (dinv) {
-            fwd.putExtra("debug_invite", true);
         }
         startActivity(fwd);
         finish();

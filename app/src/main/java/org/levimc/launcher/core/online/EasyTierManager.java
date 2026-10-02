@@ -71,85 +71,10 @@ public final class EasyTierManager {
     /** 最近一次连接使用的虚拟网段路由（v522 看门狗重拉 VpnService 用）。 */
     private volatile java.util.List<String> lastCidrs = new java.util.ArrayList<>();
     private volatile ConnMode connMode = ConnMode.UNKNOWN;
-    /** v561：房主在虚拟网络内的真实 IP（从 peer_route_pairs 解析）。
-     *  异地经中转时房主 DHCP 拿到的 IP 不一定是 10.144.144.144——成员端
-     *  写死该 IP 会导致心跳连不上（双方都只显示 1 人）。 */
-    private volatile String hostVirtualIp;
-    /** v565：peer 路由表签名（变化时才写文件日志，避免刷爆）。 */
-    private volatile String lastPeerSig = "";
-    private static volatile Context appContext;
-    /** v571：VPN 授权失效时回调 UI 弹授权窗（重装 APK 后 vivo/ZUI 清授权，
-     * establish 永远失败——看门狗拉不起来，必须重新走 prepare 弹窗）。 */
-    private static volatile Runnable vpnAuthRequiredCallback;
-    private static volatile long lastVpnAuthNotify;
+    private Context appContext;
     private Listener listener;
 
     private EasyTierManager() {
-    }
-
-    /** v566：供 RoomCenter/VoiceEngine 拿 VPN 网络绑定 socket 用。 */
-    public static Context getAppContext() {
-        return appContext;
-    }
-
-    /** v571：UI 注册 VPN 授权失效回调（OnlineActivity onCreate）。 */
-    public static void setVpnAuthRequiredCallback(Runnable cb) {
-        vpnAuthRequiredCallback = cb;
-    }
-
-    /** v571：VpnService establish 失败时调用（30s 节流，避免重试循环狂弹）。 */
-    public static void notifyVpnAuthorizationRequired() {
-        long now = System.currentTimeMillis();
-        if (now - lastVpnAuthNotify < 30_000) {
-            return;
-        }
-        lastVpnAuthNotify = now;
-        Runnable cb = vpnAuthRequiredCallback;
-        if (cb != null) {
-            sMainHandler.post(cb);
-        }
-    }
-
-    private static final android.os.Handler sMainHandler =
-            new android.os.Handler(android.os.Looper.getMainLooper());
-
-    /**
-     * v566：等待 VPN 网络出现（VpnService establish 完成、系统注册 TRANSPORT_VPN）。
-     * 业务 socket（房间中心/语音）显式绑到 VPN 网络，防止"socket 创建早于
-     * TUN 建立"时绑到旧网络（公网）导致心跳/语音丢失——v565 实测成员
-     * socket 比 TUN 早 8ms 创建。绑定时机由本方法控制。
-     */
-    public static android.net.Network waitForVpnNetwork(long timeoutMs) {
-        Context ctx = appContext;
-        if (ctx == null) {
-            return null;
-        }
-        android.net.ConnectivityManager cm =
-                (android.net.ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
-        if (cm == null) {
-            return null;
-        }
-        long deadline = System.currentTimeMillis() + timeoutMs;
-        // v581：先查一次再循环（timeoutMs=0 也能立即查询一次）
-        while (true) {
-            try {
-                for (android.net.Network n : cm.getAllNetworks()) {
-                    android.net.NetworkCapabilities nc = cm.getNetworkCapabilities(n);
-                    if (nc != null && nc.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)) {
-                        return n;
-                    }
-                }
-            } catch (Throwable ignored) {
-            }
-            if (System.currentTimeMillis() >= deadline) {
-                return null;
-            }
-            try {
-                Thread.sleep(200);
-            } catch (InterruptedException e) {
-                return null;
-            }
-        }
     }
 
     public State getState() {
@@ -165,56 +90,22 @@ public final class EasyTierManager {
         return connMode;
     }
 
-    /** v561：房主虚拟 IP（peer 路由表解析，异地中继下 DH 分配的真实地址）；
-     *  null = 未解析到（调用方回退 10.144.144.144）。 */
-    public String getHostVirtualIp() {
-        return hostVirtualIp;
-    }
-
     public void setListener(Listener l) {
         listener = l;
     }
 
     /** 加入网络。调用前必须已完成 VpnService.prepare 授权（由 Activity 把关）。 */
     public void join(Context ctx, String networkName, String networkSecret, Listener l) {
-        join(ctx, networkName, networkSecret, l, null, null);
+        join(ctx, networkName, networkSecret, l, null);
     }
 
     /** 加入网络。extraPeers 为附加的直连 peer（局域网/自建中转，如 tcp://192.168.1.2:11010）。 */
     public void join(Context ctx, String networkName, String networkSecret, Listener l,
                      java.util.List<String> extraPeers) {
-        join(ctx, networkName, networkSecret, l, extraPeers, null);
+        start(ctx, networkName, networkSecret, l, extraPeers, null);
     }
 
-    /**
-     * 加入网络（v565）：memberIpv4 为成员固定虚拟 IP（含前缀，如 10.144.5.2/24）。
-     * 传 null 则回退 DHCP 分配。固定 IP 的原因：EasyTier 的 DHCP 是从路由表
-     * 第一个 peer 的网段里挑地址——成员通常分到房主网段（10.144.144.x），
-     * 目标 IP 落在本机 TUN 的 connected 网段内时内核走邻居解析（虚拟网卡
-     * 无 ARP 应答）包被丢弃，心跳发不出去——异地"未找到房主"/只显示
-     * 1 人的根因。分到异网段时走 via 路由则正常，所以随机性极强。
-     */
-    public void join(Context ctx, String networkName, String networkSecret, Listener l,
-                     java.util.List<String> extraPeers, String memberIpv4) {
-        start(ctx, networkName, networkSecret, l, extraPeers, memberIpv4, false);
-    }
-
-    /**
-     * v565：成员固定虚拟 IP 派生——按 clientId hash 取 10.144.X.Y/24，
-     * X 跳过 144（房主网段），保证成员与房主永远不同网段、同网段成员
-     * 间 IP 也不同（Y 亦 hash）。同设备同版本 clientId 不变，IP 稳定。
-     */
-    public static String memberIpv4For(String clientId) {
-        int h = clientId == null ? 0 : clientId.hashCode();
-        int x = 2 + Math.floorMod(h, 251);      // 2..252
-        if (x >= 144) {
-            x++;                                // 跳过房主网段 144 → 2..253 共 250 个网段
-        }
-        int y = 2 + Math.floorMod(h >>> 8, 250); // .2..251
-        return "10.144." + x + "." + y + "/24";
-    }
-
-    /** 创建房间（房主）：固定虚拟 IP + DHCP 关闭。 */
+    /** 创建房间（房主）：固定虚拟 IP + DHCP 关闭，成员 dhcp 以本机 IP 为网段基准分配。 */
     public void host(Context ctx, String networkName, String networkSecret, Listener l,
                      String fixedIpv4) {
         host(ctx, networkName, networkSecret, l, fixedIpv4, null);
@@ -223,21 +114,16 @@ public final class EasyTierManager {
     /** 创建房间，extraPeers 合并中转服务器（房主也必须连中转，否则成员经中转找不到房主）。 */
     public void host(Context ctx, String networkName, String networkSecret, Listener l,
                      String fixedIpv4, java.util.List<String> extraPeers) {
-        start(ctx, networkName, networkSecret, l, extraPeers, fixedIpv4, true);
+        start(ctx, networkName, networkSecret, l, extraPeers, fixedIpv4);
     }
 
     private void start(Context ctx, String networkName, String networkSecret, Listener l,
-                       java.util.List<String> extraPeers, String fixedIpv4, boolean isHost) {
+                       java.util.List<String> extraPeers, String fixedIpv4) {
         synchronized (lock) {
             stopInternal();
             appContext = ctx.getApplicationContext();
             listener = l;
             virtualIp = null;
-            // v572：清上次会话的房主 IP 解析——残留值会让成员的 8s
-            // 快速判失败误以为"已看到房主 peer"，最近房间（房主已
-            // 解散）加入仍等满 20s 握手超时
-            hostVirtualIp = null;
-            lastPeerSig = "";
             active = true;
             state = State.STARTING;
             notifyState(State.STARTING, null);
@@ -247,7 +133,7 @@ public final class EasyTierManager {
                     EasyTierJNI.stopAllInstances();
                 } catch (Throwable ignored) {
                 }
-                runStart(networkName, networkSecret, extraPeers, fixedIpv4, isHost);
+                runStart(networkName, networkSecret, extraPeers, fixedIpv4);
             }, "easytier-mgr");
             worker.setDaemon(true);
             worker.start();
@@ -255,52 +141,26 @@ public final class EasyTierManager {
     }
 
     private void runStart(String networkName, String networkSecret,
-                          java.util.List<String> extraPeers, String fixedIpv4, boolean isHost) {
-        // fixedIpv4 != null = 固定虚拟 IP 模式（dhcp=false）：
-        //   isHost=true → 房主（带协议主机名，成员 RPC 匹配 paper-connect-server-* 发现房间中心）；
-        //   isHost=false → 成员固定派生 IP（v565：不再 DHCP——DHCP 会从房主
-        //   网段分地址导致内核邻居解析死路，心跳发不出去）。
-        // 单机（无对端）时 DHCP 不分配虚拟 IP，60s 后提示超时属预期。
+                          java.util.List<String> extraPeers, String fixedIpv4) {
+        // dhcp=true：IP 由网络内其他节点（房主固定 IP）决定网段后自动分配；
+        // 单机（无对端）时 EasyTier 不分配虚拟 IP，60s 后提示超时属预期。
+        // fixedIpv4 != null = 房主模式（dhcp=false + 固定虚拟 IP）。
         // 注意：EasyTier 官方公共节点已于 2026-05 全部下线（GitHub #2242，
         // 维护者确认"官方已经不提供公共节点了"）——组网必须靠直连 peer
         // （局域网自动发现/自建中转）。
-        String ipv4Line = "";
-        if (fixedIpv4 != null) {
-            // v565：CIDR 原样使用（成员固定 IP 自带 /24；房主传纯 IP 时补 /24，
-            // 纯 IP 可能被内核忽略导致 dhcp 生效、IP 随机分配——v561 教训）
-            ipv4Line = "ipv4 = \"" + (fixedIpv4.contains("/") ? fixedIpv4 : fixedIpv4 + "/24")
-                    + "\"\n";
-            org.levimc.launcher.util.OnlineDebugLog.log("组网固定IP模式: " + ipv4Line.trim()
-                    + (isHost ? "（房主）" : "（成员）"));
-        }
         String toml = "instance_name = \"" + INSTANCE_NAME + "\"\n"
                 + "dhcp = " + (fixedIpv4 == null ? "true" : "false") + "\n"
-                + ipv4Line
+                + (fixedIpv4 != null ? "ipv4 = \"" + fixedIpv4 + "\"\n" : "")
                 // 房主节点带协议主机名，房客 RPC 匹配 paper-connect-server-* 发现房间中心
-                + (isHost
+                + (fixedIpv4 != null
                         ? "hostname = \"paper-connect-server-" + ROOM_CENTER_PORT + "\"\n" : "")
                 + "log_level = \"info\"\n"
-                // v690：恢复 UDP 打洞（撤销 v635 禁用）——同地异网场景
-                // 打洞成功率高且延迟低，强制 TCP 中继绕 VPS 反而使游戏
-                // ping 应答偶发超时→客户端移除局域网条目。
-                // v691/v692：开启 KCP——实测蜂窝 UDP 打洞丢包 25~50%
-                // （v690 日志 loss_rate 0.25~0.5），公告与 ping 应答随机
-                // 丢失导致条目不恒久；KCP 在 UDP 隧道上做 ARQ 重传恢复
-                // 丢包（VPS 侧 feature_flag kcp_input=true 已支持）。
-                // 注意：EasyTier 的 CLI flag 参数必须放 [flags] 段
-                // （Config.flags: HashMap），写在顶层会被 serde 静默忽略
-                // （v691 无效的根因——已从顶层移除）。
-
                 // Android 内核默认不监听 11010（poll listeners 只有 ring://），
                 // 必须显式开启监听，局域网直连/中转才能连进本机。
                 + "listeners = [\"tcp://0.0.0.0:11010\", \"udp://0.0.0.0:11010\"]\n"
                 + "[network_identity]\n"
                 + "network_name = \"" + networkName + "\"\n"
-                + "network_secret = \"" + networkSecret + "\"\n"
-                // v692：CLI flag 参数必须在 [flags] 段（Config.flags: HashMap），
-                // 顶层同名键会被 serde 静默忽略
-                + "[flags]\n"
-                + "enable_kcp_proxy = true\n";
+                + "network_secret = \"" + networkSecret + "\"\n";
         if (extraPeers != null) {
             for (String uri : extraPeers) {
                 if (uri != null && !uri.isEmpty()) {
@@ -344,13 +204,6 @@ public final class EasyTierManager {
                 virtualIp = info.virtualIp;
                 lastCidrs = new java.util.ArrayList<>(info.cidrs);
                 startVpn(info.virtualIp, info.cidrs);
-                // v566：等 VPN 网络注册完成再报 CONNECTED（本线程是 worker，
-                // 可阻塞）——之后 RoomCenter/语音 socket 创建时可立即绑定，
-                // 避免主线程长等待（v565 竞态：socket 早于 TUN 创建绑旧网络）
-                android.net.Network vpnNet = waitForVpnNetwork(10_000);
-                if (vpnNet == null) {
-                    org.levimc.launcher.util.OnlineDebugLog.log("警告：VPN 网络 10s 未注册，业务 socket 将走默认网络");
-                }
                 Log.i(TAG, "已连接, 虚拟 IP = " + info.virtualIp);
                 notifyState(State.CONNECTED, info.virtualIp);
                 startWatchdog();
@@ -401,11 +254,6 @@ public final class EasyTierManager {
 
     private void startVpn(String ipv4, List<String> cidrs) {
         try {
-            // v573：直接 startService 带新参数（不再先发 ACTION_STOP）——
-            // 先 STOP 再启动时系统会把第二个 Intent 吞掉（服务已标记
-            // 停止），新实例根本没起来：平板实测只有 onDestroy 循环、
-            // establish 日志一条都没有，VPN 永远拉不起来。旧 runTun
-            // 由 onStartCommand 内部终止（running=false + closeTun）。
             Intent i = new Intent(appContext, EasyTierVpnService.class);
             i.putExtra(EasyTierVpnService.EXTRA_INSTANCE, INSTANCE_NAME);
             i.putExtra(EasyTierVpnService.EXTRA_IPV4, ipv4);
@@ -425,11 +273,6 @@ public final class EasyTierManager {
      */
     private void startWatchdog() {
         Thread t = new Thread(() -> {
-            // v571：重拉节流——establish 持续失败（未授权等）时至少隔
-            // 15s 才重拉一次，避免 5s 一次的"杀服务→重启→失败"风暴
-            // （实测造成间歇卡顿 + 文件日志刷爆）
-            long lastPull = 0;
-            int consecutiveFail = 0;
             while (active && state == State.CONNECTED) {
                 try {
                     Thread.sleep(5000);
@@ -441,25 +284,9 @@ public final class EasyTierManager {
                 }
                 try {
                     if (!tunExists()) {
-                        long now = System.currentTimeMillis();
-                        if (now - lastPull < 15_000) {
-                            continue;
-                        }
-                        lastPull = now;
-                        consecutiveFail++;
-                        // v572：连续 2 次重拉后 TUN 仍不存在——大概率是
-                        // VPN 授权被清（重装 APK）而非暂时性吊销，直接
-                        // 通知 UI 弹授权窗（不依赖 VpnService 内部回调）
-                        if (consecutiveFail >= 2) {
-                            org.levimc.launcher.util.OnlineDebugLog.log(
-                                    "看门狗连续重拉失败，请求 VPN 授权弹窗");
-                            notifyVpnAuthorizationRequired();
-                        }
                         Log.w(TAG, "看门狗：TUN 丢失，重新拉起 VpnService");
                         startVpn(virtualIp, lastCidrs);
                         continue;
-                    } else {
-                        consecutiveFail = 0;
                     }
                     Info info = pollInfo();
                     if (info != null && !info.running) {
@@ -486,27 +313,19 @@ public final class EasyTierManager {
         t.start();
     }
 
-    /** TUN 是否存活（存活标记新鲜 + 系统 VPN 网络仍注册）。 */
+    /** TUN 接口是否存在（/proc/net/dev 含 tun 行）。 */
     private static boolean tunExists() {
         try {
-            // v575：NetworkInterface 枚举不到 VpnService 的 tun0（Android
-            // 对应用隐藏）——v573 枚举方案导致看门狗恒判丢失、每 5s
-            // 建拆风暴。改由 VpnService 在 runTun 循环里刷新存活标记
-            // （files/vpn_tun_alive 时间戳），跨进程可靠。
-            Context ctx = appContext;
-            if (ctx == null) {
-                return true;
+            java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader("/proc/net/dev"));
+            String line;
+            while ((line = r.readLine()) != null) {
+                if (line.contains("tun")) {
+                    r.close();
+                    return true;
+                }
             }
-            java.io.File alive = new java.io.File(ctx.getFilesDir(), "vpn_tun_alive");
-            boolean markerFresh = alive.exists()
-                    && System.currentTimeMillis() - alive.lastModified() < 10_000;
-            if (!markerFresh) {
-                return false;
-            }
-            // v581：系统拆 VPN 时 fd 仍有效、标记仍刷新（v580 实测两端
-            // dumpsys vpn 已空但标记在动）——必须再确认 TRANSPORT_VPN
-            // 网络仍注册，否则看门狗失明、虚拟网断了无人救
-            return waitForVpnNetwork(0) != null;
+            r.close();
+            return false;
         } catch (Exception e) {
             return true; // 读不到就当健康，避免误拉
         }
@@ -597,24 +416,6 @@ public final class EasyTierManager {
                     if (!isHostRoute) {
                         continue;
                     }
-                    // v561：顺带记录房主虚拟 IP——异地经中转时房主 DHCP 拿到的
-                    // 虚拟 IP 不一定是 10.144.144.144，成员端写死该 IP 导致
-                    // 心跳连不上（双方都显示 1 人）的根因。路由表里的
-                    // ipv4_addr 是房主在虚拟网络内的真实地址。
-                    if (route != null) {
-                        JSONObject ipa = route.optJSONObject("ipv4_addr");
-                        JSONObject adr = ipa == null ? null : ipa.optJSONObject("address");
-                        if (adr != null) {
-                            long a = adr.optLong("addr", -1);
-                            if (a > 0 && a <= 0xFFFFFFFFL) {
-                                String ip = ((a >> 24) & 0xFF) + "." + ((a >> 16) & 0xFF)
-                                        + "." + ((a >> 8) & 0xFF) + "." + (a & 0xFF);
-                                if (!ip.startsWith("0.") && !ip.startsWith("127.")) {
-                                    hostVirtualIp = ip;
-                                }
-                            }
-                        }
-                    }
                     checkedAny = true;
                     JSONObject peer = pair.optJSONObject("peer");
                     if (peer == null) {
@@ -653,42 +454,6 @@ public final class EasyTierManager {
             }
             Log.i(TAG, "poll: running=" + info.running + " ip=" + info.virtualIp
                     + " cidrs=" + info.cidrs + " err=" + info.errorMsg);
-            // v565：peer 路由表变化时写文件日志（下次异地测试可直接判断
-            // 两端 EasyTier 是否真正看到对方、是 P2P 还是中继）
-            if (prp != null) {
-                java.util.List<String> sigs = new java.util.ArrayList<>();
-                for (int i = 0; i < prp.length(); i++) {
-                    JSONObject pair = prp.optJSONObject(i);
-                    if (pair == null) {
-                        continue;
-                    }
-                    JSONObject rt = pair.optJSONObject("route");
-                    JSONObject pr = pair.optJSONObject("peer");
-                    String hn = rt == null ? "" : rt.optString("hostname", "");
-                    String ip = "";
-                    if (rt != null) {
-                        JSONObject ipa = rt.optJSONObject("ipv4_addr");
-                        JSONObject adr = ipa == null ? null : ipa.optJSONObject("address");
-                        if (adr != null) {
-                            long a = adr.optLong("addr", -1);
-                            if (a > 0 && a <= 0xFFFFFFFFL) {
-                                ip = ((a >> 24) & 0xFF) + "." + ((a >> 16) & 0xFF)
-                                        + "." + ((a >> 8) & 0xFF) + "." + (a & 0xFF);
-                            }
-                        }
-                    }
-                    boolean p2p = pr != null
-                            && pr.optJSONArray("directly_connected_conns") != null
-                            && pr.optJSONArray("directly_connected_conns").length() > 0;
-                    sigs.add(hn + "|" + ip + "|" + (p2p ? "p2p" : "relay"));
-                }
-                java.util.Collections.sort(sigs);
-                String sig = sigs.toString();
-                if (!sig.equals(lastPeerSig)) {
-                    lastPeerSig = sig;
-                    org.levimc.launcher.util.OnlineDebugLog.log("peer 路由表变化: " + sig);
-                }
-            }
             return info;
         } catch (Throwable t) {
             Log.w(TAG, "解析网络信息失败", t);

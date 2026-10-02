@@ -165,20 +165,6 @@ public final class RoomCenter {
         try {
             hostSocket = new DatagramSocket(null);
             hostSocket.setReuseAddress(true);
-            // v566：房主中心显式绑 VPN 网络（防"socket 创建早于 TUN 建立"
-            // 绑旧网络竞态；CONNECTED 回调前 VPN 网络已注册，此处瞬时返回，
-            // 5s 兜底防主线程长阻塞）
-            android.net.Network vpnNet = EasyTierManager.waitForVpnNetwork(5_000);
-            if (vpnNet != null) {
-                try {
-                    vpnNet.bindSocket(hostSocket);
-                    org.levimc.launcher.util.OnlineDebugLog.log("房主中心已绑定 VPN 网络");
-                } catch (Exception be) {
-                    Log.w(TAG, "房主 socket 绑定 VPN 网络失败", be);
-                }
-            } else {
-                org.levimc.launcher.util.OnlineDebugLog.log("警告：5s 未见 VPN 网络，房主中心走默认网络");
-            }
             hostSocket.bind(new InetSocketAddress("0.0.0.0", PORT));
             hostSocket.setSoTimeout(2000);
         } catch (IOException e) {
@@ -230,20 +216,8 @@ public final class RoomCenter {
             Log.w(TAG, "邀请失败：房间中心不可用");
             return;
         }
-        // v583：1.26 世界端口随机——邀请前探测真实端口（新端口取新值，
-        // 无新端口复用上次缓存），不再写死 19132
-        int gamePort = WorldPortProbe.getWorldPort();
-        // v599：平板 SELinux 拒读端口表探测恒 0——用桥从公告源端口学到的
-        // 世界端口兜底（v598 双端代理在房主侧学习）
-        if (gamePort <= 0) {
-            gamePort = LanRelayBridge.getLearnedWorldPort();
-        }
-        if (gamePort <= 0) {
-            gamePort = GAME_PORT;
-        }
-        org.levimc.launcher.util.OnlineDebugLog.log("邀请成员进入世界: port=" + gamePort);
         String msg = "c:invite\0{\"hostIp\":\"" + hostAddr()
-                + "\",\"port\":" + gamePort + "}";
+                + "\",\"port\":" + GAME_PORT + "}";
         byte[] out = msg.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         int sent = 0;
         for (InetSocketAddress addr : memberAddrs.values()) {
@@ -256,61 +230,12 @@ public final class RoomCenter {
         Log.i(TAG, "已邀请 " + sent + " 名成员进入世界: " + hostAddr());
     }
 
-    /** v584：房主转发本机游戏的 RakNet 公告（c:lan）给全体成员。 */
-    private static int lanSendCount;
-    /** v633：成员端缓存房主世界端口/地址（c:lan 同步），主动深链用。 */
-    public static volatile int lastWorldPort;
-    public static volatile String lastHostIp;
-    /** v634：端口缓存更新时间（深链前校验新鲜度，防旧世界端口）。 */
-    public static volatile long lastWorldPortTime;
-
-    public static void sendLanAnnounce(byte[] replyData, int worldPort) {
-        DatagramSocket s = hostSocket;
-        if (s == null || s.isClosed()) {
-            return;
-        }
-        try {
-            JSONObject o = new JSONObject();
-            o.put("data", android.util.Base64.encodeToString(replyData,
-                    android.util.Base64.NO_WRAP));
-            o.put("worldPort", worldPort);
-            // v588：房主昵称随公告下发（成员侧合成 pong 的世界名）
-            o.put("nick", hostName != null ? hostName : "");
-            String msg = "c:lan\0" + o;
-            byte[] out = msg.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            int sent = 0;
-            for (InetSocketAddress addr : memberAddrs.values()) {
-                try {
-                    s.send(new DatagramPacket(out, out.length, addr.getAddress(), addr.getPort()));
-                    sent++;
-                } catch (Exception ignored) {
-                }
-            }
-            // v589：定位 c:lan 断点——每 10 次打一条文件日志
-            if ((lanSendCount++ & 0x7) == 0) {
-                org.levimc.launcher.util.OnlineDebugLog.log(
-                        "RoomCenter: c:lan 已发给 " + sent + " 名成员 (wp=" + worldPort
-                                + " memberAddrs=" + memberAddrs.size() + ")");
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "公告转发失败", e);
-        }
-    }
-
     private static void hostLoop() {
         byte[] buf = new byte[4096];
         DatagramPacket p = new DatagramPacket(buf, buf.length);
-        // v565：房主收到任意成员包写文件日志（异地排查：区分"成员没发/
-        // 发了没到/房主没收到"三选一）
-        boolean hostFirstPacket = true;
         while (hostRunning) {
             try {
                 hostSocket.receive(p);
-                if (hostFirstPacket) {
-                    hostFirstPacket = false;
-                    org.levimc.launcher.util.OnlineDebugLog.log("房主收到首个成员包: "
-                            + p.getAddress().getHostAddress() + ":" + p.getPort());
-                }
                 String req = new String(p.getData(), 0, p.getLength(), "UTF-8");
                 int sep = req.indexOf('\0');
                 if (sep < 0) {
@@ -657,25 +582,10 @@ public final class RoomCenter {
 
     /** v534：最近成员端 clientId（c:bye 用）。 */
     private static volatile String currentClientId;
-    /** v562：成员端首包日志一次性标志（文件日志防刷）。 */
-    private static volatile boolean firstRosterLogged;
 
     private static void clientLoop(String hostIp, String name, String clientId, Listener l) {
         while (clientRunning) {
-            try (DatagramSocket s = new DatagramSocket(null)) {
-                // v566：成员心跳 socket 显式绑 VPN 网络，同时等待 VPN 就绪，
-                // 解决"socket 创建早于 TUN 建立"绑旧网络的竞态
-                android.net.Network vpnNet = EasyTierManager.waitForVpnNetwork(15_000);
-                if (vpnNet != null) {
-                    try {
-                        vpnNet.bindSocket(s);
-                        org.levimc.launcher.util.OnlineDebugLog.log("成员心跳已绑定 VPN 网络");
-                    } catch (Exception be) {
-                        Log.w(TAG, "成员 socket 绑定 VPN 网络失败", be);
-                    }
-                } else {
-                    org.levimc.launcher.util.OnlineDebugLog.log("警告：15s 未见 VPN 网络，成员心跳走默认网络");
-                }
+            try (DatagramSocket s = new DatagramSocket()) {
                 InetSocketAddress target = new InetSocketAddress(hostIp, PORT);
                 // v534：记录房主地址与本机 clientId（退出时发 c:bye）
                 lastHostTarget = target;
@@ -703,35 +613,6 @@ public final class RoomCenter {
                                             .setMutedByHostStatic(mute);
                                 } catch (Exception ignored) {
                                 }
-                            } else if (text.startsWith("c:lan\0")) {
-                                // v584：房主游戏 RakNet 公告转发（异地局域网入口桥）
-                                try {
-                                    JSONObject lq = new JSONObject(
-                                            text.substring(text.indexOf('\0') + 1));
-                                    String b64 = lq.optString("data", "");
-                                    int wp = lq.optInt("worldPort", 0);
-                                    // v633：成员端缓存房主世界端口/地址（c:lan 同步），
-                                    // 联机页「进入房主世界」主动深链用
-                                    lastWorldPort = wp;
-                                    lastHostIp = p.getAddress().getHostAddress();
-                                    // v634：端口新鲜度时间戳（世界每次重开端口随机变，
-                                    // 深链前校验防连到上一次世界的旧端口）
-                                    lastWorldPortTime = System.currentTimeMillis();
-                                    // v588：data 可空（1.26 服务器不广播，成员侧合成
-                                    // pong）；nick 为成员合成 pong 的世界名
-                                    String nick = lq.optString("nick", "");
-                                    org.levimc.launcher.util.OnlineDebugLog.log(
-                                            "RoomCenter(成员): 收到 c:lan wp=" + wp
-                                                    + " from " + p.getAddress().getHostAddress());
-                                    // v590：wp=0 也启动（平板 SELinux 读不到端口表，
-                                    // 转发先走 19132，房主回包源端口动态学习）
-                                    byte[] reply = b64.isEmpty() ? new byte[0]
-                                            : android.util.Base64.decode(b64,
-                                                    android.util.Base64.NO_WRAP);
-                                    LanRelayBridge.onAnnounce(reply,
-                                            p.getAddress().getHostAddress(), wp, nick);
-                                } catch (Exception ignored) {
-                                }
                             } else if (text.startsWith("c:invite\0")) {
                                 // v560：房主邀请进入世界（URI 一键直达）→ 广播给监听器
                                 try {
@@ -741,12 +622,6 @@ public final class RoomCenter {
                                     int port = iq.optInt("port", 19132);
                                     if (!hip.isEmpty()) {
                                         Log.i(TAG, "收到房主世界邀请: " + hip + ":" + port);
-                                        // v630：文件日志定位深链链路断点
-                                        org.levimc.launcher.util.OnlineDebugLog.log(
-                                                "成员收到房主世界邀请: " + hip + ":" + port
-                                                        + " 游戏运行中=" + org.levimc.launcher
-                                                        .core.minecraft.MinecraftActivityState
-                                                        .isRunning());
                                         for (Listener lst : listeners) {
                                             try {
                                                 lst.onInvite(hip, port);
@@ -758,12 +633,6 @@ public final class RoomCenter {
                                 }
                             } else {
                                 List<Player> list = parsePlayers(text);
-                                // v562：首次收到房主响应写文件日志（vivo logcat 不可用）
-                                if (!firstRosterLogged) {
-                                    firstRosterLogged = true;
-                                    org.levimc.launcher.util.OnlineDebugLog.log(
-                                            "成员端收到房主首个响应，名单 " + list.size() + " 人");
-                                }
                                 long rtt = -1;
                                 try {
                                     JSONObject o = new JSONObject(text);
@@ -789,9 +658,6 @@ public final class RoomCenter {
                 }, "room-client-recv");
                 receiver.setDaemon(true);
                 receiver.start();
-                // v565：心跳发送计数——每 10 次写文件日志（异地排查：
-                // 若计数增长但房主端无"收到首个包"，说明包在虚拟网络内丢失）
-                int heartbeatSent = 0;
                 while (clientRunning) {
                     try {
                         long t0 = System.currentTimeMillis();
@@ -818,12 +684,6 @@ public final class RoomCenter {
                         byte[] out2 = hb.getBytes("UTF-8");
                         s.send(new DatagramPacket(out2, out2.length, target));
                     } catch (Exception ignored) {
-                    }
-                    heartbeatSent++;
-                    if (heartbeatSent % 10 == 0) {
-                        org.levimc.launcher.util.OnlineDebugLog.log("成员已发心跳 "
-                                + heartbeatSent + " 次 → " + target.getAddress().getHostAddress()
-                                + ":" + target.getPort());
                     }
                     // v534：kick 机制——状态变更时提前结束等待立即发心跳
                     try {
