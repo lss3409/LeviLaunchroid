@@ -163,6 +163,21 @@ public final class OnlineActivity extends BaseActivity
         updateGreeting();
         clockHandler.post(clockTick);
 
+        // v699：风景卡底部山形剪影圆角裁切——剪影 vector 是满宽矩形，
+        // 会把卡片底部两个圆角盖成直角。直接给 ImageView 设圆角 outline
+        // 裁剪（父容器 clipToOutline 对子 View 不生效）。
+        android.widget.ImageView hills = findViewById(R.id.online_scenery_hills);
+        if (hills != null) {
+            hills.setClipToOutline(true);
+            final float radius = 24 * getResources().getDisplayMetrics().density;
+            hills.setOutlineProvider(new android.view.ViewOutlineProvider() {
+                @Override
+                public void getOutline(View view, android.graphics.Outline outline) {
+                    outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius);
+                }
+            });
+        }
+
         handleDebugJoinIntent(getIntent());
     }
 
