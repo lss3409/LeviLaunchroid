@@ -1154,7 +1154,6 @@ Virtual IP: %1$s
     <string name="online_join_desc">Enter an invite code from a friend</string>
     <string name="online_scenery_sub">Create or join a room to play together anywhere</string>
     <string name="online_bookmarks">Bookmarks</string>
-    <string name="online_recent_title">Recent Rooms</string>
     <string name="online_create_guide">Create a LAN world in the game first, then generate the code</string>
     <string name="online_qr">QR</string>
     <string name="online_back_home">Back</string>
@@ -1203,7 +1202,6 @@ Virtual IP: %1$s
     <string name="online_host_unknown">Host</string>
     <string name="online_players_empty">Waiting for players…</string>
     <string name="online_players_count_fmt">Players %1$d/%2$d</string>
-    <string name="online_recent_delete">Delete this entry</string>
     <string name="online_relay_online">Relay online</string>
     <string name="online_relay_offline">Relay offline (cross-network play unavailable)</string>
     <string name="online_greet_night">Good night, %1$s</string>

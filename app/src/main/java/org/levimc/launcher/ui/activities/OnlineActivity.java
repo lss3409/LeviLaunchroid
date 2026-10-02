@@ -49,8 +49,6 @@ public final class OnlineActivity extends BaseActivity
     /** v533：扫码请求码（journeyapps 默认 49374；相册选图自定义）。 */
     private static final int REQ_SCAN_GALLERY = 1003;
     private static final String HOST_IPV4 = "10.144.144.144";
-    private static final String PREFS_RECENT = "levimc_recent";
-    private static final String KEY_RECENT = "rooms";
 
     private View homeView;
     private View createView;
@@ -85,6 +83,8 @@ public final class OnlineActivity extends BaseActivity
 
     private boolean formatting;
     private InviteCode.Parsed pendingJoin;
+    /** v568：建房 VPN 授权待处理（授权完成后 doHostRoom 继续建房）。 */
+    private InviteCode.Parsed pendingHostParsed;
     private String currentCode; // 当前房间码（房主生成/成员加入）
     private android.app.Dialog joinDialog;
     private boolean isHost;
@@ -135,6 +135,8 @@ public final class OnlineActivity extends BaseActivity
         findViewById(R.id.online_room_copy_button).setOnClickListener(v -> copyCurrentCode());
         findViewById(R.id.online_share_button).setOnClickListener(v -> shareCurrentCode());
         findViewById(R.id.online_room_share_button).setOnClickListener(v -> shareCurrentCode());
+        // v643：Astral 风格收藏按钮（toggle）
+        findViewById(R.id.online_room_bookmark_button).setOnClickListener(v -> toggleBookmark());
         findViewById(R.id.online_qr_button).setOnClickListener(v -> showQrDialog());
         findViewById(R.id.online_back_home_button).setOnClickListener(v -> showHome());
 
@@ -146,7 +148,16 @@ public final class OnlineActivity extends BaseActivity
         PlayerIdentity.getNickname(this);
         PlayerIdentity.getAvatarUrl(this);
 
-        refreshRecent();
+        // v643：版本信息行（Astral 风格）
+        TextView verInfo = findViewById(R.id.online_version_info);
+        try {
+            android.content.pm.PackageInfo pi = getPackageManager()
+                    .getPackageInfo(getPackageName(), 0);
+            verInfo.setText("LeviLaunchroid v" + (pi != null ? pi.versionName : "?"));
+        } catch (Exception e) {
+            verInfo.setText("LeviLaunchroid");
+        }
+        refreshBookmarks();
         setHomeState(EasyTierManager.State.IDLE, null);
         // v694/v695：欢迎语（v642 功能移植）+ 右侧钟表样式时间（实时刷新）
         updateGreeting();
@@ -218,8 +229,18 @@ public final class OnlineActivity extends BaseActivity
             currentCode = rawToCode(hr.parsed);
             isHost = true;
             roomCodeText.setText("P/" + currentCode);
-            createStatus.setText(getString(R.string.online_connecting_kernel));
-            showCreate();
+            // v576：跳过创建中间页，直接进房间页（见 doHostRoom）
+            roomState.setText(getString(R.string.online_step_unknown));
+            roomState.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+            showRoom();
+            // v568：建房同样需要 VPN 授权（房主重装后无授权时 TUN 建立失败）
+            Intent vpnIntent = VpnService.prepare(this);
+            if (vpnIntent != null) {
+                pendingHostParsed = hr.parsed;
+                Toast.makeText(this, "请允许 VPN 连接以完成联机", Toast.LENGTH_SHORT).show();
+                startActivityForResult(vpnIntent, REQ_VPN);
+                return;
+            }
             LanDiscovery.startHost(hr.parsed.networkName);
             List<String> relayPeers = RelayStore.load(this);
             EasyTierManager.get().host(this, hr.parsed.networkName, hr.parsed.networkSecret, this,
@@ -285,6 +306,7 @@ public final class OnlineActivity extends BaseActivity
         homeView.setVisibility(View.VISIBLE);
         createView.setVisibility(View.GONE);
         roomView.setVisibility(View.GONE);
+        refreshBookmarks(); // v642：回首页刷新收藏预览
     }
 
     private void showCreate() {
@@ -297,14 +319,35 @@ public final class OnlineActivity extends BaseActivity
         homeView.setVisibility(View.GONE);
         createView.setVisibility(View.GONE);
         roomView.setVisibility(View.VISIBLE);
-        roomView.setAlpha(0f);
-        roomView.animate().alpha(1f).setDuration(220).start();
+        // v574：删掉建房后的淡入过渡（一闪而过无意义，直接显示）
         populateRoom();
     }
 
     /** 房间视图数据填充。 */
     private void populateRoom() {
         roomCodeText2.setText(currentCode == null ? "" : "P/" + currentCode);
+        // v643：Astral 风格房间卡信息（房间名 + 虚拟 IP + 收藏状态）
+        try {
+            TextView roomName = findViewById(R.id.online_room_name);
+            if (roomName != null) {
+                String nick = PlayerIdentity.getNickname(this);
+                roomName.setText((isHost ? nick : (hostPlayer != null ? hostPlayer.name : nick))
+                        + getString(R.string.online_room_name_suffix));
+            }
+            TextView vip = findViewById(R.id.online_room_vip);
+            if (vip != null) {
+                String myIp = EasyTierManager.get().getVirtualIp();
+                if (myIp != null && !myIp.isEmpty()) {
+                    int s = myIp.indexOf('/');
+                    vip.setText(getString(R.string.online_room_vip_fmt,
+                            s > 0 ? myIp.substring(0, s) : myIp));
+                } else {
+                    vip.setText(getString(R.string.online_room_vip_fmt, "—"));
+                }
+            }
+            refreshBookmarkButton();
+        } catch (Exception ignored) {
+        }
         hostAvatar.setBackground(accentAvatarBg()); // v541：房主头像底跟随个性化强调色
         String nick = PlayerIdentity.getNickname(this);
         if (isHost) {
@@ -720,11 +763,29 @@ public final class OnlineActivity extends BaseActivity
         currentCode = g.code;
         isHost = true;
         roomCodeText.setText("P/" + g.code);
-        createStatus.setText(getString(R.string.online_connecting_kernel));
-        showCreate();
-        LanDiscovery.startHost(g.parsed.networkName);
+        // v568：建房同样需要 VPN 授权（此前只有加入流程有 prepare，
+        // 房主重装后无授权时 TUN 建立失败且永远不弹授权窗——用户实测
+        // "平板做房主 VPN 没跑起来"的根因）
+        Intent vpnIntent = VpnService.prepare(this);
+        if (vpnIntent != null) {
+            pendingHostParsed = g.parsed;
+            Toast.makeText(this, "请允许 VPN 连接以完成联机", Toast.LENGTH_SHORT).show();
+            startActivityForResult(vpnIntent, REQ_VPN);
+            return;
+        }
+        doHostRoom(g.parsed);
+    }
+
+    /** v568：建房通用流程（授权完成后调用）。
+     *  v576：跳过创建中间页（邀请码/二维码页组网 1 秒就切走根本点不上，
+     *  房间页已有完整的邀请码/复制/分享功能）——直接进房间页 */
+    private void doHostRoom(InviteCode.Parsed parsed) {
+        roomState.setText(getString(R.string.online_step_unknown));
+        roomState.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+        showRoom();
+        LanDiscovery.startHost(parsed.networkName);
         List<String> relayPeers = RelayStore.load(this);
-        EasyTierManager.get().host(this, g.parsed.networkName, g.parsed.networkSecret, this,
+        EasyTierManager.get().host(this, parsed.networkName, parsed.networkSecret, this,
                 HOST_IPV4, relayPeers);
     }
 
@@ -852,6 +913,8 @@ public final class OnlineActivity extends BaseActivity
             if (vpnIntent != null) {
                 status.setVisibility(View.VISIBLE);
                 status.setText(getString(R.string.online_vpn_needed));
+                // v574：VPN 提示小字跟随个性化 accent（XML 里 primary 深绿）
+                status.setTextColor(accentColor());
                 startActivityForResult(vpnIntent, REQ_VPN);
             } else {
                 doJoinFromDialog(r.parsed);
@@ -930,7 +993,8 @@ public final class OnlineActivity extends BaseActivity
         }
         InviteCode.Result r = InviteCode.parse(InviteCode.formatInput(text));
         if (r.ok()) {
-            feedback.setTextColor(getResources().getColor(R.color.primary, getTheme()));
+            // v574：「邀请码有效」提示小字跟随个性化 accent（原 primary 深绿）
+            feedback.setTextColor(accentColor());
             feedback.setText(getString(R.string.online_code_valid));
         } else {
             feedback.setTextColor(getResources().getColor(R.color.error, getTheme()));
@@ -1005,53 +1069,110 @@ public final class OnlineActivity extends BaseActivity
         }
     }
 
-    // ---------- 最近房间 ----------
+    // ---------- 收藏（v642 Astral 收藏系统，v698 移植回 v560 基线） ----------
 
-    private void refreshRecent() {
-        LinearLayout container = findViewById(R.id.online_recent_container);
-        View title = findViewById(R.id.online_recent_title);
-        container.removeAllViews();
-        List<String> recents = loadRecent();
-        if (recents.isEmpty()) {
-            container.setVisibility(View.GONE);
-            title.setVisibility(View.GONE);
+    /** v642：刷新收藏预览卡（Astral 风格：前 3 个收藏 + 一键加入）。 */
+    private void refreshBookmarks() {
+        LinearLayout card = findViewById(R.id.online_bookmarks_card);
+        LinearLayout list = findViewById(R.id.online_bookmarks_list);
+        TextView count = findViewById(R.id.online_bookmarks_count);
+        if (card == null || list == null) {
             return;
         }
-        container.setVisibility(View.VISIBLE);
-        title.setVisibility(View.VISIBLE);
-        for (String code : recents) {
-            TextView row = new TextView(this);
-            row.setText("P/" + code);
-            row.setTextColor(accentColor()); // v541：最近房间码跟随个性化强调色
-            row.setTextSize(14);
-            row.setPadding(24, 14, 24, 14);
-            row.setBackgroundResource(R.drawable.bg_rounded_card);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            lp.bottomMargin = (int) (6 * getResources().getDisplayMetrics().density);
-            row.setLayoutParams(lp);
-            row.setOnClickListener(v -> {
-                // 点击最近房间：预填弹窗输入框
-                showJoinDialogWithCode(code);
-            });
-            // 长按删除记录
-            row.setOnLongClickListener(v -> {
-                new android.app.AlertDialog.Builder(this)
-                        .setTitle(R.string.online_recent_delete)
-                        .setMessage("P/" + code)
-                        .setPositiveButton(android.R.string.ok, (d, w) -> {
-                            List<String> recentList = loadRecent();
-                            recentList.remove(code);
-                            getSharedPreferences(PREFS_RECENT, MODE_PRIVATE).edit()
-                                    .putString(KEY_RECENT, String.join(",", recentList)).apply();
-                            refreshRecent();
-                        })
-                        .setNegativeButton(android.R.string.cancel, null)
-                        .show();
-                return true;
-            });
-            container.addView(row);
+        list.removeAllViews();
+        java.util.List<org.levimc.launcher.core.online.OnlineBookmarks.Item> items =
+                org.levimc.launcher.core.online.OnlineBookmarks.load(this);
+        if (items.isEmpty()) {
+            card.setVisibility(View.GONE);
+            return;
         }
+        card.setVisibility(View.VISIBLE);
+        if (count != null) {
+            count.setText("（" + items.size() + "）");
+        }
+        int shown = Math.min(items.size(), 3);
+        for (int i = 0; i < shown; i++) {
+            final org.levimc.launcher.core.online.OnlineBookmarks.Item it = items.get(i);
+            TextView tv = new TextView(this);
+            tv.setPadding(0, dp(9), 0, dp(9));
+            tv.setText((it.name.isEmpty() ? "房间" : it.name)
+                    + " · P/" + it.code);
+            tv.setTextColor(getResources().getColor(R.color.on_surface, getTheme()));
+            tv.setTextSize(13);
+            tv.setClickable(true);
+            tv.setFocusable(true);
+            tv.setBackgroundResource(R.drawable.bg_rounded_card);
+            tv.setOnClickListener(v -> {
+                // 一键加入收藏房间
+                InviteCode.Result r = InviteCode.parse(
+                        InviteCode.formatInput(it.code));
+                if (!r.ok()) {
+                    Toast.makeText(this, R.string.online_err_format, Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                showRoomJoinFlow(r.parsed);
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.topMargin = dp(6);
+            list.addView(tv, lp);
+        }
+    }
+
+    /** v642：收藏房间加入流程（与输入码加入共用后续逻辑）。 */
+    private void showRoomJoinFlow(InviteCode.Parsed parsed) {
+        currentCode = rawToCode(parsed);
+        isHost = false;
+        Intent vpnIntent = VpnService.prepare(this);
+        if (vpnIntent != null) {
+            pendingParsed.clear();
+            pendingParsed.add(parsed);
+            Toast.makeText(this, "请允许 VPN 连接以完成联机", Toast.LENGTH_SHORT).show();
+            startActivityForResult(vpnIntent, REQ_VPN);
+        } else {
+            doJoinFromDialog(parsed);
+        }
+    }
+
+    private int dp(int v) {
+        return (int) (v * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    /** v643：收藏按钮状态刷新（已收藏实星/未收藏空心星）。 */
+    private void refreshBookmarkButton() {
+        try {
+            com.google.android.material.button.MaterialButton btn =
+                    findViewById(R.id.online_room_bookmark_button);
+            if (btn == null || currentCode == null) {
+                return;
+            }
+            boolean marked = org.levimc.launcher.core.online.OnlineBookmarks
+                    .isBookmarked(this, currentCode);
+            btn.setContentDescription(marked ? "取消收藏" : "收藏房间");
+            btn.setAlpha(marked ? 1f : 0.45f);
+        } catch (Exception ignored) {
+        }
+    }
+
+    /** v643：收藏按钮点击（toggle 收藏当前房间）。 */
+    private void toggleBookmark() {
+        if (currentCode == null) {
+            return;
+        }
+        boolean marked = org.levimc.launcher.core.online.OnlineBookmarks
+                .isBookmarked(this, currentCode);
+        if (marked) {
+            org.levimc.launcher.core.online.OnlineBookmarks.remove(this, currentCode);
+            Toast.makeText(this, "已取消收藏", Toast.LENGTH_SHORT).show();
+        } else {
+            org.levimc.launcher.core.online.OnlineBookmarks.add(this, currentCode,
+                    (hostPlayer != null ? hostPlayer.name : PlayerIdentity.getNickname(this))
+                            + getString(R.string.online_room_name_suffix),
+                    getString(R.string.online_game_name));
+            Toast.makeText(this, "已收藏房间", Toast.LENGTH_SHORT).show();
+        }
+        refreshBookmarkButton();
+        refreshBookmarks();
     }
 
     private void showJoinDialogWithCode(String code) {
@@ -1061,34 +1182,6 @@ public final class OnlineActivity extends BaseActivity
             input.setText(InviteCode.formatInput(code));
             input.setSelection(input.length());
         }
-    }
-
-    private List<String> loadRecent() {
-        List<String> out = new ArrayList<>();
-        try {
-            String raw = getSharedPreferences(PREFS_RECENT, MODE_PRIVATE)
-                    .getString(KEY_RECENT, "");
-            if (raw != null && !raw.isEmpty()) {
-                for (String c : raw.split(",")) {
-                    if (!c.isEmpty() && !out.contains(c)) {
-                        out.add(c);
-                    }
-                }
-            }
-        } catch (Exception ignored) {
-        }
-        return out;
-    }
-
-    private void saveRecent(String code) {
-        List<String> recents = loadRecent();
-        recents.remove(code);
-        recents.add(0, code);
-        while (recents.size() > 5) {
-            recents.remove(recents.size() - 1);
-        }
-        getSharedPreferences(PREFS_RECENT, MODE_PRIVATE).edit()
-                .putString(KEY_RECENT, String.join(",", recents)).apply();
     }
 
     // ---------- 通用 ----------
@@ -1269,10 +1362,16 @@ public final class OnlineActivity extends BaseActivity
         if (requestCode != REQ_VPN) {
             return;
         }
-        if (resultCode == RESULT_OK && !pendingParsed.isEmpty()) {
+        if (resultCode == RESULT_OK && pendingHostParsed != null) {
+            // v568：建房授权完成，继续建房
+            InviteCode.Parsed hp = pendingHostParsed;
+            pendingHostParsed = null;
+            doHostRoom(hp);
+        } else if (resultCode == RESULT_OK && !pendingParsed.isEmpty()) {
             doJoinFromDialog(pendingParsed.remove(0));
         } else {
             pendingParsed.clear();
+            pendingHostParsed = null;
             if (joinDialog != null) {
                 joinDialog.dismiss();
             }
@@ -1326,7 +1425,6 @@ public final class OnlineActivity extends BaseActivity
     @Override
     protected void onResume() {
         super.onResume();
-        refreshRecent();
         EasyTierManager.get().setListener(this);
         EasyTierManager.State s = EasyTierManager.get().getState();
         if (s == EasyTierManager.State.CONNECTED) {
@@ -1373,9 +1471,6 @@ public final class OnlineActivity extends BaseActivity
                     joinDialog.dismiss();
                     joinDialog = null;
                     pendingParsed.clear();
-                }
-                if (currentCode != null) {
-                    saveRecent(currentCode);
                 }
                 // v521：会话状态写入静态区，供游戏内悬浮窗读取
                 RoomCenter.roomCode = currentCode;

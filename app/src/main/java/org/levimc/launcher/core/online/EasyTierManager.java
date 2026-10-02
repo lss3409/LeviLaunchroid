@@ -71,10 +71,51 @@ public final class EasyTierManager {
     /** 最近一次连接使用的虚拟网段路由（v522 看门狗重拉 VpnService 用）。 */
     private volatile java.util.List<String> lastCidrs = new java.util.ArrayList<>();
     private volatile ConnMode connMode = ConnMode.UNKNOWN;
-    private Context appContext;
+    private static volatile Context appContext;
     private Listener listener;
 
     private EasyTierManager() {
+    }
+
+    /** v566：供 RoomCenter/VoiceEngine 拿 VPN 网络绑定 socket 用。 */
+    public static Context getAppContext() {
+        return appContext;
+    }
+
+    /**
+     * v566：等待 VPN 网络出现（VpnService establish 完成、系统注册 TRANSPORT_VPN）。
+     * 业务 socket（房间中心/语音）显式绑到 VPN 网络，防止"socket 创建早于
+     * TUN 建立"时绑到旧网络（公网）导致心跳/语音丢失——v565 实测成员
+     * socket 比 TUN 早 8ms 创建。绑定时机由本方法控制。
+     */
+    public static android.net.Network waitForVpnNetwork(long timeoutMs) {
+        Context ctx = appContext;
+        if (ctx == null) {
+            return null;
+        }
+        android.net.ConnectivityManager cm =
+                (android.net.ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm == null) {
+            return null;
+        }
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                for (android.net.Network n : cm.getAllNetworks()) {
+                    android.net.NetworkCapabilities nc = cm.getNetworkCapabilities(n);
+                    if (nc != null && nc.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)) {
+                        return n;
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                return null;
+            }
+        }
+        return null;
     }
 
     public State getState() {
@@ -313,13 +354,14 @@ public final class EasyTierManager {
         t.start();
     }
 
-    /** TUN 接口是否存在（/proc/net/dev 含 tun 行）。 */
+    /** TUN 接口是否存在（v566：精确匹配 tunN:——contains("tun") 会匹配
+     *  内核 tunl0 隧道设备恒真，VPN 被系统杀掉后看门狗失明不重建）。 */
     private static boolean tunExists() {
         try {
             java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader("/proc/net/dev"));
             String line;
             while ((line = r.readLine()) != null) {
-                if (line.contains("tun")) {
+                if (line.matches("\\s*tun[0-9]+:.*")) {
                     r.close();
                     return true;
                 }

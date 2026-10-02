@@ -228,13 +228,14 @@ public final class EasyTierVpnService extends VpnService {
         }
     }
 
-    /** TUN 接口是否存在（/proc/net/dev 含 tun 行）。 */
+    /** TUN 接口是否存在（v566：精确匹配 tunN:——contains("tun") 会匹配
+     *  内核 tunl0 隧道设备，VPN 被吊销后看门狗误判健康不重建）。 */
     private boolean tunExists() {
         try {
             java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader("/proc/net/dev"));
             String line;
             while ((line = r.readLine()) != null) {
-                if (line.contains("tun")) {
+                if (line.matches("\\s*tun[0-9]+:.*")) {
                     r.close();
                     return true;
                 }
@@ -251,6 +252,7 @@ public final class EasyTierVpnService extends VpnService {
     public void onRevoke() {
         revoked = true;
         Log.w(TAG, "VPN 被系统吊销（其他 VPN 抢占或系统回收），看门狗将自动重建");
+        org.levimc.launcher.util.OnlineDebugLog.log("VPN 被系统吊销，看门狗重建中");
     }
 
     private Notification buildNotification() {
@@ -277,6 +279,7 @@ public final class EasyTierVpnService extends VpnService {
         running = false;
         closeTun();
         Log.i(TAG, "VPN 服务销毁");
+        org.levimc.launcher.util.OnlineDebugLog.log("VpnService onDestroy（系统杀服务或主动停止）");
         super.onDestroy();
     }
 
