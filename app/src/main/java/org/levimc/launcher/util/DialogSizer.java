@@ -49,6 +49,22 @@ public final class DialogSizer {
         return (int) (ctx.getResources().getDisplayMetrics().heightPixels * 0.78f);
     }
 
+    /** v0.0.15：手机弹窗自适应宽度的封顶值（px）——内容少包住内容、
+     *  内容多封顶到屏宽 75%（内部换行/滚动）。平板沿用 56dp 边距封顶。 */
+    public static int dialogMaxWidthPx(Context ctx) {
+        DisplayMetrics dm = ctx.getResources().getDisplayMetrics();
+        if (isPhone(ctx)) {
+            return (int) (dm.widthPixels * PHONE_WIDTH_RATIO);
+        }
+        return Math.max(0, (int) (dm.widthPixels - 56 * dm.density * 2));
+    }
+
+    /** v0.0.15：手机弹窗最小宽度（px）——Material 3 规范 280dp，避免内容
+     *  太少时窗口窄得难看。 */
+    public static int dialogMinWidthPx(Context ctx) {
+        return (int) (280 * ctx.getResources().getDisplayMetrics().density);
+    }
+
     /** 是否手机（最小边 < 800dp）。
      *  v647：原 600dp 阈值会把大屏手机误判成平板——vivo V2536A 最小边
      *  ≈710dp，横屏时走大屏分支弹窗恒 560dp 宽（只占屏宽 36%，用户截图
