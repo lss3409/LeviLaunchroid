@@ -130,14 +130,21 @@ public class ContentManagementActivity extends BaseActivity {
     }
 
     private void setupUI() {
-        // v602/v707：导入按钮与共享文件夹导入按钮同款——全局扫描可视化
+        // v602/v707：导入按钮走全局扫描可视化
         // 选择（存档/资源包/行为包/结构），兜底走原文件管理器
         binding.importContentButton.setOnClickListener(v -> showImportPicker());
         binding.versionText.setOnClickListener(v -> showVersionPicker());
-        binding.viewSharedFolderButton.setOnClickListener(v -> showImportPicker());
+        // v0.0.23：共享文件夹按钮恢复为进入共享文件夹视图——导入菜单由
+        // 共享文件夹内部的导入按钮触发（v707 误把这里绑成导入菜单）
+        binding.viewSharedFolderButton.setOnClickListener(v -> showSharedFolderPicker());
 
         setupCategoryButtons();
         setupContentCountObservers();
+    }
+
+    /** v0.0.23：进入共享文件夹视图（独立页面，内含导入按钮）。 */
+    private void showSharedFolderPicker() {
+        startActivity(new Intent(this, SharedFolderActivity.class));
     }
 
     /** v707：扫描菜单公共入口（导入按钮/共享文件夹导入按钮共用）。 */

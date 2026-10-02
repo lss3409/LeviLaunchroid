@@ -61,7 +61,27 @@ public class SharedFolderActivity extends BaseActivity {
         configureSharedDirectories();
         setupButtons();
         setupCountObservers();
-        binding.importButton.setOnClickListener(v -> startImport());
+        // v0.0.23：共享文件夹导入按钮走全局扫描菜单（与内容管理导入同款），
+        // 「从文件管理器选择」兜底走原 ACTION_OPEN_DOCUMENT
+        binding.importButton.setOnClickListener(v -> showImportPicker());
+    }
+
+    /** v0.0.23：扫描菜单入口——选中的文件导入到共享文件夹目录。 */
+    private void showImportPicker() {
+        org.levimc.launcher.ui.dialogs.ImportPickerDialog.show(this,
+                new org.levimc.launcher.ui.dialogs.ImportPickerDialog.Listener() {
+                    @Override
+                    public void onPick(File file) {
+                        List<Uri> uris = new ArrayList<>();
+                        uris.add(android.net.Uri.fromFile(file));
+                        handleImport(uris);
+                    }
+
+                    @Override
+                    public void onPickFromFiles() {
+                        startImport();
+                    }
+                });
     }
 
     private void configureSharedDirectories() {
