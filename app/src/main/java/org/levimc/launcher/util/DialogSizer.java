@@ -16,8 +16,9 @@ import android.util.DisplayMetrics;
  */
 public final class DialogSizer {
 
-    /** v0.0.14：手机弹窗宽度占屏比（用户逐版微调定稿 75%）。 */
-    private static final float PHONE_WIDTH_RATIO = 0.75f;
+    /** v0.0.13：手机弹窗宽度占屏比（v649 的「屏宽−16dp×2」接近满屏、
+     *  用户反馈太大，改回 90%；以后要再调小改这里即可）。 */
+    private static final float PHONE_WIDTH_RATIO = 0.90f;
 
     private DialogSizer() {
     }
@@ -35,7 +36,7 @@ public final class DialogSizer {
         DisplayMetrics dm = ctx.getResources().getDisplayMetrics();
         int ideal = (int) (idealDp * dm.density);
         if (isPhone(ctx)) {
-            // 手机：按屏宽比例（PHONE_WIDTH_RATIO）。
+            // v0.0.13：按屏宽比例（90%），用户反馈 v649 近满屏太大。
             // 内容根视图 WRAP_CONTENT 不会强撑满。
             return Math.max(0, (int) (dm.widthPixels * PHONE_WIDTH_RATIO));
         }
@@ -47,22 +48,6 @@ public final class DialogSizer {
     /** 弹窗内容最大高度（px）：屏幕高 78%，防按钮被挤出屏幕（手机尤其）。 */
     public static int dialogMaxHeight(Context ctx) {
         return (int) (ctx.getResources().getDisplayMetrics().heightPixels * 0.78f);
-    }
-
-    /** v0.0.15：手机弹窗自适应宽度的封顶值（px）——内容少包住内容、
-     *  内容多封顶到屏宽 75%（内部换行/滚动）。平板沿用 56dp 边距封顶。 */
-    public static int dialogMaxWidthPx(Context ctx) {
-        DisplayMetrics dm = ctx.getResources().getDisplayMetrics();
-        if (isPhone(ctx)) {
-            return (int) (dm.widthPixels * PHONE_WIDTH_RATIO);
-        }
-        return Math.max(0, (int) (dm.widthPixels - 56 * dm.density * 2));
-    }
-
-    /** v0.0.15：手机弹窗最小宽度（px）——Material 3 规范 280dp，避免内容
-     *  太少时窗口窄得难看。 */
-    public static int dialogMinWidthPx(Context ctx) {
-        return (int) (280 * ctx.getResources().getDisplayMetrics().density);
     }
 
     /** 是否手机（最小边 < 800dp）。

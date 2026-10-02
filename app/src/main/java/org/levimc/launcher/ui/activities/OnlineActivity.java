@@ -1006,10 +1006,8 @@ public final class OnlineActivity extends BaseActivity
                 new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this);
         // v548：加入弹窗背景收窄；v557：380dp——横版比例（用户反馈太窄内容竖堆）
         dialog.setMaxWidthDp(380);
-        // v0.0.16：手机模式最小宽——保持横版比例；v0.0.17：340→300dp
-        // （340 占屏宽 80% 用户反馈还是太宽，300 两侧留白与内部间距更协调）
-        dialog.setMinWidthDp(240);
         dialog.setCustomView(v);
+        // v0.0.20：外点关闭恢复可用（此前 setCancelable(false) 屏蔽）
         dialog.show();
         joinDialog = dialog;
         // v537/v538：弹窗内按钮染个性化强调色（加入=主按钮，取消=文字染 accent）
@@ -1361,8 +1359,6 @@ public final class OnlineActivity extends BaseActivity
         dialog.setCustomView(v);
         dialog.setCancelable(true);
         dialog.setCanceledOnTouchOutside(true);
-        // v0.0.19：手机模式最小宽 240dp——窗口紧贴贴图+文本自然宽
-        dialog.setMinWidthDp(240);
         // v537：分享卡按钮染个性化强调色
         org.levimc.launcher.util.AccentStyler.stylePrimary(this,
                 v.findViewById(R.id.share_copy_button),

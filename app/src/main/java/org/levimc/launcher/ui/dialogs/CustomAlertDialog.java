@@ -43,13 +43,11 @@ public class CustomAlertDialog extends Dialog {
     private boolean mDismissing;
     private Runnable mDismissAnimationEndListener;
     /** v539：点外部关闭开关（onCreate 里硬编码 false 会覆盖外部设置，改用字段）。 */
-    /** v0.0.16：恢复 Dialog 原生默认（外点关闭默认开启）；
-     *  特殊弹窗显式 setCanceledOnTouchOutside(false) 关闭。 */
+    /** v0.0.20：外点关闭默认开启（恢复 Dialog 原生默认行为）。 */
     private boolean mCanceledOnTouchOutside = true;
     /** v548：弹窗最大宽度（dp），内容少的弹窗可调小让背景"刚刚好"。
      *  v557：默认 360dp（横版比例——用户反馈 340 太窄导致内容竖堆）。 */
     private int mMaxWidthDp = 360;
-    private int mMinWidthDp = 0;
 
     public CustomAlertDialog(Context context) {
         // v549：固定 LeviDialogTheme——游戏进程（MinecraftActivity 非 AppCompat）
@@ -126,13 +124,6 @@ public class CustomAlertDialog extends Dialog {
     /** v548：设置弹窗最大宽度（dp），默认 400。 */
     public CustomAlertDialog setMaxWidthDp(int maxWidthDp) {
         this.mMaxWidthDp = maxWidthDp;
-        return this;
-    }
-
-    /** v0.0.16：设置手机模式最小宽度（dp），0 = 用默认 280dp。
-     *  内容为横版长条（如图标+文本横排）的弹窗设大一点保持横版比例。 */
-    public CustomAlertDialog setMinWidthDp(int minWidthDp) {
-        this.mMinWidthDp = minWidthDp;
         return this;
     }
 
@@ -271,49 +262,26 @@ public class CustomAlertDialog extends Dialog {
         if (window != null) {
             window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
             float density = getContext().getResources().getDisplayMetrics().density;
-            WindowManager.LayoutParams lp = window.getAttributes();
-            boolean phone = org.levimc.launcher.util.DialogSizer.isPhone(getContext());
-            int dialogWidth;
-            if (phone) {
-                // v0.0.15：手机弹窗宽度自适应——WRAP 包住内容（最小 280dp），
-                // 展示后测量，超过封顶值（75% 屏宽）则钉死（内容内部换行/滚动）
-                dialogWidth = WindowManager.LayoutParams.WRAP_CONTENT;
-            } else {
-                // v552：统一弹窗尺寸规范（DialogSizer：平板比例为主）
-                dialogWidth = org.levimc.launcher.util.DialogSizer.dialogWidth(
-                        getContext(), mMaxWidthDp);
-            }
+            // v552：统一弹窗尺寸规范（DialogSizer：平板比例为主，手机自动
+            // 缩小 0.85，个性化 ui_scale 已通过 densityDpi 联动）
+            int dialogWidth = org.levimc.launcher.util.DialogSizer.dialogWidth(
+                    getContext(), mMaxWidthDp);
             // v550：主题的 windowMinWidthMajor（Alert 主题默认 ~65% 屏幕）会在
             // 某些设备上覆盖 setLayout 的宽度——显式写 attributes 强制生效
+            WindowManager.LayoutParams lp = window.getAttributes();
             lp.width = dialogWidth;
             lp.height = WindowManager.LayoutParams.WRAP_CONTENT;
             window.setAttributes(lp);
             window.setLayout(dialogWidth, WindowManager.LayoutParams.WRAP_CONTENT);
+            // v556：横屏手机屏高很小（如 vivo 横屏仅 360dp），xml 的 500dp
+            // maxHeight 仍会超屏——测量后若超过屏高 78% 就把窗口高度钉死，
+            // 内部 ScrollView 压缩滚动，按钮永远在屏内
             View root = findViewById(R.id.dialog_root);
             if (root != null) {
-                if (phone) {
-                    // v0.0.16：调用方可用 setMinWidthDp 覆盖默认 280dp
-                    // （横版长条内容的弹窗保持横版比例）
-                    int minDp = mMinWidthDp > 0 ? mMinWidthDp : 280;
-                    root.setMinimumWidth((int) (minDp * density));
-                }
                 root.post(() -> {
                     if (!isShowing()) {
                         return;
                     }
-                    WindowManager.LayoutParams wlp = window.getAttributes();
-                    // v0.0.15：手机宽度封顶——内容超出则钉死到 75% 屏宽
-                    if (phone) {
-                        int maxW = org.levimc.launcher.util.DialogSizer
-                                .dialogMaxWidthPx(getContext());
-                        if (root.getWidth() > maxW) {
-                            wlp.width = maxW;
-                            window.setAttributes(wlp);
-                        }
-                    }
-                    // v556：横屏手机屏高很小（如 vivo 横屏仅 360dp），xml 的 500dp
-                    // maxHeight 仍会超屏——测量后若超过屏高 78% 就把窗口高度钉死，
-                    // 内部 ScrollView 压缩滚动，按钮永远在屏内
                     int maxH = org.levimc.launcher.util.DialogSizer.dialogMaxHeight(
                             getContext());
                     if (root.getHeight() > maxH) {
@@ -322,7 +290,7 @@ public class CustomAlertDialog extends Dialog {
                         ViewGroup.LayoutParams rlp = root.getLayoutParams();
                         rlp.height = maxH;
                         root.setLayoutParams(rlp);
-                        wlp = window.getAttributes();
+                        WindowManager.LayoutParams wlp = window.getAttributes();
                         wlp.height = maxH;
                         window.setAttributes(wlp);
                     }
