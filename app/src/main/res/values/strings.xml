@@ -1158,6 +1158,10 @@ Virtual IP: %1$s
     <string name="online_create_guide">Create a LAN world in the game first, then generate the code</string>
     <string name="online_qr">QR</string>
     <string name="online_back_home">Back</string>
+    <string name="online_room_title">Room</string>
+    <string name="online_game_name">Minecraft Bedrock</string>
+    <string name="online_room_name_suffix">&#39;s room</string>
+    <string name="online_room_vip_fmt">Virtual IP: %1$s</string>
     <string name="online_room_code_label">Room Code</string>
     <string name="online_players_label">Players</string>
     <string name="online_leave">Leave Room</string>

@@ -248,6 +248,8 @@ public final class OnlineActivity extends BaseActivity
         findViewById(R.id.online_room_copy_button).setOnClickListener(v -> copyCurrentCode());
         findViewById(R.id.online_share_button).setOnClickListener(v -> shareCurrentCode());
         findViewById(R.id.online_room_share_button).setOnClickListener(v -> shareCurrentCode());
+        // v643：Astral 风格收藏按钮（toggle）
+        findViewById(R.id.online_room_bookmark_button).setOnClickListener(v -> toggleBookmark());
         findViewById(R.id.online_qr_button).setOnClickListener(v -> showQrDialog());
         findViewById(R.id.online_back_home_button).setOnClickListener(v -> showHome());
 
@@ -439,6 +441,28 @@ public final class OnlineActivity extends BaseActivity
     /** 房间视图数据填充。 */
     private void populateRoom() {
         roomCodeText2.setText(currentCode == null ? "" : "P/" + currentCode);
+        // v643：Astral 风格房间卡信息（房间名 + 虚拟 IP + 收藏状态）
+        try {
+            TextView roomName = findViewById(R.id.online_room_name);
+            if (roomName != null) {
+                String nick = PlayerIdentity.getNickname(this);
+                roomName.setText((isHost ? nick : (hostPlayer != null ? hostPlayer.nick : nick))
+                        + getString(R.string.online_room_name_suffix));
+            }
+            TextView vip = findViewById(R.id.online_room_vip);
+            if (vip != null) {
+                String myIp = EasyTierManager.get().getVirtualIp();
+                if (myIp != null && !myIp.isEmpty()) {
+                    int s = myIp.indexOf('/');
+                    vip.setText(getString(R.string.online_room_vip_fmt,
+                            s > 0 ? myIp.substring(0, s) : myIp));
+                } else {
+                    vip.setText(getString(R.string.online_room_vip_fmt, "—"));
+                }
+            }
+            refreshBookmarkButton();
+        } catch (Exception ignored) {
+        }
         hostAvatar.setBackground(accentAvatarBg()); // v541：房主头像底跟随个性化强调色
         String nick = PlayerIdentity.getNickname(this);
         if (isHost) {
@@ -641,6 +665,43 @@ public final class OnlineActivity extends BaseActivity
 
     private int dp(int v) {
         return (int) (v * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    /** v643：收藏按钮状态刷新（已收藏实星/未收藏空心星）。 */
+    private void refreshBookmarkButton() {
+        try {
+            com.google.android.material.button.MaterialButton btn =
+                    findViewById(R.id.online_room_bookmark_button);
+            if (btn == null || currentCode == null) {
+                return;
+            }
+            boolean marked = org.levimc.launcher.core.online.OnlineBookmarks
+                    .isBookmarked(this, currentCode);
+            btn.setContentDescription(marked ? "取消收藏" : "收藏房间");
+            btn.setAlpha(marked ? 1f : 0.45f);
+        } catch (Exception ignored) {
+        }
+    }
+
+    /** v643：收藏按钮点击（toggle 收藏当前房间）。 */
+    private void toggleBookmark() {
+        if (currentCode == null) {
+            return;
+        }
+        boolean marked = org.levimc.launcher.core.online.OnlineBookmarks
+                .isBookmarked(this, currentCode);
+        if (marked) {
+            org.levimc.launcher.core.online.OnlineBookmarks.remove(this, currentCode);
+            Toast.makeText(this, "已取消收藏", Toast.LENGTH_SHORT).show();
+        } else {
+            org.levimc.launcher.core.online.OnlineBookmarks.add(this, currentCode,
+                    (hostPlayer != null ? hostPlayer.nick : PlayerIdentity.getNickname(this))
+                            + getString(R.string.online_room_name_suffix),
+                    getString(R.string.online_game_name));
+            Toast.makeText(this, "已收藏房间", Toast.LENGTH_SHORT).show();
+        }
+        refreshBookmarkButton();
+        refreshBookmarks();
     }
 
     /** 邀请码二维码弹窗（v505）。 */

@@ -516,9 +516,59 @@
                 android:padding="18dp"
                 android:background="@drawable/bg_rounded_card">
 
+                <!-- v643：Astral 风格封面行（MC 封面 + 房间名 + 游戏名） -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
+                        android:src="@drawable/ic_mc_world_cover"
+                        android:contentDescription="@string/online_room_title" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="14dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:id="@+id/online_room_name"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/misans"
+                            android:textColor="@color/on_surface"
+                            android:textSize="17sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="3dp"
+                            android:fontFamily="@font/misans"
+                            android:text="@string/online_game_name"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/online_room_vip"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="3dp"
+                            android:fontFamily="@font/misans"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
                     android:fontFamily="@font/misans"
                     android:text="@string/online_room_code_label"
                     android:textColor="@color/text_secondary"
@@ -537,16 +587,38 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:fontFamily="@font/misans"
-                        android:letterSpacing="0.06"
-                        android:textColor="@color/primary"
-                        android:textSize="20sp"
+                        android:letterSpacing="0.3"
+                        android:textColor="@color/on_surface"
+                        android:textSize="24sp"
                         android:textStyle="bold" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/online_room_bookmark_button"
+                        style="@style/Widget.MaterialComponents.Button"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:backgroundTint="@color/surface"
+                        android:fontFamily="@font/misans"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minHeight="0dp"
+                        android:padding="0dp"
+                        android:textAllCaps="false"
+                        android:textColor="@color/on_primary"
+                        android:textSize="12sp"
+                        app:cornerRadius="20dp"
+                        app:icon="@drawable/ic_star"
+                        app:iconGravity="textStart"
+                        app:iconPadding="0dp"
+                        app:iconSize="20dp"
+                        app:iconTint="@color/primary" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/online_room_copy_button"
                         style="@style/Widget.MaterialComponents.Button"
                         android:layout_width="wrap_content"
                         android:layout_height="40dp"
+                        android:layout_marginStart="6dp"
                         android:backgroundTint="@color/primary"
                         android:fontFamily="@font/misans"
                         android:insetTop="0dp"
