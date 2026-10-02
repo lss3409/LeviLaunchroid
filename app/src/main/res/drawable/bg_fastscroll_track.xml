@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v661：track 同为 StateListDrawable -->
+<!-- v663：track 同为 StateListDrawable；无 state 的 item 会被
+     RecyclerView 1.2.1 解析为 null（"without both required drawables"
+     崩溃）——必须带 state 属性 -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@drawable/bg_fastscroll_track_normal" />
+    <item android:state_enabled="true" android:drawable="@drawable/bg_fastscroll_track_normal" />
 </selector>
