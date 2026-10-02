@@ -675,10 +675,11 @@ public class ImportPickerDialog {
         final int[] widthArr = new int[]{DialogSizer.dialogWidth(context, 560)};
         final int[] maxHArr = new int[]{DialogSizer.dialogMaxHeight(context)};
         final LinearLayout[] rootRef = new LinearLayout[]{root};
-        // v648：限高幂等化——扫描增量刷新每 150ms 调一次，原「先 WRAP 后
-        // 检查再 maxH」两帧横跳导致弹窗高度一抽一抽；改为超过一次即锁死
-        // maxH 不再回 WRAP（内容少于上限时弹窗保持紧凑，锁定后不再抖动）
-        final boolean[] heightLocked = {false};
+        // v655：弹窗高度动态自适应（恢复 v613 语义）——每次内容变化后
+        // 主动测量内容高度：超限锁 maxH，未超回 WRAP（内容少弹窗跟着缩）。
+        // v648 的「锁死不再回 WRAP」是错的：切到内容少的分类弹窗不收缩，
+        // 留下大空白（用户反馈「显示内容很少那UI就变小」失效的根因）。
+        // 无两帧跳：目标尺寸一步到位（同值 setLayout 不触发重布局）。
         final boolean[] sizeLogged = {false};
         Runnable relimit = () -> {
             Window ww = wRef[0];
@@ -690,14 +691,20 @@ public class ImportPickerDialog {
                     sizeLogged[0] = true;
                     dbg(context, "relimit: root=" + rootRef[0].getWidth() + "x"
                             + rootRef[0].getHeight() + " widthArr=" + widthArr[0]
-                            + " maxH=" + maxHArr[0] + " locked=" + heightLocked[0]);
+                            + " maxH=" + maxHArr[0]);
                 }
-                if (heightLocked[0]) {
-                    return;
-                }
-                if (rootRef[0].getHeight() > maxHArr[0]) {
-                    heightLocked[0] = true;
+                // 固定区高度 = 当前 root 高 - scroll 区高（与内容无关）
+                int fixed = Math.max(0, rootRef[0].getHeight() - scroll.getHeight());
+                // 主动测量条目区完整内容高度（不等下一帧布局）
+                int wSpec = View.MeasureSpec.makeMeasureSpec(
+                        Math.max(1, scroll.getWidth()), View.MeasureSpec.EXACTLY);
+                content.measure(wSpec, View.MeasureSpec.makeMeasureSpec(
+                        0, View.MeasureSpec.UNSPECIFIED));
+                int contentH = content.getMeasuredHeight();
+                if (contentH + fixed > maxHArr[0]) {
                     ww.setLayout(widthArr[0], maxHArr[0]);
+                } else {
+                    ww.setLayout(widthArr[0], ViewGroup.LayoutParams.WRAP_CONTENT);
                 }
             });
         };
