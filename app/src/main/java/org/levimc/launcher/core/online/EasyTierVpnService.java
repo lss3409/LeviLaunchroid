@@ -221,9 +221,19 @@ public final class EasyTierVpnService extends VpnService {
             builder.addRoute("10.126.126.0", 24);
         }
         try {
-            return builder.establish();
+            ParcelFileDescriptor fd = builder.establish();
+            if (fd == null) {
+                // v567/v571：establish 返回 null 通常是系统拒绝（无 VPN 授权/
+                // ZUI 上层拦截）——通知 UI 弹授权窗（重装 APK 后授权被清，
+                // 不弹窗的话建房/加入永远失败，只能用户手动去设置里找）
+                org.levimc.launcher.util.OnlineDebugLog.log("TUN establish 返回 null（无授权或被系统拦截）");
+                org.levimc.launcher.core.online.EasyTierManager.notifyVpnAuthorizationRequired();
+            }
+            return fd;
         } catch (Throwable t) {
             Log.e(TAG, "establish 异常", t);
+            org.levimc.launcher.util.OnlineDebugLog.log("TUN establish 异常: "
+                    + t.getClass().getSimpleName() + " " + t.getMessage());
             return null;
         }
     }
