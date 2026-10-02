@@ -54,7 +54,7 @@ class TrashController(
     /** 回收站多选选区锚点 */
     private var trashRangeAnchorKey: String? = null
 
-    /** 加载回收站列表 */
+    /** 加载回收站列表（trashList 内部会先清理过期条目，v671 默认保留 7 天） */
     fun loadTrashList() {
         if ((store.stateValue().trashView as? TrashViewState.Opened)?.trashListView?.loading == false) {
             // 已加载过，不再重复加载

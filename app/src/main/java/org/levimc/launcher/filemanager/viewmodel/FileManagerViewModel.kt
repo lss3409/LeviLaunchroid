@@ -20,6 +20,7 @@ package org.levimc.launcher.filemanager.viewmodel
 
 import android.content.Context
 import android.net.Uri
+import android.os.Environment
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -52,6 +53,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 
@@ -135,9 +137,14 @@ class FileManagerViewModel constructor(
         FmConfig.init(context)
         taskManager = TaskManager()
         scope = AccessScope(Paths.get(rootPathStr).normalize().toAbsolutePath())
+        // v671：回收站规范化到 /storage/emulated/0/Download/LeviLauncher/FileManagerTrash，
+        // 旧版本位于应用缓存目录的回收站数据迁移过去
+        val trashRoot = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            .toPath().resolve("LeviLauncher").resolve(TRASH_DIR_NAME).normalize().toAbsolutePath()
+        migrateLegacyTrash(trashRoot)
         logic = FileManagerLogic(
             scope = scope,
-            trashRoot = context.cacheDir.toPath().resolve(TRASH_SUBDIR).normalize().toAbsolutePath(),
+            trashRoot = trashRoot,
             cacheRoot = context.cacheDir.toPath().normalize().toAbsolutePath(),
             taskManager = taskManager
         )
@@ -369,9 +376,30 @@ class FileManagerViewModel constructor(
     /** 返回应用上下文 */
     fun appContext(): Context = context
 
+    /** v671：把旧版本（应用缓存目录）的回收站数据迁移到 Download/LeviLauncher 下的新目录。 */
+    private fun migrateLegacyTrash(newRoot: Path) {
+        val legacy = context.cacheDir.toPath().resolve(LEGACY_TRASH_SUBDIR)
+        runCatching {
+            if (!Files.exists(legacy)) return@runCatching
+            Files.createDirectories(newRoot)
+            Files.newDirectoryStream(legacy).use { stream ->
+                for (child in stream) {
+                    val target = newRoot.resolve(child.fileName.toString())
+                    if (!Files.exists(target)) {
+                        runCatching { Files.move(child, target) }
+                    }
+                }
+            }
+            runCatching { Files.delete(legacy) }
+        }
+    }
+
     companion object {
         private const val TAG = "FileManagerViewModel"
-        private const val TRASH_SUBDIR = "fileManagerTrash"
+        /** 旧版本回收站子目录名（应用缓存目录内）。 */
+        private const val LEGACY_TRASH_SUBDIR = "fileManagerTrash"
+        /** v671：新回收站目录名（Download/LeviLauncher 下）。 */
+        private const val TRASH_DIR_NAME = "FileManagerTrash"
 
         /** [SavedStateHandle] 键：可访问范围目录绝对路径。 */
         const val KEY_ROOT_PATH = "fm.rootPath"

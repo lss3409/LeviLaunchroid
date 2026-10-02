@@ -167,6 +167,25 @@ class TrashManager(
         fileOps.deleteRecursive(entryDir, checkCancel)
     }
 
+    companion object {
+        /** 回收站默认保留时长：7 天（v671）。 */
+        const val DEFAULT_RETENTION_MS = 7L * 24 * 60 * 60 * 1000
+    }
+
+    /**
+     * 清理过期条目（v671：默认保留 7 天，进入回收站页时触发）。
+     */
+    suspend fun purgeExpired(retentionMs: Long = DEFAULT_RETENTION_MS) {
+        val cutoff = System.currentTimeMillis() - retentionMs
+        val expired = list().filter { it.deletedAt < cutoff }
+        for (item in expired) {
+            runCatching { purge(item) { name -> FmLog.info(TAG, "Purged expired trash item: $name") } }
+        }
+        if (expired.isNotEmpty()) {
+            FmLog.info(TAG, "Purged ${expired.size} expired trash item(s)")
+        }
+    }
+
     /**
      * 清空整个回收站。
      */

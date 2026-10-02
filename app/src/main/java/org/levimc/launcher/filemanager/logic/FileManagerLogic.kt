@@ -336,8 +336,11 @@ class FileManagerLogic(
         return result
     }
 
-    suspend fun trashList(): FmResult<List<TrashItem>> =
-        taskManager.run(TaskKind.LIST) { trash.list() }.toFmResult()
+    suspend fun trashList(): FmResult<List<TrashItem>> {
+        // v671：先清理过期条目（默认保留 7 天）
+        runCatching { trash.purgeExpired() }
+        return taskManager.run(TaskKind.LIST) { trash.list() }.toFmResult()
+    }
 
     /**
      * 预检回收站恢复冲突
