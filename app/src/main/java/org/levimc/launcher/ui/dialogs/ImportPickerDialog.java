@@ -1027,9 +1027,7 @@ public class ImportPickerDialog {
             }
         };
         card.setOnClickListener(toDetail);
-        iconWrap.setOnClickListener(toDetail);
-        name.setOnClickListener(toDetail);
-        meta.setOnClickListener(toDetail);
+        // v658：子 View 不挂监听（点击穿透到 card，长按才能稳定触发）
         // v656：长按进入多选模式并勾选
         card.setOnLongClickListener(v -> {
             boolean first = !selectionMode;
@@ -1122,6 +1120,9 @@ public class ImportPickerDialog {
         row.addView(importBtn);
 
         // 点条目本体：多选模式 = 切换勾选；否则进二级详情
+        // v658：子 View（iconWrap/info）不再单独挂监听——它们拦截触摸后
+        // 长按不向父冒泡（performLongClick 只查触摸目标），导致单行条目
+        // 长按无反应；统一由 row 处理点击/长按（子 View 点击穿透）
         View.OnClickListener toDetail = v -> {
             if (selectionMode) {
                 toggleCardSelection(row, c, cardBg, accent, density);
@@ -1133,8 +1134,6 @@ public class ImportPickerDialog {
                         listener, dialog, redraw, search, status);
             }
         };
-        iconWrap.setOnClickListener(toDetail);
-        info.setOnClickListener(toDetail);
         row.setOnClickListener(toDetail);
         // v656：长按进入多选模式并勾选
         row.setOnLongClickListener(v -> {
