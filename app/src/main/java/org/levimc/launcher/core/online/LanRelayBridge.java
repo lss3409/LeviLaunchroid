@@ -376,15 +376,10 @@ public final class LanRelayBridge {
         try {
             if (fromPeer) {
                 if (head == 0x01) {
-                    // v684：成员客户端 ping（条目地址=房主虚拟 IP，ping 走隧道
-                    // 到此）。旧逻辑转 127.0.0.1:19132 是本 socket 自己——
-                    // 黑洞，无人回 pong，客户端 ~1s 超时移除条目（"条目闪退"根因）。
-                    // 修复：① 转发真实世界端口（服务器真 pong 回隧道）；
-                    // ② 立即回合成 pong 兜底（真 pong 慢，防客户端超时）。
-                    if (worldPort > 0) {
-                        proxy.send(new DatagramPacket(data, data.length,
-                                InetAddress.getByName("127.0.0.1"), worldPort));
-                    }
+                    // v686：成员客户端 ping（条目地址=房主虚拟 IP，ping 走隧道
+                    // 到此）。只回合成 pong（固定 GUID）——不转发真实世界端口：
+                    // 真 pong 带房主真 GUID，客户端会把它合并进 Xbox 好友世界
+                    // （条目被 Xbox 路线吞掉的根因）。
                     byte[] pong = buildPongReply(data);
                     if (pong != null) {
                         proxy.send(new DatagramPacket(pong, pong.length,
@@ -468,38 +463,35 @@ public final class LanRelayBridge {
     }
 
     /**
-     * v683（持久化）：构造回给客户端 ping 的 pong。
-     * cachedPong 可用时以其为模板（改写 AD 端口为 19132 本机桥端口）；
-     * 缺失时合成最小 pong（0x1C+time8+GUID8+AD，端口 19132）——
-     * 保证 ping 始终有应答，条目稳定显示不闪退。
+     * v686（持久化终版）：一律合成 pong，固定 GUID。
+     * v684 曾用 cachedPong（真世界 pong）作模板——其 GUID=房主世界真 GUID，
+     * 客户端据此把条目合并进 Xbox 好友世界（"条目变成走 xbox 路线"根因）。
+     * 结构：0x1C + time8 + GUID8（固定合成值） + magic16（回显 ping） + AD。
+     * AD 端口=19132 本机桥端口，客户端连接 WiFi/虚拟 IP:19132 → 桥 → 世界。
      */
     private static byte[] buildPongReply(byte[] ping) {
         try {
-            byte[] base;
-            if (cachedPong != null && cachedPong.length > 17
-                    && (cachedPong[0] & 0xFF) == 0x1C) {
-                base = cachedPong.clone();
-                if (ping.length >= 25) {
-                    // pong magic 在 offset 17（0x1C+time8+GUID8），
-                    // 用 ping 里的 magic 回填（RakNet 校验）
-                    System.arraycopy(ping, 9, base, 17, 16);
-                }
-                base = rewritePongPorts(base, ANN_PORT);
-            } else {
-                String ad = "MCPE;PaperConnect 房间;" + 776 + ";1.26.45;1;8;1145141919;"
-                        + "PaperConnect 联机;1;1;" + ANN_PORT + ";" + ANN_PORT + ";";
-                byte[] adBytes = ad.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-                base = new byte[17 + adBytes.length];
-                base[0] = 0x1C;
-                long tm = System.currentTimeMillis();
-                for (int i = 0; i < 8; i++) {
-                    base[1 + i] = (byte) (tm >> (8 * i));
-                }
-                for (int i = 0; i < 8; i++) {
-                    base[9 + i] = 0x11;
-                }
-                System.arraycopy(adBytes, 0, base, 17, adBytes.length);
+            String ad = "MCPE;PaperConnect 房间;" + 776 + ";1.26.45;1;8;1145141919;"
+                    + "PaperConnect 联机;1;1;" + ANN_PORT + ";" + ANN_PORT + ";";
+            byte[] adBytes = ad.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            byte[] base = new byte[33 + adBytes.length];
+            base[0] = 0x1C;
+            long tm = System.currentTimeMillis();
+            for (int i = 0; i < 8; i++) {
+                base[1 + i] = (byte) (tm >> (8 * i));
             }
+            // GUID（offset 9-16）：固定合成值——与房主真 GUID 不同，
+            // 客户端不会把本条目合并进 Xbox 好友世界
+            for (int i = 0; i < 8; i++) {
+                base[9 + i] = 0x42;
+            }
+            // magic（offset 17-32）：回显 ping 的 magic（RakNet 校验）
+            if (ping != null && ping.length >= 25) {
+                System.arraycopy(ping, 9, base, 17, 16);
+            } else {
+                System.arraycopy(MAGIC, 0, base, 17, 16);
+            }
+            System.arraycopy(adBytes, 0, base, 33, adBytes.length);
             return base;
         } catch (Exception e) {
             return null;
