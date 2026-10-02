@@ -1,19 +1,10 @@
 <div align="center">
 
-![LeviLauncher Logo](https://avatars.githubusercontent.com/u/78095377?s=200&v=4)
+# LBBL — Levi Better Bedrock Launcher
 
-# LeviLauncher
+**A lightweight Android launcher for Minecraft: Bedrock Edition, forked & enhanced from [LiteLDev/LeviLaunchroid](https://github.com/LiteLDev/LeviLaunchroid)**
 
-![Banner](https://camo.githubusercontent.com/bd7bd77cb422a267057d9863095b239b096d4f46dc831a37b45867a9acfad697/68747470733a2f2f63617073756c652d72656e6465722e76657263656c2e6170702f6170693f747970653d576176696e6726636f6c6f723d74696d654772616469656e74266865696768743d33303026616e696d6174696f6e3d66616465496e2673656374696f6e3d68656164657226746578743d4c6576694d4326666f6e7453697a653d313230)
-
-**A lightweight Android launcher for Minecraft: Bedrock Edition**
-
-[![GitHub Release](https://img.shields.io/github/v/release/LiteLDev/LeviLaunchroid?style=flat-square&color=blue)](https://github.com/LiteLDev/LeviLaunchroid/releases)
-[![License: Apache 2.0](https://img.shields.io/github/license/LiteLDev/LeviLaunchroid)](https://github.com/LiteLDev/LeviLaunchroid/blob/main/LICENSE)
-[![Issues](https://img.shields.io/github/issues/LiteLDev/LeviLaunchroid?style=flat-square&color=red)](https://github.com/LiteLDev/LeviLaunchroid/issues)
-[![Stars](https://img.shields.io/github/stars/LiteLDev/LeviLaunchroid?style=flat-square&color=yellow)](https://github.com/LiteLDev/LeviLaunchroid)
-[![Downloads](https://img.shields.io/github/downloads/LiteLDev/LeviLaunchroid/total.svg)](https://github.com/LiteLDev/LeviLaunchroid/releases)
-[![Android](https://img.shields.io/badge/Android-9.0%2B-green?style=flat-square&logo=android)](https://www.android.com/)
+English | [中文](#中文)
 
 </div>
 
@@ -21,180 +12,154 @@
 
 ## Introduction
 
-LeviLauncher is a lightweight, open-source Android launcher specifically designed for legitimate players of Minecraft: Bedrock Edition (MCBE). It provides a flexible and user-friendly alternative to the standard Google Play installation, allowing you to manage multiple game versions and extend functionality with external modules.
+LBBL (Levi Better Bedrock Launcher) is a fork of [LeviLaunchroid](https://github.com/LiteLDev/LeviLaunchroid) — a lightweight, open-source Android launcher for legitimate players of Minecraft: Bedrock Edition. It lets you import your official Minecraft APK and run it without system installation, manage multiple game versions with full isolation, and manage resource packs and worlds.
 
-LeviLauncher enables you to import your official Minecraft APK and run it directly without requiring system installation. The launcher supports loading external native modules to enhance gameplay, provides robust multi-version management with complete isolation between installations, and includes built-in tools for managing resource packs and worlds. Whether you're looking to organize different game versions, test modifications, or optimize your gaming experience, LeviLauncher offers the flexibility you need.
+This fork keeps the original core experience and adds a large set of enhancements built on top of it.
 
-### Key Features
+### Key Features (original)
 
 - **APK Import & Installation-Free Launching** – Import your official Minecraft APK and run it directly without system installation
-- **SO Module Loading** – Load external native SO modules to extend or enhance Minecraft features and performance
-- **Multi-Version Management & Version Isolation** – Manage multiple Minecraft versions independently, with separated configurations and data
-- **Multiple Xbox Account Management** – Manage multiple Xbox accounts inside the launcher and switch between them seamlessly
-- **Resource Pack & World Management** – Import, export, and back up your resource packs and worlds with the built-in manager
+- **SO Module Loading** – Load external native SO modules to extend Minecraft
+- **Multi-Version Management & Isolation** – Manage multiple Minecraft versions independently
+- **Multiple Xbox Account Management** – Switch between Xbox accounts inside the launcher
+- **Resource Pack & World Management** – Import, export and back up packs and worlds
+
+### What this fork adds
+
+- **Online play (联机)** – Create/join rooms with invite codes over a virtual LAN (EasyTier-based P2P networking), built-in voice chat (PTT, mute, noise reduction), room member list, deep-link "invite to world" that connects members straight into the host's world, and a relay fallback for CGNAT networks
+- **World map viewer** – 2D satellite-style map with biome/topographic layers, structures, waypoints, coordinate search, and a 3D voxel view (hardcore-optimized chunk-tile renderer for huge worlds)
+- **World data editing** – NBT viewer/editor, player data (health, position, UUID), world settings form
+- **File manager** – Full-featured file browser with ZIP create/extract, multi-select, trash, image/audio/text preview
+- **Hardcore auto-backup** – Scheduled backups for hardcore worlds
+- **Personalization** – Accent color themes, UI/font scaling, liquid-glass effect, custom world map marker colors
+- **11-language i18n** – English, 简体中文, Español, Português, 日本語, Tiếng Việt, Bahasa Indonesia, हिन्दी, Français, Русский, Türkçe
+- **Built-in update checker** – GitHub Releases with multi-mirror fallback, progress bar and silent background download
+
+---
+
+## Screenshots
+
+*Coming soon*
+
+---
+
+## Download
+
+Latest APK: [levi-updates releases](https://github.com/lss3409/levi-updates/releases)
+
+The in-app update checker reads `update.json` from that repository automatically.
 
 ---
 
 ## System Requirements
 
-Before installing LeviLauncher, ensure your device meets the following minimum specifications:
-
-- **Operating System:** Android 9.0 (API 28) or higher
-- **Device Architecture:** ARM64 (v8a)
-- **RAM:** Minimum 1 GB available RAM (2 GB or more recommended)
-- **Storage:** At least 2 GB of available storage for Minecraft and game data
-- **License Requirement:** You must own a licensed copy of Minecraft Bedrock Edition purchased from Google Play
-
-> **Note:** For optimal performance and stability, we recommend Android 9.0 or higher with at least 3 GB of available RAM and 5 GB of free storage.
+- Android 9.0+ (API 28+)
+- arm64-v8a device (the bundled EasyTier native library is built for arm64)
 
 ---
 
-## Installation
+## Building
 
-### Prerequisites
+Requirements:
 
-Before proceeding with LeviLauncher installation, ensure that you have the official Minecraft Bedrock Edition app installed on your device from Google Play. This is required for LeviLauncher to function properly.
+- JDK 21
+- Android SDK (compileSdk 36, build-tools 35.0.0)
+- Android NDK not required unless you rebuild the bundled EasyTier core library
 
-### Installation Steps
+```bash
+git clone https://github.com/lss3409/LeviLaunchroid.git
+cd LeviLaunchroid
+git tag v0.0.x   # versionName is derived from git tag (semver)
+./gradlew assembleDebug
+# APK: app/build/outputs/apk/debug/app-debug.apk
+```
 
-1. Visit the [Releases Page](https://github.com/LiteLDev/LeviLaunchroid/releases) and download the latest APK build
-2. Open your device Settings and navigate to Security or Applications
-3. Enable "Unknown Sources" or "Allow installation from unknown sources" to permit APK installation
-4. Locate the downloaded APK file using your file manager and tap to install
-5. Grant the necessary permissions when prompted during installation
-6. Once installed, open LeviLauncher from your application drawer
-
-> **Important:** LeviLauncher requires a legitimate, licensed copy of Minecraft Bedrock Edition. Do not use this launcher with pirated or unauthorized versions of the game. Ensure your Minecraft license is valid and properly linked to your Microsoft account.
-
----
-
-## Development Setup
-
-If you want to build LeviLauncher from source or contribute to development, follow these steps to set up your development environment:
-
-### Prerequisites
-
-- Git installed on your system
-- Android Studio (latest version recommended)
-- Java Development Kit (JDK) 21 or higher
-- Android SDK with API level 28 or higher
-
-### Setup Instructions
-
-1. Clone the LeviLauncher repository:
-
-   ```bash
-   git clone https://github.com/LiteLDev/LeviLaunchroid.git
-   ```
-
-2. Open the project directory in Android Studio
-
-3. Allow Android Studio to download and install required dependencies and build tools
-
-4. Wait for Gradle to complete the initial sync process
-
-5. Connect your Android device or start an emulator (API 28+)
-
-6. Click the "Run" button in Android Studio to build and deploy to your device
-
-7. The app will launch automatically on successful build completion
-
-> **Build Tip:** For faster builds during development, use `Build > Make Project` to compile incrementally instead of full rebuilds.
+The EasyTier JNI library in `app/src/main/jniLibs/arm64-v8a/` is cross-compiled from [EasyTier](https://github.com/EasyTier/EasyTier) for Android (see the build script kept outside this repo). Prebuilt binaries are committed so a normal build does not need the Rust toolchain.
 
 ---
 
-## Contribution Guidelines
+## License & Disclaimer
 
-We welcome contributions from the community to improve LeviLauncher. To ensure a high-quality codebase and smooth collaboration, please adhere to the following guidelines:
-
-### Code Quality
-
-Write clean, modular code with descriptive variable names and consistent formatting. Follow Kotlin and Java style guidelines established in the project. Ensure your code is readable and well-structured for future maintainers.
-
-### Commit Structure
-
-Use small, focused commits with clear and descriptive messages. Each commit should address a single feature or bug fix. Example: "Fixed memory leak in version manager" or "Added support for ARM32 architecture".
-
-### Documentation
-
-Add comments for complex logic and update relevant documentation in the repository. If you add new features, update the README and any related documentation files.
-
-### Performance
-
-Optimize all additions to maintain low latency and smooth performance. Test your changes thoroughly to ensure they don't introduce lag or performance regressions.
-
-### Testing
-
-Test all changes on multiple devices and Android versions to ensure compatibility and stability.
-
-### Pull Requests
-
-Submit PRs with a detailed description of changes, including the problem solved or feature added. Reference any related issues and provide screenshots or videos if your changes affect the UI.
-
-### Community Standards
-
-Follow our Code of Conduct to maintain a respectful and inclusive environment. Be constructive in feedback, respect others' work, and communicate professionally with all contributors.
-
-**Before Submitting:** Run a full build cycle and test on at least one device to minimize errors. We review all contributions promptly and appreciate your efforts to enhance LeviLauncher.
+- Licensed under the **Apache License 2.0** (see [LICENSE](LICENSE)). This project is a modified fork of [LiteLDev/LeviLaunchroid](https://github.com/LiteLDev/LeviLaunchroid); all modifications are made by this fork's maintainers and this project is **not affiliated with, endorsed by, or associated with LiteLDev**.
+- **Not an official Minecraft product.** Not approved by or associated with Mojang or Microsoft. You must own a legitimate copy of Minecraft: Bedrock Edition to use this launcher. The project does not distribute any Minecraft game files.
 
 ---
 
-## Usage Guidelines
-
-LeviLauncher is designed for legitimate players of Minecraft Bedrock Edition. Please respect the following guidelines and terms of use:
-
-### Permitted Uses
-
-- Modify LeviLauncher for personal gameplay and to test new features
-- Create educational content (videos, tutorials, blog posts) showcasing LeviLauncher's capabilities
-- Fork the repository for learning purposes or to create derivative projects, provided you comply with the Apache License 2.0
-- Share your modified versions with others as long as you comply with the Apache License 2.0 terms
-
-### Prohibited Uses
-
-- Do not claim LeviLauncher as your own without crediting the LeviMC team and its contributors
-- Do not use LeviLauncher to violate Mojang or Microsoft's user agreements
-
-> **Disclaimer:** The authors and contributors of LeviLauncher are not responsible for bans, damages, or issues arising from the use of this software. Use it at your own risk and in accordance with Minecraft's terms of service.
-
-For full legal details, see the LICENSE and NOTICE files in the repository.
-
----
-
-## Credits & Acknowledgements
-
-LeviLauncher would not be possible without the contributions and support of many talented individuals and organizations:
-
-### Special Thanks To
-
-- **LeviMC Organization** – For maintaining the LeviLauncher project and providing infrastructure support
-- **Android Community** – For excellent documentation, libraries, and tools that made this launcher possible
-- **Open Source Community** – For all the libraries, frameworks, and tools that power this project
-- **Contributors** – A heartfelt thank you to all [contributors](https://github.com/LiteLDev/LeviLaunchroid/graphs/contributors) who have continuously improved and maintained LeviLauncher through their time and expertise
-
----
-
-## Contact & Support
-
-**Author / Team:** LeviMC Team
-
-**Project Repository:** [https://github.com/LiteLDev/LeviLaunchroid](https://github.com/LiteLDev/LeviLaunchroid)
-
-**Report Issues:** [GitHub Issues Page](https://github.com/LiteLDev/LeviLaunchroid/issues)
-
-**For support and questions:** Please create an issue on the GitHub repository or contact the LeviMC team directly
-
----
+<div id="中文"></div>
 
 <div align="center">
 
-[![GitHub Release](https://img.shields.io/github/v/release/LiteLDev/LeviLaunchroid?style=flat-square&color=blue)](https://github.com/LiteLDev/LeviLaunchroid/releases)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Issues](https://img.shields.io/github/issues/LiteLDev/LeviLaunchroid?style=flat-square&color=red)](https://github.com/LiteLDev/LeviLaunchroid/issues)
-[![Stars](https://img.shields.io/github/stars/LiteLDev/LeviLaunchroid?style=flat-square&color=yellow)](https://github.com/LiteLDev/LeviLaunchroid)
-[![Downloads](https://img.shields.io/github/downloads/LiteLDev/LeviLaunchroid/total.svg)](https://github.com/LiteLDev/LeviLaunchroid/releases)
-[![Android](https://img.shields.io/badge/Android-9.0%2B-green?style=flat-square&logo=android)](https://www.android.com/)
+# LBBL — Levi Better Bedrock Launcher
 
-**Made with ❤️ by the LeviMC Community**
+**轻量的 Minecraft 基岩版 Android 启动器，基于 [LiteLDev/LeviLaunchroid](https://github.com/LiteLDev/LeviLaunchroid) 的增强分支**
 
 </div>
+
+---
+
+## 简介
+
+LBBL（Levi Better Bedrock Launcher）是 [LeviLaunchroid](https://github.com/LiteLDev/LeviLaunchroid) 的一个分支——一个轻量、开源的 Minecraft 基岩版 Android 启动器。导入官方 Minecraft APK 即可免系统安装直接运行，支持多版本独立管理（配置与数据完全隔离），内置资源包与世界管理。
+
+本分支在保留原版核心体验的基础上，新增了大量增强功能。
+
+### 原版核心功能
+
+- **APK 导入 / 免安装启动** – 导入官方 Minecraft APK，无需系统安装直接运行
+- **SO 模块加载** – 加载外部原生 SO 模块扩展 Minecraft 功能
+- **多版本管理与隔离** – 独立管理多个 Minecraft 版本，配置与数据互不干扰
+- **多 Xbox 账号管理** – 启动器内管理并切换多个 Xbox 账号
+- **资源包与世界管理** – 导入、导出、备份资源包和世界
+
+### 本分支新增
+
+- **联机系统** – 邀请码创建/加入房间，EasyTier P2P 虚拟组网（异地联机、CGNAT 网络下中转兜底），内置语音通话（PTT、禁麦、降噪），成员列表，「邀请进入世界」深链直连房主世界
+- **世界地图查看器** – 2D 卫星风格地图（生物群系/地形图层、结构标记、标点、坐标搜索）+ 3D 体素视图（chunk-tile 渲染架构，超大世界流畅缩放）
+- **世界数据编辑** – NBT 查看/编辑、玩家数据（生命/坐标/UUID）、世界设置表单
+- **文件管理器** – 全功能文件浏览（ZIP 压缩/解压、多选、回收站、图片/音频/文本预览）
+- **极限模式自动备份** – 定时备份极限存档
+- **个性化** – 强调色主题、UI/字体缩放、液态玻璃效果、地图标点自定义颜色
+- **11 语言多语言** – 英语、简体中文、西班牙语、葡萄牙语、日语、越南语、印尼语、印地语、法语、俄语、土耳其语
+- **内置更新检查** – GitHub Releases 直链 + 多镜像回退，带进度条、可静默后台下载
+
+---
+
+## 下载
+
+最新 APK：[levi-updates releases](https://github.com/lss3409/levi-updates/releases)
+
+应用内「检查更新」会自动从该仓库读取 `update.json`。
+
+---
+
+## 系统要求
+
+- Android 9.0+（API 28+）
+- arm64-v8a 设备（内置 EasyTier 原生库为 arm64 编译）
+
+---
+
+## 构建
+
+环境要求：
+
+- JDK 21
+- Android SDK（compileSdk 36，build-tools 35.0.0）
+- 无需 NDK（除非重新编译内置的 EasyTier 核心库）
+
+```bash
+git clone https://github.com/lss3409/LeviLaunchroid.git
+cd LeviLaunchroid
+git tag v0.0.x   # versionName 取自 git tag（语义化版本）
+./gradlew assembleDebug
+# APK 输出：app/build/outputs/apk/debug/app-debug.apk
+```
+
+`app/src/main/jniLibs/arm64-v8a/` 下的 EasyTier JNI 库由 [EasyTier](https://github.com/EasyTier/EasyTier) 交叉编译而来（构建脚本在仓库外维护）。预编译产物已提交，普通构建无需 Rust 工具链。
+
+---
+
+## 协议与声明
+
+- 使用 **Apache License 2.0** 许可（见 [LICENSE](LICENSE)）。本项目是 [LiteLDev/LeviLaunchroid](https://github.com/LiteLDev/LeviLaunchroid) 的修改分支，所有修改由本分支维护者完成，本项目**与 LiteLDev 无关联，亦未获得其背书**。
+- **非官方 Minecraft 产品**，与 Mojang / Microsoft 无关。使用本启动器需持有正版 Minecraft 基岩版。本项目不提供任何 Minecraft 游戏文件。
