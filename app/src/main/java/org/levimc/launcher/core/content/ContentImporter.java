@@ -129,33 +129,42 @@ public class ContentImporter {
 
                     } catch (Exception e) {
                         Log.e(TAG, "Import failed for uri: " + uri, e);
-                        errors.append("导入失败 ").append(uri.getLastPathSegment()).append(": ").append(e.getMessage()).append("\n");
+                        errors.append(context.getString(R.string.import_failed_item,
+                                uri.getLastPathSegment(), e.getMessage())).append("\n");
                     }
                 }
 
                 StringBuilder message = new StringBuilder();
                 if (totalResult.worldsImported > 0) {
-                    message.append("世界: ").append(totalResult.worldsImported).append(" ");
+                    message.append(context.getString(R.string.import_count_worlds,
+                            totalResult.worldsImported)).append(" ");
                 }
                 if (totalResult.resourcePacksImported > 0) {
-                    message.append("资源包: ").append(totalResult.resourcePacksImported).append(" ");
+                    message.append(context.getString(R.string.import_count_resources,
+                            totalResult.resourcePacksImported)).append(" ");
                 }
                 if (totalResult.behaviorPacksImported > 0) {
-                    message.append("行为包: ").append(totalResult.behaviorPacksImported).append(" ");
+                    message.append(context.getString(R.string.import_count_behaviors,
+                            totalResult.behaviorPacksImported)).append(" ");
                 }
                 if (totalResult.skinPacksImported > 0) {
-                    message.append("皮肤包: ").append(totalResult.skinPacksImported).append(" ");
+                    message.append(context.getString(R.string.import_count_skins,
+                            totalResult.skinPacksImported)).append(" ");
                 }
                 if (totalResult.structuresImported > 0) {
-                    message.append("结构文件: ").append(totalResult.structuresImported).append(" ");
+                    message.append(context.getString(R.string.import_count_structures,
+                            totalResult.structuresImported)).append(" ");
                 }
 
                 if (message.length() == 0) {
-                    callback.onError(errors.length() > 0 ? errors.toString().trim() : "没有导入任何内容");
+                    callback.onError(errors.length() > 0 ? errors.toString().trim()
+                            : context.getString(R.string.import_nothing));
                 } else {
-                    String finalMessage = "已导入: " + message.toString().trim();
+                    String finalMessage = context.getString(R.string.import_summary,
+                            message.toString().trim());
                     if (errors.length() > 0) {
-                        finalMessage += "\n错误:\n" + errors.toString().trim();
+                        finalMessage += "\n" + context.getString(R.string.import_error_header)
+                                + "\n" + errors.toString().trim();
                     }
                     callback.onSuccess(finalMessage);
                 }
@@ -166,7 +175,7 @@ public class ContentImporter {
 
             } catch (Exception e) {
                 Log.e(TAG, "Import failed", e);
-                callback.onError("导入失败: " + e.getMessage());
+                callback.onError(context.getString(R.string.import_failed_generic, e.getMessage()));
             }
         });
     }

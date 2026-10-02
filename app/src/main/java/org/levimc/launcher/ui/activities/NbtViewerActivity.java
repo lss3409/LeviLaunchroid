@@ -3250,7 +3250,8 @@ public class NbtViewerActivity extends BaseActivity {
             String channelId = "map_export";
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 android.app.NotificationChannel ch = new android.app.NotificationChannel(
-                        channelId, "地图导出", android.app.NotificationManager.IMPORTANCE_LOW);
+                        channelId, getString(R.string.nbt_export_title),
+                        android.app.NotificationManager.IMPORTANCE_LOW);
                 nm.createNotificationChannel(ch);
             }
             android.app.Notification.Builder b;
@@ -3260,15 +3261,15 @@ public class NbtViewerActivity extends BaseActivity {
                 b = new android.app.Notification.Builder(this);
             }
             b.setSmallIcon(android.R.drawable.stat_sys_download)
-                    .setContentTitle("导出世界 HTML")
+                    .setContentTitle(getString(R.string.nbt_export_title))
                     .setOngoing(percent < 100);
             if (percent < 0) {
-                b.setContentText("导出失败: " + detail);
+                b.setContentText(getString(R.string.nbt_export_failed, detail));
             } else if (percent < 100) {
-                b.setContentText("正在导出… " + percent + "%")
+                b.setContentText(getString(R.string.nbt_export_progress, percent))
                         .setProgress(100, percent, false);
             } else {
-                b.setContentText("导出完成: " + detail);
+                b.setContentText(getString(R.string.nbt_export_done, detail));
             }
             nm.notify(0x5E97E, b.build());
         } catch (Throwable t) {

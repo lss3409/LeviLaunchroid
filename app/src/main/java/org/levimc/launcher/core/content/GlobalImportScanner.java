@@ -52,16 +52,16 @@ public final class GlobalImportScanner {
         /** v609：存档 level.dat 解析出的有用信息（二级菜单显示）。 */
         public LevelInfo levelInfo;
 
-        public String typeLabel() {
+        public String typeLabel(android.content.Context ctx) {
             switch (type) {
                 case TYPE_WORLD:
-                    return "存档";
+                    return ctx.getString(org.levimc.launcher.R.string.scan_type_world);
                 case TYPE_RESOURCE:
-                    return "资源包";
+                    return ctx.getString(org.levimc.launcher.R.string.scan_type_resource);
                 case TYPE_BEHAVIOR:
-                    return "行为包";
+                    return ctx.getString(org.levimc.launcher.R.string.scan_type_behavior);
                 default:
-                    return "结构";
+                    return ctx.getString(org.levimc.launcher.R.string.scan_type_structure);
             }
         }
     }

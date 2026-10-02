@@ -23,7 +23,8 @@ public class WorldItem extends ContentItem {
     private String leviWorldId;
     /** v416：level.dat LastPlayed（游戏进入世界时间戳）。 */
     private long levelLastPlayed;
-    private String gameMode;
+    /** v0.0.11：存 int 游戏类型（-1 未知），显示时按语言转文本。 */
+    private int gameType = -1;
     private long lastPlayed;
     private long seed;
     private boolean isValid;
@@ -45,8 +46,13 @@ public class WorldItem extends ContentItem {
 
     @Override
     public String getDescription() {
-        if (!isValid) return "Invalid world";
-        return String.format("游戏模式: %s", gameMode != null ? gameMode : "未知");
+        return "World";
+    }
+
+    /** v0.0.11：按语言返回描述（调用方有 Context 时使用）。 */
+    public String getDescription(android.content.Context ctx) {
+        return ctx.getString(org.levimc.launcher.R.string.game_mode_label,
+                getGameMode(ctx));
     }
 
     @Override
@@ -59,7 +65,29 @@ public class WorldItem extends ContentItem {
     }
 
     public String getGameMode() {
-        return gameMode != null ? gameMode : "Unknown";
+        return "Unknown";
+    }
+
+    /** v0.0.11：按语言返回游戏模式文本。 */
+    public String getGameMode(android.content.Context ctx) {
+        int res;
+        switch (gameType) {
+            case 0:
+                res = org.levimc.launcher.R.string.game_mode_survival;
+                break;
+            case 1:
+                res = org.levimc.launcher.R.string.game_mode_creative;
+                break;
+            case 2:
+                res = org.levimc.launcher.R.string.game_mode_adventure;
+                break;
+            case 3:
+                res = org.levimc.launcher.R.string.game_mode_spectator;
+                break;
+            default:
+                res = org.levimc.launcher.R.string.game_mode_unknown;
+        }
+        return ctx.getString(res);
     }
 
     public File getIconFile() {
@@ -232,8 +260,7 @@ public class WorldItem extends ContentItem {
 
                 NbtTag gameModeTag = compound.get("GameType");
                 if (gameModeTag != null) {
-                    int gameModeInt = gameModeTag.getInt();
-                    gameMode = getGameModeName(gameModeInt);
+                    gameType = gameModeTag.getInt();
                 }
 
                 NbtTag seedTag = compound.get("RandomSeed");
@@ -280,20 +307,10 @@ public class WorldItem extends ContentItem {
             Log.w(TAG, "Failed to read level.dat for " + file.getName(), e);
         }
 
-        if (gameMode == null) {
-            gameMode = "生存模式";
+        if (gameType < 0) {
+            gameType = 0; // 默认生存模式
         }
 
         lastPlayed = file.lastModified();
-    }
-
-    private String getGameModeName(int gameType) {
-        return switch (gameType) {
-            case 0 -> "生存模式";
-            case 1 -> "创造模式";
-            case 2 -> "冒险模式";
-            case 3 -> "旁观模式";
-            default -> "未知";
-        };
     }
 }

@@ -1295,7 +1295,7 @@ public class ImportPickerDialog {
 
         String ver = c.version == null || c.version.isEmpty() ? "" : " · v" + c.version;
         TextView meta = new TextView(context);
-        meta.setText(c.typeLabel() + ver + " · " + formatSize(c.size));
+        meta.setText(c.typeLabel(context) + ver + " · " + formatSize(c.size));
         meta.setTextColor(textSub);
         meta.setTextSize(12);
         meta.setPadding(0, (int) (4 * density), 0, 0);
