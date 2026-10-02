@@ -14,6 +14,8 @@ import org.json.JSONObject;
 import org.levimc.launcher.R;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -22,14 +24,17 @@ import java.util.concurrent.Executors;
 
 /**
  * v711：启动器更新检查（ZL2 同款方案）——版本信息 JSON 托管在
- * 腾讯云 VPS（18080，国内可达），下载渠道走网盘分享链接。
+ * GitHub Releases（仓库 lss3409/levi-updates 已公开，/latest/download/ 直链）。
+ * v712：解析 files[].uri 直链下载 APK 并跳系统安装器。
  * 自动检查每天一次（限频），设置页手动检查不限频。
  */
 public final class UpdateChecker {
 
     private static final String TAG = "UpdateChecker";
-    /** VPS 更新服务（~/update-server/update.json）。 */
-    private static final String UPDATE_URL = "http://111.230.150.198:18080/update.json";
+    /** v712：版本信息源——GitHub Releases（私有仓库 release 附件匿名不可下，
+     *  仓库已公开；/latest/download/ 固定重定向到最新版附件）。 */
+    private static final String UPDATE_URL =
+            "https://github.com/lss3409/levi-updates/releases/latest/download/update.json";
     private static final String PREFS = "levimc_update_check";
     private static final String KEY_LAST_CHECK = "last_check";
     private static final long AUTO_CHECK_INTERVAL_MS = 24L * 3600 * 1000;
@@ -47,6 +52,7 @@ public final class UpdateChecker {
         public String version;
         public String body;
         public String cloudDriveLink; // 网盘分享链接（空则无）
+        public String apkUrl;          // APK 直链（GitHub Releases，空则无）
     }
 
     public interface Callback {
@@ -118,6 +124,10 @@ public final class UpdateChecker {
             if (u.cloudDriveLink == null || u.cloudDriveLink.isEmpty()) {
                 u.cloudDriveLink = json.optString("default_cloud_drive", "");
             }
+            JSONArray files = json.optJSONArray("files");
+            if (files != null && files.length() > 0) {
+                u.apkUrl = files.optJSONObject(0).optString("uri", "");
+            }
             return u;
         } catch (Throwable t) {
             Log.w(TAG, "检查更新失败: " + t.getClass().getSimpleName());
@@ -125,7 +135,8 @@ public final class UpdateChecker {
         }
     }
 
-    /** 新版弹窗（Levi 风格）：版本 + 更新日志 + 去网盘下载 + 稍后。 */
+    /** 新版弹窗（Levi 风格）：版本 + 更新日志 + 下载更新（直链下载安装/
+     *  网盘跳转）+ 稍后。 */
     public static void showUpdateDialog(Activity activity, Update u) {
         if (u == null || u.version.isEmpty()) {
             return;
@@ -135,7 +146,9 @@ public final class UpdateChecker {
         if (u.body != null && !u.body.isEmpty()) {
             msg.append('\n').append(u.body);
         }
-        if (u.cloudDriveLink != null && !u.cloudDriveLink.isEmpty()) {
+        if (u.apkUrl != null && !u.apkUrl.isEmpty()) {
+            msg.append("\n\n点击「下载更新」直接下载安装包");
+        } else if (u.cloudDriveLink != null && !u.cloudDriveLink.isEmpty()) {
             msg.append("\n\n点击「去下载」打开网盘下载页面");
         }
         android.widget.TextView tv = new android.widget.TextView(activity);
@@ -149,7 +162,9 @@ public final class UpdateChecker {
                 new org.levimc.launcher.ui.dialogs.CustomAlertDialog(activity);
         dialog.setTitleText("发现新版本");
         dialog.setCustomView(tv);
-        if (u.cloudDriveLink != null && !u.cloudDriveLink.isEmpty()) {
+        if (u.apkUrl != null && !u.apkUrl.isEmpty()) {
+            dialog.setPositiveButton("下载更新", d -> downloadAndInstall(activity, u));
+        } else if (u.cloudDriveLink != null && !u.cloudDriveLink.isEmpty()) {
             dialog.setPositiveButton("去下载", d -> {
                 try {
                     activity.startActivity(new Intent(Intent.ACTION_VIEW,
@@ -162,6 +177,69 @@ public final class UpdateChecker {
         }
         dialog.setNegativeButton("稍后", null);
         dialog.show();
+    }
+
+    /** v712：后台下载 APK → 系统安装器（FileProvider + 安装权限）。 */
+    private static void downloadAndInstall(Activity activity, Update u) {
+        android.widget.Toast.makeText(activity, "开始下载 " + u.version + "…",
+                android.widget.Toast.LENGTH_SHORT).show();
+        pool.execute(() -> {
+            try {
+                HttpURLConnection conn = (HttpURLConnection)
+                        new URL(u.apkUrl).openConnection();
+                conn.setConnectTimeout(15_000);
+                conn.setReadTimeout(300_000);
+                conn.setInstanceFollowRedirects(true);
+                if (conn.getResponseCode() != 200) {
+                    conn.disconnect();
+                    main.post(() -> android.widget.Toast.makeText(activity,
+                            "下载失败（HTTP " + conn.getResponseCode() + "）",
+                            android.widget.Toast.LENGTH_SHORT).show());
+                    return;
+                }
+                File dir = new File(activity.getFilesDir(), "updates");
+                if (!dir.isDirectory()) {
+                    dir.mkdirs();
+                }
+                File apk = new File(dir, "levi-update.apk");
+                FileOutputStream fos = new FileOutputStream(apk);
+                InputStream is = conn.getInputStream();
+                byte[] buf = new byte[65536];
+                int n;
+                while ((n = is.read(buf)) > 0) {
+                    fos.write(buf, 0, n);
+                }
+                fos.close();
+                is.close();
+                conn.disconnect();
+                if (apk.length() < 1_000_000) { // 少于 1MB 视为下载不完整
+                    apk.delete();
+                    main.post(() -> android.widget.Toast.makeText(activity,
+                            "下载不完整，请重试", android.widget.Toast.LENGTH_SHORT).show());
+                    return;
+                }
+                main.post(() -> {
+                    try {
+                        Uri uri = androidx.core.content.FileProvider.getUriForFile(
+                                activity, activity.getPackageName() + ".fileprovider", apk);
+                        Intent install = new Intent(Intent.ACTION_VIEW);
+                        install.setDataAndType(uri,
+                                "application/vnd.android.package-archive");
+                        install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                | Intent.FLAG_ACTIVITY_NEW_TASK);
+                        activity.startActivity(install);
+                    } catch (Throwable t) {
+                        android.widget.Toast.makeText(activity,
+                                "无法打开安装器：" + t.getClass().getSimpleName(),
+                                android.widget.Toast.LENGTH_SHORT).show();
+                    }
+                });
+            } catch (Throwable t) {
+                main.post(() -> android.widget.Toast.makeText(activity,
+                        "下载失败：" + t.getClass().getSimpleName(),
+                        android.widget.Toast.LENGTH_SHORT).show());
+            }
+        });
     }
 
     private static String readAll(InputStream is) throws Exception {
