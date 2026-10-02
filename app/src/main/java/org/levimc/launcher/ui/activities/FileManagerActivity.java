@@ -798,8 +798,9 @@ public class FileManagerActivity extends BaseActivity {
                 editorText.setText(content);
                 applyingHighlight = false;
                 scheduleHighlight();
-                // v674：双重 post 确保 layout pass 完成后才计算滚动条（首次打开不显示问题）
-                editorText.post(() -> editorText.post(this::updateEditorScrollBar));
+                // v675：滚动条刷新改延迟序列（100/300/1000ms），
+                // 覆盖 layout pass 完成前的各阶段，确保首次打开即显示
+                scheduleScrollBarRefresh();
             }
         }
         editorFileWritable = ui.getWritable();
@@ -839,6 +840,9 @@ public class FileManagerActivity extends BaseActivity {
         } else {
             editorText.setTextIsSelectable(false);
             editorText.setKeyListener(editorDefaultKeyListener);
+            // v675：setTextIsSelectable(false) 会把 MovementMethod 置 null，
+            // 触摸滚动依赖 movement——必须手动恢复，否则编辑模式滚不动
+            editorText.setMovementMethod(android.text.method.ScrollingMovementMethod.getInstance());
         }
         editorText.setFocusableInTouchMode(!readonly);
         editorText.post(() -> {
@@ -930,6 +934,13 @@ public class FileManagerActivity extends BaseActivity {
         // 高亮重设文本后恢复滚动位置
         editorText.post(() -> editorText.scrollTo(0, scrollY));
         editorText.post(this::updateEditorScrollBar);
+    }
+
+    /** 延迟序列刷新滚动条（v675：layout pass 时序不确定，多拍兜底）。 */
+    private void scheduleScrollBarRefresh() {
+        highlightHandler.postDelayed(this::updateEditorScrollBar, 100);
+        highlightHandler.postDelayed(this::updateEditorScrollBar, 300);
+        highlightHandler.postDelayed(this::updateEditorScrollBar, 1000);
     }
 
     /** 同步可拖动滚动条的视口比例与滚动位置。 */
