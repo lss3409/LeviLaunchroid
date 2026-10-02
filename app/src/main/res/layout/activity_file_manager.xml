@@ -518,20 +518,34 @@
                 android:background="?attr/selectableItemBackgroundBorderless" />
         </LinearLayout>
 
-        <EditText
-            android:id="@+id/fm_editor_text"
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1"
-            android:gravity="top|start"
-            android:inputType="textMultiLine|textNoSuggestions"
-            android:typeface="monospace"
-            android:textSize="14sp"
-            android:lineSpacingExtra="2dp"
-            android:padding="12dp"
-            android:background="@color/background"
-            android:scrollbars="vertical"
-            android:textIsSelectable="true" />
+            android:layout_weight="1">
+
+            <EditText
+                android:id="@+id/fm_editor_text"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="top|start"
+                android:inputType="textMultiLine|textNoSuggestions"
+                android:typeface="monospace"
+                android:textSize="14sp"
+                android:lineSpacingExtra="2dp"
+                android:padding="12dp"
+                android:background="@color/background"
+                android:scrollbars="none"
+                android:textIsSelectable="true" />
+
+            <!-- 可拖动滚动条（v673） -->
+            <org.levimc.launcher.filemanager.ui.FmEditorScrollBar
+                android:id="@+id/fm_editor_scrollbar"
+                android:layout_width="12dp"
+                android:layout_height="match_parent"
+                android:layout_gravity="end"
+                android:layout_marginEnd="2dp"
+                android:visibility="gone" />
+        </FrameLayout>
     </LinearLayout>
 
 </LinearLayout>

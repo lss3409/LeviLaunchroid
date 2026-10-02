@@ -105,6 +105,7 @@ public class FileManagerActivity extends BaseActivity {
     private boolean editorFileWritable = true;
     private ImageView editorReadonlyToggle;
     private android.text.method.KeyListener editorDefaultKeyListener;
+    private org.levimc.launcher.filemanager.ui.FmEditorScrollBar editorScrollBar;
     private final Handler highlightHandler = new Handler(Looper.getMainLooper());
     private final Runnable highlightTask = this::runHighlight;
 
@@ -238,6 +239,7 @@ public class FileManagerActivity extends BaseActivity {
         editorSave = findViewById(R.id.fm_editor_save);
         editorText = findViewById(R.id.fm_editor_text);
         editorReadonlyToggle = findViewById(R.id.fm_editor_readonly);
+        editorScrollBar = findViewById(R.id.fm_editor_scrollbar);
         audioPanel = findViewById(R.id.fm_audio_panel);
         audioPlayPause = findViewById(R.id.fm_audio_play_pause);
         audioName = findViewById(R.id.fm_audio_name);
@@ -726,6 +728,16 @@ public class FileManagerActivity extends BaseActivity {
 
     private void setupEditor() {
         editorDefaultKeyListener = editorText.getKeyListener();
+        // 可拖动滚动条（v673）
+        editorScrollBar.setColors(textSecondary, isDarkTheme() ? 0x1AFFFFFF : 0x1A000000);
+        editorScrollBar.setListener(ratio -> {
+            android.text.Layout layout = editorText.getLayout();
+            if (layout == null) return;
+            int maxScroll = Math.max(0, layout.getHeight() - editorText.getHeight());
+            editorText.scrollTo(0, (int) (ratio * maxScroll));
+        });
+        editorText.setOnScrollChangeListener((v, sx, sy, ox, oy) -> updateEditorScrollBar());
+        editorText.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> updateEditorScrollBar());
         editorSave.setText(R.string.fm_ui_editor_save);
         editorSave.setTextColor(accent != 0 ? accent : onSurface);
         editorSave.setOnClickListener(v ->
@@ -786,6 +798,7 @@ public class FileManagerActivity extends BaseActivity {
                 editorText.setText(content);
                 applyingHighlight = false;
                 scheduleHighlight();
+                editorText.post(this::updateEditorScrollBar);
             }
         }
         editorFileWritable = ui.getWritable();
@@ -817,6 +830,8 @@ public class FileManagerActivity extends BaseActivity {
         boolean readonly = editorReadonly || !editorFileWritable;
         editorReadonlyToggle.setImageResource(editorReadonly && editorFileWritable
                 ? R.drawable.ic_eye : (editorFileWritable ? R.drawable.ic_edit : R.drawable.ic_eye));
+        // v673：模式切换保持滚动位置（setTextIsSelectable 切换会重置 scroll）
+        int scrollY = editorText.getScrollY();
         if (readonly) {
             editorText.setKeyListener(null);
             editorText.setTextIsSelectable(true);
@@ -825,6 +840,14 @@ public class FileManagerActivity extends BaseActivity {
             editorText.setKeyListener(editorDefaultKeyListener);
         }
         editorText.setFocusableInTouchMode(!readonly);
+        editorText.post(() -> {
+            android.text.Layout layout = editorText.getLayout();
+            if (layout != null) {
+                int maxScroll = Math.max(0, layout.getHeight() - editorText.getHeight());
+                editorText.scrollTo(0, Math.min(scrollY, maxScroll));
+            }
+            updateEditorScrollBar();
+        });
     }
 
     private void showExitConfirmDialog() {
@@ -894,6 +917,7 @@ public class FileManagerActivity extends BaseActivity {
     private void runHighlight() {
         String name = editorName.getText().toString();
         Spannable sp = FmHighlighter.apply(editorText.getText().toString(), name, isDarkTheme());
+        int scrollY = editorText.getScrollY();
         applyingHighlight = true;
         int selStart = editorText.getSelectionStart();
         int selEnd = editorText.getSelectionEnd();
@@ -902,6 +926,24 @@ public class FileManagerActivity extends BaseActivity {
             editorText.setSelection(Math.min(selStart, editorText.length()), Math.min(selEnd, editorText.length()));
         } catch (IndexOutOfBoundsException ignored) {}
         applyingHighlight = false;
+        // 高亮重设文本后恢复滚动位置
+        editorText.post(() -> editorText.scrollTo(0, scrollY));
+        editorText.post(this::updateEditorScrollBar);
+    }
+
+    /** 同步可拖动滚动条的视口比例与滚动位置。 */
+    private void updateEditorScrollBar() {
+        android.text.Layout layout = editorText.getLayout();
+        if (layout == null) return;
+        int contentH = layout.getHeight();
+        int viewH = editorText.getHeight();
+        if (contentH <= viewH) {
+            editorScrollBar.update(1f, 0f);
+            return;
+        }
+        int maxScroll = contentH - viewH;
+        editorScrollBar.update((float) viewH / contentH,
+                maxScroll <= 0 ? 0f : (float) editorText.getScrollY() / maxScroll);
     }
 
     private boolean isDarkTheme() {

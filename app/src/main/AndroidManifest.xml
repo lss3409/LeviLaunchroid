@@ -122,6 +122,7 @@
         <activity
             android:name="org.levimc.launcher.ui.activities.FileManagerActivity"
             android:exported="false"
+            android:windowSoftInputMode="adjustResize"
             android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
             tools:ignore="DiscouragedApi" />
 
