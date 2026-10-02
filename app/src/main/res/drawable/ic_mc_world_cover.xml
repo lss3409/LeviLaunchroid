@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v642：Minecraft 世界封面贴图（草方块风格矢量，56dp 圆角容器用） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="56dp"
+    android:height="56dp"
+    android:viewportWidth="56"
+    android:viewportHeight="56">
+    <!-- 泥土底 -->
+    <path
+        android:fillColor="#FF79553A"
+        android:pathData="M0,14 L56,14 L56,56 L0,56 Z" />
+    <!-- 泥土斑点 -->
+    <path
+        android:fillColor="#FF8B6446"
+        android:pathData="M8,22 L14,22 L14,28 L8,28 Z M30,34 L38,34 L38,42 L30,42 Z M44,20 L50,20 L50,26 L44,26 Z M18,44 L24,44 L24,50 L18,50 Z" />
+    <!-- 草皮 -->
+    <path
+        android:fillColor="#FF7CBD4B"
+        android:pathData="M0,8 L56,8 L56,18 Q52,14 48,18 Q44,14 40,18 Q36,14 32,18 Q28,14 24,18 Q20,14 16,18 Q12,14 8,18 Q4,14 0,18 Z" />
+    <path
+        android:fillColor="#FF5FA13A"
+        android:pathData="M0,16 L56,16 L56,20 L0,20 Z" />
+</vector>

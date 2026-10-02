@@ -74,6 +74,99 @@
                 android:indeterminateTint="@color/primary"
                 android:visibility="gone" />
 
+            <!-- v642：Astral 风格风景欢迎卡 -->
+            <FrameLayout
+                android:id="@+id/online_scenery_card"
+                android:layout_width="match_parent"
+                android:layout_height="180dp"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_scenery_card">
+
+                <ImageView
+                    android:layout_width="match_parent"
+                    android:layout_height="72dp"
+                    android:layout_gravity="bottom"
+                    android:src="@drawable/ic_scenery_hills"
+                    android:scaleType="fitXY"
+                    android:contentDescription="@string/online_scenery_hills" />
+
+                <TextView
+                    android:id="@+id/online_scenery_greeting"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="start|top"
+                    android:layout_marginStart="20dp"
+                    android:layout_marginTop="26dp"
+                    android:fontFamily="@font/misans"
+                    android:textColor="#FFFFFFFF"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/online_scenery_sub"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="start|top"
+                    android:layout_marginStart="20dp"
+                    android:layout_marginTop="66dp"
+                    android:fontFamily="@font/misans"
+                    android:text="@string/online_scenery_sub"
+                    android:textColor="#B3FFFFFF"
+                    android:textSize="13sp" />
+            </FrameLayout>
+
+            <!-- v642：收藏预览卡（动态填充，无收藏时隐藏） -->
+            <LinearLayout
+                android:id="@+id/online_bookmarks_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:orientation="vertical"
+                android:padding="14dp"
+                android:background="@drawable/bg_rounded_card"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:src="@drawable/ic_star"
+                        app:tint="@color/primary"
+                        android:contentDescription="@string/online_bookmarks" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:layout_weight="1"
+                        android:fontFamily="@font/misans"
+                        android:text="@string/online_bookmarks"
+                        android:textColor="@color/on_surface"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/online_bookmarks_count"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/misans"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/online_bookmarks_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:orientation="vertical" />
+            </LinearLayout>
+
             <!-- 并排两大卡片 -->
             <LinearLayout
                 android:layout_width="match_parent"
@@ -178,6 +271,60 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical" />
+
+            <!-- v642：Astral 底部行——版本信息 + 创建/加入胶囊按钮 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:orientation="horizontal"
+                android:gravity="bottom">
+
+                <TextView
+                    android:id="@+id/online_version_info"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:fontFamily="@font/misans"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/online_create_pill"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="52dp"
+                    android:layout_height="52dp"
+                    android:layout_marginStart="10dp"
+                    android:backgroundTint="@color/primary"
+                    app:cornerRadius="26dp"
+                    app:icon="@drawable/ic_online_create"
+                    app:iconGravity="textStart"
+                    app:iconPadding="0dp"
+                    app:iconSize="24dp"
+                    app:iconTint="@color/on_primary"
+                    android:contentDescription="@string/online_create_coming"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="0dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/online_join_pill"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="52dp"
+                    android:layout_height="52dp"
+                    android:layout_marginStart="10dp"
+                    android:backgroundTint="@color/primary"
+                    app:cornerRadius="26dp"
+                    app:icon="@drawable/ic_online_join"
+                    app:iconGravity="textStart"
+                    app:iconPadding="0dp"
+                    app:iconSize="24dp"
+                    app:iconTint="@color/on_primary"
+                    android:contentDescription="@string/online_join_section"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="0dp" />
+            </LinearLayout>
 
         </LinearLayout>
 

@@ -1152,6 +1152,8 @@ Virtual IP: %1$s
     <string name="online_vpn_notif_text">Maintaining the online network connection</string>
     <string name="online_create_coming">Create Room</string>
     <string name="online_join_desc">Enter an invite code from a friend</string>
+    <string name="online_scenery_sub">Create or join a room to play together anywhere</string>
+    <string name="online_bookmarks">Bookmarks</string>
     <string name="online_recent_title">Recent Rooms</string>
     <string name="online_create_guide">Create a LAN world in the game first, then generate the code</string>
     <string name="online_qr">QR</string>
@@ -1198,6 +1200,10 @@ Virtual IP: %1$s
     <string name="online_recent_delete">Delete this entry</string>
     <string name="online_relay_online">Relay online</string>
     <string name="online_relay_offline">Relay offline (cross-network play unavailable)</string>
+    <string name="online_greet_night">Good night, %1$s</string>
+    <string name="online_greet_morning">Good morning, %1$s</string>
+    <string name="online_greet_noon">Good afternoon, %1$s</string>
+    <string name="online_greet_evening">Good evening, %1$s</string>
     <string name="online_state_idle">Not connected</string>
     <string name="online_state_connected_fmt">Connected · Virtual IP %1$s</string>
     <string name="online_share_text">【LeviLaunchroid Invite】

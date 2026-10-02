@@ -1144,6 +1144,8 @@
     <string name="online_vpn_notif_text">正在维持联机网络连接</string>
     <string name="online_create_coming">创建房间</string>
     <string name="online_join_desc">输入好友分享的邀请码</string>
+    <string name="online_scenery_sub">创建或加入房间，随时随地一起玩</string>
+    <string name="online_bookmarks">我的收藏</string>
     <string name="online_recent_title">最近房间</string>
     <string name="online_create_guide">请先在游戏内创建一个局域网世界，然后生成邀请码</string>
     <string name="online_qr">二维码</string>
@@ -1190,6 +1192,10 @@
     <string name="online_recent_delete">删除此记录</string>
     <string name="online_relay_online">中转在线</string>
     <string name="online_relay_offline">中转离线（异地联机不可用）</string>
+    <string name="online_greet_night">夜深了，%1$s</string>
+    <string name="online_greet_morning">早上好，%1$s</string>
+    <string name="online_greet_noon">下午好，%1$s</string>
+    <string name="online_greet_evening">晚上好，%1$s</string>
     <string name="online_state_idle">未连接</string>
     <string name="online_state_connected_fmt">已连接 · 虚拟 IP %1$s</string>
     <string name="online_share_text">【LeviLaunchroid 联机邀请】

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v642：Astral 风景卡底部山形轮廓（叠在渐变背景上） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="360dp"
+    android:height="80dp"
+    android:viewportWidth="360"
+    android:viewportHeight="80">
+    <path
+        android:fillColor="#55000000"
+        android:pathData="M0,80 L0,52 L40,38 L82,48 L118,30 L150,44 L196,22 L234,42 L270,28 L310,44 L360,30 L360,80 Z" />
+    <path
+        android:fillColor="#33000000"
+        android:pathData="M0,80 L0,64 L52,52 L96,62 L150,48 L200,60 L252,50 L300,62 L360,52 L360,80 Z" />
+</vector>

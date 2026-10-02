@@ -215,6 +215,33 @@ public final class OnlineActivity extends BaseActivity
 
         findViewById(R.id.online_create_card).setOnClickListener(v -> onCreateRoomClicked());
         findViewById(R.id.online_join_card).setOnClickListener(v -> showJoinDialog());
+
+        // v642：Astral 风格首页（风景卡问候 + 收藏预览 + 底部胶囊）
+        TextView greeting = findViewById(R.id.online_scenery_greeting);
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        int hour = cal.get(java.util.Calendar.HOUR_OF_DAY);
+        int greetRes;
+        if (hour < 6) {
+            greetRes = R.string.online_greet_night;
+        } else if (hour < 12) {
+            greetRes = R.string.online_greet_morning;
+        } else if (hour < 18) {
+            greetRes = R.string.online_greet_noon;
+        } else {
+            greetRes = R.string.online_greet_evening;
+        }
+        greeting.setText(getString(greetRes, PlayerIdentity.getNickname(this)));
+        TextView verInfo = findViewById(R.id.online_version_info);
+        try {
+            android.content.pm.PackageInfo pi = getPackageManager()
+                    .getPackageInfo(getPackageName(), 0);
+            verInfo.setText("LeviLaunchroid v" + (pi != null ? pi.versionName : "?"));
+        } catch (Exception e) {
+            verInfo.setText("LeviLaunchroid");
+        }
+        findViewById(R.id.online_create_pill).setOnClickListener(v -> onCreateRoomClicked());
+        findViewById(R.id.online_join_pill).setOnClickListener(v -> showJoinDialog());
+        refreshBookmarks();
         findViewById(R.id.online_disconnect_button).setOnClickListener(v -> onLeaveClicked());
         findViewById(R.id.online_leave_button).setOnClickListener(v -> onLeaveClicked());
         findViewById(R.id.online_copy_button).setOnClickListener(v -> copyCurrentCode());
@@ -392,6 +419,7 @@ public final class OnlineActivity extends BaseActivity
         homeView.setVisibility(View.VISIBLE);
         createView.setVisibility(View.GONE);
         roomView.setVisibility(View.GONE);
+        refreshBookmarks(); // v642：回首页刷新收藏预览
     }
 
     private void showCreate() {
@@ -548,6 +576,67 @@ public final class OnlineActivity extends BaseActivity
 
     private static String firstChar(String s) {
         return s == null || s.isEmpty() ? "?" : s.substring(0, 1);
+    }
+
+    /** v642：刷新收藏预览卡（Astral 风格：前 3 个收藏 + 一键加入）。 */
+    private void refreshBookmarks() {
+        LinearLayout card = findViewById(R.id.online_bookmarks_card);
+        LinearLayout list = findViewById(R.id.online_bookmarks_list);
+        TextView count = findViewById(R.id.online_bookmarks_count);
+        if (card == null || list == null) {
+            return;
+        }
+        list.removeAllViews();
+        java.util.List<org.levimc.launcher.core.online.OnlineBookmarks.Item> items =
+                org.levimc.launcher.core.online.OnlineBookmarks.load(this);
+        if (items.isEmpty()) {
+            card.setVisibility(View.GONE);
+            return;
+        }
+        card.setVisibility(View.VISIBLE);
+        if (count != null) {
+            count.setText("（" + items.size() + "）");
+        }
+        int shown = Math.min(items.size(), 3);
+        for (int i = 0; i < shown; i++) {
+            final org.levimc.launcher.core.online.OnlineBookmarks.Item it = items.get(i);
+            TextView tv = new TextView(this);
+            tv.setPadding(0, dp(9), 0, dp(9));
+            tv.setText((it.name.isEmpty() ? "房间" : it.name)
+                    + " · P/" + it.code);
+            tv.setTextColor(getResources().getColor(R.color.on_surface, getTheme()));
+            tv.setTextSize(13);
+            tv.setTypeface(getResources().getFont(R.font.misans));
+            tv.setCompoundDrawablesWithIntrinsicBounds(0, 0, 0, 0);
+            tv.setOnClickListener(v -> {
+                // 一键加入收藏房间
+                InviteCode.Result r = InviteCode.parse(
+                        InviteCode.formatInput(it.code));
+                if (!r.ok()) {
+                    Toast.makeText(this, R.string.online_err_format, Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                org.levimc.launcher.util.OnlineDebugLog.log(
+                        "从收藏加入房间: " + it.code);
+                showRoomJoinFlow(r.parsed);
+            });
+            list.addView(tv);
+        }
+    }
+
+    /** v642：收藏房间加入流程（与输入码加入共用后续逻辑）。 */
+    private void showRoomJoinFlow(InviteCode.Parsed parsed) {
+        currentCode = rawToCode(parsed);
+        isHost = false;
+        Intent vpnIntent = VpnService.prepare(this);
+        if (vpnIntent != null) {
+            pendingParsed.clear();
+            pendingParsed.add(parsed);
+            Toast.makeText(this, "请允许 VPN 连接以完成联机", Toast.LENGTH_SHORT).show();
+            startActivityForResult(vpnIntent, REQ_VPN);
+        } else {
+            doJoinFromDialog(parsed);
+        }
     }
 
     /** 邀请码二维码弹窗（v505）。 */
