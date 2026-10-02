@@ -446,7 +446,7 @@ public final class OnlineActivity extends BaseActivity
             TextView roomName = findViewById(R.id.online_room_name);
             if (roomName != null) {
                 String nick = PlayerIdentity.getNickname(this);
-                roomName.setText((isHost ? nick : (hostPlayer != null ? hostPlayer.nick : nick))
+                roomName.setText((isHost ? nick : (hostPlayer != null ? hostPlayer.name : nick))
                         + getString(R.string.online_room_name_suffix));
             }
             TextView vip = findViewById(R.id.online_room_vip);
@@ -695,7 +695,7 @@ public final class OnlineActivity extends BaseActivity
             Toast.makeText(this, "已取消收藏", Toast.LENGTH_SHORT).show();
         } else {
             org.levimc.launcher.core.online.OnlineBookmarks.add(this, currentCode,
-                    (hostPlayer != null ? hostPlayer.nick : PlayerIdentity.getNickname(this))
+                    (hostPlayer != null ? hostPlayer.name : PlayerIdentity.getNickname(this))
                             + getString(R.string.online_room_name_suffix),
                     getString(R.string.online_game_name));
             Toast.makeText(this, "已收藏房间", Toast.LENGTH_SHORT).show();
