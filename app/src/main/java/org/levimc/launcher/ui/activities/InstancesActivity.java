@@ -143,8 +143,10 @@ public class InstancesActivity extends BaseActivity {
         int spacing = (int) (10 * getResources().getDisplayMetrics().density);
         recyclerView.addItemDecoration(new GridSpacingDecoration(spanCount, spacing));
 
-        // v653：右侧滑条可拖动定位——XML 已开 fastScrollEnabled
-        //（recyclerview 1.2.1 无公开 setter，attr + 自定义 thumb/轨道）
+        // v681：fastScroll 从 XML 移除（vivo Android 16 上 selector inflate 为 null
+        // 导致 RecyclerView 构造崩溃）。改反射调用 1.2.1 的 4 参 initFastScroller，
+        // 任一环节失败静默降级为系统滚动条，不再崩溃。
+        enableFastScroll(recyclerView);
 
         loadVersions();
 
@@ -1039,6 +1041,33 @@ public class InstancesActivity extends BaseActivity {
                 displayName = v.findViewById(R.id.card_display_name);
                 settingsIcon = v.findViewById(R.id.card_settings_icon);
             }
+        }
+    }
+
+    /**
+     * v681：fastScroll 由 XML 改为反射启用。
+     * vivo Android 16 上 XML 的 selector inflate 为 null 导致 RecyclerView 构造崩溃；
+     * 反射走 1.2.1 的 4 参 initFastScroller，失败静默降级为系统滚动条。
+     */
+    private void enableFastScroll(RecyclerView rv) {
+        try {
+            java.lang.reflect.Field enabled = RecyclerView.class.getDeclaredField("mEnableFastScroller");
+            enabled.setAccessible(true);
+            enabled.setBoolean(rv, true);
+            java.lang.reflect.Method init = RecyclerView.class.getDeclaredMethod("initFastScroller",
+                    android.graphics.drawable.StateListDrawable.class,
+                    android.graphics.drawable.Drawable.class,
+                    android.graphics.drawable.StateListDrawable.class,
+                    android.graphics.drawable.Drawable.class);
+            init.setAccessible(true);
+            android.graphics.drawable.StateListDrawable thumb =
+                    (android.graphics.drawable.StateListDrawable) ContextCompat.getDrawable(this, R.drawable.bg_fastscroll_thumb);
+            android.graphics.drawable.Drawable track =
+                    ContextCompat.getDrawable(this, R.drawable.bg_fastscroll_track);
+            if (thumb == null || track == null) return; // 降级：系统滚动条
+            init.invoke(rv, thumb, track, thumb, track);
+        } catch (Throwable t) {
+            // 任一环节失败：降级为系统滚动条，不崩溃
         }
     }
 }
