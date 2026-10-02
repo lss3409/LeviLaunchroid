@@ -44,6 +44,15 @@
             android:textColor="@color/on_surface"
             android:textSize="16sp" />
 
+        <!-- v708：当前账号 Bedrock 皮肤（Geyser API 按 XUID 拉取渲染图） -->
+        <ImageView
+            android:id="@+id/header_skin"
+            android:layout_width="38dp"
+            android:layout_height="68dp"
+            android:layout_marginStart="8dp"
+            android:scaleType="fitCenter"
+            android:contentDescription="@string/label_current_account" />
+
         <TextView
             android:id="@+id/manage_action"
             android:layout_width="wrap_content"

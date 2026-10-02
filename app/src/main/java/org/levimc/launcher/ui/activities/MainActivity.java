@@ -360,6 +360,7 @@ import okhttp3.OkHttpClient;
         com.microsoft.xbox.idp.toolkit.CircleImageView headerAvatar = content.findViewById(R.id.header_avatar);
         View headerContainer = content.findViewById(R.id.header_container);
         TextView headerName = content.findViewById(R.id.header_name);
+        ImageView headerSkin = content.findViewById(R.id.header_skin);
 
         TypedValue outValue = new TypedValue();
         getTheme().resolveAttribute(android.R.attr.selectableItemBackground, outValue, true);
@@ -371,6 +372,20 @@ import okhttp3.OkHttpClient;
 
         MsftAccountStore.MsftAccount active = getActiveAccount();
         headerName.setText(AccountTextUtils.displayNameOrNotSigned(this, active));
+        // v708：当前账号 Bedrock 皮肤（Geyser API 按 XUID 拉取；无 XUID 隐藏）
+        if (headerSkin != null) {
+            if (active != null && !TextUtils.isEmpty(active.xuid)) {
+                headerSkin.setVisibility(View.VISIBLE);
+                try {
+                    com.bumptech.glide.Glide.with(this)
+                            .load("https://api.geysermc.org/v2/skin/" + active.xuid)
+                            .into(headerSkin);
+                } catch (Exception ignored) {
+                }
+            } else {
+                headerSkin.setVisibility(View.GONE);
+            }
+        }
         if (accountAvatar != null && accountAvatar.getDrawable() != null) {
             headerAvatar.setImageDrawable(accountAvatar.getDrawable());
         } else if (active != null) {

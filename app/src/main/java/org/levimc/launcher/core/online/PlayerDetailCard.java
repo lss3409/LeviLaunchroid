@@ -92,13 +92,23 @@ public final class PlayerDetailCard {
         dLp.topMargin = (int) (12 * d);
         v.addView(detail, dLp);
 
-        // 皮肤预览（mc-heads.net 按昵称渲染；未设置皮肤显示默认 Steve/Alex）
+        // 皮肤预览（v708：Geyser 公共 API 按 XUID 拉 Bedrock 皮肤渲染图——
+        // 此前 mc-heads.net 是 Java 版服务，按 Bedrock 昵称查不到任何皮肤；
+        // 无 XUID 或加载失败回退 mc-heads 默认 Steve）
         ImageView skin = new ImageView(activity);
         skin.setAdjustViewBounds(true);
         try {
-            String skinUrl = "https://mc-heads.net/body/"
-                    + java.net.URLEncoder.encode(name, "UTF-8") + ".png";
-            com.bumptech.glide.Glide.with(activity).load(skinUrl).into(skin);
+            String skinUrl;
+            if (xuid != null && !xuid.isEmpty()) {
+                skinUrl = "https://api.geysermc.org/v2/skin/" + xuid;
+            } else {
+                skinUrl = "https://mc-heads.net/body/"
+                        + java.net.URLEncoder.encode(name, "UTF-8") + ".png";
+            }
+            com.bumptech.glide.Glide.with(activity).load(skinUrl)
+                    .error(com.bumptech.glide.Glide.with(activity)
+                            .load("https://mc-heads.net/body/Steve.png"))
+                    .into(skin);
         } catch (Exception ignored) {
         }
         LinearLayout.LayoutParams sLp = new LinearLayout.LayoutParams(
