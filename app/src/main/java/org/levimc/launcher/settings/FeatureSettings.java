@@ -9,8 +9,8 @@ public class FeatureSettings {
     private boolean launcherManagedMcLoginEnabled = true;
     private boolean msLoginEnabled = false;
     private boolean logcatOverlayEnabled = false;
-    /** v587：前台服务默认值回退官方（false，设置页开关可开）。 */
-    private boolean foregroundServiceEnabled = false;
+    /** v704：前台服务默认开启（用户实测 v490 不杀后台，联机掉线根因）；设置页开关可关。 */
+    private boolean foregroundServiceEnabled = true;
     private Boolean crashUploadEnabled = true;
 
     public enum StorageType {

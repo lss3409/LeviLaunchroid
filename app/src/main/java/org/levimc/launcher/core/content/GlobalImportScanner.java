@@ -195,6 +195,29 @@ public final class GlobalImportScanner {
         }
     }
 
+    /** v705：常见资源目录优先级（浅层资源尽快显示，避免 DFS 深潜
+     *  无资源大目录导致首个结果迟迟不出现）。 */
+    private static int dirPriority(String lowerName) {
+        switch (lowerName) {
+            case "download":
+                return 0;
+            case "documents":
+                return 1;
+            case "levilauncher":
+                return 2;
+            case "mcworld":
+            case "mcpack":
+            case "resource_packs":
+            case "behavior_packs":
+                return 3;
+            case "dcim":
+            case "pictures":
+                return 4;
+            default:
+                return 5;
+        }
+    }
+
     private static void scanDir(File dir, int depth, List<Candidate> out,
                                 Set<String> seen) {
         if (depth <= 0 || dir == null || !dir.isDirectory()) {
@@ -216,6 +239,10 @@ public final class GlobalImportScanner {
         if (files == null || files.length == 0) {
             return;
         }
+        // v705：本层文件先扫（资源文件常在浅层，首个候选尽快回调 UI），
+        // 子目录按常见资源目录优先级排序后递归——此前纯 DFS 按
+        // listFiles 顺序深潜无资源大目录，首个结果要等很久
+        java.util.List<File> subDirs = new java.util.ArrayList<>();
         for (File f : files) {
             if (out.size() > 1500) {
                 return; // 上限保护
@@ -223,13 +250,7 @@ public final class GlobalImportScanner {
             String name = f.getName().toLowerCase(Locale.US);
             try {
                 if (f.isDirectory()) {
-                    // v609：文件夹只认完整 mcworld（五件套齐全），
-                    // 不再识别解压的资源包文件夹
-                    Candidate c = checkWorldFolder(f);
-                    if (c != null && seen.add(c.path)) {
-                        addFound(out, c);
-                    }
-                    scanDir(f, depth - 1, out, seen);
+                    subDirs.add(f);
                 } else if (f.isFile()) {
                     // v609：跳过自己的备份/包格式；只认 mc 系列后缀，
                     // 不再扫通用 .zip
@@ -261,6 +282,26 @@ public final class GlobalImportScanner {
                     }
                 }
             } catch (Throwable ignored) {
+            }
+        }
+        // v705：本层文件扫完后，子目录按常见资源目录优先级排序递归
+        if (!subDirs.isEmpty()) {
+            subDirs.sort((a, b) -> dirPriority(a.getName().toLowerCase(Locale.US))
+                    - dirPriority(b.getName().toLowerCase(Locale.US)));
+            for (File d : subDirs) {
+                if (out.size() > 1500) {
+                    return;
+                }
+                try {
+                    // v609：文件夹只认完整 mcworld（五件套齐全），
+                    // 不再识别解压的资源包文件夹
+                    Candidate c = checkWorldFolder(d);
+                    if (c != null && seen.add(c.path)) {
+                        addFound(out, c);
+                    }
+                    scanDir(d, depth - 1, out, seen);
+                } catch (Throwable ignored) {
+                }
             }
         }
     }

@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 根 ScrollView：UI 缩放放大后内容变高时整页可滚动，避免卡片按钮被挤出屏幕点不到 -->
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- v705：照官方原版——根 match_parent + 卡片区 weight 弹性填满剩余，
+     手机/平板比例由 weight 天然适配（官方同款，替换 v261 ScrollView
+     与 v456 响应式固定高度方案） -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background"
-    android:fillViewport="true"
-    android:overScrollMode="never"
-    android:scrollbars="none">
+    android:orientation="vertical"
+    android:background="@color/background">
 
     <LinearLayout
         android:id="@+id/root_layout"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:orientation="vertical"
         android:paddingStart="15dp"
         android:paddingEnd="15dp"
@@ -179,7 +179,8 @@
         <LinearLayout
             android:id="@+id/cards_row"
             android:layout_width="match_parent"
-            android:layout_height="300dp"
+            android:layout_height="0dp"
+            android:layout_weight="1"
             android:layout_marginTop="12dp"
             android:orientation="horizontal">
 
@@ -606,4 +607,4 @@
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>
-</ScrollView>
+</LinearLayout>

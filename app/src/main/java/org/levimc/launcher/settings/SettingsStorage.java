@@ -24,7 +24,17 @@ public class SettingsStorage {
             return new FeatureSettings();
         }
         try {
-            return gson.fromJson(json, FeatureSettings.class);
+            FeatureSettings loaded = gson.fromJson(json, FeatureSettings.class);
+            // v704：前台服务默认值一次性迁移——v587 时代默认 false 的旧存档
+            // （Gson 缺字段时为 false，不跑字段初始化器）强制改为开启。
+            // 用户实测 v490 前台服务不杀后台（联机掉线根因之一）。
+            // 迁移后用户可在设置页自行关闭（开关仍生效）。
+            if (!sp.getBoolean("fg_default_migrated", false)) {
+                loaded.setForegroundServiceEnabled(true);
+                save(context, loaded);
+                sp.edit().putBoolean("fg_default_migrated", true).apply();
+            }
+            return loaded;
         } catch (JsonSyntaxException e) {
             return new FeatureSettings();
         }

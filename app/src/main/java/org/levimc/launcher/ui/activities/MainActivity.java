@@ -142,7 +142,7 @@ import okhttp3.OkHttpClient;
         setupNavBar();
         setupManagersAndHandlers();
         setupOnBackPressedCallback();
-        applyResponsiveCardsLayout();
+        // v705：卡片区布局照官方原版（XML weight 弹性），运行时调整已删
 
         accountLoginLauncher = registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(), result -> {
             if (result.getResultCode() == RESULT_OK && result.getData() != null
@@ -283,71 +283,9 @@ import okhttp3.OkHttpClient;
          getOnBackPressedDispatcher().addCallback(this, onBackPressedCallback);
      }
 
-    /** v456：三卡响应式——照官方 LeviLaunchroid：三卡区高度填满
-     *  剩余空间（weight=1 同款效果，不固定 dp）；窄屏（手机）
-     *  纵向堆叠、三卡均分剩余高度（一屏内看全不滚动，内容多
-     *  卡片内部滚动）；宽屏（平板）横向三栏填剩余。 */
-    private void applyResponsiveCardsLayout() {
-        try {
-            android.view.View row = findViewById(org.levimc.launcher.R.id.cards_row);
-            android.view.View modCard = findViewById(org.levimc.launcher.R.id.mod_card);
-            android.view.View contentCard = findViewById(org.levimc.launcher.R.id.content_mgmt_card);
-            android.view.View miscCard = findViewById(org.levimc.launcher.R.id.misc_card);
-            android.view.View mainCard = findViewById(org.levimc.launcher.R.id.main_card);
-            if (row == null || modCard == null || contentCard == null || miscCard == null) {
-                return;
-            }
-            boolean narrow = getResources().getConfiguration().screenWidthDp < 600;
-            if (!(row instanceof android.widget.LinearLayout)) {
-                return;
-            }
-            final android.widget.LinearLayout rowLl = (android.widget.LinearLayout) row;
-            final float d = getResources().getDisplayMetrics().density;
-            final android.view.View fMod = modCard;
-            final android.view.View fContent = contentCard;
-            final android.view.View fMisc = miscCard;
-            // layout 完成后测量剩余空间（主卡高度已知）
-            row.post(() -> {
-                try {
-                    int screenH = getResources().getDisplayMetrics().heightPixels;
-                    int mainH = mainCard != null && mainCard.getHeight() > 0
-                            ? mainCard.getHeight() : (int) (150 * d);
-                    int available = screenH - mainH - (int) (130 * d);
-                    if (available < (int) (300 * d)) {
-                        available = (int) (300 * d);
-                    }
-                    android.view.ViewGroup.LayoutParams rlp = rowLl.getLayoutParams();
-                    if (narrow) {
-                        // 手机：纵向堆叠，三卡均分剩余（一屏内）
-                        rowLl.setOrientation(android.widget.LinearLayout.VERTICAL);
-                        rlp.height = android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
-                        rowLl.setLayoutParams(rlp);
-                        int each = Math.max((int) (110 * d),
-                                (available - (int) (20 * d)) / 3);
-                        android.view.View[] cards = {fMod, fContent, fMisc};
-                        for (int i = 0; i < cards.length; i++) {
-                            android.view.View c = cards[i];
-                            android.widget.LinearLayout.LayoutParams clp =
-                                    (android.widget.LinearLayout.LayoutParams) c.getLayoutParams();
-                            clp.width = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
-                            clp.height = each;
-                            clp.weight = 0f;
-                            clp.setMargins(0, i == 0 ? 0 : (int) (10 * d), 0, 0);
-                            c.setLayoutParams(clp);
-                        }
-                    } else {
-                        // 平板：横向三栏填剩余空间（官方 weight 同款）
-                        rlp.height = available;
-                        rowLl.setLayoutParams(rlp);
-                    }
-                } catch (Throwable t) {
-                    android.util.Log.w("MainActivity", "响应式卡片布局失败", t);
-                }
-            });
-        } catch (Throwable t) {
-            android.util.Log.w("MainActivity", "响应式卡片布局失败", t);
-        }
-    }
+    /** v705：卡片区布局照官方原版——cards_row 在 XML 里 0dp+weight=1
+     *  天然填满剩余空间（手机/平板比例由 weight 适配），不再需要
+     *  v456 的运行时响应式调整。 */
 
     private void refreshAccountHeaderUI() {
         // 登录入口一直显示（不再受设置开关控制）
