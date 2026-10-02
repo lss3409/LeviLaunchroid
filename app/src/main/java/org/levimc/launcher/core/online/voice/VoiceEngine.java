@@ -632,7 +632,10 @@ public final class VoiceEngine implements RoomCenter.Listener {
             }
             return new AudioTrack.Builder()
                     .setAudioAttributes(new AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                            // v696：通话路由会切听筒+压媒体音量（用户反馈
+                            // "VPN 影响手机声音大小"根因）——改媒体流走
+                            // 扬声器，AEC 已有回声消除兜底
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
                             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                             .build())
                     .setAudioFormat(new AudioFormat.Builder()
