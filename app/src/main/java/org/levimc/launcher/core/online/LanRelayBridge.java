@@ -376,9 +376,23 @@ public final class LanRelayBridge {
         try {
             if (fromPeer) {
                 if (head == 0x01) {
-                    // 对端 ping/公告 → 本机 19132（房主：服务器应答 ping）
-                    proxy.send(new DatagramPacket(data, data.length,
-                            InetAddress.getByName("127.0.0.1"), ANN_PORT));
+                    // v684：成员客户端 ping（条目地址=房主虚拟 IP，ping 走隧道
+                    // 到此）。旧逻辑转 127.0.0.1:19132 是本 socket 自己——
+                    // 黑洞，无人回 pong，客户端 ~1s 超时移除条目（"条目闪退"根因）。
+                    // 修复：① 转发真实世界端口（服务器真 pong 回隧道）；
+                    // ② 立即回合成 pong 兜底（真 pong 慢，防客户端超时）。
+                    if (worldPort > 0) {
+                        proxy.send(new DatagramPacket(data, data.length,
+                                InetAddress.getByName("127.0.0.1"), worldPort));
+                    }
+                    byte[] pong = buildPongReply(data);
+                    if (pong != null) {
+                        proxy.send(new DatagramPacket(pong, pong.length,
+                                p.getAddress(), p.getPort()));
+                        org.levimc.launcher.util.OnlineDebugLog.log(
+                                "异地桥(服务器): 回合成 pong → " + p.getAddress()
+                                        + ":" + p.getPort());
+                    }
                 } else if (serverSide) {
                     // 客户端连接流量 → 本机服务器世界端口
                     int fwdPort = worldPort > 0 ? worldPort : ANN_PORT;
