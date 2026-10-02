@@ -261,47 +261,26 @@ public class CustomAlertDialog extends Dialog {
         if (window != null) {
             window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
             float density = getContext().getResources().getDisplayMetrics().density;
-            WindowManager.LayoutParams lp = window.getAttributes();
-            boolean phone = org.levimc.launcher.util.DialogSizer.isPhone(getContext());
-            int dialogWidth;
-            if (phone) {
-                // v0.0.15：手机弹窗宽度自适应——WRAP 包住内容（最小 280dp），
-                // 展示后测量，超过封顶值（75% 屏宽）则钉死（内容内部换行/滚动）
-                dialogWidth = WindowManager.LayoutParams.WRAP_CONTENT;
-            } else {
-                // v552：统一弹窗尺寸规范（DialogSizer：平板比例为主）
-                dialogWidth = org.levimc.launcher.util.DialogSizer.dialogWidth(
-                        getContext(), mMaxWidthDp);
-            }
+            // v552：统一弹窗尺寸规范（DialogSizer：平板比例为主，手机自动
+            // 缩小 0.85，个性化 ui_scale 已通过 densityDpi 联动）
+            int dialogWidth = org.levimc.launcher.util.DialogSizer.dialogWidth(
+                    getContext(), mMaxWidthDp);
             // v550：主题的 windowMinWidthMajor（Alert 主题默认 ~65% 屏幕）会在
             // 某些设备上覆盖 setLayout 的宽度——显式写 attributes 强制生效
+            WindowManager.LayoutParams lp = window.getAttributes();
             lp.width = dialogWidth;
             lp.height = WindowManager.LayoutParams.WRAP_CONTENT;
             window.setAttributes(lp);
             window.setLayout(dialogWidth, WindowManager.LayoutParams.WRAP_CONTENT);
+            // v556：横屏手机屏高很小（如 vivo 横屏仅 360dp），xml 的 500dp
+            // maxHeight 仍会超屏——测量后若超过屏高 78% 就把窗口高度钉死，
+            // 内部 ScrollView 压缩滚动，按钮永远在屏内
             View root = findViewById(R.id.dialog_root);
             if (root != null) {
-                if (phone) {
-                    root.setMinimumWidth(org.levimc.launcher.util.DialogSizer
-                            .dialogMinWidthPx(getContext()));
-                }
                 root.post(() -> {
                     if (!isShowing()) {
                         return;
                     }
-                    WindowManager.LayoutParams wlp = window.getAttributes();
-                    // v0.0.15：手机宽度封顶——内容超出则钉死到 75% 屏宽
-                    if (phone) {
-                        int maxW = org.levimc.launcher.util.DialogSizer
-                                .dialogMaxWidthPx(getContext());
-                        if (root.getWidth() > maxW) {
-                            wlp.width = maxW;
-                            window.setAttributes(wlp);
-                        }
-                    }
-                    // v556：横屏手机屏高很小（如 vivo 横屏仅 360dp），xml 的 500dp
-                    // maxHeight 仍会超屏——测量后若超过屏高 78% 就把窗口高度钉死，
-                    // 内部 ScrollView 压缩滚动，按钮永远在屏内
                     int maxH = org.levimc.launcher.util.DialogSizer.dialogMaxHeight(
                             getContext());
                     if (root.getHeight() > maxH) {
@@ -310,7 +289,7 @@ public class CustomAlertDialog extends Dialog {
                         ViewGroup.LayoutParams rlp = root.getLayoutParams();
                         rlp.height = maxH;
                         root.setLayoutParams(rlp);
-                        wlp = window.getAttributes();
+                        WindowManager.LayoutParams wlp = window.getAttributes();
                         wlp.height = maxH;
                         window.setAttributes(wlp);
                     }
