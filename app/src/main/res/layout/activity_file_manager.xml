@@ -532,18 +532,20 @@
                 android:typeface="monospace"
                 android:textSize="14sp"
                 android:lineSpacingExtra="2dp"
-                android:padding="12dp"
+                android:paddingStart="12dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
+                android:paddingEnd="28dp"
                 android:background="@color/background"
                 android:scrollbars="none"
                 android:textIsSelectable="true" />
 
-            <!-- 可拖动滚动条（v673） -->
+            <!-- 可拖动滚动条（v674：热区 24dp，视觉轨道 2dp/滑块 6dp 居中） -->
             <org.levimc.launcher.filemanager.ui.FmEditorScrollBar
                 android:id="@+id/fm_editor_scrollbar"
-                android:layout_width="12dp"
+                android:layout_width="24dp"
                 android:layout_height="match_parent"
                 android:layout_gravity="end"
-                android:layout_marginEnd="2dp"
                 android:visibility="gone" />
         </FrameLayout>
     </LinearLayout>

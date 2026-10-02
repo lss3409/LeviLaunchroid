@@ -798,7 +798,8 @@ public class FileManagerActivity extends BaseActivity {
                 editorText.setText(content);
                 applyingHighlight = false;
                 scheduleHighlight();
-                editorText.post(this::updateEditorScrollBar);
+                // v674：双重 post 确保 layout pass 完成后才计算滚动条（首次打开不显示问题）
+                editorText.post(() -> editorText.post(this::updateEditorScrollBar));
             }
         }
         editorFileWritable = ui.getWritable();
