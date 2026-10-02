@@ -20,7 +20,6 @@ package org.levimc.launcher.filemanager.config
 
 import android.content.Context
 import android.content.SharedPreferences
-import org.levimc.launcher.core.online.EasyTierManager.getAppContext
 
 private const val KEY_SHOW_HIDDEN = "show_hidden"
 private const val KEY_SORT_FIELD = "sort_field"
@@ -43,9 +42,20 @@ private const val KEY_EDITOR_SEARCH_REGEX = "editor_search_regex"
 object FmConfig {
     private const val PREFS_NAME = "zalith_file_manager"
 
+    @Volatile
+    private var appContext: Context? = null
+
+    /** 由 FileManagerViewModel 初始化时注入（不依赖联机模块的静态 context）。 */
+    fun init(context: Context) {
+        appContext = context.applicationContext
+    }
+
     // v664：MMKV 依赖替换为 SharedPreferences（离线环境无 MMKV；API 对齐）
-    private fun sp(): SharedPreferences = getAppContext()
-        .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private fun sp(): SharedPreferences {
+        val ctx = appContext
+            ?: throw IllegalStateException("FmConfig not initialized")
+        return ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
 
     /** 设置是否显示隐藏文件 */
     fun setShowHidden(value: Boolean) {

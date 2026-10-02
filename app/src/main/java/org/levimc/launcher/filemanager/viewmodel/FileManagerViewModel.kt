@@ -132,6 +132,7 @@ class FileManagerViewModel constructor(
     }
 
     private fun createCore() {
+        FmConfig.init(context)
         taskManager = TaskManager()
         scope = AccessScope(Paths.get(rootPathStr).normalize().toAbsolutePath())
         logic = FileManagerLogic(

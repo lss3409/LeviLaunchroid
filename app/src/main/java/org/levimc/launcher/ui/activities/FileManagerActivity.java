@@ -36,7 +36,7 @@ import org.levimc.launcher.filemanager.viewmodel.SearchUiState;
 import org.levimc.launcher.filemanager.viewmodel.TrashItemView;
 import org.levimc.launcher.filemanager.viewmodel.TrashListView;
 import org.levimc.launcher.filemanager.viewmodel.TrashViewState;
-import org.levimc.launcher.managers.PersonalizationManager;
+import org.levimc.launcher.util.PersonalizationManager;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -14,14 +14,15 @@ import kotlinx.coroutines.launch
 /**
  * Java Activity 收集 Kotlin Flow 的生命周期感知桥：
  * 前台（ON_START）时启动收集，后台（ON_STOP）时取消，销毁时释放。
+ * 回调用 java.util.function.Consumer，避免 Java 侧 Unit 返回值的 lambda 样板。
  */
-fun <T> collectFlow(owner: LifecycleOwner, flow: Flow<T>, onEach: (T) -> Unit) {
+fun <T> collectFlow(owner: LifecycleOwner, flow: Flow<T>, consumer: java.util.function.Consumer<T>) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     var job: Job? = null
     val observer = LifecycleEventObserver { _, event ->
         when (event) {
             Lifecycle.Event.ON_START -> {
-                if (job == null) job = scope.launch { flow.collect(onEach) }
+                if (job == null) job = scope.launch { flow.collect { consumer.accept(it) } }
             }
             Lifecycle.Event.ON_STOP -> {
                 job?.cancel()

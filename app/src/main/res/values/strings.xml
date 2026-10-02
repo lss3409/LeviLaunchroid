@@ -1857,6 +1857,7 @@ Invite code: P/%1$s
     <string name="fm_ui_clip_cut">已剪切 %1$d 项</string>
     <string name="fm_ui_paste">粘贴</string>
     <string name="fm_ui_empty_dir">此文件夹为空</string>
+    <string name="fm_ui_more">更多</string>
     <string name="fm_ui_hidden">显示隐藏文件</string>
     <string name="fm_ui_init_failed">文件管理器初始化失败</string>
     <string name="fm_ui_loading">加载中…</string>

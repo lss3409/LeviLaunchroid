@@ -96,7 +96,7 @@ public class FmDialogs {
                 .setTitleText(a.getString(isFolder ? R.string.fm_ui_new_folder : R.string.fm_ui_new_file))
                 .setCustomView(et)
                 .setPositiveButton(a.getString(R.string.fm_ui_create), v ->
-                        vm.submitCreate(et.getText().toString().trim(), isFolder, ok -> {}))
+                        vm.submitCreate(et.getText().toString().trim(), isFolder, ok -> kotlin.Unit.INSTANCE))
                 .setNegativeButton(a.getString(R.string.cancel), null)
                 ;
                 trackShow(dialog);
@@ -110,7 +110,7 @@ public class FmDialogs {
                 .setTitleText(a.getString(R.string.fm_ui_rename))
                 .setCustomView(et)
                 .setPositiveButton(a.getString(R.string.confirm), v ->
-                        vm.submitRename(entry, et.getText().toString().trim(), () -> {}))
+                        vm.submitRename(entry, et.getText().toString().trim(), () -> kotlin.Unit.INSTANCE))
                 .setNegativeButton(a.getString(R.string.cancel), null)
                 ;
                 trackShow(dialog);
@@ -131,9 +131,9 @@ public class FmDialogs {
                     vm.deleteSelected(true);
                 })
                 .setNegativeButton(a.getString(R.string.cancel), v -> vm.cancelStagedDelete())
-                .setOnDismissListener(d -> vm.cancelStagedDelete())
                 ;
-                trackShow(dialog);
+        dialog.setOnDismissListener(d -> vm.cancelStagedDelete());
+        trackShow(dialog);
     }
 
     /** 多选批量删除。 */
@@ -267,7 +267,7 @@ public class FmDialogs {
             view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             a.startActivity(Intent.createChooser(view, null));
         } catch (Exception e) {
-            a.toast(a.getString(R.string.fm_ui_open_failed));
+            android.widget.Toast.makeText(a, R.string.fm_ui_open_failed, android.widget.Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -334,7 +334,7 @@ public class FmDialogs {
                     vm.navigateToSearchHit(rows.get(which).hit);
                     vm.dismissDialog();
                 })
-                .setNegativeButton(a.getString(R.string.fm_ui_search_again), (d, w) -> vm.backToSearchSetup())
+                .setNegativeButton(a.getString(R.string.fm_ui_search_again), v -> vm.backToSearchSetup())
                 ;
                 trackShow(dialog);
     }
