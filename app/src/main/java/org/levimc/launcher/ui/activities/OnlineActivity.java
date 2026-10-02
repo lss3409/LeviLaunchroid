@@ -358,13 +358,8 @@ public final class OnlineActivity extends BaseActivity
                     peers.add(p);
                 }
             }
-            runOnUiThread(() -> {
-                // v565：成员固定虚拟 IP（dhcp=false），不再让 DHCP 从房主网段分地址
-                String memberIp = EasyTierManager.memberIpv4For(PlayerIdentity.getClientId(this));
-                org.levimc.launcher.util.OnlineDebugLog.log("成员固定虚拟IP: " + memberIp);
-                EasyTierManager.get().join(this,
-                        parsed.networkName, parsed.networkSecret, this, peers, memberIp);
-            });
+            runOnUiThread(() -> EasyTierManager.get().join(this,
+                    parsed.networkName, parsed.networkSecret, this, peers));
         }, "debug-join").start();
     }
 
@@ -649,38 +644,22 @@ public final class OnlineActivity extends BaseActivity
             return;
         }
         runOnUiThread(() -> {
-            String url = "minecraft://connect?serverUrl=" + hostIp
-                    + "&serverPort=" + port;
-            org.levimc.launcher.util.OnlineDebugLog.log(
-                    "onInvite: 收到房主邀请(端口" + port + ")，深链 " + url);
-            // v633：深链直连统一走公共入口（游戏运行中先结束，退出后补发）
-            launchDeepLink(url, "房主邀请进入世界，正在连接…");
-        });
-    }
-
-    /** v633：深链直连公共入口——游戏运行中 1.26 不处理深链：
-     *  记忆深链后先结束会话，退出回启动器由 MainActivity 补发。 */
-    private void launchDeepLink(String url, String toast) {
-        try {
-            if (org.levimc.launcher.core.minecraft.MinecraftActivityState.isRunning()) {
+            try {
+                String url = "minecraft://connect?serverUrl=" + hostIp
+                        + "&serverPort=" + port;
+                // v693：记忆深链——游戏退出流程重启进程后由 MainActivity 补发
                 savePendingDeepLink(this, url);
-                android.app.Activity game = org.levimc.launcher.core.minecraft
-                        .MinecraftActivityState.getCurrentActivity();
-                if (game != null && !game.isFinishing()) {
-                    game.finish();
-                }
-                Toast.makeText(this, "正在重启游戏连接…", Toast.LENGTH_SHORT).show();
-                return;
+                Intent intent = new Intent(this,
+                        org.levimc.launcher.ui.activities.IntentHandler.class);
+                intent.setAction(Intent.ACTION_VIEW);
+                intent.setData(Uri.parse(url));
+                startActivity(intent);
+                Toast.makeText(this, "房主邀请进入世界，正在连接…",
+                        Toast.LENGTH_SHORT).show();
+            } catch (Exception e) {
+                Toast.makeText(this, "邀请连接失败", Toast.LENGTH_SHORT).show();
             }
-            Intent intent = new Intent(this,
-                    org.levimc.launcher.ui.activities.IntentHandler.class);
-            intent.setAction(Intent.ACTION_VIEW);
-            intent.setData(Uri.parse(url));
-            startActivity(intent);
-            Toast.makeText(this, toast, Toast.LENGTH_SHORT).show();
-        } catch (Exception e) {
-            Toast.makeText(this, "连接失败", Toast.LENGTH_SHORT).show();
-        }
+        });
     }
 
     /** 玩家列表心跳回调（工作线程）。 */
@@ -1090,11 +1069,8 @@ public final class OnlineActivity extends BaseActivity
                     return;
                 }
                 setStepState(2, true);
-                // v565：成员固定虚拟 IP（dhcp=false），不再让 DHCP 从房主网段分地址
-                String memberIp = EasyTierManager.memberIpv4For(PlayerIdentity.getClientId(this));
-                org.levimc.launcher.util.OnlineDebugLog.log("成员固定虚拟IP: " + memberIp);
                 EasyTierManager.get().join(this, parsed.networkName, parsed.networkSecret,
-                        this, peers, memberIp);
+                        this, peers);
             });
         }, "lan-discover").start();
     }
@@ -1430,9 +1406,8 @@ public final class OnlineActivity extends BaseActivity
                     findViewById(R.id.online_qr_button),
                     findViewById(R.id.online_room_copy_button),
                     findViewById(R.id.online_room_share_button));
-            // v572：返回首页按钮用启动器主按钮背景（accent 实底白字，
-            // 与个性化联动）——v571 的半透明灰底方案用户不满意
-            org.levimc.launcher.util.AccentStyler.stylePrimary(this,
+            // v548：返回首页按钮文字染强调色（个性化兼容，灰底保留）
+            org.levimc.launcher.util.AccentStyler.styleSecondary(this,
                     findViewById(R.id.online_back_home_button));
         } catch (Throwable ignored) {
         }
@@ -1665,18 +1640,9 @@ public final class OnlineActivity extends BaseActivity
                     // 玩家列表出现自己的房主 ID
                     RoomCenter.stopHost();
                     LanBridge.stopHost();
-                    // v561：房主虚拟 IP 从 EasyTier 路由表解析（异地中继下
-                    // DHCP 分配的真实地址），解析不到才回退固定 IP——
-                    // 写死 10.144.144.144 是异地联机"只显示 1 人"的根因
-                    String hostIp = EasyTierManager.get().getHostVirtualIp();
-                    if (hostIp == null || hostIp.isEmpty()) {
-                        hostIp = HOST_IPV4;
-                    }
-                    android.util.Log.i("OnlineActivity", "连接房主: " + hostIp);
-                    org.levimc.launcher.util.OnlineDebugLog.log("成员连接房主: " + hostIp
-                            + "（路由表解析=" + EasyTierManager.get().getHostVirtualIp()
-                            + "）本机虚拟IP=" + EasyTierManager.get().getVirtualIp());
-                    RoomCenter.startClient(hostIp, nick, cid, this::onRoomPlayers);
+                    // v702 回退：房主 IP 恢复固定 HOST_IPV4（v561 路由表
+                    // 解析方案实测影响局域网入口显示）
+                    RoomCenter.startClient(HOST_IPV4, nick, cid, this::onRoomPlayers);
                     // v561：加入握手确认——20 秒内收不到房主玩家列表
                     // 即判定房间已解散（此前"房主不在也能加入成功"）；
                     // v571：8 秒无房主 peer 快速失败（房主已解散时

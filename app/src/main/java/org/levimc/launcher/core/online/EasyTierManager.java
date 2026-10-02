@@ -154,24 +154,10 @@ public final class EasyTierManager {
         return virtualIp;
     }
 
-    /** v561：房主虚拟 IP（路由表解析结果，成员端用；未解析到返回 null）。 */
+    /** v561：房主虚拟 IP（路由表解析结果；v702 回退后仅作加入快速判失败
+     *  参考——连接仍走固定 HOST_IPV4，未解析到返回 null）。 */
     public String getHostVirtualIp() {
         return hostVirtualIp;
-    }
-
-    /**
-     * v565：成员固定虚拟 IP 派生——按 clientId hash 取 10.144.X.Y/24，
-     * X 跳过 144（房主网段），保证成员与房主永远不同网段、同网段成员
-     * 间 IP 也不同（Y 亦 hash）。同设备同版本 clientId 不变，IP 稳定。
-     */
-    public static String memberIpv4For(String clientId) {
-        int h = clientId == null ? 0 : clientId.hashCode();
-        int x = 2 + Math.floorMod(h, 251);      // 2..252
-        if (x >= 144) {
-            x++;                                // 跳过房主网段 144 → 2..253 共 250 个网段
-        }
-        int y = 2 + Math.floorMod(h >>> 8, 250); // .2..251
-        return "10.144." + x + "." + y + "/24";
     }
 
     /** 当前与房主的连接模式（v505）。 */
@@ -191,13 +177,7 @@ public final class EasyTierManager {
     /** 加入网络。extraPeers 为附加的直连 peer（局域网/自建中转，如 tcp://192.168.1.2:11010）。 */
     public void join(Context ctx, String networkName, String networkSecret, Listener l,
                      java.util.List<String> extraPeers) {
-        start(ctx, networkName, networkSecret, l, extraPeers, null, false);
-    }
-
-    /** v565：加入网络（成员固定虚拟 IP，dhcp=false）。 */
-    public void join(Context ctx, String networkName, String networkSecret, Listener l,
-                     java.util.List<String> extraPeers, String memberIpv4) {
-        start(ctx, networkName, networkSecret, l, extraPeers, memberIpv4, false);
+        start(ctx, networkName, networkSecret, l, extraPeers, null);
     }
 
     /** 创建房间（房主）：固定虚拟 IP + DHCP 关闭，成员 dhcp 以本机 IP 为网段基准分配。 */
@@ -209,11 +189,11 @@ public final class EasyTierManager {
     /** 创建房间，extraPeers 合并中转服务器（房主也必须连中转，否则成员经中转找不到房主）。 */
     public void host(Context ctx, String networkName, String networkSecret, Listener l,
                      String fixedIpv4, java.util.List<String> extraPeers) {
-        start(ctx, networkName, networkSecret, l, extraPeers, fixedIpv4, true);
+        start(ctx, networkName, networkSecret, l, extraPeers, fixedIpv4);
     }
 
     private void start(Context ctx, String networkName, String networkSecret, Listener l,
-                       java.util.List<String> extraPeers, String fixedIpv4, boolean isHost) {
+                       java.util.List<String> extraPeers, String fixedIpv4) {
         synchronized (lock) {
             stopInternal();
             appContext = ctx.getApplicationContext();
@@ -229,7 +209,7 @@ public final class EasyTierManager {
                     EasyTierJNI.stopAllInstances();
                 } catch (Throwable ignored) {
                 }
-                runStart(networkName, networkSecret, extraPeers, fixedIpv4, isHost);
+                runStart(networkName, networkSecret, extraPeers, fixedIpv4);
             }, "easytier-mgr");
             worker.setDaemon(true);
             worker.start();
@@ -237,27 +217,20 @@ public final class EasyTierManager {
     }
 
     private void runStart(String networkName, String networkSecret,
-                          java.util.List<String> extraPeers, String fixedIpv4, boolean isHost) {
-        // fixedIpv4 != null = 固定虚拟 IP 模式（dhcp=false）：
-        //   isHost=true → 房主（带协议主机名，成员 RPC 匹配 paper-connect-server-* 发现房间中心）；
-        //   isHost=false → 成员固定派生 IP（v565：不再 DHCP——DHCP 会从房主
-        //   网段分地址导致内核邻居解析死路，心跳发不出去）。
-        // 单机（无对端）时 DHCP 不分配虚拟 IP，60s 后提示超时属预期。
+                          java.util.List<String> extraPeers, String fixedIpv4) {
+        // dhcp=true：IP 由网络内其他节点（房主固定 IP）决定网段后自动分配；
+        // 单机（无对端）时 EasyTier 不分配虚拟 IP，60s 后提示超时属预期。
+        // fixedIpv4 != null = 房主模式（dhcp=false + 固定虚拟 IP）。
         // 注意：EasyTier 官方公共节点已于 2026-05 全部下线（GitHub #2242，
         // 维护者确认"官方已经不提供公共节点了"）——组网必须靠直连 peer
         // （局域网自动发现/自建中转）。
-        String ipv4Line = "";
-        if (fixedIpv4 != null) {
-            // v565：CIDR 原样使用（成员固定 IP 自带 /24；房主传纯 IP 时补 /24，
-            // 纯 IP 可能被内核忽略导致 dhcp 生效、IP 随机分配——v561 教训）
-            ipv4Line = "ipv4 = \"" + (fixedIpv4.contains("/") ? fixedIpv4 : fixedIpv4 + "/24")
-                    + "\"\n";
-        }
+        // v702 回退：成员固定 IP（v565）与 KCP（v691/v692）实测影响
+        // 局域网入口显示，恢复 v560 基线行为。
         String toml = "instance_name = \"" + INSTANCE_NAME + "\"\n"
                 + "dhcp = " + (fixedIpv4 == null ? "true" : "false") + "\n"
-                + ipv4Line
+                + (fixedIpv4 != null ? "ipv4 = \"" + fixedIpv4 + "\"\n" : "")
                 // 房主节点带协议主机名，房客 RPC 匹配 paper-connect-server-* 发现房间中心
-                + (isHost
+                + (fixedIpv4 != null
                         ? "hostname = \"paper-connect-server-" + ROOM_CENTER_PORT + "\"\n" : "")
                 + "log_level = \"info\"\n"
                 // Android 内核默认不监听 11010（poll listeners 只有 ring://），
@@ -265,13 +238,7 @@ public final class EasyTierManager {
                 + "listeners = [\"tcp://0.0.0.0:11010\", \"udp://0.0.0.0:11010\"]\n"
                 + "[network_identity]\n"
                 + "network_name = \"" + networkName + "\"\n"
-                + "network_secret = \"" + networkSecret + "\"\n"
-                // v692：KCP——实测蜂窝 UDP 打洞丢包 25~50%，公告与 ping 应答
-                // 随机丢失导致局域网条目不恒久；KCP 在 UDP 隧道上做 ARQ
-                // 重传恢复丢包。CLI flag 参数必须放 [flags] 段
-                // （Config.flags: HashMap），顶层同名键被 serde 静默忽略
-                + "[flags]\n"
-                + "enable_kcp_proxy = true\n";
+                + "network_secret = \"" + networkSecret + "\"\n";
         if (extraPeers != null) {
             for (String uri : extraPeers) {
                 if (uri != null && !uri.isEmpty()) {
