@@ -463,35 +463,43 @@ public final class LanRelayBridge {
     }
 
     /**
-     * v686（持久化终版）：一律合成 pong，固定 GUID。
-     * v684 曾用 cachedPong（真世界 pong）作模板——其 GUID=房主世界真 GUID，
-     * 客户端据此把条目合并进 Xbox 好友世界（"条目变成走 xbox 路线"根因）。
-     * 结构：0x1C + time8 + GUID8（固定合成值） + magic16（回显 ping） + AD。
-     * AD 端口=19132 本机桥端口，客户端连接 WiFi/虚拟 IP:19132 → 桥 → 世界。
+     * v687（v686 撤销）：回 v683 真 GUID 逻辑——客户端连接时校验服务器 GUID，
+     * 假 GUID 导致"进不去"（v686 实测）。cachedPong 可用时以其为模板
+     * （真 GUID，连接校验通过）+ 改写 AD 端口为 19132 本机桥端口；
+     * 缺失时合成模板（固定 GUID——仅作显示兜底，cachedPong 就绪后即被替代）。
      */
     private static byte[] buildPongReply(byte[] ping) {
         try {
-            String ad = "MCPE;PaperConnect 房间;" + 776 + ";1.26.45;1;8;1145141919;"
-                    + "PaperConnect 联机;1;1;" + ANN_PORT + ";" + ANN_PORT + ";";
-            byte[] adBytes = ad.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            byte[] base = new byte[33 + adBytes.length];
-            base[0] = 0x1C;
-            long tm = System.currentTimeMillis();
-            for (int i = 0; i < 8; i++) {
-                base[1 + i] = (byte) (tm >> (8 * i));
-            }
-            // GUID（offset 9-16）：固定合成值——与房主真 GUID 不同，
-            // 客户端不会把本条目合并进 Xbox 好友世界
-            for (int i = 0; i < 8; i++) {
-                base[9 + i] = 0x42;
-            }
-            // magic（offset 17-32）：回显 ping 的 magic（RakNet 校验）
-            if (ping != null && ping.length >= 25) {
-                System.arraycopy(ping, 9, base, 17, 16);
+            byte[] base;
+            if (cachedPong != null && cachedPong.length > 17
+                    && (cachedPong[0] & 0xFF) == 0x1C) {
+                base = cachedPong.clone();
+                if (ping != null && ping.length >= 25) {
+                    // pong magic 在 offset 17（0x1C+time8+GUID8），
+                    // 用 ping 里的 magic 回填（RakNet 校验）
+                    System.arraycopy(ping, 9, base, 17, 16);
+                }
+                base = rewritePongPorts(base, ANN_PORT);
             } else {
-                System.arraycopy(MAGIC, 0, base, 17, 16);
+                String ad = "MCPE;PaperConnect 房间;" + 776 + ";1.26.45;1;8;1145141919;"
+                        + "PaperConnect 联机;1;1;" + ANN_PORT + ";" + ANN_PORT + ";";
+                byte[] adBytes = ad.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                base = new byte[33 + adBytes.length];
+                base[0] = 0x1C;
+                long tm = System.currentTimeMillis();
+                for (int i = 0; i < 8; i++) {
+                    base[1 + i] = (byte) (tm >> (8 * i));
+                }
+                for (int i = 0; i < 8; i++) {
+                    base[9 + i] = 0x42;
+                }
+                if (ping != null && ping.length >= 25) {
+                    System.arraycopy(ping, 9, base, 17, 16);
+                } else {
+                    System.arraycopy(MAGIC, 0, base, 17, 16);
+                }
+                System.arraycopy(adBytes, 0, base, 33, adBytes.length);
             }
-            System.arraycopy(adBytes, 0, base, 33, adBytes.length);
             return base;
         } catch (Exception e) {
             return null;
