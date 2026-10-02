@@ -102,18 +102,14 @@
                     android:textSize="22sp"
                     android:textStyle="bold" />
 
-                <!-- v695：右侧数字钟表（HH:mm，实时刷新） -->
-                <TextView
+                <!-- v697：右侧表盘时钟（时分秒针 + 平滑秒针动画） -->
+                <org.levimc.launcher.core.online.SceneryClockView
                     android:id="@+id/online_scenery_clock"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:layout_width="96dp"
+                    android:layout_height="96dp"
                     android:layout_gravity="end|top"
-                    android:layout_marginEnd="20dp"
-                    android:layout_marginTop="24dp"
-                    android:fontFamily="sans-serif-medium"
-                    android:textColor="#E6FFFFFF"
-                    android:textSize="30sp"
-                    android:textStyle="bold" />
+                    android:layout_marginEnd="16dp"
+                    android:layout_marginTop="16dp" />
 
                 <TextView
                     android:id="@+id/online_scenery_sub"

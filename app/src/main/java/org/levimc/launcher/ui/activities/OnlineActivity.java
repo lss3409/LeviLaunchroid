@@ -184,11 +184,7 @@ public final class OnlineActivity extends BaseActivity
             }
             greeting.setText(getString(greetRes, PlayerIdentity.getNickname(this)));
         }
-        TextView clock = findViewById(R.id.online_scenery_clock);
-        if (clock != null) {
-            clock.setText(new java.text.SimpleDateFormat("HH:mm",
-                    java.util.Locale.getDefault()).format(new java.util.Date()));
-        }
+        // v697：表盘时钟自驱动（SceneryClockView 连续动画），无需手动刷新
     }
 
     @Override
