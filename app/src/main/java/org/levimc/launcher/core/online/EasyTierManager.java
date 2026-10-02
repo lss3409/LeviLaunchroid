@@ -281,10 +281,13 @@ public final class EasyTierManager {
                         ? "hostname = \"paper-connect-server-" + ROOM_CENTER_PORT + "\"\n" : "")
                 + "log_level = \"info\"\n"
                 // v690：恢复 UDP 打洞（撤销 v635 禁用）——同地异网场景
-                // 打洞成功率高且延迟低（71ms 实测），强制 TCP 中继绕 VPS
-                // 反而使游戏 ping 应答偶发超时→客户端移除局域网条目
-                // （"显示但不恒久"根因）。打洞失败时 EasyTier 自动回退中继。
-                // v635 的蜂窝断流问题若复现再另寻方案。
+                // 打洞成功率高且延迟低，强制 TCP 中继绕 VPS 反而使游戏
+                // ping 应答偶发超时→客户端移除局域网条目。
+                // v691：开启 KCP——实测蜂窝 UDP 打洞丢包 25~50%（v690 日志
+                // loss_rate 0.25~0.5），公告与 ping 应答随机丢失导致条目
+                // 不恒久；KCP 在 UDP 隧道上做 ARQ 重传恢复丢包（VPS 侧
+                // feature_flag kcp_input=true 已支持）。
+                + "enable_kcp_proxy = true\n"
 
                 // Android 内核默认不监听 11010（poll listeners 只有 ring://），
                 // 必须显式开启监听，局域网直连/中转才能连进本机。
