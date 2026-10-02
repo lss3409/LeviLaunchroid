@@ -728,16 +728,16 @@ public class FileManagerActivity extends BaseActivity {
 
     private void setupEditor() {
         editorDefaultKeyListener = editorText.getKeyListener();
-        // 可拖动滚动条（v673）
-        editorScrollBar.setColors(textSecondary, isDarkTheme() ? 0x1AFFFFFF : 0x1A000000);
+        // 可拖动触摸热区（v680：系统滚动条负责显示，本区只负责拖动定位）
         editorScrollBar.setListener(ratio -> {
             android.text.Layout layout = editorText.getLayout();
             if (layout == null) return;
-            int maxScroll = Math.max(0, layout.getHeight() - editorText.getHeight());
+            int maxScroll = layout.getHeight()
+                    + editorText.getCompoundPaddingTop() + editorText.getCompoundPaddingBottom()
+                    - editorText.getHeight();
+            if (maxScroll <= 0) return;
             editorText.scrollTo(0, (int) (ratio * maxScroll));
         });
-        editorText.setOnScrollChangeListener((v, sx, sy, ox, oy) -> updateEditorScrollBar());
-        editorText.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> updateEditorScrollBar());
         editorSave.setText(R.string.fm_ui_editor_save);
         editorSave.setTextColor(accent != 0 ? accent : onSurface);
         editorSave.setOnClickListener(v ->
@@ -797,14 +797,7 @@ public class FileManagerActivity extends BaseActivity {
                 applyingHighlight = true;
                 editorText.setText(content);
                 applyingHighlight = false;
-                android.util.Log.d("FmScrollBar", "setText len=" + content.length()
-                        + " w=" + editorText.getWidth() + " h=" + editorText.getHeight()
-                        + " scrollbarH=" + editorScrollBar.getHeight());
                 scheduleHighlight();
-                // v677（本质修复）：setText 后同步强制测量，让 Layout 立即建立，
-                // 滚动条同帧正确计算，不再依赖延迟探测
-                forceEditorLayout();
-                updateEditorScrollBar();
             }
         }
         editorFileWritable = ui.getWritable();
@@ -854,10 +847,11 @@ public class FileManagerActivity extends BaseActivity {
         editorText.post(() -> {
             android.text.Layout layout = editorText.getLayout();
             if (layout != null) {
-                int maxScroll = Math.max(0, layout.getHeight() - editorText.getHeight());
+                int maxScroll = Math.max(0, layout.getHeight()
+                        + editorText.getCompoundPaddingTop() + editorText.getCompoundPaddingBottom()
+                        - editorText.getHeight());
                 editorText.scrollTo(0, Math.min(scrollY, maxScroll));
             }
-            updateEditorScrollBar();
         });
     }
 
@@ -900,7 +894,6 @@ public class FileManagerActivity extends BaseActivity {
         bottomBar.setVisibility(View.GONE);
         selectionBar.setVisibility(View.GONE);
         editorRoot.setVisibility(View.VISIBLE);
-        scheduleScrollBarRefresh();
     }
 
     private void hideEditor() {
@@ -938,56 +931,12 @@ public class FileManagerActivity extends BaseActivity {
             editorText.setSelection(Math.min(selStart, editorText.length()), Math.min(selEnd, editorText.length()));
         } catch (IndexOutOfBoundsException ignored) {}
         applyingHighlight = false;
-        // 高亮重设文本后：同步重建 layout 并恢复滚动位置
-        forceEditorLayout();
+        // 高亮重设文本后恢复滚动位置
         editorText.post(() -> editorText.scrollTo(0, scrollY));
-        editorText.post(this::updateEditorScrollBar);
     }
 
-    /** 延迟序列刷新滚动条（v675：layout pass 时序不确定，多拍兜底）。 */
-    private void scheduleScrollBarRefresh() {
-        highlightHandler.postDelayed(this::updateEditorScrollBar, 100);
-        highlightHandler.postDelayed(this::updateEditorScrollBar, 300);
-        highlightHandler.postDelayed(this::updateEditorScrollBar, 1000);
-    }
-
-    /**
-     * v677：以当前尺寸同步强制测量，立即建立文本 Layout。
-     * setText 后 TextView 的 layout 要等下一帧布局流程才建立，
-     * 滚动条计算依赖它——同步测量让首次打开即可正确显示。
-     */
-    private void forceEditorLayout() {
-        int w = editorText.getWidth();
-        int h = editorText.getHeight();
-        if (w <= 0 || h <= 0) return;
-        editorText.measure(
-                View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
-                View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY));
-    }
-
-    /** 同步可拖动滚动条的视口比例与滚动位置（layout 未就绪时自愈重试，v676）。 */
-    private void updateEditorScrollBar() {
-        android.text.Layout layout = editorText.getLayout();
-        if (layout == null || editorText.getHeight() <= 0) {
-            // 布局尚未完成：延迟重试直到就绪
-            android.util.Log.d("FmScrollBar", "retry: layout=" + (layout != null)
-                    + " textH=" + editorText.getHeight());
-            highlightHandler.postDelayed(this::updateEditorScrollBar, 200);
-            return;
-        }
-        int contentH = layout.getHeight();
-        int viewH = editorText.getHeight();
-        if (contentH <= viewH) {
-            android.util.Log.d("FmScrollBar", "GONE: contentH=" + contentH + " viewH=" + viewH);
-            editorScrollBar.update(1f, 0f);
-            return;
-        }
-        int maxScroll = contentH - viewH;
-        android.util.Log.d("FmScrollBar", "VISIBLE: contentH=" + contentH + " viewH=" + viewH
-                + " ratio=" + (float) viewH / contentH);
-        editorScrollBar.update((float) viewH / contentH,
-                maxScroll <= 0 ? 0f : (float) editorText.getScrollY() / maxScroll);
-    }
+    /** 延迟序列刷新（v680 起不再需要：系统滚动条自动显示，此方法已废弃）。 */
+    private void scheduleScrollBarRefresh() {}
 
     private boolean isDarkTheme() {
         return (getResources().getConfiguration().uiMode
