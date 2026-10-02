@@ -56,8 +56,16 @@ public class FmEditorScrollBar extends View {
     public void update(float viewportRatio, float scrollRatio) {
         this.viewportRatio = Math.min(1f, Math.max(0.05f, viewportRatio));
         this.scrollRatio = Math.min(1f, Math.max(0f, scrollRatio));
-        setVisibility(viewportRatio < 0.995f ? View.VISIBLE : View.GONE);
+        boolean show = viewportRatio < 0.995f;
+        setVisibility(show ? View.VISIBLE : View.GONE);
+        android.util.Log.d("FmScrollBar", "update show=" + show + " barH=" + getHeight()
+                + " barW=" + getWidth() + " vis=" + getVisibility());
         invalidate();
+        // 自身尚未布局时（高度 0），等布局完成后补一次重绘，确保 onDraw 真正执行
+        if (show && getHeight() <= 0) {
+            post(this::invalidate);
+            post(this::invalidate);
+        }
     }
 
     private float thumbHeight() {
@@ -69,6 +77,7 @@ public class FmEditorScrollBar extends View {
         super.onDraw(canvas);
         float w = getWidth();
         float h = getHeight();
+        android.util.Log.d("FmScrollBar", "onDraw h=" + h + " w=" + w);
         if (h <= 0) return;
 
         // 轨道：2dp 圆角条居中
