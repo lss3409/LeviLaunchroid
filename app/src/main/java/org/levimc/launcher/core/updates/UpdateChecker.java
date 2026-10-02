@@ -190,10 +190,11 @@ public final class UpdateChecker {
                 conn.setConnectTimeout(15_000);
                 conn.setReadTimeout(300_000);
                 conn.setInstanceFollowRedirects(true);
-                if (conn.getResponseCode() != 200) {
+                int respCode = conn.getResponseCode();
+                if (respCode != 200) {
                     conn.disconnect();
                     main.post(() -> android.widget.Toast.makeText(activity,
-                            "下载失败（HTTP " + conn.getResponseCode() + "）",
+                            "下载失败（HTTP " + respCode + "）",
                             android.widget.Toast.LENGTH_SHORT).show());
                     return;
                 }
