@@ -1,13 +1,27 @@
 package org.levimc.launcher.core.updates;
 
+import android.Manifest;
 import android.app.Activity;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
+import android.widget.TextView;
+
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
+import androidx.core.content.ContextCompat;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -47,6 +61,9 @@ public final class UpdateChecker {
     private static final String PREFS = "levimc_update_check";
     private static final String KEY_LAST_CHECK = "last_check";
     private static final long AUTO_CHECK_INTERVAL_MS = 24L * 3600 * 1000;
+    private static final String CHANNEL_UPDATE = "update_download";
+    private static final int NOTIF_DOWNLOAD_ID = 7100;
+    private static volatile long lastNotifUpdate;
 
     private static final Handler main = new Handler(Looper.getMainLooper());
     private static final ExecutorService pool = Executors.newSingleThreadExecutor(r -> {
@@ -212,40 +229,197 @@ public final class UpdateChecker {
     }
 
     /** v712：后台下载 APK → 系统安装器（FileProvider + 安装权限）。
-     *  v0.0.1：多源顺序重试——GitHub 直链 → ghproxy 镜像，任一成功即停。 */
+     *  v0.0.1：多源顺序重试——GitHub 直链 → ghproxy 镜像，任一成功即停。
+     *  v0.0.4：进度弹窗（可隐藏静默下载）+ 通知栏进度 + 完成后自动安装。 */
     private static void downloadAndInstall(Activity activity, Update u) {
-        android.widget.Toast.makeText(activity, "开始下载 " + u.version + "…",
-                android.widget.Toast.LENGTH_SHORT).show();
+        final Context app = activity.getApplicationContext();
+        final int accent = new org.levimc.launcher.util.PersonalizationManager(app)
+                .getAccentColor();
+        createChannel(app);
+
+        // 进度弹窗（「隐藏」= 关闭弹窗，后台静默下载，通知栏可见进度）
+        ProgressBar bar = new ProgressBar(activity, null,
+                android.R.attr.progressBarStyleHorizontal);
+        bar.setProgressTintList(ColorStateList.valueOf(accent));
+        bar.setMax(100);
+        TextView pct = new TextView(activity);
+        pct.setTextSize(13);
+        pct.setTextColor(activity.getResources().getColor(
+                R.color.on_surface, activity.getTheme()));
+        pct.setText("0%");
+        LinearLayout box = new LinearLayout(activity);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (10 * activity.getResources().getDisplayMetrics().density);
+        box.setPadding(0, pad, 0, 0);
+        box.addView(bar, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        box.addView(pct, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        org.levimc.launcher.ui.dialogs.CustomAlertDialog dialog =
+                new org.levimc.launcher.ui.dialogs.CustomAlertDialog(activity);
+        dialog.setTitleText("正在下载 " + u.version);
+        dialog.setCustomView(box);
+        dialog.setNegativeButton("隐藏", null);
+        dialog.show();
+        final java.util.concurrent.atomic.AtomicBoolean dialogShown =
+                new java.util.concurrent.atomic.AtomicBoolean(true);
+        dialog.setOnDismissListener(d -> dialogShown.set(false));
+
         pool.execute(() -> {
-            File dir = new File(activity.getFilesDir(), "updates");
+            File dir = new File(app.getFilesDir(), "updates");
             if (!dir.isDirectory()) {
                 dir.mkdirs();
             }
             File apk = new File(dir, "levi-update.apk");
             for (String url : buildCandidatesForApk(u)) {
-                if (tryDownload(url, apk)) {
+                if (tryDownload(url, apk, (downloaded, total) -> {
+                    // 弹窗进度（隐藏后跳过）
+                    if (dialogShown.get() && !activity.isFinishing()) {
+                        main.post(() -> {
+                            if (!dialogShown.get() || activity.isFinishing()) {
+                                return;
+                            }
+                            if (total > 0) {
+                                int p = (int) (downloaded * 100 / total);
+                                bar.setProgress(p);
+                                pct.setText(p + "%  " + fmtMB(downloaded)
+                                        + "/" + fmtMB(total) + " MB");
+                            } else {
+                                bar.setIndeterminate(true);
+                                pct.setText(fmtMB(downloaded) + " MB");
+                            }
+                        });
+                    }
+                    // 通知进度（500ms 节流）
+                    long now = System.currentTimeMillis();
+                    if (now - lastNotifUpdate > 500 || downloaded >= total) {
+                        lastNotifUpdate = now;
+                        showDownloadNotification(app, accent, downloaded, total);
+                    }
+                })) {
+                    NotificationManagerCompat.from(app).cancel(NOTIF_DOWNLOAD_ID);
+                    showDoneNotification(app, accent, apk);
                     main.post(() -> {
-                        try {
-                            Uri uri = androidx.core.content.FileProvider.getUriForFile(
-                                    activity, activity.getPackageName() + ".fileprovider", apk);
-                            Intent install = new Intent(Intent.ACTION_VIEW);
-                            install.setDataAndType(uri,
-                                    "application/vnd.android.package-archive");
-                            install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                    | Intent.FLAG_ACTIVITY_NEW_TASK);
-                            activity.startActivity(install);
-                        } catch (Throwable t) {
-                            android.widget.Toast.makeText(activity,
-                                    "无法打开安装器：" + t.getClass().getSimpleName(),
-                                    android.widget.Toast.LENGTH_SHORT).show();
+                        if (dialogShown.get() && !activity.isFinishing()) {
+                            try {
+                                dialog.dismiss();
+                            } catch (Throwable ignored) {
+                            }
+                        }
+                        if (!activity.isFinishing()) {
+                            try {
+                                Uri uri = androidx.core.content.FileProvider.getUriForFile(
+                                        activity, activity.getPackageName() + ".fileprovider", apk);
+                                Intent install = new Intent(Intent.ACTION_VIEW);
+                                install.setDataAndType(uri,
+                                        "application/vnd.android.package-archive");
+                                install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                        | Intent.FLAG_ACTIVITY_NEW_TASK);
+                                activity.startActivity(install);
+                            } catch (Throwable t) {
+                                android.widget.Toast.makeText(activity,
+                                        "无法打开安装器：" + t.getClass().getSimpleName(),
+                                        android.widget.Toast.LENGTH_SHORT).show();
+                            }
                         }
                     });
                     return;
                 }
             }
-            main.post(() -> android.widget.Toast.makeText(activity,
-                    "所有下载源均失败，请稍后重试", android.widget.Toast.LENGTH_SHORT).show());
+            NotificationManagerCompat.from(app).cancel(NOTIF_DOWNLOAD_ID);
+            main.post(() -> {
+                if (dialogShown.get() && !activity.isFinishing()) {
+                    try {
+                        dialog.dismiss();
+                    } catch (Throwable ignored) {
+                    }
+                }
+                if (!activity.isFinishing()) {
+                    android.widget.Toast.makeText(activity,
+                            "所有下载源均失败，请稍后重试",
+                            android.widget.Toast.LENGTH_SHORT).show();
+                }
+            });
         });
+    }
+
+    private static String fmtMB(long bytes) {
+        return String.format(java.util.Locale.US, "%.1f", bytes / 1048576f);
+    }
+
+    /** 下载进度通知（低优先级，静默）。 */
+    private static void showDownloadNotification(Context app, int accent,
+                                                 long downloaded, long total) {
+        if (!notificationsAllowed(app)) {
+            return;
+        }
+        NotificationCompat.Builder b = new NotificationCompat.Builder(app, CHANNEL_UPDATE)
+                .setSmallIcon(R.drawable.ic_notification_leaf)
+                .setColor(accent)
+                .setContentTitle("正在下载更新")
+                .setContentText(fmtMB(downloaded) + " MB"
+                        + (total > 0 ? " / " + fmtMB(total) + " MB" : ""))
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setProgress(total > 0 ? 100 : 0,
+                        total > 0 ? (int) (downloaded * 100 / total) : 0, total <= 0);
+        try {
+            NotificationManagerCompat.from(app).notify(NOTIF_DOWNLOAD_ID, b.build());
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** 下载完成通知（点击跳安装器）。 */
+    private static void showDoneNotification(Context app, int accent, File apk) {
+        if (!notificationsAllowed(app)) {
+            return;
+        }
+        PendingIntent pi = null;
+        try {
+            Uri uri = androidx.core.content.FileProvider.getUriForFile(
+                    app, app.getPackageName() + ".fileprovider", apk);
+            Intent install = new Intent(Intent.ACTION_VIEW);
+            install.setDataAndType(uri, "application/vnd.android.package-archive");
+            install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    | Intent.FLAG_ACTIVITY_NEW_TASK);
+            pi = PendingIntent.getActivity(app, NOTIF_DOWNLOAD_ID, install,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        } catch (Throwable ignored) {
+        }
+        NotificationCompat.Builder b = new NotificationCompat.Builder(app, CHANNEL_UPDATE)
+                .setSmallIcon(R.drawable.ic_notification_leaf)
+                .setColor(accent)
+                .setContentTitle("更新下载完成")
+                .setContentText("点击安装")
+                .setAutoCancel(true)
+                .setContentIntent(pi);
+        try {
+            NotificationManagerCompat.from(app).notify(NOTIF_DOWNLOAD_ID, b.build());
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static boolean notificationsAllowed(Context app) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && ContextCompat.checkSelfPermission(app, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            return false;
+        }
+        return NotificationManagerCompat.from(app).areNotificationsEnabled();
+    }
+
+    private static void createChannel(Context app) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return;
+        }
+        NotificationManager manager = app.getSystemService(NotificationManager.class);
+        if (manager == null) {
+            return;
+        }
+        NotificationChannel ch = new NotificationChannel(
+                CHANNEL_UPDATE, "更新下载", NotificationManager.IMPORTANCE_LOW);
+        ch.setDescription("更新包下载进度");
+        manager.createNotificationChannel(ch);
     }
 
     /** APK 下载候选：update.json 的每条直链 + 各自的镜像前缀展开。 */
@@ -257,8 +431,13 @@ public final class UpdateChecker {
         return list;
     }
 
+    /** 下载进度回调。total<=0 表示总大小未知。 */
+    private interface ProgressListener {
+        void onProgress(long downloaded, long total);
+    }
+
     /** 尝试从单个 URL 下载到 apk；成功返回 true（文件完整）。 */
-    private static boolean tryDownload(String url, File apk) {
+    private static boolean tryDownload(String url, File apk, ProgressListener listener) {
         HttpURLConnection conn = null;
         try {
             conn = (HttpURLConnection) new URL(url).openConnection();
@@ -270,12 +449,18 @@ public final class UpdateChecker {
                 Log.w(TAG, "下载源 " + url + " HTTP " + respCode);
                 return false;
             }
+            long total = conn.getContentLengthLong();
             FileOutputStream fos = new FileOutputStream(apk);
             InputStream is = conn.getInputStream();
             byte[] buf = new byte[65536];
             int n;
+            long downloaded = 0;
             while ((n = is.read(buf)) > 0) {
                 fos.write(buf, 0, n);
+                downloaded += n;
+                if (listener != null && (downloaded & 0x7FFFF) == 0) { // 每 512KB 汇报
+                    listener.onProgress(downloaded, total);
+                }
             }
             fos.close();
             is.close();
@@ -283,6 +468,9 @@ public final class UpdateChecker {
                 apk.delete();
                 Log.w(TAG, "下载源 " + url + " 文件不完整 (" + apk.length() + "B)");
                 return false;
+            }
+            if (listener != null) {
+                listener.onProgress(apk.length(), Math.max(total, apk.length()));
             }
             return true;
         } catch (Throwable t) {
