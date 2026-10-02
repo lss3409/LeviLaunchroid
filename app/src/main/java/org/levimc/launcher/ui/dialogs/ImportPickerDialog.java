@@ -56,6 +56,23 @@ public class ImportPickerDialog {
     private static View cardsHostView;
     private static int expandedType = -1;
 
+    // v646：缩略图 LRU 缓存 + 后台解码线程池——200 条级别条目列表重建时
+    // 不再主线程重复解码/裁切位图（点分类卡顿挫的根因）
+    private static final int THUMB_CACHE_MAX = 128;
+    private static final java.util.Map<String, Bitmap> thumbCache =
+            new java.util.LinkedHashMap<String, Bitmap>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(java.util.Map.Entry<String, Bitmap> e) {
+                    return size() > THUMB_CACHE_MAX;
+                }
+            };
+    private static final java.util.concurrent.ExecutorService thumbPool =
+            java.util.concurrent.Executors.newFixedThreadPool(2, r -> {
+                Thread t = new Thread(r, "import-thumb");
+                t.setDaemon(true);
+                return t;
+            });
+
     private static final int[][] GROUPS = {
             {GlobalImportScanner.TYPE_WORLD, 0},
             {GlobalImportScanner.TYPE_RESOURCE, 0},
@@ -207,6 +224,8 @@ public class ImportPickerDialog {
             }
         };
 
+        // v646：搜索防抖 300ms——每敲一个字符不再立即全量重建列表
+        final Runnable[] debounceRef = new Runnable[1];
         search.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int a, int b, int c) {
@@ -215,7 +234,12 @@ public class ImportPickerDialog {
             @Override
             public void onTextChanged(CharSequence s, int a, int b, int c) {
                 query[0] = s.toString();
-                redrawRef[0].run();
+                if (debounceRef[0] != null) {
+                    search.removeCallbacks(debounceRef[0]);
+                }
+                Runnable debounced = () -> redrawRef[0].run();
+                debounceRef[0] = debounced;
+                search.postDelayed(debounced, 300);
             }
 
             @Override
@@ -796,21 +820,51 @@ public class ImportPickerDialog {
     }
 
     /** v611：图标照搬启动器内容管理——centerCrop 方形裁切 + 10dp 圆角；
-     * 无贴图用默认图（皮肤包 ic_tshirt）。 */
+     * 无贴图用默认图（皮肤包 ic_tshirt）。
+     * v646：缓存命中同步设置；未命中先默认图、后台解码完成后替换
+     * （列表重建不再主线程解码位图）。 */
     private static void applyThumb(Context context, ImageView iv,
                                    GlobalImportScanner.Candidate c, int sizePx,
                                    int tintColor) {
-        Bitmap bmp = c.icon != null
-                ? BitmapFactory.decodeByteArray(c.icon, 0, c.icon.length) : null;
-        if (bmp != null) {
-            float density = context.getResources().getDisplayMetrics().density;
-            iv.setImageBitmap(centerCropRound(bmp, sizePx, (int) (10 * density)));
-            iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        } else {
-            iv.setImageResource(c.skinPack ? R.drawable.ic_tshirt
-                    : ICONS[Math.min(c.type, ICONS.length - 1)]);
-            iv.setColorFilter(tintColor);
+        // v646：缓存 key 带尺寸——列表行 34dp 与二级详情 64dp 不串用
+        String cacheKey = c.path + "@" + sizePx;
+        synchronized (thumbCache) {
+            Bitmap cached = thumbCache.get(cacheKey);
+            if (cached != null) {
+                iv.setImageBitmap(cached);
+                iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                return;
+            }
         }
+        iv.setImageResource(c.skinPack ? R.drawable.ic_tshirt
+                : ICONS[Math.min(c.type, ICONS.length - 1)]);
+        iv.setColorFilter(tintColor);
+        byte[] data = c.icon;
+        if (data == null) {
+            return;
+        }
+        thumbPool.execute(() -> {
+            try {
+                Bitmap bmp = BitmapFactory.decodeByteArray(data, 0, data.length);
+                if (bmp == null) {
+                    return;
+                }
+                float density = context.getResources().getDisplayMetrics().density;
+                Bitmap out = centerCropRound(bmp, sizePx, (int) (10 * density));
+                synchronized (thumbCache) {
+                    thumbCache.put(cacheKey, out);
+                }
+                // 视图可能已被列表重建替换——仅在仍挂载时更新
+                iv.post(() -> {
+                    if (iv.getParent() != null) {
+                        iv.setImageBitmap(out);
+                        iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                        iv.setColorFilter(null);
+                    }
+                });
+            } catch (Throwable ignored) {
+            }
+        });
     }
 
     /** centerCrop 到 size×size 再圆角（启动器 LeviContentThumbnailShape 同款）。 */
