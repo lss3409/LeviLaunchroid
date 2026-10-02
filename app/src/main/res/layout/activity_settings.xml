@@ -85,21 +85,6 @@
                         android:focusable="true" />
 
                     <TextView
-                        android:id="@+id/tab_updates"
-                        android:layout_width="wrap_content"
-                        android:layout_height="32dp"
-                        android:layout_marginStart="8dp"
-                        android:paddingHorizontal="16dp"
-                        android:gravity="center"
-                        android:text="@string/settings_tab_updates"
-                        android:fontFamily="@font/misans"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13sp"
-                        android:background="@drawable/bg_tab_unselected"
-                        android:clickable="true"
-                        android:focusable="true" />
-
-                    <TextView
                         android:id="@+id/tab_about"
                         android:layout_width="wrap_content"
                         android:layout_height="32dp"
@@ -322,6 +307,60 @@
                                 android:textAllCaps="false"
                                 android:backgroundTint="@color/primary" />
                         </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- v711 检查更新卡片（v0.0.8：按用户要求放「基础设置」
+                         最底下，不再单独占用「更新」tab） -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:background="@drawable/card_background"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:padding="16dp">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/check_update_title"
+                                android:fontFamily="@font/misans"
+                                android:textColor="@color/on_surface"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/check_update_version"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:fontFamily="@font/misans"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/check_update_button"
+                            style="@style/Widget.MaterialComponents.Button"
+                            android:layout_width="wrap_content"
+                            android:layout_height="40dp"
+                            android:backgroundTint="@color/primary"
+                            android:fontFamily="@font/misans"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:minHeight="0dp"
+                            android:paddingHorizontal="12dp"
+                            android:paddingVertical="0dp"
+                            android:text="@string/check_update_button"
+                            android:textAllCaps="false"
+                            android:textColor="@color/on_primary"
+                            android:textSize="12sp" />
                     </LinearLayout>
                 </LinearLayout>
 
@@ -809,68 +848,6 @@
                                 android:textAllCaps="false"
                                 android:backgroundTint="@color/primary" />
                         </LinearLayout>
-                    </LinearLayout>
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/section_updates"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:visibility="gone">
-
-                    <!-- v711 检查更新卡片（v0.0.7：从 FrameLayout 顶层移入
-                         「更新」tab，修复常驻显示覆盖其它 tab 内容的问题） -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:background="@drawable/card_background"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:padding="16dp">
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/check_update_title"
-                                android:fontFamily="@font/misans"
-                                android:textColor="@color/on_surface"
-                                android:textSize="15sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:id="@+id/check_update_version"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:fontFamily="@font/misans"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="12sp" />
-                        </LinearLayout>
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/check_update_button"
-                            style="@style/Widget.MaterialComponents.Button"
-                            android:layout_width="wrap_content"
-                            android:layout_height="40dp"
-                            android:backgroundTint="@color/primary"
-                            android:fontFamily="@font/misans"
-                            android:insetTop="0dp"
-                            android:insetBottom="0dp"
-                            android:minHeight="0dp"
-                            android:paddingHorizontal="12dp"
-                            android:paddingVertical="0dp"
-                            android:text="@string/check_update_button"
-                            android:textAllCaps="false"
-                            android:textColor="@color/on_primary"
-                            android:textSize="12sp" />
                     </LinearLayout>
                 </LinearLayout>
 

@@ -68,13 +68,11 @@ public class SettingsActivity extends BaseActivity {
 
     private TextView tabBasic;
     private TextView tabPersonalize;
-    private TextView tabUpdates;
     private TextView tabMigration;
     private TextView tabAbout;
 
     private View sectionBasic;
     private View sectionPersonalize;
-    private View sectionUpdates;
     private View sectionMigration;
     private View sectionAbout;
 
@@ -214,25 +212,21 @@ public class SettingsActivity extends BaseActivity {
         tabPersonalize = findViewById(R.id.tab_personalize);
         tabMigration = findViewById(R.id.tab_migration);
         tabAbout = findViewById(R.id.tab_about);
-        tabUpdates = findViewById(R.id.tab_updates);
 
         sectionBasic = findViewById(R.id.section_basic);
         sectionPersonalize = findViewById(R.id.section_personalize);
-        sectionUpdates = findViewById(R.id.section_updates);
         sectionMigration = findViewById(R.id.section_migration);
         sectionAbout = findViewById(R.id.section_about);
 
         tabBasic.setOnClickListener(v -> { selectedTabIndex = 0; selectTab(tabBasic); });
         tabPersonalize.setOnClickListener(v -> { selectedTabIndex = 1; selectTab(tabPersonalize); });
-        tabUpdates.setOnClickListener(v -> { selectedTabIndex = 2; selectTab(tabUpdates); });
-        tabAbout.setOnClickListener(v -> { selectedTabIndex = 3; selectTab(tabAbout); });
-        tabMigration.setOnClickListener(v -> { selectedTabIndex = 4; selectTab(tabMigration); });
+        tabAbout.setOnClickListener(v -> { selectedTabIndex = 2; selectTab(tabAbout); });
+        tabMigration.setOnClickListener(v -> { selectedTabIndex = 3; selectTab(tabMigration); });
     }
 
     private void selectTab(TextView selectedTab) {
         TextView[] tabs = getSettingsTabs();
-        View[] sections = {sectionBasic, sectionPersonalize, sectionUpdates,
-                sectionAbout, sectionMigration};
+        View[] sections = {sectionBasic, sectionPersonalize, sectionAbout, sectionMigration};
 
         int accent = personalizationManager.getAccentColor();
 
@@ -267,7 +261,7 @@ public class SettingsActivity extends BaseActivity {
     }
 
     private TextView[] getSettingsTabs() {
-        return new TextView[]{tabBasic, tabPersonalize, tabUpdates, tabAbout, tabMigration};
+        return new TextView[]{tabBasic, tabPersonalize, tabAbout, tabMigration};
     }
 
     private void setupBasicSection() {
