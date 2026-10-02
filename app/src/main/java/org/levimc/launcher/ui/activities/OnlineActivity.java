@@ -32,6 +32,7 @@ import org.levimc.launcher.core.online.PlayerIdentity;
 import org.levimc.launcher.core.online.QrUtils;
 import org.levimc.launcher.core.online.RelayStore;
 import org.levimc.launcher.core.online.RoomCenter;
+import org.levimc.launcher.core.online.RoomStateStore;
 
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -96,6 +97,10 @@ public final class OnlineActivity extends BaseActivity
     private boolean roomHandshakeDone = true;
     /** v571：VPN 授权弹窗是否正在显示（防重复弹）。 */
     private boolean vpnAuthDialogShowing;
+    /** v645：本 Activity 实例是否已尝试过房间自动恢复（防重复触发）。 */
+    private boolean restoreAttempted;
+    /** v645：房间恢复流程是否正在进行（VPN 授权回来后走静默加入而非弹窗流程）。 */
+    private boolean restoringRoom;
     private final Runnable handshakeTimeout = () -> failHandshake(
             "握手超时触发——20s 未见房主名单，断开");
 
@@ -1426,6 +1431,8 @@ public final class OnlineActivity extends BaseActivity
         org.levimc.launcher.core.online.voice.VoiceEngine.get(this).stop();
         RoomCenter.roomCode = null;
         RoomCenter.hostGameOpen = false;
+        // v645：主动退出才清除恒久化状态（此后不再自动恢复）
+        RoomStateStore.clear(this);
         currentCode = null;
         isHost = false;
         showHome();
@@ -1503,9 +1510,22 @@ public final class OnlineActivity extends BaseActivity
             InviteCode.Parsed hp = pendingHostParsed;
             pendingHostParsed = null;
             doHostRoom(hp);
+            restoringRoom = false;
         } else if (resultCode == RESULT_OK && !pendingParsed.isEmpty()) {
-            doJoinFromDialog(pendingParsed.remove(0));
+            // v645：恢复房间的静默加入不走弹窗流程（弹窗在恢复场景不存在）
+            if (restoringRoom) {
+                restoringRoom = false;
+                restoreJoin(pendingParsed.remove(0));
+            } else {
+                doJoinFromDialog(pendingParsed.remove(0));
+            }
         } else {
+            // v645：取消授权且正在恢复房间时回首页（避免卡在"正在恢复"视图）
+            if (restoringRoom) {
+                restoringRoom = false;
+                showHome();
+                setHomeState(EasyTierManager.State.IDLE, null);
+            }
             pendingParsed.clear();
             pendingHostParsed = null;
             if (joinDialog != null) {
@@ -1568,7 +1588,86 @@ public final class OnlineActivity extends BaseActivity
             // （此前新实例 onCreate 只显示首页，用户看到"重新联机"）
             restoreRoomIfConnected();
             onState(s, EasyTierManager.get().getVirtualIp());
+        } else if (s != EasyTierManager.State.STARTING && s != EasyTierManager.State.WAIT_IP) {
+            // v645：房间恒久化——进程被杀后静态区清空，按持久化快照自动恢复
+            // （进行中的组网流程不干扰）
+            maybeRestoreRoom();
         }
+    }
+
+    /** v645：进程被杀后自动恢复房间（照搬 Astral 恒久房间逻辑）——
+     *  有持久化快照且当前无活动房间/组网流程时，按原码重建（房主）或静默加入（成员）。 */
+    private void maybeRestoreRoom() {
+        if (restoreAttempted) {
+            return;
+        }
+        restoreAttempted = true;
+        if (RoomCenter.roomCode != null || joinDialog != null) {
+            return;
+        }
+        RoomStateStore.State st = RoomStateStore.load(this);
+        if (st == null) {
+            return;
+        }
+        InviteCode.Result r = InviteCode.parse(InviteCode.formatInput(st.code));
+        if (!r.ok()) {
+            RoomStateStore.clear(this);
+            return;
+        }
+        org.levimc.launcher.util.OnlineDebugLog.log("检测到持久化房间，自动恢复（"
+                + (st.isHost ? "房主" : "成员") + "）: " + st.code);
+        restoringRoom = true;
+        currentCode = rawToCode(r.parsed);
+        isHost = st.isHost;
+        roomCodeText.setText("P/" + currentCode);
+        roomState.setText(getString(R.string.online_restoring_room));
+        roomState.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+        showRoom();
+        // 与正常建房/加入一致：先过 VPN 授权（未授权时 TUN 建不起来）
+        Intent vpnIntent = VpnService.prepare(this);
+        if (vpnIntent != null) {
+            if (isHost) {
+                pendingHostParsed = r.parsed;
+            } else {
+                pendingParsed.clear();
+                pendingParsed.add(r.parsed);
+            }
+            Toast.makeText(this, "请允许 VPN 连接以恢复房间", Toast.LENGTH_SHORT).show();
+            startActivityForResult(vpnIntent, REQ_VPN);
+            return;
+        }
+        if (isHost) {
+            LanDiscovery.startHost(r.parsed.networkName);
+            // v685 教训：恢复路径必须补启局域网公告桥——正常建房流程有
+            // 这两行，v645 恢复路径漏了：房主桥不启动 = 无 MOTD 单播、
+            // 无 ping 应答，成员端完全看不到局域网入口
+            LanBridge.startHost(PlayerIdentity.getNickname(this));
+            List<String> relayPeers = RelayStore.load(this);
+            EasyTierManager.get().host(this, r.parsed.networkName, r.parsed.networkSecret, this,
+                    HOST_IPV4, relayPeers);
+        } else {
+            restoreJoin(r.parsed);
+        }
+        restoringRoom = false;
+    }
+
+    /** v645：恢复房间的静默加入（不走加入弹窗——弹窗在恢复场景不存在）。 */
+    private void restoreJoin(InviteCode.Parsed parsed) {
+        setStepState(1, true);
+        new Thread(() -> {
+            List<String> peers = new ArrayList<>(LanDiscovery.discover(parsed.networkName, 1500));
+            for (String p : RelayStore.load(this)) {
+                if (!peers.contains(p)) {
+                    peers.add(p);
+                }
+            }
+            runOnUiThread(() -> {
+                org.levimc.launcher.util.OnlineDebugLog.log("自动恢复加入房间: "
+                        + parsed.networkName);
+                EasyTierManager.get().join(this, parsed.networkName, parsed.networkSecret,
+                        this, peers);
+            });
+        }, "room-restore-join").start();
     }
 
     /** v545：组网仍连接且有房间时，直接恢复房间视图。 */
@@ -1611,6 +1710,8 @@ public final class OnlineActivity extends BaseActivity
                 // v521：会话状态写入静态区，供游戏内悬浮窗读取
                 RoomCenter.roomCode = currentCode;
                 RoomCenter.isHost = isHost;
+                // v645：房间恒久化——进程被杀后重开联机页自动恢复
+                RoomStateStore.save(this, currentCode, isHost);
                 // v524：游戏正在前台时立即挂悬浮窗（否则要等游戏下次 onResume 才出现）
                 try {
                     if (org.levimc.launcher.core.minecraft.MinecraftActivityState.isRunning()) {
