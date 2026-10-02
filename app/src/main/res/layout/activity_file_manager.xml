@@ -118,6 +118,64 @@
             android:contentDescription="@null" />
     </LinearLayout>
 
+    <!-- 音频播放面板（v669 恢复旧版，默认隐藏） -->
+    <LinearLayout
+        android:id="@+id/fm_audio_panel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="8dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/fm_audio_play_pause"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginEnd="8dp"
+            android:padding="6dp"
+            android:src="@drawable/ic_pause"
+            android:contentDescription="@null"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/on_surface" />
+
+        <TextView
+            android:id="@+id/fm_audio_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:textColor="@color/on_surface"
+            android:textSize="12sp"
+            android:maxLines="1"
+            android:ellipsize="middle"
+            android:maxWidth="120dp" />
+
+        <TextView
+            android:id="@+id/fm_audio_current"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="4dp"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp" />
+
+        <SeekBar
+            android:id="@+id/fm_audio_seek"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/fm_audio_duration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp" />
+    </LinearLayout>
+
     <!-- 内容区 -->
     <FrameLayout
         android:id="@+id/fm_content_frame"

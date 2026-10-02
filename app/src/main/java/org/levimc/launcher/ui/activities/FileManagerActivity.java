@@ -1,6 +1,7 @@
 package org.levimc.launcher.ui.activities;
 
 import android.content.Intent;
+import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
@@ -11,7 +12,9 @@ import android.text.Spannable;
 import android.text.TextWatcher;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -96,8 +99,20 @@ public class FileManagerActivity extends BaseActivity {
     private boolean applyingHighlight;
     private boolean editorUserEdited;
     private boolean exitConfirmShown;
+    private String lastEditorPath;
     private final Handler highlightHandler = new Handler(Looper.getMainLooper());
     private final Runnable highlightTask = this::runHighlight;
+
+    // 音频播放（v669 恢复旧版）
+    private MediaPlayer mediaPlayer;
+    private View audioPanel;
+    private ImageView audioPlayPause;
+    private TextView audioName;
+    private TextView audioCurrent;
+    private TextView audioDuration;
+    private SeekBar audioSeek;
+    private final Handler audioHandler = new Handler(Looper.getMainLooper());
+    private String audioSourcePath;
 
     private FmEntryAdapter entryAdapter;
     private FmTrashAdapter trashAdapter;
@@ -175,6 +190,7 @@ public class FileManagerActivity extends BaseActivity {
 
         setupAdapters();
         setupListeners();
+        setupAudioPanel();
         applyLayoutMode();
 
         vm.initialize();
@@ -216,17 +232,19 @@ public class FileManagerActivity extends BaseActivity {
         editorDirty = findViewById(R.id.fm_editor_dirty);
         editorSave = findViewById(R.id.fm_editor_save);
         editorText = findViewById(R.id.fm_editor_text);
+        audioPanel = findViewById(R.id.fm_audio_panel);
+        audioPlayPause = findViewById(R.id.fm_audio_play_pause);
+        audioName = findViewById(R.id.fm_audio_name);
+        audioCurrent = findViewById(R.id.fm_audio_current);
+        audioDuration = findViewById(R.id.fm_audio_duration);
+        audioSeek = findViewById(R.id.fm_audio_seek);
     }
 
     private FmEntryAdapter.Listener entryListener() {
         return new FmEntryAdapter.Listener() {
             @Override
             public void onEntryClick(FmEntry entry) {
-                if (entry.isDirectory()) {
-                    vm.enterDirectory(entry);
-                } else {
-                    FmDialogs.openFile(FileManagerActivity.this, vm, entry);
-                }
+                openFileEntry(entry);
             }
 
             @Override
@@ -236,7 +254,8 @@ public class FileManagerActivity extends BaseActivity {
 
             @Override
             public void onMoreClick(FmEntry entry) {
-                FmDialogs.showEntryMenu(FileManagerActivity.this, vm, entry, () -> {});
+                FmDialogs.showEntryMenu(FileManagerActivity.this, vm, entry, () -> {},
+                        () -> openFileEntry(entry));
             }
         };
     }
@@ -342,7 +361,7 @@ public class FileManagerActivity extends BaseActivity {
         items.add(getString(R.string.fm_ui_sort));
         items.add(getString(R.string.fm_ui_hidden) + (lastState != null && lastState.getShowHidden() ? " ✓" : ""));
         items.add(getString(R.string.fm_ui_clear_trash));
-        new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this)
+        CustomAlertDialog moreDialog = new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this)
                 .setTitleText(getString(R.string.fm_ui_more))
                 .setItems(items.toArray(new String[0]), (d, which) -> {
                     String picked = items.get(which);
@@ -366,8 +385,9 @@ public class FileManagerActivity extends BaseActivity {
                         confirmTrashClear();
                     }
                 })
-                .setNegativeButton(getString(R.string.cancel), null)
-                .show();
+                .setNegativeButton(getString(R.string.cancel), null);
+        moreDialog.setCanceledOnTouchOutside(true);
+        moreDialog.show();
     }
 
     private void confirmTrashPurge(List<TrashItem> items) {
@@ -402,6 +422,157 @@ public class FileManagerActivity extends BaseActivity {
         trashRecycler.setVisibility(View.GONE);
         recycler.setVisibility(View.VISIBLE);
         renderEmptyState();
+    }
+
+    // ---------------- 文件打开分发（v669：图片预览/音频播放/文本编辑/系统打开） ----------------
+
+    private void openFileEntry(FmEntry entry) {
+        if (entry.isDirectory()) {
+            vm.enterDirectory(entry);
+            return;
+        }
+        String name = entry.getName().toLowerCase(java.util.Locale.ROOT);
+        java.io.File file = new java.io.File(entry.getPath().toString());
+        if (isImage(name)) {
+            FmDialogs.showImagePreview(this, file);
+        } else if (isAudio(name)) {
+            openAudio(file);
+        } else {
+            boolean text = false;
+            for (String suffix : FmDialogs.TEXT_SUFFIX) {
+                if (name.endsWith(suffix)) {
+                    text = true;
+                    break;
+                }
+            }
+            if (text) {
+                vm.editorOpen(entry.getPath());
+            } else {
+                openWithSystem(file, name);
+            }
+        }
+    }
+
+    private static boolean isImage(String name) {
+        return name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg")
+                || name.endsWith(".webp") || name.endsWith(".gif") || name.endsWith(".bmp");
+    }
+
+    private static boolean isAudio(String name) {
+        return name.endsWith(".mp3") || name.endsWith(".wav") || name.endsWith(".ogg")
+                || name.endsWith(".m4a") || name.endsWith(".flac") || name.endsWith(".aac");
+    }
+
+    /** 其它类型走系统打开（FileProvider 授权，避免 file:// 崩溃）。 */
+    private void openWithSystem(java.io.File file, String name) {
+        try {
+            Uri uri = androidx.core.content.FileProvider.getUriForFile(
+                    this, getPackageName() + ".fileprovider", file);
+            Intent view = new Intent(Intent.ACTION_VIEW);
+            view.setDataAndType(uri, FmDialogs.guessMime(name));
+            view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(view, null));
+        } catch (Exception e) {
+            Toast.makeText(this, R.string.fm_ui_open_failed, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // ---------------- 音频播放（v669 恢复旧版） ----------------
+
+    private void openAudio(java.io.File file) {
+        try {
+            releaseAudio();
+            mediaPlayer = new MediaPlayer();
+            mediaPlayer.setDataSource(file.getAbsolutePath());
+            mediaPlayer.prepare();
+            mediaPlayer.setOnCompletionListener(mp -> runOnUiThread(() -> {
+                audioPlayPause.setImageResource(R.drawable.ic_play);
+                audioSeek.setProgress(audioSeek.getMax());
+                audioCurrent.setText(audioDuration.getText());
+            }));
+            mediaPlayer.start();
+            audioSourcePath = file.getAbsolutePath();
+            audioPanel.setVisibility(View.VISIBLE);
+            audioName.setText(file.getName());
+            int duration = mediaPlayer.getDuration();
+            if (duration <= 0) duration = 1000;
+            audioSeek.setMax(duration);
+            audioSeek.setProgress(0);
+            audioDuration.setText(formatTime(duration));
+            audioCurrent.setText("0:00");
+            audioPlayPause.setImageResource(R.drawable.ic_pause);
+            startAudioProgress();
+        } catch (Exception e) {
+            Toast.makeText(this, R.string.audio_play_failed, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void setupAudioPanel() {
+        int tint = accent != 0 ? accent : onSurface;
+        audioPlayPause.setOnClickListener(v -> togglePlayPause());
+        audioSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser && mediaPlayer != null) {
+                    mediaPlayer.seekTo(progress);
+                    audioCurrent.setText(formatTime(progress));
+                }
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+        // 进度条 tint 用强调色（个性化兼容，不硬编码 primary）
+        if (audioSeek.getProgressDrawable() != null) {
+            audioSeek.getProgressDrawable().setTint(tint);
+        }
+        if (audioSeek.getThumb() != null) {
+            audioSeek.getThumb().setTint(tint);
+        }
+    }
+
+    private void togglePlayPause() {
+        if (mediaPlayer == null) return;
+        if (mediaPlayer.isPlaying()) {
+            mediaPlayer.pause();
+            audioPlayPause.setImageResource(R.drawable.ic_play);
+        } else {
+            mediaPlayer.start();
+            audioPlayPause.setImageResource(R.drawable.ic_pause);
+        }
+    }
+
+    private void startAudioProgress() {
+        audioHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (mediaPlayer != null) {
+                    audioSeek.setProgress(mediaPlayer.getCurrentPosition());
+                    audioCurrent.setText(formatTime(mediaPlayer.getCurrentPosition()));
+                    audioHandler.postDelayed(this, 250);
+                }
+            }
+        }, 500);
+    }
+
+    private void releaseAudio() {
+        audioHandler.removeCallbacksAndMessages(null);
+        if (mediaPlayer != null) {
+            try {
+                mediaPlayer.release();
+            } catch (Exception ignored) {}
+            mediaPlayer = null;
+        }
+        audioPanel.setVisibility(View.GONE);
+        audioSourcePath = null;
+    }
+
+    private static String formatTime(int ms) {
+        int s = ms / 1000;
+        return String.format(java.util.Locale.getDefault(), "%d:%02d", s / 60, s % 60);
     }
 
     private void showTrash() {
@@ -547,9 +718,12 @@ public class FileManagerActivity extends BaseActivity {
         editorSave.setText(R.string.fm_ui_editor_save);
         editorSave.setTextColor(accent != 0 ? accent : onSurface);
         editorSave.setOnClickListener(v ->
-                vm.editorSave(done -> Toast.makeText(this,
-                        done ? R.string.fm_ui_editor_saved : R.string.fm_ui_editor_save_failed,
-                        Toast.LENGTH_SHORT).show()));
+                vm.editorSave(done -> {
+                    Toast.makeText(this,
+                            done ? R.string.fm_ui_editor_saved : R.string.fm_ui_editor_save_failed,
+                            Toast.LENGTH_SHORT).show();
+                    return kotlin.Unit.INSTANCE;
+                }));
         findViewById(R.id.fm_editor_back).setOnClickListener(v -> requestEditorClose());
         editorText.addTextChangedListener(new TextWatcher() {
             @Override
@@ -573,6 +747,12 @@ public class FileManagerActivity extends BaseActivity {
             hideEditor();
             exitConfirmShown = false;
             return;
+        }
+        // 打开新文件时重置编辑痕迹（否则上一文件关闭残留的 editorUserEdited 会拦下内容加载）
+        String pathStr = ui.getPath().toString();
+        if (!pathStr.equals(lastEditorPath)) {
+            lastEditorPath = pathStr;
+            editorUserEdited = false;
         }
         showEditor();
         editorName.setText(ui.getPath().getFileName() != null
@@ -615,6 +795,7 @@ public class FileManagerActivity extends BaseActivity {
                     exitConfirmShown = false;
                     vm.editorSave(done -> {
                         if (done) vm.editorClose();
+                        return kotlin.Unit.INSTANCE;
                     });
                 })
                 .setNegativeButton(getString(R.string.fm_ui_editor_discard), v -> {
@@ -651,7 +832,11 @@ public class FileManagerActivity extends BaseActivity {
         if (editorRoot.getVisibility() != View.VISIBLE) return;
         editorRoot.setVisibility(View.GONE);
         editorUserEdited = false;
+        lastEditorPath = null;
+        // guard：清空文本不触发 watcher（否则 editorUserEdited 被置回 true + dirty 被污染）
+        applyingHighlight = true;
         editorText.setText("");
+        applyingHighlight = false;
         highlightHandler.removeCallbacks(highlightTask);
         topBar.setVisibility(View.VISIBLE);
         contentFrame.setVisibility(View.VISIBLE);
@@ -793,6 +978,13 @@ public class FileManagerActivity extends BaseActivity {
         super.onConfigurationChanged(newConfig);
         landscape = newConfig.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
         applyLayoutMode();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        highlightHandler.removeCallbacksAndMessages(null);
+        releaseAudio();
     }
 
     @Override

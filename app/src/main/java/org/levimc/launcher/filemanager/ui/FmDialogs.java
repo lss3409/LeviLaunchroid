@@ -36,7 +36,8 @@ import java.util.Locale;
  */
 public class FmDialogs {
 
-    private static final String[] TEXT_SUFFIX = {
+    /** 内置编辑器支持的文本后缀（Activity 分发共用）。 */
+    public static final String[] TEXT_SUFFIX = {
             ".txt", ".log", ".json", ".xml", ".yml", ".yaml", ".properties", ".mcmeta",
             ".cfg", ".conf", ".ini", ".md", ".html", ".js", ".css", ".csv", ".lang"
     };
@@ -211,16 +212,15 @@ public class FmDialogs {
 
     // ---------------- 条目操作菜单 ----------------
 
-    public static void showEntryMenu(BaseActivity a, FileManagerViewModel vm, FmEntry entry, Runnable refresh) {
+    public static void showEntryMenu(BaseActivity a, FileManagerViewModel vm, FmEntry entry,
+                                     Runnable refresh, Runnable onOpen) {
         List<String> items = new java.util.ArrayList<>();
         List<Runnable> actions = new java.util.ArrayList<>();
-        // 打开
+        // 打开（分发逻辑在 Activity：文件夹进入/图片预览/音频播放/文本编辑/系统打开）
         items.add(entry.isDirectory() ? a.getString(R.string.fm_ui_open) : a.getString(R.string.fm_ui_open_with));
-        actions.add(() -> {
+        actions.add(onOpen != null ? onOpen : () -> {
             if (entry.isDirectory()) {
                 vm.enterDirectory(entry);
-            } else {
-                openFile(a, vm, entry);
             }
         });
         items.add(a.getString(R.string.fm_ui_copy));
@@ -251,26 +251,38 @@ public class FmDialogs {
                 trackShow(dialog);
     }
 
-    /** 文件打开：文本类走内置语法高亮编辑器，其余交系统。 */
-    public static void openFile(BaseActivity a, FileManagerViewModel vm, FmEntry entry) {
-        String name = entry.getName().toLowerCase(Locale.ROOT);
-        for (String suffix : TEXT_SUFFIX) {
-            if (name.endsWith(suffix)) {
-                vm.editorOpen(entry.getPath());
-                return;
-            }
-        }
-        try {
-            Intent view = new Intent(Intent.ACTION_VIEW);
-            view.setDataAndType(android.net.Uri.fromFile(new File(entry.getPath().toString())), guessMime(name));
-            view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            a.startActivity(Intent.createChooser(view, null));
-        } catch (Exception e) {
-            android.widget.Toast.makeText(a, R.string.fm_ui_open_failed, android.widget.Toast.LENGTH_SHORT).show();
-        }
+    /**
+     * 图片弹窗预览（v669 恢复旧版能力）：后台解码 + 按屏高算 inSampleSize 防大图 OOM。
+     */
+    public static void showImagePreview(BaseActivity a, File file) {
+        android.widget.ImageView imageView = new android.widget.ImageView(a);
+        imageView.setAdjustViewBounds(true);
+        int maxH = (int) (a.getResources().getDisplayMetrics().heightPixels * 0.55f);
+        imageView.setMaxHeight(maxH);
+
+        CustomAlertDialog dialog = new CustomAlertDialog(a)
+                .setTitleText(file.getName())
+                .setCustomView(imageView)
+                .setNegativeButton(a.getString(R.string.close), null)
+                ;
+        trackShow(dialog);
+
+        new Thread(() -> {
+            android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
+            opts.inJustDecodeBounds = true;
+            android.graphics.BitmapFactory.decodeFile(file.getAbsolutePath(), opts);
+            int sample = 1;
+            while (opts.outHeight / sample > maxH * 2) sample *= 2;
+            opts.inJustDecodeBounds = false;
+            opts.inSampleSize = sample;
+            android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeFile(file.getAbsolutePath(), opts);
+            a.runOnUiThread(() -> {
+                if (bitmap != null) imageView.setImageBitmap(bitmap);
+            });
+        }).start();
     }
 
-    private static String guessMime(String name) {
+    public static String guessMime(String name) {
         if (name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".webp") || name.endsWith(".gif")) return "image/*";
         if (name.endsWith(".mp3") || name.endsWith(".ogg") || name.endsWith(".wav") || name.endsWith(".flac")) return "audio/*";
         if (name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".webm")) return "video/*";
