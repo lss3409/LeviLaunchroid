@@ -717,7 +717,7 @@ public class ImportPickerDialog {
         // 它构造时读 theme 的 materialButtonStyle attr 而非样式本身，
         // 导致文字色仍是主题默认深绿（像素实测 (27,94,32)）。
         MaterialButton batchCancel = new MaterialButton(context, null,
-                com.google.android.material.R.attr.borderlessButtonStyle);
+                android.R.attr.borderlessButtonStyle);
         batchCancel.setAllCaps(false);
         batchCancel.setText("取消");
         batchCancel.setTextSize(13);
