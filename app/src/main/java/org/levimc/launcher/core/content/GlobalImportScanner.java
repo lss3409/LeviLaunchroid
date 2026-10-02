@@ -110,6 +110,9 @@ public final class GlobalImportScanner {
     private static volatile boolean sScanning;
     /** v647：已发现候选数（换绑监听者时新弹窗显示既有进度）。 */
     private static volatile int sLiveCount;
+    /** v706：扫描中已发现候选列表（弹窗二次打开时立即填充显示，
+     *  不等新 onFound——浅层资源已在首轮发现，深潜阶段新候选迟迟不来）。 */
+    private static volatile List<Candidate> sFound;
 
     public static boolean isScanning() {
         return sScanning;
@@ -117,6 +120,11 @@ public final class GlobalImportScanner {
 
     public static int liveCount() {
         return sLiveCount;
+    }
+
+    /** v706：扫描进行中已发现的结果（无则为 null）。 */
+    public static List<Candidate> foundSoFar() {
+        return sFound;
     }
 
     public static void scanAsync(Listener listener) {
@@ -156,6 +164,7 @@ public final class GlobalImportScanner {
         Set<String> seen = new HashSet<>();
         File sd = Environment.getExternalStorageDirectory();
         sLiveCount = 0;
+        sFound = out; // v706：扫描中已发现列表（二次打开立即填充用）
         // v604：全盘扫描（用户明确要求，不设目录白名单）——仅跳过
         // 缓存/缩略图类目录与自己的数据目录，深度上限保护
         Listener l = sListener;

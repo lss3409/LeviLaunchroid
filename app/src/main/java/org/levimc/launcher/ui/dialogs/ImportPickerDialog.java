@@ -558,6 +558,30 @@ public class ImportPickerDialog {
                 expandedType = firstNonEmptyType(cached);
                 status.setText("已载入上次结果 " + cached.size() + " 项，正在刷新…");
                 redrawRef[0].run();
+            } else {
+                // v706：无磁盘缓存但首次扫描仍在进行（首次打开没扫完就
+                // 退出，二次打开）——直接用扫描线程已发现的结果填充，
+                // 否则要等深潜阶段的新 onFound 才显示（浅层资源早已发现，
+                // 新候选迟迟不来，弹窗一直挂着「正在扫描」占位）
+                List<GlobalImportScanner.Candidate> soFar =
+                        GlobalImportScanner.foundSoFar();
+                if (soFar != null && !soFar.isEmpty()) {
+                    List<GlobalImportScanner.Candidate> copy;
+                    try {
+                        copy = new ArrayList<>(soFar);
+                    } catch (Throwable t) {
+                        copy = new ArrayList<>();
+                    }
+                    if (!copy.isEmpty()) {
+                        results[0] = copy;
+                        for (GlobalImportScanner.Candidate c : copy) {
+                            knownPaths.add(c.path);
+                        }
+                        expandedType = firstNonEmptyType(copy);
+                        status.setText("已发现 " + copy.size() + " 项，仍在扫描…");
+                        redrawRef[0].run();
+                    }
+                }
             }
             // v647：批量刷新——150ms 合并一批增量（只 append 新行+更新计数，
             // 不做全量重建，扫描期间列表平滑增长）
@@ -598,6 +622,15 @@ public class ImportPickerDialog {
                                 density, accent, listener, dialog, redrawRef[0], content,
                                 search, status));
                     }
+                }
+                // v706：网格凑行余量直接渲染（不满一行也显示，末尾条目
+                // 不再延迟到 onDone 全量重建才出现）
+                if (gridMode && !pendingGroup[0].isEmpty()) {
+                    int cols = gridColumns(true, density, widthArr[0]);
+                    content.addView(buildGridRow(context, new ArrayList<>(pendingGroup[0]),
+                            cols, textMain, textSub, cardBg, density, accent, listener,
+                            dialog, redrawRef[0], content, search, status));
+                    pendingGroup[0].clear();
                 }
                 rendered[0] = list.size();
                 // 分类卡计数增量更新（与全量重建同口径：按过滤后计数）
