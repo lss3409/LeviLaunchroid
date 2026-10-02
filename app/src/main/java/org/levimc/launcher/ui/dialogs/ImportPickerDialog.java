@@ -59,6 +59,8 @@ public class ImportPickerDialog {
     private static Runnable relimitRef;
     private static View cardsHostView;
     private static int expandedType = -1;
+    /** v652：搜索抽屉展开状态（二级菜单返回时按此恢复）。 */
+    private static boolean searchOpenState;
 
     // v646：缩略图 LRU 缓存 + 后台解码线程池——200 条级别条目列表重建时
     // 不再主线程重复解码/裁切位图（点分类卡顿挫的根因）
@@ -192,13 +194,7 @@ public class ImportPickerDialog {
         root.setPadding((int) (20 * density), (int) (18 * density),
                 (int) (20 * density), (int) (16 * density));
 
-        TextView title = new TextView(context);
-        title.setText("扫描手机中的可导入内容");
-        title.setTextColor(textMain);
-        title.setTextSize(16);
-        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        root.addView(title);
-
+        // v652：标题删除（用户：头部占一半空间，弹窗标题信息量低）
         EditText search = new EditText(context);
         search.setHint("搜索名称…");
         search.setHintTextColor(textSub);
@@ -209,16 +205,41 @@ public class ImportPickerDialog {
         search.setPadding((int) (12 * density), 0, (int) (12 * density), 0);
         LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, (int) (38 * density));
-        slp.topMargin = (int) (10 * density);
+        slp.topMargin = (int) (4 * density);
         search.setLayoutParams(slp);
+        // v652：搜索抽屉式——默认收起，点状态行右侧图标展开
+        search.setVisibility(searchOpenState ? View.VISIBLE : View.GONE);
         root.addView(search);
 
         TextView status = new TextView(context);
         status.setText("正在扫描…");
         status.setTextColor(textSub);
-        status.setTextSize(12);
-        status.setPadding(0, (int) (8 * density), 0, (int) (6 * density));
-        root.addView(status);
+        status.setTextSize(10); // v652：状态字小一点
+        status.setPadding(0, (int) (2 * density), 0, 0);
+
+        // v652：状态行——状态文字 + 右侧搜索切换图标（抽屉把手）
+        LinearLayout statusRow = new LinearLayout(context);
+        statusRow.setOrientation(LinearLayout.HORIZONTAL);
+        statusRow.setGravity(Gravity.CENTER_VERTICAL);
+        statusRow.addView(status, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        ImageView searchToggle = new ImageView(context);
+        searchToggle.setImageResource(R.drawable.ic_search);
+        searchToggle.setColorFilter(textSub);
+        searchToggle.setPadding((int) (6 * density), (int) (2 * density),
+                (int) (2 * density), (int) (2 * density));
+        statusRow.addView(searchToggle);
+        root.addView(statusRow);
+        searchToggle.setOnClickListener(v -> {
+            searchOpenState = !searchOpenState;
+            search.setVisibility(searchOpenState ? View.VISIBLE : View.GONE);
+            if (searchOpenState) {
+                search.requestFocus();
+            }
+            if (relimitRef != null) {
+                relimitRef.run();
+            }
+        });
 
         // v610：分类卡固定区（吸顶，条目滚动时始终显示）
         LinearLayout cardsHost = new LinearLayout(context);
@@ -662,7 +683,7 @@ public class ImportPickerDialog {
         }
         card.setBackground(bg);
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0,
-                (int) ((phone ? 46 : 72) * density), 1f);
+                (int) ((phone ? 34 : 72) * density), 1f);
         if (group > 0) {
             cp.leftMargin = (int) (6 * density);
         }
@@ -673,7 +694,7 @@ public class ImportPickerDialog {
         icon.setImageResource(ICONS[group]);
         // v615：分类卡图标灰色（对齐内容管理分类图标观感）
         icon.setColorFilter(0xFF8A8A8A);
-        int iconDp = phone ? 16 : 22;
+        int iconDp = phone ? 14 : 22;
         icon.setLayoutParams(new LinearLayout.LayoutParams(
                 (int) (iconDp * density), (int) (iconDp * density)));
         card.addView(icon);
@@ -896,7 +917,11 @@ public class ImportPickerDialog {
                                    EditText search, TextView status) {
         // v609：二级菜单里隐藏搜索框和"发现 N 项"提示
         search.setVisibility(View.GONE);
-        status.setVisibility(View.GONE);        if (cardsHostView != null) {
+        status.setVisibility(View.GONE);
+        if (status.getParent() instanceof View) {
+            ((View) status.getParent()).setVisibility(View.GONE);
+        }
+        if (cardsHostView != null) {
             cardsHostView.setVisibility(View.GONE);
         }
         content.removeAllViews();
@@ -1037,8 +1062,12 @@ public class ImportPickerDialog {
         btns.addView(backBtn, bbp);
         AccentStyler.stylePrimary(context, backBtn);
         backBtn.setOnClickListener(v -> {
-            search.setVisibility(View.VISIBLE);
-            status.setVisibility(View.VISIBLE);        if (cardsHostView != null) {
+            search.setVisibility(searchOpenState ? View.VISIBLE : View.GONE);
+            status.setVisibility(View.VISIBLE);
+        if (status.getParent() instanceof View) {
+            ((View) status.getParent()).setVisibility(View.VISIBLE);
+        }
+        if (cardsHostView != null) {
             cardsHostView.setVisibility(View.VISIBLE);
         }
             back.run();
@@ -1076,7 +1105,11 @@ public class ImportPickerDialog {
                                       Listener listener, Dialog dialog, Runnable back,
                                       EditText search, TextView status) {
         search.setVisibility(View.GONE);
-        status.setVisibility(View.GONE);        if (cardsHostView != null) {
+        status.setVisibility(View.GONE);
+        if (status.getParent() instanceof View) {
+            ((View) status.getParent()).setVisibility(View.GONE);
+        }
+        if (cardsHostView != null) {
             cardsHostView.setVisibility(View.GONE);
         }
         content.removeAllViews();
@@ -1147,8 +1180,12 @@ public class ImportPickerDialog {
         btns.addView(backBtn, bbp);
         AccentStyler.stylePrimary(context, backBtn);
         backBtn.setOnClickListener(v -> {
-            search.setVisibility(View.VISIBLE);
-            status.setVisibility(View.VISIBLE);        if (cardsHostView != null) {
+            search.setVisibility(searchOpenState ? View.VISIBLE : View.GONE);
+            status.setVisibility(View.VISIBLE);
+        if (status.getParent() instanceof View) {
+            ((View) status.getParent()).setVisibility(View.VISIBLE);
+        }
+        if (cardsHostView != null) {
             cardsHostView.setVisibility(View.VISIBLE);
         }
             back.run();
