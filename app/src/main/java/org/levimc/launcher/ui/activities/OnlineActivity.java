@@ -148,33 +148,53 @@ public final class OnlineActivity extends BaseActivity
 
         refreshRecent();
         setHomeState(EasyTierManager.State.IDLE, null);
-        // v694：欢迎语（v642 功能移植回 v560 联机页）+ 当前时间显示
+        // v694/v695：欢迎语（v642 功能移植）+ 右侧钟表样式时间（实时刷新）
         updateGreeting();
+        clockHandler.post(clockTick);
 
         handleDebugJoinIntent(getIntent());
     }
 
-    /** v694：按时段问候（凌晨/早上/中午/下午好 + 昵称 + 当前时间）。 */
+    /** v695：时钟定时器（30s 刷新一次，跨时段自动更新问候语）。 */
+    private final android.os.Handler clockHandler = new android.os.Handler(
+            android.os.Looper.getMainLooper());
+    private final Runnable clockTick = new Runnable() {
+        @Override
+        public void run() {
+            updateGreeting();
+            clockHandler.postDelayed(this, 30_000);
+        }
+    };
+
+    /** v694/v695：按时段问候（凌晨/早上/中午/下午好 + 昵称）+ 右侧钟表时间。 */
     private void updateGreeting() {
         TextView greeting = findViewById(R.id.online_scenery_greeting);
-        if (greeting == null) {
-            return;
+        if (greeting != null) {
+            java.util.Calendar cal = java.util.Calendar.getInstance();
+            int hour = cal.get(java.util.Calendar.HOUR_OF_DAY);
+            int greetRes;
+            if (hour < 5) {
+                greetRes = R.string.online_greet_night;
+            } else if (hour < 12) {
+                greetRes = R.string.online_greet_morning;
+            } else if (hour < 18) {
+                greetRes = R.string.online_greet_noon;
+            } else {
+                greetRes = R.string.online_greet_evening;
+            }
+            greeting.setText(getString(greetRes, PlayerIdentity.getNickname(this)));
         }
-        java.util.Calendar cal = java.util.Calendar.getInstance();
-        int hour = cal.get(java.util.Calendar.HOUR_OF_DAY);
-        int greetRes;
-        if (hour < 5) {
-            greetRes = R.string.online_greet_night;
-        } else if (hour < 12) {
-            greetRes = R.string.online_greet_morning;
-        } else if (hour < 18) {
-            greetRes = R.string.online_greet_noon;
-        } else {
-            greetRes = R.string.online_greet_evening;
+        TextView clock = findViewById(R.id.online_scenery_clock);
+        if (clock != null) {
+            clock.setText(new java.text.SimpleDateFormat("HH:mm",
+                    java.util.Locale.getDefault()).format(new java.util.Date()));
         }
-        String time = new java.text.SimpleDateFormat("HH:mm",
-                java.util.Locale.getDefault()).format(new java.util.Date());
-        greeting.setText(getString(greetRes, PlayerIdentity.getNickname(this)) + "  " + time);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        clockHandler.removeCallbacksAndMessages(null);
     }
 
     /**
