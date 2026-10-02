@@ -388,10 +388,9 @@ public final class LanRelayBridge {
                     byte[] pong = buildPongReply(data);
                     if (pong != null) {
                         proxy.send(new DatagramPacket(pong, pong.length,
-                                p.getAddress(), p.getPort()));
+                                InetAddress.getByName(src), sport));
                         org.levimc.launcher.util.OnlineDebugLog.log(
-                                "异地桥(服务器): 回合成 pong → " + p.getAddress()
-                                        + ":" + p.getPort());
+                                "异地桥(服务器): 回合成 pong → " + src + ":" + sport);
                     }
                 } else if (serverSide) {
                     // 客户端连接流量 → 本机服务器世界端口
