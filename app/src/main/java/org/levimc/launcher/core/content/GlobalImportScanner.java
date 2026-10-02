@@ -96,22 +96,54 @@ public final class GlobalImportScanner {
     public interface Listener {
         void onProgress(String scanning);
 
+        /** v647：流式回调——每发现一个候选即通知（扫描工作线程，UI 侧自行 post）。 */
+        void onFound(Candidate c);
+
         void onDone(List<Candidate> candidates);
     }
 
     private GlobalImportScanner() {
     }
 
+    /** v647：当前监听者（弹窗关闭重开时换绑，扫描线程继续跑不重启）。 */
+    private static volatile Listener sListener;
+    private static volatile boolean sScanning;
+    /** v647：已发现候选数（换绑监听者时新弹窗显示既有进度）。 */
+    private static volatile int sLiveCount;
+
+    public static boolean isScanning() {
+        return sScanning;
+    }
+
+    public static int liveCount() {
+        return sLiveCount;
+    }
+
     public static void scanAsync(Listener listener) {
+        synchronized (GlobalImportScanner.class) {
+            if (sScanning) {
+                // v647：已有扫描在跑——直接换绑监听者，新弹窗接管结果流
+                sListener = listener;
+                return;
+            }
+            sScanning = true;
+            sListener = listener;
+        }
         Thread t = new Thread(() -> {
             try {
-                List<Candidate> out = scan(listener);
-                if (listener != null) {
-                    listener.onDone(out);
+                List<Candidate> out = scan(sListener);
+                Listener l = sListener;
+                sScanning = false;
+                sListener = null;
+                if (l != null) {
+                    l.onDone(out);
                 }
             } catch (Throwable e) {
-                if (listener != null) {
-                    listener.onDone(new ArrayList<>());
+                Listener l = sListener;
+                sScanning = false;
+                sListener = null;
+                if (l != null) {
+                    l.onDone(new ArrayList<>());
                 }
             }
         }, "global-import-scan");
@@ -123,17 +155,32 @@ public final class GlobalImportScanner {
         List<Candidate> out = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         File sd = Environment.getExternalStorageDirectory();
+        sLiveCount = 0;
         // v604：全盘扫描（用户明确要求，不设目录白名单）——仅跳过
         // 缓存/缩略图类目录与自己的数据目录，深度上限保护
-        if (listener != null) {
-            listener.onProgress(sd.getAbsolutePath());
+        Listener l = sListener;
+        if (l != null) {
+            l.onProgress(sd.getAbsolutePath());
         }
-        scanDir(sd, 16, out, seen, listener);
+        scanDir(sd, 16, out, seen);
         return out;
     }
 
+    /** v647：候选入列 + 流式通知（每次读最新监听者，换绑即生效）。 */
+    private static void addFound(List<Candidate> out, Candidate c) {
+        out.add(c);
+        sLiveCount = out.size();
+        Listener l = sListener;
+        if (l != null) {
+            try {
+                l.onFound(c);
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
     private static void scanDir(File dir, int depth, List<Candidate> out,
-                                Set<String> seen, Listener listener) {
+                                Set<String> seen) {
         if (depth <= 0 || dir == null || !dir.isDirectory()) {
             return;
         }
@@ -162,9 +209,9 @@ public final class GlobalImportScanner {
                     // 不再识别解压的资源包文件夹
                     Candidate c = checkWorldFolder(f);
                     if (c != null && seen.add(c.path)) {
-                        out.add(c);
+                        addFound(out, c);
                     }
-                    scanDir(f, depth - 1, out, seen, listener);
+                    scanDir(f, depth - 1, out, seen);
                 } else if (f.isFile()) {
                     // v609：跳过自己的备份/包格式；只认 mc 系列后缀，
                     // 不再扫通用 .zip
@@ -175,13 +222,13 @@ public final class GlobalImportScanner {
                         // 内容校验：必须含 level.dat，否则排除
                         Candidate c = checkZipWorld(f);
                         if (c != null && seen.add(c.path)) {
-                            out.add(c);
+                            addFound(out, c);
                         }
                     } else if (name.endsWith(".mcpack") || name.endsWith(".mcaddon")) {
                         // 内容校验：必须含 manifest.json，否则排除
                         Candidate c = checkZipPack(f);
                         if (c != null && seen.add(c.path)) {
-                            out.add(c);
+                            addFound(out, c);
                         }
                     } else if (name.endsWith(".mcstructure")) {
                         Candidate c = new Candidate();
@@ -191,7 +238,7 @@ public final class GlobalImportScanner {
                         c.size = f.length();
                         c.path = f.getAbsolutePath();
                         if (seen.add(c.path)) {
-                            out.add(c);
+                            addFound(out, c);
                         }
                     }
                 }

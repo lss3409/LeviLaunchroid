@@ -52,6 +52,10 @@ public class ImportPickerDialog {
     }
 
     private static List<GlobalImportScanner.Candidate> cachedCandidates;
+    /** v647：缓存仅在完整扫描完成后可用（扫描中途关弹窗缓存不完整）。 */
+    private static boolean scanComplete;
+    /** v647：四张分类卡的数量文本（增量扫描时直接更新，不重建卡片区）。 */
+    private static final TextView[] cardCountViews = new TextView[4];
     private static Runnable relimitRef;
     private static View cardsHostView;
     private static int expandedType = -1;
@@ -145,6 +149,13 @@ public class ImportPickerDialog {
         final List<GlobalImportScanner.Candidate>[] results = new List[]{null};
         final String[] query = {""};
         final Runnable[] redrawRef = new Runnable[1];
+        // v647：增量扫描状态——rendered=已渲染游标（results 索引）、
+        // lastFlush=上次刷新时间戳、pendingFlush=是否有排队的刷新、
+        // closed=弹窗已关闭（回调静默）
+        final int[] rendered = {0};
+        final long[] lastFlush = {0L};
+        final boolean[] pendingFlush = {false};
+        final boolean[] closed = {false};
 
         redrawRef[0] = () -> {
             cardsHost.removeAllViews();
@@ -184,13 +195,17 @@ public class ImportPickerDialog {
                         count++;
                     }
                 }
-                cards.addView(buildCategoryCard(context, g, count, density, accent,
+                View card = buildCategoryCard(context, g, count, density, accent,
                         textMain, cardBg, type == expandedType, v -> {
                             // v610：单展开位——必须始终有一个分类展开
                             // （点已展开卡不再收起，避免下方出现大空缺）
                             expandedType = type;
                             redrawRef[0].run();
-                        }));
+                        });
+                // v647：缓存计数文本引用（增量扫描直接更新）
+                View cnt = card.findViewWithTag("count");
+                cardCountViews[g] = cnt instanceof TextView ? (TextView) cnt : null;
+                cards.addView(card);
             }
             // 条目列表（仅展开分类）+ 卡片与条目的间距
             if (expandedType >= 0) {
@@ -222,6 +237,8 @@ public class ImportPickerDialog {
             if (relimitRef != null) {
                 relimitRef.run();
             }
+            // v647：全量重建后增量游标对齐（已发现的候选都已渲染）
+            rendered[0] = list.size();
         };
 
         // v646：搜索防抖 300ms——每敲一个字符不再立即全量重建列表
@@ -247,7 +264,8 @@ public class ImportPickerDialog {
             }
         });
 
-        if (cachedCandidates != null) {
+        // v647：缓存仅在完整扫描完成后可用；扫描进行中重开弹窗则换绑监听者接管
+        if (cachedCandidates != null && scanComplete) {
             results[0] = cachedCandidates;
             if (expandedType < 0) {
                 expandedType = firstNonEmptyType(cachedCandidates);
@@ -255,16 +273,115 @@ public class ImportPickerDialog {
             status.setText("发现 " + cachedCandidates.size() + " 项，点分类卡展开");
             redrawRef[0].run();
         } else {
+            results[0] = new ArrayList<>();
+            // v647：静态展开态/计数引用是上一弹窗的——新弹窗必须重置，
+            // 否则首个 onFound 不触发全量渲染，分类卡区恒空
+            expandedType = -1;
+            rendered[0] = 0;
+            for (int i = 0; i < cardCountViews.length; i++) {
+                cardCountViews[i] = null;
+            }
+            // 初始占位（首个候选到达前的空态，首次 onFound 全量渲染时清掉）
+            TextView placeholder = new TextView(context);
+            placeholder.setText("正在扫描，请稍候…");
+            placeholder.setTextColor(textSub);
+            placeholder.setTextSize(12);
+            placeholder.setGravity(Gravity.CENTER);
+            placeholder.setPadding(0, (int) (20 * density), 0, 0);
+            content.addView(placeholder);
+            int live = GlobalImportScanner.liveCount();
+            status.setText(live > 0 ? "正在扫描…（已有 " + live + " 项）" : "正在扫描…");
+            // v647：批量刷新——150ms 合并一批增量（只 append 新行+更新计数，
+            // 不做全量重建，扫描期间列表平滑增长）
+            final Runnable[] flushRef = new Runnable[1];
+            flushRef[0] = () -> {
+                pendingFlush[0] = false;
+                if (closed[0] || !GlobalImportScanner.isScanning()) {
+                    return;
+                }
+                List<GlobalImportScanner.Candidate> list = results[0];
+                if (list == null) {
+                    return;
+                }
+                for (int i = rendered[0]; i < list.size(); i++) {
+                    GlobalImportScanner.Candidate c = list.get(i);
+                    if (c.type == expandedType
+                            && (query[0].isEmpty() || c.name.toLowerCase(Locale.US)
+                                    .contains(query[0].toLowerCase(Locale.US)))) {
+                        content.addView(buildItemRow(context, c, textMain, textSub, cardBg,
+                                density, accent, listener, dialog, redrawRef[0], content,
+                                search, status));
+                    }
+                }
+                rendered[0] = list.size();
+                // 分类卡计数增量更新（与全量重建同口径：按过滤后计数）
+                for (int g = 0; g < GROUPS.length; g++) {
+                    if (cardCountViews[g] == null) {
+                        continue;
+                    }
+                    int type = GROUPS[g][0];
+                    int count = 0;
+                    for (GlobalImportScanner.Candidate cc : list) {
+                        if (cc.type == type
+                                && (query[0].isEmpty() || cc.name.toLowerCase(Locale.US)
+                                        .contains(query[0].toLowerCase(Locale.US)))) {
+                            count++;
+                        }
+                    }
+                    cardCountViews[g].setText(LABELS[g] + (count > 0 ? "  " + count : ""));
+                }
+                status.setText("已发现 " + list.size() + " 项，仍在扫描…");
+                lastFlush[0] = android.os.SystemClock.uptimeMillis();
+                if (relimitRef != null) {
+                    relimitRef.run();
+                }
+            };
             GlobalImportScanner.scanAsync(new GlobalImportScanner.Listener() {
                 @Override
                 public void onProgress(String scanning) {
-                    runOnUi(context, () -> status.setText("正在扫描：" + scanning));
+                    runOnUi(context, () -> {
+                        if (closed[0]) {
+                            return;
+                        }
+                        status.setText("正在扫描：" + scanning);
+                    });
+                }
+
+                @Override
+                public void onFound(GlobalImportScanner.Candidate c) {
+                    runOnUi(context, () -> {
+                        if (closed[0]) {
+                            return;
+                        }
+                        List<GlobalImportScanner.Candidate> list = results[0];
+                        list.add(c);
+                        cachedCandidates = list;
+                        if (expandedType < 0) {
+                            // 首个候选：定展开分类并首次全量渲染
+                            expandedType = firstNonEmptyType(list);
+                            redrawRef[0].run();
+                            lastFlush[0] = android.os.SystemClock.uptimeMillis();
+                            return;
+                        }
+                        long now = android.os.SystemClock.uptimeMillis();
+                        if (now - lastFlush[0] >= 150) {
+                            lastFlush[0] = now;
+                            flushRef[0].run();
+                        } else if (!pendingFlush[0]) {
+                            pendingFlush[0] = true;
+                            status.postDelayed(flushRef[0], 150);
+                        }
+                    });
                 }
 
                 @Override
                 public void onDone(List<GlobalImportScanner.Candidate> candidates) {
                     runOnUi(context, () -> {
                         cachedCandidates = candidates;
+                        scanComplete = true;
+                        if (closed[0]) {
+                            return;
+                        }
                         results[0] = candidates;
                         if (candidates == null || candidates.isEmpty()) {
                             status.setText("扫描完成，未发现可导入内容");
@@ -332,6 +449,8 @@ public class ImportPickerDialog {
             w.setBackgroundDrawableResource(android.R.color.transparent);
             w.setLayout(widthArr[0], ViewGroup.LayoutParams.WRAP_CONTENT);
         }
+        // v647：关闭后扫描回调静默（缓存仍由 onDone 收尾写入）
+        dialog.setOnDismissListener(d -> closed[0] = true);
         dialog.show();
         relimit.run();
     }
@@ -381,6 +500,7 @@ public class ImportPickerDialog {
         card.addView(icon);
 
         TextView label = new TextView(context);
+        label.setTag("count"); // v647：增量扫描更新计数用
         label.setText(LABELS[group] + (count > 0 ? "  " + count : ""));
         label.setTextColor(textMain);
         label.setTextSize(11);

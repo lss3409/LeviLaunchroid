@@ -32,7 +32,10 @@ public final class DialogSizer {
         DisplayMetrics dm = ctx.getResources().getDisplayMetrics();
         int ideal = (int) (idealDp * dm.density);
         if (isPhone(ctx)) {
-            return Math.min((int) (dm.widthPixels * 0.9f), ideal);
+            // v647：手机恒 90% 屏宽（M3 compact 规范）。原 min(90%, 理想宽)
+            // 在低密度大屏手机上理想宽比 90% 还小，恒取理想宽——横屏
+            // vivo 弹窗只剩 36% 屏宽。内容根视图 WRAP_CONTENT 不会强撑满。
+            return (int) (dm.widthPixels * 0.9f);
         }
         // 大屏：宽度 = min(理想宽, 屏宽 − 56dp×2 边距)
         int marginCap = (int) (dm.widthPixels - 56 * dm.density * 2);
@@ -44,10 +47,15 @@ public final class DialogSizer {
         return (int) (ctx.getResources().getDisplayMetrics().heightPixels * 0.78f);
     }
 
-    /** 是否手机（与 UiScaleManager 同口径，最小边 < 600dp）。 */
+    /** 是否手机（最小边 < 800dp）。
+     *  v647：原 600dp 阈值会把大屏手机误判成平板——vivo V2536A 最小边
+     *  ≈710dp，横屏时走大屏分支弹窗恒 560dp 宽（只占屏宽 36%，用户截图
+     *  反馈"比例不正确"）。平板最小边 ≥960dp（12 寸 1280dp），800 阈值
+     *  两边余量充足。注意与 UiScaleManager 的 600dp 口径刻意不同——
+     *  后者管 UI 缩放系数，本类只管弹窗宽度。 */
     public static boolean isPhone(Context ctx) {
         DisplayMetrics dm = ctx.getResources().getDisplayMetrics();
         int smallestDp = (int) (Math.min(dm.widthPixels, dm.heightPixels) / dm.density);
-        return smallestDp < UiScaleManager.TABLET_MIN_SW_DP;
+        return smallestDp < 800;
     }
 }
