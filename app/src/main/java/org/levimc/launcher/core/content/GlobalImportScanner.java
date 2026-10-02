@@ -179,11 +179,29 @@ public final class GlobalImportScanner {
         }
     }
 
+    /** v656：扫描路径进度节流（150ms 一次——此前只在开始时回调一次根路径，
+     *  状态行恒显示 /storage/emulated/0）。 */
+    private static long lastProgressTs;
+
+    private static void progressIfDue(String path) {
+        long now = System.currentTimeMillis();
+        Listener l = sListener;
+        if (l != null && now - lastProgressTs > 150) {
+            lastProgressTs = now;
+            try {
+                l.onProgress(path);
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
     private static void scanDir(File dir, int depth, List<Candidate> out,
                                 Set<String> seen) {
         if (depth <= 0 || dir == null || !dir.isDirectory()) {
             return;
         }
+        // v656：逐目录上报扫描路径（节流 150ms，UI 显示扫描到哪里）
+        progressIfDue(dir.getAbsolutePath());
         String dn = dir.getName();
         if (dn.equals(".thumbnails") || dn.equals("cache") || dn.equals("Cache")
                 || dn.equals(".cache") || dn.equals("tmp") || dn.equals("temp")) {

@@ -64,6 +64,23 @@ public class ImportPickerDialog {
     /** v653：条目两列/一列切换（跨弹窗记忆；首开按设备——手机两列、平板一列）。 */
     private static boolean gridMode;
     private static boolean gridModeInit;
+    /** v656：批量导入多选状态（长按进入选择模式；勾选集合按 path 记）。 */
+    private static boolean selectionMode;
+    private static final java.util.Set<String> selectedPaths = new java.util.HashSet<>();
+    /** v656：勾选变化回调（更新底部「导入 N 项」按钮）。 */
+    private static Runnable onSelectionChangedRef;
+
+    /** v656：切换勾选并更新卡片样式（选中 = accent 描边 + 半透明底）。 */
+    private static void toggleCardSelection(View card, GlobalImportScanner.Candidate c,
+                                            int cardBg, int accent, float density) {
+        boolean now = !selectedPaths.contains(c.path);
+        if (now) {
+            selectedPaths.add(c.path);
+        } else {
+            selectedPaths.remove(c.path);
+        }
+        applySelectionStyle(card, now, cardBg, accent, density);
+    }
 
     // v646：缩略图 LRU 缓存 + 后台解码线程池——200 条级别条目列表重建时
     // 不再主线程重复解码/裁切位图（点分类卡顿挫的根因）
@@ -584,7 +601,18 @@ public class ImportPickerDialog {
                         if (closed[0]) {
                             return;
                         }
-                        status.setText("正在扫描：" + scanning);
+                        // v656：显示相对路径（去掉 /storage/emulated/0 前缀），
+                        // 超长截断保留尾部（正在扫哪个目录一眼可见）
+                        String p = scanning == null ? "" : scanning;
+                        if (p.startsWith("/storage/emulated/0/")) {
+                            p = p.substring("/storage/emulated/0/".length());
+                        } else if (p.equals("/storage/emulated/0")) {
+                            p = "";
+                        }
+                        if (p.length() > 42) {
+                            p = "…" + p.substring(p.length() - 41);
+                        }
+                        status.setText("正在扫描：" + p);
                     });
                 }
 
@@ -669,6 +697,88 @@ public class ImportPickerDialog {
         });
         root.addView(fromFiles);
 
+        // v656：多选操作条——「取消」（退出多选） + 「导入 N 项」（批量导入）
+        LinearLayout batchBar = new LinearLayout(context);
+        batchBar.setOrientation(LinearLayout.HORIZONTAL);
+        batchBar.setGravity(Gravity.END);
+        LinearLayout.LayoutParams bbp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        bbp.topMargin = (int) (8 * density);
+        batchBar.setLayoutParams(bbp);
+        batchBar.setVisibility(View.GONE);
+
+        // v656：多选条与勾选回调联动（按钮文字/可用性/可见性）——
+        // 提前声明供「取消」按钮引用
+        final Runnable[] updateBottomRef = new Runnable[1];
+
+        MaterialButton batchCancel = new MaterialButton(context);
+        batchCancel.setAllCaps(false);
+        batchCancel.setText("取消");
+        batchCancel.setTextSize(13);
+        batchCancel.setMinWidth(0);
+        batchCancel.setMinimumWidth(0);
+        LinearLayout.LayoutParams cbp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, (int) (42 * density));
+        batchCancel.setPadding((int) (18 * density), 0, (int) (18 * density), 0);
+        batchCancel.setLayoutParams(cbp);
+        AccentStyler.styleSecondary(context, batchCancel);
+        batchCancel.setOnClickListener(v -> {
+            // 取消 = 退出多选模式并清空勾选
+            selectionMode = false;
+            selectedPaths.clear();
+            redrawRef[0].run();
+            updateBottomRef[0].run();
+        });
+        batchBar.addView(batchCancel, cbp);
+
+        MaterialButton batchImport = new MaterialButton(context);
+        batchImport.setAllCaps(false);
+        batchImport.setText("导入");
+        batchImport.setTextSize(13);
+        batchImport.setMinWidth(0);
+        batchImport.setMinimumWidth(0);
+        LinearLayout.LayoutParams ibp2 = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, (int) (42 * density));
+        ibp2.leftMargin = (int) (8 * density);
+        batchImport.setPadding((int) (18 * density), 0, (int) (18 * density), 0);
+        batchImport.setLayoutParams(ibp2);
+        AccentStyler.stylePrimary(context, batchImport);
+        batchImport.setOnClickListener(v -> {
+            // 批量导入：按勾选集合逐个回调
+            List<GlobalImportScanner.Candidate> all = results[0];
+            List<java.io.File> files = new ArrayList<>();
+            if (all != null) {
+                for (GlobalImportScanner.Candidate c : all) {
+                    if (selectedPaths.contains(c.path)) {
+                        files.add(c.file);
+                    }
+                }
+            }
+            dialog.dismiss();
+            if (listener != null) {
+                for (java.io.File f : files) {
+                    listener.onPick(f);
+                }
+            }
+        });
+        batchBar.addView(batchImport, ibp2);
+        root.addView(batchBar);
+
+        // v656：多选条与勾选回调联动（按钮文字/可用性/可见性）
+        updateBottomRef[0] = () -> {
+            boolean sm = selectionMode;
+            fromFiles.setVisibility(sm ? View.GONE : View.VISIBLE);
+            batchBar.setVisibility(sm ? View.VISIBLE : View.GONE);
+            if (sm) {
+                batchImport.setText("导入 " + selectedPaths.size() + " 项");
+                batchImport.setEnabled(!selectedPaths.isEmpty());
+            }
+            if (relimitRef != null) {
+                relimitRef.run();
+            }
+        };
+        onSelectionChangedRef = updateBottomRef[0];
+
         // v613：限高做成可复用回调——内容动态变化（扫描完成/切换
         // 分类/进二级菜单）后重新测量，避免弹窗被撑出屏幕
         final Window[] wRef = new Window[1];
@@ -718,7 +828,12 @@ public class ImportPickerDialog {
             w.setLayout(widthArr[0], ViewGroup.LayoutParams.WRAP_CONTENT);
         }
         // v647：关闭后扫描回调静默（缓存仍由 onDone 收尾写入）
-        dialog.setOnDismissListener(d -> closed[0] = true);
+        // v656：关闭弹窗同时退出多选模式并清空勾选（防跨弹窗残留）
+        dialog.setOnDismissListener(d -> {
+            closed[0] = true;
+            selectionMode = false;
+            selectedPaths.clear();
+        });
         dialog.show();
         relimit.run();
     }
@@ -825,7 +940,8 @@ public class ImportPickerDialog {
         LinearLayout card = new LinearLayout(context);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_HORIZONTAL);
-        card.setBackground(roundBg(context, cardBg));
+        // v656：勾选样式（选中 = accent 描边 + 半透明底）
+        applySelectionStyle(card, selectedPaths.contains(c.path), cardBg, accent, density);
         card.setPadding((int) (10 * density), (int) (10 * density),
                 (int) (10 * density), (int) (10 * density));
 
@@ -890,16 +1006,40 @@ public class ImportPickerDialog {
                 listener.onPick(c.file);
             }
         });
+        // v656：多选模式下隐藏单个导入按钮
+        importBtn.setVisibility(selectionMode ? View.GONE : View.VISIBLE);
         card.addView(importBtn, blp);
 
-        // 点卡片本体（图标/文字区）→ 二级详情
+        // 点卡片本体：多选模式 = 切换勾选；否则进二级详情
         // v653：卡片整体也可点（修两列时点到 padding/间隙无响应）
-        View.OnClickListener toDetail = v -> showDetail(content, context, c, textMain,
-                textSub, cardBg, density, accent, listener, dialog, redraw, search, status);
+        View.OnClickListener toDetail = v -> {
+            if (selectionMode) {
+                toggleCardSelection(card, c, cardBg, accent, density);
+                if (onSelectionChangedRef != null) {
+                    onSelectionChangedRef.run();
+                }
+            } else {
+                showDetail(content, context, c, textMain, textSub, cardBg, density, accent,
+                        listener, dialog, redraw, search, status);
+            }
+        };
         card.setOnClickListener(toDetail);
         iconWrap.setOnClickListener(toDetail);
         name.setOnClickListener(toDetail);
         meta.setOnClickListener(toDetail);
+        // v656：长按进入多选模式并勾选
+        card.setOnLongClickListener(v -> {
+            boolean first = !selectionMode;
+            selectionMode = true;
+            toggleCardSelection(card, c, cardBg, accent, density);
+            if (first) {
+                redraw.run(); // 全量重建：全部卡片隐藏导入按钮 + 恢复勾选样式
+            }
+            if (onSelectionChangedRef != null) {
+                onSelectionChangedRef.run();
+            }
+            return true;
+        });
         return card;
     }
 
@@ -912,7 +1052,8 @@ public class ImportPickerDialog {
         LinearLayout row = new LinearLayout(context);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setBackground(roundBg(context, cardBg));
+        // v656：勾选样式（选中 = accent 描边 + 半透明底）
+        applySelectionStyle(row, selectedPaths.contains(c.path), cardBg, accent, density);
         row.setPadding((int) (10 * density), (int) (8 * density),
                 (int) (10 * density), (int) (8 * density));
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(
@@ -973,13 +1114,38 @@ public class ImportPickerDialog {
                 listener.onPick(c.file);
             }
         });
+        // v656：多选模式下隐藏单个导入按钮
+        importBtn.setVisibility(selectionMode ? View.GONE : View.VISIBLE);
         row.addView(importBtn);
 
-        // 点条目本体（图标/文字区）→ 二级详情
-        View.OnClickListener toDetail = v -> showDetail(content, context, c, textMain,
-                textSub, cardBg, density, accent, listener, dialog, redraw, search, status);
+        // 点条目本体：多选模式 = 切换勾选；否则进二级详情
+        View.OnClickListener toDetail = v -> {
+            if (selectionMode) {
+                toggleCardSelection(row, c, cardBg, accent, density);
+                if (onSelectionChangedRef != null) {
+                    onSelectionChangedRef.run();
+                }
+            } else {
+                showDetail(content, context, c, textMain, textSub, cardBg, density, accent,
+                        listener, dialog, redraw, search, status);
+            }
+        };
         iconWrap.setOnClickListener(toDetail);
         info.setOnClickListener(toDetail);
+        row.setOnClickListener(toDetail);
+        // v656：长按进入多选模式并勾选
+        row.setOnLongClickListener(v -> {
+            boolean first = !selectionMode;
+            selectionMode = true;
+            toggleCardSelection(row, c, cardBg, accent, density);
+            if (first) {
+                redraw.run(); // 全量重建：全部条目隐藏导入按钮 + 恢复勾选样式
+            }
+            if (onSelectionChangedRef != null) {
+                onSelectionChangedRef.run();
+            }
+            return true;
+        });
         return row;
     }
 
@@ -1333,7 +1499,7 @@ public class ImportPickerDialog {
             rows.add("种子：" + info.seed);
         }
         if (!info.gameType.isEmpty()) {
-            rows.add("游戏模式：" + info.gameType);
+            rows.add("游戏模式：" + gameTypeText(info.gameType));
         }
         if (info.lastPlayed > 0) {
             rows.add("最后游玩：" + DateFormat.getDateTimeInstance(
@@ -1446,6 +1612,47 @@ public class ImportPickerDialog {
             return out;
         } catch (Throwable ignored) {
             return src;
+        }
+    }
+
+    /** v656：混色（选中底色 = 卡片底色叠 accent 半透明）。 */
+    private static int blend(int base, int accent, float ratio) {
+        int r = (int) (((base >> 16) & 0xFF) * (1 - ratio) + ((accent >> 16) & 0xFF) * ratio);
+        int g = (int) (((base >> 8) & 0xFF) * (1 - ratio) + ((accent >> 8) & 0xFF) * ratio);
+        int b = (int) ((base & 0xFF) * (1 - ratio) + (accent & 0xFF) * ratio);
+        return (0xFF << 24) | (r << 16) | (g << 8) | b;
+    }
+
+    /** v656：勾选样式——选中 = accent 描边 + accent 半透明底（参考内容管理勾选）。 */
+    private static void applySelectionStyle(View card, boolean selected, int cardBg,
+                                            int accent, float density) {
+        GradientDrawable bg = new GradientDrawable();
+        if (selected) {
+            bg.setColor(blend(cardBg, accent, 0.18f));
+            bg.setStroke((int) (2 * density), accent);
+        } else {
+            bg.setColor(cardBg);
+        }
+        bg.setCornerRadius(12 * density);
+        card.setBackground(bg);
+    }
+
+    /** v656：NBT GameType 数字 → 可读文本（0 生存/1 创造/2 冒险/3 旁观）。 */
+    private static String gameTypeText(String v) {
+        if (v == null) {
+            return "";
+        }
+        switch (v) {
+            case "0":
+                return "生存模式";
+            case "1":
+                return "创造模式";
+            case "2":
+                return "冒险模式";
+            case "3":
+                return "旁观模式";
+            default:
+                return v;
         }
     }
 
