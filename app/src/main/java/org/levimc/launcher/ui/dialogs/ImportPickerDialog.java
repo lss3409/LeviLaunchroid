@@ -728,8 +728,9 @@ public class ImportPickerDialog {
     }
 
     /** 分类卡：图标 + 名称 + 数量，选中态 accent 描边。
-     *  v651：手机（phone）收小——高 46dp/图标 16dp/字号 10，
-     *  给条目区腾出更多纵向空间（平板保持原尺寸）。 */
+     *  v651：手机（phone）收小——高 44dp/图标 14dp/字号 10；
+     *  v654：平板也收紧间距——padding 8→5dp、卡间 6→3dp、高 72→64dp、
+     *  图标 22→20dp（用户反馈平板分类卡间距过大）。 */
     private static View buildCategoryCard(Context context, int group, int count,
                                           float density, int accent, int textMain,
                                           int cardBg, boolean selected, boolean phone,
@@ -737,7 +738,7 @@ public class ImportPickerDialog {
         LinearLayout card = new LinearLayout(context);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER);
-        int pad = (int) ((phone ? 5 : 8) * density);
+        int pad = (int) (5 * density);
         card.setPadding(pad, pad, pad, pad);
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(cardBg);
@@ -747,9 +748,9 @@ public class ImportPickerDialog {
         }
         card.setBackground(bg);
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0,
-                (int) ((phone ? 44 : 72) * density), 1f);
+                (int) ((phone ? 44 : 64) * density), 1f);
         if (group > 0) {
-            cp.leftMargin = (int) (6 * density);
+            cp.leftMargin = (int) (3 * density);
         }
         card.setLayoutParams(cp);
         card.setOnClickListener(onClick);
@@ -758,7 +759,7 @@ public class ImportPickerDialog {
         icon.setImageResource(ICONS[group]);
         // v615：分类卡图标灰色（对齐内容管理分类图标观感）
         icon.setColorFilter(0xFF8A8A8A);
-        int iconDp = phone ? 14 : 22;
+        int iconDp = phone ? 14 : 20;
         icon.setLayoutParams(new LinearLayout.LayoutParams(
                 (int) (iconDp * density), (int) (iconDp * density)));
         card.addView(icon);
@@ -771,7 +772,7 @@ public class ImportPickerDialog {
         label.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        llp.topMargin = (int) ((phone ? 2 : 4) * density);
+        llp.topMargin = (int) (3 * density);
         card.addView(label, llp);
         return card;
     }
