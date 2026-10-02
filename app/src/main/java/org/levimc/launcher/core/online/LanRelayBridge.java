@@ -49,6 +49,8 @@ public final class LanRelayBridge {
     private static volatile boolean running;
     private static DatagramSocket proxy;   // VPN 网络 socket（隧道侧）
     private static DatagramSocket lanSock; // WiFi 本机 socket（客户端侧）
+    /** v682：组播监听 socket（房主学真实世界端口用）。 */
+    private static java.net.MulticastSocket multicastSock;
     private static volatile boolean serverSide;
     private static volatile String peerIp;
     private static volatile int worldPort;
@@ -71,12 +73,71 @@ public final class LanRelayBridge {
             (byte) 0xfd, (byte) 0xfd, (byte) 0xfd, (byte) 0xfd,
             0x12, 0x34, 0x56, 0x78};
 
+    /**
+     * v682：房主监听 224.0.2.60:4445 组播公告（1.26 世界服务器的公告走组播
+     * 而非 19132 广播——v617 组播走真实网络，之前只监听 19132 导致真实世界
+     * 端口永远学不到，wp 被成员 ping 源端口 19132 误学）。
+     * 从公告源端口学真实世界监听端口。
+     */
+    private static void startMulticastListen() {
+        Thread t = new Thread(() -> {
+            try {
+                java.net.MulticastSocket ms = new java.net.MulticastSocket(null);
+                ms.setReuseAddress(true);
+                // 绑真实接口（组播永远走真实网络，不绑 VPN）
+                if (lanIp != null) {
+                    ms.bind(new InetSocketAddress(lanIp, 4445));
+                } else {
+                    ms.bind(new InetSocketAddress(4445));
+                }
+                ms.joinGroup(InetAddress.getByName("224.0.2.60"));
+                ms.setSoTimeout(3000);
+                multicastSock = ms;
+                org.levimc.launcher.util.OnlineDebugLog.log(
+                        "异地桥(服务器): 4445 组播监听已启动（学习真实世界端口）");
+                byte[] buf = new byte[256];
+                while (running && !ms.isClosed()) {
+                    try {
+                        DatagramPacket p = new DatagramPacket(buf, buf.length);
+                        ms.receive(p);
+                        byte[] data = p.getData();
+                        // 33 字节 0x01+time8+MAGIC16 公告；校验魔数防误学
+                        if (p.getLength() >= 25 && (data[0] & 0xFF) == 0x01
+                                && p.getPort() > 1024) {
+                            boolean magicOk = true;
+                            for (int i = 0; i < 16; i++) {
+                                if (data[9 + i] != MAGIC[i]) {
+                                    magicOk = false;
+                                    break;
+                                }
+                            }
+                            if (magicOk && worldPort != p.getPort()) {
+                                worldPort = p.getPort();
+                                worldReadyTs = System.currentTimeMillis();
+                                org.levimc.launcher.util.OnlineDebugLog.log(
+                                        "异地桥(服务器): 组播公告学到世界端口 " + worldPort);
+                            }
+                        }
+                    } catch (java.net.SocketTimeoutException ignored) {
+                    }
+                }
+            } catch (Exception e) {
+                if (running) {
+                    Log.w(TAG, "4445 组播监听异常", e);
+                }
+            }
+        }, "lan-mcast-4445");
+        t.setDaemon(true);
+        t.start();
+    }
+
     /** 房主（世界服务器）开桥：启动双 socket 代理 + 周期缓存 pong/c:lan。 */
     public static synchronized void startHost() {
         stopAll();
         running = true;
         serverSide = true;
         startProxy();
+        startMulticastListen();
         Thread t = new Thread(() -> {
             while (running) {
                 try {
@@ -222,6 +283,13 @@ public final class LanRelayBridge {
             }
             injectSock = null;
         }
+        if (multicastSock != null) {
+            try {
+                multicastSock.close();
+            } catch (Exception ignored) {
+            }
+            multicastSock = null;
+        }
         clients.clear();
         worldPort = 0;
         peerIp = null;
@@ -340,8 +408,10 @@ public final class LanRelayBridge {
             } else {
                 // 本机游戏广播/流量：服务器端=公告（学习世界端口）；
                 // 客户端端=ping（合成秒回）/连接（lanSock 收）
+                // v682：排除虚拟网段源——成员 ping 经隧道到达时源端口是桥的
+                // 19132，曾被误学为世界端口（wp=19132 错误值，连接流量黑洞）
                 if (serverSide && head == 0x01 && sport > 1024
-                        && worldPort != sport) {
+                        && !isVirtualIp(src) && worldPort != sport) {
                     worldPort = sport;
                     worldReadyTs = System.currentTimeMillis(); // v639：就绪计时
                     org.levimc.launcher.util.OnlineDebugLog.log(
@@ -361,12 +431,15 @@ public final class LanRelayBridge {
                 }
                 // v636：成员端秒回合成 pong（lanSock 发→源 IP=WiFi IP，
                 // 客户端条目地址=WiFi IP，点连接走 lanSock 不经虚拟网）
+                // v682：pong 内 AD 端口改写为 19132（本机桥端口）——否则客户端
+                // 按 AD 里的真实世界端口连本机 WiFi IP，无人监听，条目闪退
                 if (!serverSide && !sameLan && head == 0x01 && cachedPong != null) {
                     byte[] pong = cachedPong.clone();
                     if (data.length >= 25) {
                         // pong magic 在 offset 17（0x1C+time8+GUID8）
                         System.arraycopy(data, 9, pong, 17, 16);
                     }
+                    pong = rewritePongPorts(pong, ANN_PORT);
                     sendLocal(pong, src, sport);
                     org.levimc.launcher.util.OnlineDebugLog.log(
                             "异地桥(成员): 秒回合成 pong → " + src + ":" + sport);
@@ -379,6 +452,42 @@ public final class LanRelayBridge {
             if (running) {
                 Log.w(TAG, "桥转发异常", e);
             }
+        }
+    }
+
+    /** v682：虚拟网段判断（EasyTier 10.144.x / 100.x，不可作为世界端口学习源）。 */
+    private static boolean isVirtualIp(String ip) {
+        return ip.startsWith("10.144.") || ip.startsWith("100.")
+                || ip.startsWith("10.0.") || ip.startsWith("10.10.");
+    }
+
+    /**
+     * v682：改写 pong 的 AD 端口（portV4/portV6 → 本机桥端口）。
+     * pong 结构：0x1C + time8 + GUID8 + AD 字符串（UTF-8）。
+     * AD="MCPE;...;<portV4>;<portV6>;"，替换倒数第 2/3 个分号字段。
+     */
+    private static byte[] rewritePongPorts(byte[] pong, int newPort) {
+        try {
+            if (pong.length <= 17) {
+                return pong;
+            }
+            String ad = new String(pong, 17, pong.length - 17,
+                    java.nio.charset.StandardCharsets.UTF_8);
+            String[] parts = ad.split(";", -1);
+            if (parts.length >= 12) {
+                parts[parts.length - 3] = String.valueOf(newPort); // portV4
+                parts[parts.length - 2] = String.valueOf(newPort); // portV6
+            } else {
+                return pong;
+            }
+            String newAd = String.join(";", parts);
+            byte[] adBytes = newAd.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            byte[] out = new byte[17 + adBytes.length];
+            System.arraycopy(pong, 0, out, 0, 17);
+            System.arraycopy(adBytes, 0, out, 17, adBytes.length);
+            return out;
+        } catch (Exception e) {
+            return pong;
         }
     }
 
