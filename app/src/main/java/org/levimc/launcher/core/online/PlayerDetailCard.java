@@ -92,19 +92,17 @@ public final class PlayerDetailCard {
         dLp.topMargin = (int) (12 * d);
         v.addView(detail, dLp);
 
-        // 皮肤预览（v709：登录态 XSTS → 微软官方 profile API（VPS 转发）
-        // 拉真实 Bedrock 皮肤纹理并合成正面人形渲染图；失败静默留空。
-        // 此前 mc-heads 是 Java 版服务查不到 Bedrock 皮肤；Geyser API
-        // 只缓存登录过 Geyser 服务器的玩家且国内网络不可达）
+        // 皮肤预览（mc-heads.net 按昵称渲染；未设置皮肤显示默认 Steve/Alex）
         ImageView skin = new ImageView(activity);
         skin.setAdjustViewBounds(true);
-        org.levimc.launcher.core.auth.SkinService.loadSkin(activity, xuid, bmp -> {
-            if (bmp != null && skin.getParent() != null) {
-                skin.setImageBitmap(bmp);
-            }
-        });
+        try {
+            String skinUrl = "https://mc-heads.net/body/"
+                    + java.net.URLEncoder.encode(name, "UTF-8") + ".png";
+            com.bumptech.glide.Glide.with(activity).load(skinUrl).into(skin);
+        } catch (Exception ignored) {
+        }
         LinearLayout.LayoutParams sLp = new LinearLayout.LayoutParams(
-                (int) (72 * d), (int) (144 * d));
+                (int) (90 * d), (int) (160 * d));
         sLp.topMargin = (int) (10 * d);
         sLp.gravity = Gravity.CENTER_HORIZONTAL;
         v.addView(skin, sLp);
