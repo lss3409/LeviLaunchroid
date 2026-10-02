@@ -675,7 +675,7 @@ public class ImportPickerDialog {
         row.addView(info, ilp);
 
         TextView name = new TextView(context);
-        name.setText(c.name);
+        name.setText(org.levimc.launcher.util.McText.format(c.name));
         name.setTextColor(textMain);
         name.setTextSize(13);
         name.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
@@ -763,7 +763,7 @@ public class ImportPickerDialog {
         head.addView(headInfo);
 
         TextView name = new TextView(context);
-        name.setText(c.name);
+        name.setText(org.levimc.launcher.util.McText.format(c.name));
         name.setTextColor(textMain);
         name.setTextSize(15);
         name.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
@@ -829,7 +829,7 @@ public class ImportPickerDialog {
                 TextView si = new TextView(context);
                 String tag = sm.isBehavior() ? "〔行为包〕" : "〔资源包〕";
                 String v = sm.version.isEmpty() ? "" : "  v" + sm.version;
-                si.setText("· " + sm.name + v + " " + tag);
+                si.setText(org.levimc.launcher.util.McText.format("· " + sm.name + v + " " + tag));
                 si.setTextColor(accent);
                 si.setTextSize(12);
                 si.setPadding((int) (4 * density), (int) (6 * density), 0, 0);
@@ -930,7 +930,7 @@ public class ImportPickerDialog {
         head.addView(tag);
 
         TextView name = new TextView(context);
-        name.setText(sm.name);
+        name.setText(org.levimc.launcher.util.McText.format(sm.name));
         name.setTextColor(textMain);
         name.setTextSize(15);
         name.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
@@ -939,7 +939,7 @@ public class ImportPickerDialog {
 
         String ver = sm.version.isEmpty() ? "" : " · v" + sm.version;
         TextView meta = new TextView(context);
-        meta.setText("清单版本" + ver + "  ·  来自 " + c.name);
+        meta.setText(org.levimc.launcher.util.McText.format("清单版本" + ver + "  ·  来自 " + c.name));
         meta.setTextColor(textSub);
         meta.setTextSize(11);
         meta.setPadding(0, (int) (3 * density), 0, 0);
@@ -1028,7 +1028,7 @@ public class ImportPickerDialog {
         card.addView(label);
         for (String r : rows) {
             TextView t = new TextView(context);
-            t.setText(r);
+            t.setText(org.levimc.launcher.util.McText.format(r));
             t.setTextColor(textMain);
             t.setTextSize(12);
             t.setPadding(0, (int) (4 * density), 0, 0);

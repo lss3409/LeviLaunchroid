@@ -32,10 +32,9 @@ public final class DialogSizer {
         DisplayMetrics dm = ctx.getResources().getDisplayMetrics();
         int ideal = (int) (idealDp * dm.density);
         if (isPhone(ctx)) {
-            // v647：手机恒 90% 屏宽（M3 compact 规范）。原 min(90%, 理想宽)
-            // 在低密度大屏手机上理想宽比 90% 还小，恒取理想宽——横屏
-            // vivo 弹窗只剩 36% 屏宽。内容根视图 WRAP_CONTENT 不会强撑满。
-            return (int) (dm.widthPixels * 0.9f);
+            // v649：手机弹窗接近满屏——只留 16dp×2 边距（v647 的 90% 用户
+            // 仍反馈偏窄）。内容根视图 WRAP_CONTENT 不会强撑满。
+            return Math.max(0, (int) (dm.widthPixels - 16 * dm.density * 2));
         }
         // 大屏：宽度 = min(理想宽, 屏宽 − 56dp×2 边距)
         int marginCap = (int) (dm.widthPixels - 56 * dm.density * 2);
