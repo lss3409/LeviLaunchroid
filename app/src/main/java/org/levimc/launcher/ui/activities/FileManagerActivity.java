@@ -844,7 +844,9 @@ public class FileManagerActivity extends BaseActivity {
             // 触摸滚动依赖 movement——必须手动恢复，否则编辑模式滚不动
             editorText.setMovementMethod(android.text.method.ScrollingMovementMethod.getInstance());
         }
-        editorText.setFocusableInTouchMode(!readonly);
+        // v676：两种模式都保持可聚焦——长按选择/复制/粘贴菜单依赖焦点，
+        // 只读模式 keyListener=null 不会弹键盘
+        editorText.setFocusableInTouchMode(true);
         editorText.post(() -> {
             android.text.Layout layout = editorText.getLayout();
             if (layout != null) {
@@ -894,6 +896,7 @@ public class FileManagerActivity extends BaseActivity {
         bottomBar.setVisibility(View.GONE);
         selectionBar.setVisibility(View.GONE);
         editorRoot.setVisibility(View.VISIBLE);
+        scheduleScrollBarRefresh();
     }
 
     private void hideEditor() {
@@ -943,10 +946,14 @@ public class FileManagerActivity extends BaseActivity {
         highlightHandler.postDelayed(this::updateEditorScrollBar, 1000);
     }
 
-    /** 同步可拖动滚动条的视口比例与滚动位置。 */
+    /** 同步可拖动滚动条的视口比例与滚动位置（layout 未就绪时自愈重试，v676）。 */
     private void updateEditorScrollBar() {
         android.text.Layout layout = editorText.getLayout();
-        if (layout == null) return;
+        if (layout == null || editorText.getHeight() <= 0) {
+            // 布局尚未完成：延迟重试直到就绪
+            highlightHandler.postDelayed(this::updateEditorScrollBar, 200);
+            return;
+        }
         int contentH = layout.getHeight();
         int viewH = editorText.getHeight();
         if (contentH <= viewH) {
