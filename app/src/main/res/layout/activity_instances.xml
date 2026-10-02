@@ -217,7 +217,10 @@
             android:layout_marginTop="16dp"
             android:clipToPadding="false"
             android:overScrollMode="never"
-            android:paddingBottom="8dp" />
+            android:paddingBottom="8dp"
+            app:fastScrollEnabled="true"
+            app:fastScrollVerticalThumbDrawable="@drawable/bg_fastscroll_thumb"
+            app:fastScrollVerticalTrackDrawable="@drawable/bg_fastscroll_track" />
 
     </LinearLayout>
 </LinearLayout>

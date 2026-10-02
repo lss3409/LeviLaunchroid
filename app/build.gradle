@@ -161,6 +161,8 @@ dependencies {
     implementation libs.androidx.games.activity
     implementation libs.okhttp
     implementation("com.google.zxing:core:3.5.3")
+    // v653：显式升到 1.2.1（fastScroll 可拖动滑条 API；覆盖传递依赖旧版）
+    implementation("androidx.recyclerview:recyclerview:1.2.1")
     // v533 启动器内扫码（相机扫描界面 + 相册解码共用 zxing）
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     implementation libs.androidx.dynamicanimation

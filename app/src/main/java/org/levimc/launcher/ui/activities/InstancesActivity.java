@@ -143,6 +143,9 @@ public class InstancesActivity extends BaseActivity {
         int spacing = (int) (10 * getResources().getDisplayMetrics().density);
         recyclerView.addItemDecoration(new GridSpacingDecoration(spanCount, spacing));
 
+        // v653：右侧滑条可拖动定位——XML 已开 fastScrollEnabled
+        //（recyclerview 1.2.1 无公开 setter，attr + 自定义 thumb/轨道）
+
         loadVersions();
 
         GameVersion selectedVersion = versionManager.getSelectedVersion();

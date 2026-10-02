@@ -61,6 +61,9 @@ public class ImportPickerDialog {
     private static int expandedType = -1;
     /** v652：搜索抽屉展开状态（二级菜单返回时按此恢复）。 */
     private static boolean searchOpenState;
+    /** v653：条目两列/一列切换（跨弹窗记忆；首开按设备——手机两列、平板一列）。 */
+    private static boolean gridMode;
+    private static boolean gridModeInit;
 
     // v646：缩略图 LRU 缓存 + 后台解码线程池——200 条级别条目列表重建时
     // 不再主线程重复解码/裁切位图（点分类卡顿挫的根因）
@@ -183,6 +186,11 @@ public class ImportPickerDialog {
         float density = context.getResources().getDisplayMetrics().density;
         // v651：手机专属布局——条目两列网格 + 分类卡收小（平板保持原样）
         final boolean phone = DialogSizer.isPhone(context);
+        // v653：两列/一列首开按设备默认，此后跟随用户切换
+        if (!gridModeInit) {
+            gridMode = phone;
+            gridModeInit = true;
+        }
         int accent = new org.levimc.launcher.util.PersonalizationManager(context).getAccentColor();
         int textMain = context.getColor(R.color.on_surface);
         int textSub = context.getColor(R.color.text_secondary);
@@ -209,6 +217,13 @@ public class ImportPickerDialog {
         search.setLayoutParams(slp);
         // v652：搜索抽屉式——默认收起，点状态行右侧图标展开
         search.setVisibility(searchOpenState ? View.VISIBLE : View.GONE);
+        // v653：放大镜图标进文本框内（右侧 drawableEnd）
+        search.setCompoundDrawablesWithIntrinsicBounds(0, 0, R.drawable.ic_search, 0);
+        search.setCompoundDrawablePadding((int) (8 * density));
+        android.graphics.drawable.Drawable[] cds = search.getCompoundDrawables();
+        if (cds[2] != null) {
+            cds[2].setTint(textSub);
+        }
         root.addView(search);
 
         TextView status = new TextView(context);
@@ -217,28 +232,62 @@ public class ImportPickerDialog {
         status.setTextSize(10); // v652：状态字小一点
         status.setPadding(0, (int) (2 * density), 0, 0);
 
-        // v652：状态行——状态文字 + 右侧搜索切换图标（抽屉把手）
+        // v652：状态行——状态文字 + 布局切换图标 + 搜索抽屉图标
         LinearLayout statusRow = new LinearLayout(context);
         statusRow.setOrientation(LinearLayout.HORIZONTAL);
         statusRow.setGravity(Gravity.CENTER_VERTICAL);
         statusRow.addView(status, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        // v653：两列/一列自由切换（图标显示当前布局）
+        ImageView layoutToggle = new ImageView(context);
+        layoutToggle.setImageResource(gridMode ? R.drawable.ic_view_grid : R.drawable.ic_view_list);
+        layoutToggle.setColorFilter(textSub);
+        layoutToggle.setPadding((int) (4 * density), (int) (2 * density),
+                (int) (4 * density), (int) (2 * density));
+        statusRow.addView(layoutToggle);
         ImageView searchToggle = new ImageView(context);
         searchToggle.setImageResource(R.drawable.ic_search);
         searchToggle.setColorFilter(textSub);
-        searchToggle.setPadding((int) (6 * density), (int) (2 * density),
+        searchToggle.setPadding((int) (4 * density), (int) (2 * density),
                 (int) (2 * density), (int) (2 * density));
+        // v653：展开后图标进文本框内（drawableEnd），状态行把手隐藏
+        searchToggle.setVisibility(searchOpenState ? View.GONE : View.VISIBLE);
         statusRow.addView(searchToggle);
         root.addView(statusRow);
-        searchToggle.setOnClickListener(v -> {
+        // v653：搜索抽屉开关（带滑出/收回动画——启动器补动画）
+        final Runnable[] toggleRef = new Runnable[1];
+        toggleRef[0] = () -> {
             searchOpenState = !searchOpenState;
-            search.setVisibility(searchOpenState ? View.VISIBLE : View.GONE);
             if (searchOpenState) {
+                searchToggle.setVisibility(View.GONE);
+                search.setVisibility(View.VISIBLE);
+                search.setAlpha(0f);
+                search.setTranslationY(-(int) (14 * density));
+                search.animate().alpha(1f).translationY(0).setDuration(180).start();
                 search.requestFocus();
+            } else {
+                search.clearFocus();
+                search.animate().alpha(0f).translationY(-(int) (14 * density))
+                        .setDuration(150).withEndAction(() -> {
+                            search.setVisibility(View.GONE);
+                            searchToggle.setVisibility(View.VISIBLE);
+                        }).start();
             }
             if (relimitRef != null) {
                 relimitRef.run();
             }
+        };
+        searchToggle.setOnClickListener(v -> toggleRef[0].run());
+        // 点文本框内的放大镜（drawableEnd 区域）也收起
+        search.setOnTouchListener((v, ev) -> {
+            if (ev.getAction() == android.view.MotionEvent.ACTION_UP && searchOpenState) {
+                float iconZone = search.getWidth() - search.getPaddingRight() - 44 * density;
+                if (ev.getX() > iconZone) {
+                    toggleRef[0].run();
+                    return true;
+                }
+            }
+            return false;
         });
 
         // v610：分类卡固定区（吸顶，条目滚动时始终显示）
@@ -319,6 +368,10 @@ public class ImportPickerDialog {
                         textMain, cardBg, type == expandedType, phone, v -> {
                             // v610：单展开位——必须始终有一个分类展开
                             // （点已展开卡不再收起，避免下方出现大空缺）
+                            // v653：防御——点已展开卡直接无操作
+                            if (expandedType == type) {
+                                return;
+                            }
                             expandedType = type;
                             redrawRef[0].run();
                         });
@@ -335,7 +388,7 @@ public class ImportPickerDialog {
                 content.addView(gap);
                 boolean any = false;
                 // v651：手机两列网格（一横列两个竖版卡片）；平板保持单行列表
-                if (phone) {
+                if (gridMode) { // v653：两列/一列可切换
                     GlobalImportScanner.Candidate single = null;
                     for (GlobalImportScanner.Candidate c : filtered) {
                         if (c.type != expandedType) {
@@ -383,11 +436,22 @@ public class ImportPickerDialog {
             if (relimitRef != null) {
                 relimitRef.run();
             }
+            // v653：重建后条目区淡入（启动器补动画；扫描增量 append 不触发）
+            content.setAlpha(0.55f);
+            content.animate().alpha(1f).setDuration(200).start();
             // v647：全量重建后增量游标对齐（已发现的候选都已渲染）
             rendered[0] = list.size();
             // v651：全量重建后两列凑对暂存清零（重建已含单数项）
             pendingSingle[0] = null;
         };
+
+        // v653：两列/一列切换（redrawRef 就绪后绑定；图标显示当前布局）
+        layoutToggle.setOnClickListener(v -> {
+            gridMode = !gridMode;
+            layoutToggle.setImageResource(gridMode
+                    ? R.drawable.ic_view_grid : R.drawable.ic_view_list);
+            redrawRef[0].run();
+        });
 
         // v646：搜索防抖 300ms——每敲一个字符不再立即全量重建列表
         final Runnable[] debounceRef = new Runnable[1];
@@ -474,7 +538,7 @@ public class ImportPickerDialog {
                                     .contains(query[0].toLowerCase(Locale.US)))) {
                         continue;
                     }
-                    if (phone) {
+                    if (gridMode) { // v653：两列/一列可切换
                         // v651：两列网格——凑对追加，单数暂存等下一个
                         if (pendingSingle[0] == null) {
                             pendingSingle[0] = c;
@@ -683,7 +747,7 @@ public class ImportPickerDialog {
         }
         card.setBackground(bg);
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0,
-                (int) ((phone ? 34 : 72) * density), 1f);
+                (int) ((phone ? 44 : 72) * density), 1f);
         if (group > 0) {
             cp.leftMargin = (int) (6 * density);
         }
@@ -821,8 +885,10 @@ public class ImportPickerDialog {
         card.addView(importBtn, blp);
 
         // 点卡片本体（图标/文字区）→ 二级详情
+        // v653：卡片整体也可点（修两列时点到 padding/间隙无响应）
         View.OnClickListener toDetail = v -> showDetail(content, context, c, textMain,
                 textSub, cardBg, density, accent, listener, dialog, redraw, search, status);
+        card.setOnClickListener(toDetail);
         iconWrap.setOnClickListener(toDetail);
         name.setOnClickListener(toDetail);
         meta.setOnClickListener(toDetail);
