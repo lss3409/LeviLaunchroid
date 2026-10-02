@@ -104,6 +104,7 @@ public class FileManagerActivity extends BaseActivity {
     private boolean editorReadonly = true;
     private boolean editorFileWritable = true;
     private ImageView editorReadonlyToggle;
+    private android.text.method.KeyListener editorDefaultKeyListener;
     private final Handler highlightHandler = new Handler(Looper.getMainLooper());
     private final Runnable highlightTask = this::runHighlight;
 
@@ -724,6 +725,7 @@ public class FileManagerActivity extends BaseActivity {
     // ---------------- 内置编辑器（v668） ----------------
 
     private void setupEditor() {
+        editorDefaultKeyListener = editorText.getKeyListener();
         editorSave.setText(R.string.fm_ui_editor_save);
         editorSave.setTextColor(accent != 0 ? accent : onSurface);
         editorSave.setOnClickListener(v ->
@@ -791,7 +793,6 @@ public class FileManagerActivity extends BaseActivity {
             editorReadonly = true; // 文件不可写恒只读
         }
         applyEditorReadonly();
-        editorText.setEnabled(editorFileWritable && !ui.getSaving() && !editorReadonly);
         editorDirty.setVisibility(ui.getDirty() ? View.VISIBLE : View.GONE);
         editorDirty.setText(ui.getDirty() ? "●" : "");
 
@@ -806,10 +807,24 @@ public class FileManagerActivity extends BaseActivity {
         }
     }
 
-    /** 只读开关：睁眼=只读，笔=可编辑（v670）。 */
+    /**
+     * 只读开关：睁眼=只读，笔=可编辑（v670）。
+     * v671 修复：不能 setEnabled(false)——TextView 触摸滚动要求 isEnabled()，
+     * disabled 后列表往下翻不了。只读改用 setTextIsSelectable(true)（可滚可选不可输入）
+     * + setKeyListener(null) 屏蔽 IME。
+     */
     private void applyEditorReadonly() {
-        editorReadonlyToggle.setImageResource(editorReadonly ? R.drawable.ic_eye : R.drawable.ic_edit);
-        editorText.setEnabled(editorFileWritable && !editorReadonly);
+        boolean readonly = editorReadonly || !editorFileWritable;
+        editorReadonlyToggle.setImageResource(editorReadonly && editorFileWritable
+                ? R.drawable.ic_eye : (editorFileWritable ? R.drawable.ic_edit : R.drawable.ic_eye));
+        if (readonly) {
+            editorText.setKeyListener(null);
+            editorText.setTextIsSelectable(true);
+        } else {
+            editorText.setTextIsSelectable(false);
+            editorText.setKeyListener(editorDefaultKeyListener);
+        }
+        editorText.setFocusableInTouchMode(!readonly);
     }
 
     private void showExitConfirmDialog() {
