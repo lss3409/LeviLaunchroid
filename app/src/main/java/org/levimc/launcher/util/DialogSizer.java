@@ -16,6 +16,10 @@ import android.util.DisplayMetrics;
  */
 public final class DialogSizer {
 
+    /** v0.0.13：手机弹窗宽度占屏比（v649 的「屏宽−16dp×2」接近满屏、
+     *  用户反馈太大，改回 90%；以后要再调小改这里即可）。 */
+    private static final float PHONE_WIDTH_RATIO = 0.90f;
+
     private DialogSizer() {
     }
 
@@ -32,9 +36,9 @@ public final class DialogSizer {
         DisplayMetrics dm = ctx.getResources().getDisplayMetrics();
         int ideal = (int) (idealDp * dm.density);
         if (isPhone(ctx)) {
-            // v649：手机弹窗接近满屏——只留 16dp×2 边距（v647 的 90% 用户
-            // 仍反馈偏窄）。内容根视图 WRAP_CONTENT 不会强撑满。
-            return Math.max(0, (int) (dm.widthPixels - 16 * dm.density * 2));
+            // v0.0.13：按屏宽比例（90%），用户反馈 v649 近满屏太大。
+            // 内容根视图 WRAP_CONTENT 不会强撑满。
+            return Math.max(0, (int) (dm.widthPixels * PHONE_WIDTH_RATIO));
         }
         // 大屏：宽度 = min(理想宽, 屏宽 − 56dp×2 边距)
         int marginCap = (int) (dm.widthPixels - 56 * dm.density * 2);
