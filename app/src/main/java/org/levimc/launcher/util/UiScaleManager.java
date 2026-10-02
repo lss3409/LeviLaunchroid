@@ -13,8 +13,10 @@ import android.util.DisplayMetrics;
  * 继承 com.mojang.minecraftpe.MainActivity，不经过此处，不受影响。
  */
 public final class UiScaleManager {
-    /** 手机上整体缩放的倍率（0.85 = 缩小 15%）。 */
-    public static final float PHONE_SCALE = 0.85f;
+    /** 手机上整体缩放的倍率（0.72 = 缩小 28%）。
+     *  v650：原 0.85 手机上 UI 仍偏大（内容管理/弹窗一屏显示条目太少），
+     *  用户实测「界面缩放调小后能显示多一点」——把自动缩小加大到 0.72。 */
+    public static final float PHONE_SCALE = 0.72f;
     /** 最小边（dp）达到该值视为平板，不再自动缩小。 */
     public static final int TABLET_MIN_SW_DP = 600;
 
