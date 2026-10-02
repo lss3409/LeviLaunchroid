@@ -2,7 +2,7 @@
 
 # LBBL — Levi Better Bedrock Launcher
 
-**A lightweight Android launcher for Minecraft: Bedrock Edition, forked & enhanced from [LiteLDev/LeviLaunchroid](https://github.com/LiteLDev/LeviLaunchroid)**
+**A lightweight Android launcher for Minecraft: Bedrock Edition, forked & heavily enhanced from [LiteLDev/LeviLaunchroid](https://github.com/LiteLDev/LeviLaunchroid)**
 
 English | [中文](#中文)
 
@@ -12,34 +12,59 @@ English | [中文](#中文)
 
 ## Introduction
 
-LBBL (Levi Better Bedrock Launcher) is a fork of [LeviLaunchroid](https://github.com/LiteLDev/LeviLaunchroid) — a lightweight, open-source Android launcher for legitimate players of Minecraft: Bedrock Edition. It lets you import your official Minecraft APK and run it without system installation, manage multiple game versions with full isolation, and manage resource packs and worlds.
+LBBL (Levi Better Bedrock Launcher) is a fork of [LeviLaunchroid](https://github.com/LiteLDev/LeviLaunchroid), a lightweight open-source Android launcher for legitimate players of Minecraft: Bedrock Edition. It lets you import your official Minecraft APK and run it without system installation, manage multiple game versions with full isolation, and manage resource packs and worlds.
 
-This fork keeps the original core experience and adds a large set of enhancements built on top of it.
+The fork is based on the upstream codebase around v1.5.22 (commit `2e52effc`), then rebuilt and extended with **522+ commits** of our own: a complete online multiplayer system, a world map viewer with 2D/3D rendering, hardcore mode, a file manager, and much more. Upstream changes after v1.5.23 (external mod catalog v2, 1.26.50 support, etc.) have **not** been merged into this fork.
 
-### Key Features (original)
+---
+
+## Features inherited from upstream
 
 - **APK Import & Installation-Free Launching** – Import your official Minecraft APK and run it directly without system installation
 - **SO Module Loading** – Load external native SO modules to extend Minecraft
 - **Multi-Version Management & Isolation** – Manage multiple Minecraft versions independently
 - **Multiple Xbox Account Management** – Switch between Xbox accounts inside the launcher
 - **Resource Pack & World Management** – Import, export and back up packs and worlds
+- **Mods & CurseForge integration** – External mod catalog, mod management and CurseForge browser
+- **Custom flat world editor** – Design custom superflat worlds
+- **Personalization framework** – Theme manager, language switcher, storage migration, crash reporting
 
-### What this fork adds
+## What this fork adds
 
-- **Online play (联机)** – Create/join rooms with invite codes over a virtual LAN (EasyTier-based P2P networking), built-in voice chat (PTT, mute, noise reduction), room member list, deep-link "invite to world" that connects members straight into the host's world, and a relay fallback for CGNAT networks
-- **World map viewer** – 2D satellite-style map with biome/topographic layers, structures, waypoints, coordinate search, and a 3D voxel view (hardcore-optimized chunk-tile renderer for huge worlds)
-- **World data editing** – NBT viewer/editor, player data (health, position, UUID), world settings form
-- **File manager** – Full-featured file browser with ZIP create/extract, multi-select, trash, image/audio/text preview
-- **Hardcore auto-backup** – Scheduled backups for hardcore worlds
-- **Personalization** – Accent color themes, UI/font scaling, liquid-glass effect, custom world map marker colors
-- **11-language i18n** – English, 简体中文, Español, Português, 日本語, Tiếng Việt, Bahasa Indonesia, हिन्दी, Français, Русский, Türkçe
-- **Built-in update checker** – GitHub Releases with multi-mirror fallback, progress bar and silent background download
+### Online play (联机) — built from scratch
+- **Rooms with invite codes** – create a room, share a formatted invite code (with QR), join with one tap
+- **P2P virtual LAN via EasyTier** – works across the internet behind CGNAT; bundled EasyTier core cross-compiled for Android (arm64-v8a), with a public relay fallback
+- **Voice chat** – built-in push-to-talk, mute controls and noise reduction
+- **Invite-to-world deep link** – members deep-link straight into the host's world from the room page
+- **In-game floating overlay** – room member list, status and quick exit while playing
+- **Bookmarks** – save favorite rooms for one-tap rejoin; rooms auto-restore after network drops
 
----
+### World map viewer — built from scratch
+- **2D satellite-style map** – biome, terrain/topographic layers, structure & ore markers, waypoints with custom colors, coordinate search/jump, HTML export
+- **3D voxel view** – full 3D block rendering of any region, gesture rotate/zoom
+- **High-performance renderer** – chunk-tile architecture with LOD, 6-thread viewport rendering and big-core scheduling; handles 180 MB+ worlds smoothly; fixed OOM on phones, ANR on the main thread, and many rendering correctness bugs (sea color, biome layers, subchunk parsing…)
 
-## Screenshots
+### Hardcore mode — built from scratch
+- Hardcore world detection with badges
+- **Scheduled automatic backups** (with rollback) for hardcore worlds
 
-*Coming soon*
+### World data tools
+- **NBT viewer/editor**, player data panel (health / position / UUID) and world settings form
+- **Native LevelDB binding** (JNI, extracted from an open-source port) with pure-Java fallback — much faster world reading
+
+### File manager — ported from ZalithLauncher2, adapted to this project
+- Full-featured browser: grid/list views, multi-select, trash, ZIP create/extract, image/audio/text preview, built-in editor
+
+### Import enhancements
+- Whole-device scan for `.mcpack` / `.mcaddon` / `.mcworld` / `.mcstructure` with streaming results, persistent cache and thumbnails
+- Multi-select batch import, Minecraft color-code rendering (§/&) in names
+
+### Launcher experience
+- **Update checker rewritten** – GitHub Releases direct links with multi-mirror fallback (for users behind restricted networks), progress bar and silent background download; three-state result (failed / up-to-date / update)
+- **Liquid-glass effect** (Prismal) and an accent-color system across all dialogs/buttons
+- **Complete translations for all 11 languages** – 简体中文, English, Español, Português, 日本語, Tiếng Việt, Bahasa Indonesia, हिन्दी, Français, Русский, Türkçe
+- **Home-screen shortcuts** for game versions
+- News module, app renamed to **LBBL**
 
 ---
 
@@ -54,7 +79,7 @@ The in-app update checker reads `update.json` from that repository automatically
 ## System Requirements
 
 - Android 9.0+ (API 28+)
-- arm64-v8a device (the bundled EasyTier native library is built for arm64)
+- arm64-v8a device (the bundled EasyTier native library is arm64-only)
 
 ---
 
@@ -64,24 +89,24 @@ Requirements:
 
 - JDK 21
 - Android SDK (compileSdk 36, build-tools 35.0.0)
-- Android NDK not required unless you rebuild the bundled EasyTier core library
+- No NDK needed unless you rebuild the bundled EasyTier core library
 
 ```bash
 git clone https://github.com/lss3409/LeviLaunchroid.git
 cd LeviLaunchroid
-git tag v0.0.x   # versionName is derived from git tag (semver)
+git tag v0.0.x   # versionName is derived from the git tag (semver)
 ./gradlew assembleDebug
 # APK: app/build/outputs/apk/debug/app-debug.apk
 ```
 
-The EasyTier JNI library in `app/src/main/jniLibs/arm64-v8a/` is cross-compiled from [EasyTier](https://github.com/EasyTier/EasyTier) for Android (see the build script kept outside this repo). Prebuilt binaries are committed so a normal build does not need the Rust toolchain.
+The EasyTier JNI library under `app/src/main/jniLibs/arm64-v8a/` is cross-compiled from [EasyTier](https://github.com/EasyTier/EasyTier) for Android (build script maintained outside this repo). Prebuilt binaries are committed, so a normal build does not need the Rust toolchain.
 
 ---
 
 ## License & Disclaimer
 
-- Licensed under the **Apache License 2.0** (see [LICENSE](LICENSE)). This project is a modified fork of [LiteLDev/LeviLaunchroid](https://github.com/LiteLDev/LeviLaunchroid); all modifications are made by this fork's maintainers and this project is **not affiliated with, endorsed by, or associated with LiteLDev**.
-- **Not an official Minecraft product.** Not approved by or associated with Mojang or Microsoft. You must own a legitimate copy of Minecraft: Bedrock Edition to use this launcher. The project does not distribute any Minecraft game files.
+- Licensed under the **Apache License 2.0** (see [LICENSE](LICENSE)). This project is a modified fork of [LiteLDev/LeviLaunchroid](https://github.com/LiteLDev/LeviLaunchroid); all modifications are made by this fork's maintainers. This project is **not affiliated with, endorsed by, or associated with LiteLDev**.
+- **Not an official Minecraft product.** Not approved by or associated with Mojang or Microsoft. You must own a legitimate copy of Minecraft: Bedrock Edition to use this launcher. This project does not distribute any Minecraft game files.
 
 ---
 
@@ -91,7 +116,7 @@ The EasyTier JNI library in `app/src/main/jniLibs/arm64-v8a/` is cross-compiled 
 
 # LBBL — Levi Better Bedrock Launcher
 
-**轻量的 Minecraft 基岩版 Android 启动器，基于 [LiteLDev/LeviLaunchroid](https://github.com/LiteLDev/LeviLaunchroid) 的增强分支**
+**轻量的 Minecraft 基岩版 Android 启动器，基于 [LiteLDev/LeviLaunchroid](https://github.com/LiteLDev/LeviLaunchroid) 深度增强的分支**
 
 </div>
 
@@ -99,28 +124,59 @@ The EasyTier JNI library in `app/src/main/jniLibs/arm64-v8a/` is cross-compiled 
 
 ## 简介
 
-LBBL（Levi Better Bedrock Launcher）是 [LeviLaunchroid](https://github.com/LiteLDev/LeviLaunchroid) 的一个分支——一个轻量、开源的 Minecraft 基岩版 Android 启动器。导入官方 Minecraft APK 即可免系统安装直接运行，支持多版本独立管理（配置与数据完全隔离），内置资源包与世界管理。
+LBBL（Levi Better Bedrock Launcher）是 [LeviLaunchroid](https://github.com/LiteLDev/LeviLaunchroid) 的分支——一个轻量、开源的 Minecraft 基岩版 Android 启动器。导入官方 Minecraft APK 即可免系统安装直接运行，支持多版本独立管理、资源包与世界管理。
 
-本分支在保留原版核心体验的基础上，新增了大量增强功能。
+本分支基于官方 v1.5.22 前后的代码基线（commit `2e52effc`）fork，此后以 **522+ 个提交**重构与扩展：全新的联机系统、2D/3D 世界地图查看器、极限模式、文件管理器等。官方 v1.5.23 之后的更新（v2 外部模组目录、1.26.50 支持等）**未合并**入本分支。
 
-### 原版核心功能
+---
+
+## 继承自原版的功能
 
 - **APK 导入 / 免安装启动** – 导入官方 Minecraft APK，无需系统安装直接运行
 - **SO 模块加载** – 加载外部原生 SO 模块扩展 Minecraft 功能
 - **多版本管理与隔离** – 独立管理多个 Minecraft 版本，配置与数据互不干扰
 - **多 Xbox 账号管理** – 启动器内管理并切换多个 Xbox 账号
 - **资源包与世界管理** – 导入、导出、备份资源包和世界
+- **模组与 CurseForge 集成** – 外部模组目录、模组管理、CurseForge 浏览
+- **自定义超平坦世界编辑器** – 可视化设计超平坦世界
+- **个性化框架** – 主题管理、语言切换、存储迁移、崩溃报告
 
-### 本分支新增
+## 本分支新增
 
-- **联机系统** – 邀请码创建/加入房间，EasyTier P2P 虚拟组网（异地联机、CGNAT 网络下中转兜底），内置语音通话（PTT、禁麦、降噪），成员列表，「邀请进入世界」深链直连房主世界
-- **世界地图查看器** – 2D 卫星风格地图（生物群系/地形图层、结构标记、标点、坐标搜索）+ 3D 体素视图（chunk-tile 渲染架构，超大世界流畅缩放）
-- **世界数据编辑** – NBT 查看/编辑、玩家数据（生命/坐标/UUID）、世界设置表单
-- **文件管理器** – 全功能文件浏览（ZIP 压缩/解压、多选、回收站、图片/音频/文本预览）
-- **极限模式自动备份** – 定时备份极限存档
-- **个性化** – 强调色主题、UI/字体缩放、液态玻璃效果、地图标点自定义颜色
-- **11 语言多语言** – 英语、简体中文、西班牙语、葡萄牙语、日语、越南语、印尼语、印地语、法语、俄语、土耳其语
-- **内置更新检查** – GitHub Releases 直链 + 多镜像回退，带进度条、可静默后台下载
+### 联机系统 — 从零开发
+- **邀请码房间** – 创建房间、格式化邀请码（附二维码）分享、一键加入
+- **EasyTier P2P 虚拟组网** – 跨互联网联机、CGNAT 网络可用；内置 Android 交叉编译的 EasyTier 核心（arm64-v8a），公共中继兜底
+- **语音通话** – 内置 PTT 对讲、禁麦控制、降噪
+- **「邀请进入世界」深链** – 成员在房间页一键深链直连房主的世界
+- **游戏内悬浮窗** – 游玩时查看成员列表、状态、快捷退出
+- **收藏房间** – 常用房间一键重进；断线后房间自动恢复
+
+### 世界地图查看器 — 从零开发
+- **2D 卫星风格地图** – 生物群系、地形图层，结构与矿石标记，自定义颜色标点，坐标搜索/跳转，HTML 导出
+- **3D 体素视图** – 任意区域全 3D 方块渲染，手势旋转缩放
+- **高性能渲染器** – chunk-tile 架构 + LOD + 6 线程视口渲染 + 大核调度；180 MB+ 超大世界流畅缩放；修复了手机 OOM、主线程 ANR 以及大量渲染正确性问题（海色、群系图层、subchunk 解析等）
+
+### 极限模式 — 从零开发
+- 极限世界检测与标识
+- **定时自动备份**（支持回档）保护极限存档
+
+### 世界数据工具
+- **NBT 查看/编辑**、玩家数据面板（生命值 / 坐标 / UUID）、世界设置表单
+- **原生 LevelDB 绑定**（JNI，提取自开源移植，纯 Java 回退）——世界读取大幅提速
+
+### 文件管理器 — 移植自 ZalithLauncher2 并适配本项目
+- 全功能文件浏览：网格/列表视图、多选、回收站、ZIP 压缩/解压、图片/音频/文本预览、内置编辑器
+
+### 导入增强
+- 全盘扫描 `.mcpack` / `.mcaddon` / `.mcworld` / `.mcstructure`，流式显示结果、持久缓存、缩略图
+- 多选批量导入，名称支持 Minecraft 颜色码（§/&）渲染
+
+### 启动器体验
+- **更新检查重写** – GitHub Releases 直链 + 多镜像回退（受限网络可用），进度条 + 静默后台下载；三态结果（失败 / 已最新 / 有更新）
+- **液态玻璃效果**（Prismal）+ 全弹窗/按钮的强调色系统
+- **11 语言全量翻译** – 简体中文、英语、西班牙语、葡萄牙语、日语、越南语、印尼语、印地语、法语、俄语、土耳其语
+- 游戏版本**桌面快捷方式**
+- 新闻模块，应用更名 **LBBL**
 
 ---
 
@@ -135,7 +191,7 @@ LBBL（Levi Better Bedrock Launcher）是 [LeviLaunchroid](https://github.com/Li
 ## 系统要求
 
 - Android 9.0+（API 28+）
-- arm64-v8a 设备（内置 EasyTier 原生库为 arm64 编译）
+- arm64-v8a 设备（内置 EasyTier 原生库仅 arm64）
 
 ---
 
