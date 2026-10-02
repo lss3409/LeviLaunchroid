@@ -1346,13 +1346,7 @@ public final class OnlineActivity extends BaseActivity
         // v542：大邀请码与「联机邀请」标签跟随个性化强调色
         ((TextView) v.findViewById(R.id.share_code_text)).setTextColor(accentColor());
         ((TextView) v.findViewById(R.id.share_tag)).setTextColor(accentColor());
-        android.graphics.Bitmap qr = QrUtils.generate("P/" + currentCode, 480);
         android.widget.ImageView qrView = v.findViewById(R.id.share_qr);
-        if (qr != null) {
-            qrView.setImageBitmap(qr);
-        } else {
-            qrView.setVisibility(View.GONE);
-        }
         // v535：分享卡弹窗同样换 Levi 风格；v536：点外部空白即可关闭
         org.levimc.launcher.ui.dialogs.CustomAlertDialog dialog =
                 new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this);
@@ -1374,6 +1368,21 @@ public final class OnlineActivity extends BaseActivity
             systemShareCode();
         });
         dialog.show();
+        // v0.0.21：二维码生成移到后台线程——首次点击卡顿根因
+        // （主线程 ZXing 编码 480×480 + 类首次加载）
+        new Thread(() -> {
+            android.graphics.Bitmap qr = QrUtils.generate("P/" + currentCode, 480);
+            runOnUiThread(() -> {
+                if (!dialog.isShowing() || isFinishing()) {
+                    return;
+                }
+                if (qr != null) {
+                    qrView.setImageBitmap(qr);
+                } else {
+                    qrView.setVisibility(View.GONE);
+                }
+            });
+        }, "qr-gen").start();
     }
 
     /** 系统分享（微信/QQ 等），文本为链接卡片式。 */
