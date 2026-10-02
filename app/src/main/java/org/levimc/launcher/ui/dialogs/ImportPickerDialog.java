@@ -69,6 +69,27 @@ public class ImportPickerDialog {
     private static final java.util.Set<String> selectedPaths = new java.util.HashSet<>();
     /** v656：勾选变化回调（更新底部「导入 N 项」按钮）。 */
     private static Runnable onSelectionChangedRef;
+    // v662：动画时长常量（照搬 ZalithLauncher2 FmAnimations 思路——
+    // 全弹窗动画统一走这些常量，不再散落魔法数字）
+    private static final int FADE_IN_MS = 200;
+    private static final int FADE_OUT_MS = 180;
+    /** v662：网格最小列宽/间距/列数上限（Zalith 自适应列数公式参数）。 */
+    private static final int MIN_COLUMN_DP = 170;
+    private static final int GRID_GAP_DP = 2;
+    private static final int MAX_COLUMNS = 3;
+
+    /** v662：网格列数（照搬 ZalithLauncher2 自适应公式——最小列宽 170dp+
+     *  2dp 间距，按弹窗可用宽度自动算列数，上限 3；列表模式恒 1）。 */
+    private static int gridColumns(boolean grid, float density, int dialogWidth) {
+        if (!grid) {
+            return 1;
+        }
+        float minCol = MIN_COLUMN_DP * density;
+        float gap = GRID_GAP_DP * density;
+        float avail = Math.max(minCol, dialogWidth - 40 * density);
+        int columns = (int) Math.floor((avail - 24 * density + gap) / (minCol + gap));
+        return Math.max(1, Math.min(columns, MAX_COLUMNS));
+    }
 
     /** v656：切换勾选并更新卡片样式（选中 = accent 描边 + 半透明底）。 */
     private static void toggleCardSelection(View card, GlobalImportScanner.Candidate c,
@@ -280,7 +301,7 @@ public class ImportPickerDialog {
                 search.setVisibility(View.VISIBLE);
                 search.setAlpha(0f);
                 search.setTranslationY(-(int) (14 * density));
-                search.animate().alpha(1f).translationY(0).setDuration(180).start();
+                search.animate().alpha(1f).translationY(0).setDuration(FADE_IN_MS).start();
                 search.requestFocus();
             } else {
                 search.clearFocus();
@@ -325,6 +346,7 @@ public class ImportPickerDialog {
 
         final List<GlobalImportScanner.Candidate>[] results = new List[]{null};
         final String[] query = {""};
+        final int[] widthArr = new int[]{DialogSizer.dialogWidth(context, 560)}; // v662：前移供列数公式用
         final Runnable[] redrawRef = new Runnable[1];
         // v647：增量扫描状态——rendered=已渲染游标（results 索引）、
         // lastFlush=上次刷新时间戳、pendingFlush=是否有排队的刷新、
@@ -335,8 +357,8 @@ public class ImportPickerDialog {
         final boolean[] closed = {false};
         // v648：已知路径去重（持久化缓存加载后，重扫发现的新增项跳过已有）
         final java.util.Set<String> knownPaths = new java.util.HashSet<>();
-        // v651：手机两列网格——增量 append 时凑对的暂存（单数个等下一个）
-        final GlobalImportScanner.Candidate[] pendingSingle = new GlobalImportScanner.Candidate[1];
+        // v651/v662：网格增量 append 凑行暂存（凑满一列数即渲染一行）
+        final List<GlobalImportScanner.Candidate>[] pendingGroup = new List[]{new ArrayList<>()};
         android.util.DisplayMetrics dmd = context.getResources().getDisplayMetrics();
         dbg(context, "show: density=" + dmd.density + " widthPixels=" + dmd.widthPixels
                 + " heightPixels=" + dmd.heightPixels
@@ -404,26 +426,28 @@ public class ImportPickerDialog {
                 gap.setTextSize(4);
                 content.addView(gap);
                 boolean any = false;
-                // v651：手机两列网格（一横列两个竖版卡片）；平板保持单行列表
-                if (gridMode) { // v653：两列/一列可切换
-                    GlobalImportScanner.Candidate single = null;
+                // v662：网格列数自适应（ZalithLauncher2 公式：最小列宽
+                // 170dp+2dp 间距，按弹窗可用宽度自动算列数，上限 3 列；
+                // 用户切到列表模式恒 1 列）
+                int columns = gridColumns(gridMode, density, widthArr[0]);
+                if (columns > 1) {
+                    List<GlobalImportScanner.Candidate> group = new ArrayList<>();
                     for (GlobalImportScanner.Candidate c : filtered) {
                         if (c.type != expandedType) {
                             continue;
                         }
                         any = true;
-                        if (single == null) {
-                            single = c;
-                        } else {
-                            content.addView(buildGridRow(context, single, c, textMain, textSub,
-                                    cardBg, density, accent, listener, dialog, redrawRef[0],
-                                    content, search, status));
-                            single = null;
+                        group.add(c);
+                        if (group.size() == columns) {
+                            content.addView(buildGridRow(context, group, columns, textMain,
+                                    textSub, cardBg, density, accent, listener, dialog,
+                                    redrawRef[0], content, search, status));
+                            group = new ArrayList<>();
                         }
                     }
-                    if (single != null) {
-                        // 单数个：占半格，右半留空
-                        content.addView(buildGridRow(context, single, null, textMain, textSub,
+                    if (!group.isEmpty()) {
+                        // 末行不足：右端留空补齐
+                        content.addView(buildGridRow(context, group, columns, textMain, textSub,
                                 cardBg, density, accent, listener, dialog, redrawRef[0],
                                 content, search, status));
                     }
@@ -455,11 +479,11 @@ public class ImportPickerDialog {
             }
             // v653：重建后条目区淡入（启动器补动画；扫描增量 append 不触发）
             content.setAlpha(0.55f);
-            content.animate().alpha(1f).setDuration(200).start();
+            content.animate().alpha(1f).setDuration(FADE_IN_MS).start();
             // v647：全量重建后增量游标对齐（已发现的候选都已渲染）
             rendered[0] = list.size();
-            // v651：全量重建后两列凑对暂存清零（重建已含单数项）
-            pendingSingle[0] = null;
+            // v651/v662：全量重建后网格凑行暂存清零（重建已含末行项）
+            pendingGroup[0].clear();
         };
 
         // v653：两列/一列切换（redrawRef 就绪后绑定；图标显示当前布局）
@@ -467,6 +491,10 @@ public class ImportPickerDialog {
             gridMode = !gridMode;
             layoutToggle.setImageResource(gridMode
                     ? R.drawable.ic_view_grid : R.drawable.ic_view_list);
+            // v662：布局切换缩放回弹动画（Zalith 动画风格）
+            content.setScaleX(0.97f);
+            content.setScaleY(0.97f);
+            content.animate().scaleX(1f).scaleY(1f).setDuration(FADE_IN_MS).start();
             redrawRef[0].run();
         });
 
@@ -556,14 +584,14 @@ public class ImportPickerDialog {
                         continue;
                     }
                     if (gridMode) { // v653：两列/一列可切换
-                        // v651：两列网格——凑对追加，单数暂存等下一个
-                        if (pendingSingle[0] == null) {
-                            pendingSingle[0] = c;
-                        } else {
-                            content.addView(buildGridRow(context, pendingSingle[0], c, textMain,
-                                    textSub, cardBg, density, accent, listener, dialog,
-                                    redrawRef[0], content, search, status));
-                            pendingSingle[0] = null;
+                        // v662：网格凑行追加（凑满自适应列数即渲染一行）
+                        pendingGroup[0].add(c);
+                        int cols = gridColumns(true, density, widthArr[0]);
+                        if (pendingGroup[0].size() == cols) {
+                            content.addView(buildGridRow(context, new ArrayList<>(pendingGroup[0]),
+                                    cols, textMain, textSub, cardBg, density, accent, listener,
+                                    dialog, redrawRef[0], content, search, status));
+                            pendingGroup[0].clear();
                         }
                     } else {
                         content.addView(buildItemRow(context, c, textMain, textSub, cardBg,
@@ -788,7 +816,6 @@ public class ImportPickerDialog {
         // v613：限高做成可复用回调——内容动态变化（扫描完成/切换
         // 分类/进二级菜单）后重新测量，避免弹窗被撑出屏幕
         final Window[] wRef = new Window[1];
-        final int[] widthArr = new int[]{DialogSizer.dialogWidth(context, 560)};
         final int[] maxHArr = new int[]{DialogSizer.dialogMaxHeight(context)};
         final LinearLayout[] rootRef = new LinearLayout[]{root};
         // v655：弹窗高度动态自适应（恢复 v613 语义）——每次内容变化后
@@ -862,6 +889,10 @@ public class ImportPickerDialog {
             selectedPaths.clear();
         });
         dialog.show();
+        // v662：弹窗打开动画（淡入+上滑，Zalith FmAnimations 风格）
+        root.setAlpha(0f);
+        root.setTranslationY((int) (24 * density));
+        root.animate().alpha(1f).translationY(0).setDuration(FADE_IN_MS).start();
         relimit.run();
     }
 
@@ -926,34 +957,33 @@ public class ImportPickerDialog {
         return card;
     }
 
-    /** v651：两列网格行——两个竖版条目卡片并排（手机专属，一横列两个实例）。 */
-    private static View buildGridRow(Context context, GlobalImportScanner.Candidate c1,
-                                     GlobalImportScanner.Candidate c2, int textMain,
-                                     int textSub, int cardBg, float density, int accent,
-                                     Listener listener, Dialog dialog, Runnable redraw,
-                                     LinearLayout content, EditText search, TextView status) {
+    /** v651/v662：网格行——N 个竖版条目卡片并排（列数自适应，
+     *  末行不足时右端留空补齐）。 */
+    private static View buildGridRow(Context context, List<GlobalImportScanner.Candidate> rowItems,
+                                     int columns, int textMain, int textSub, int cardBg,
+                                     float density, int accent, Listener listener, Dialog dialog,
+                                     Runnable redraw, LinearLayout content, EditText search,
+                                     TextView status) {
         LinearLayout row = new LinearLayout(context);
         row.setOrientation(LinearLayout.HORIZONTAL);
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         rp.bottomMargin = (int) (6 * density);
         row.setLayoutParams(rp);
-        row.addView(buildGridItem(context, c1, textMain, textSub, cardBg, density, accent,
-                listener, dialog, redraw, content, search, status), new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        if (c2 != null) {
-            LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(
+        int gapPx = (int) (GRID_GAP_DP * density);
+        for (int i = 0; i < columns; i++) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                     0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-            lp2.leftMargin = (int) (6 * density);
-            row.addView(buildGridItem(context, c2, textMain, textSub, cardBg, density, accent,
-                    listener, dialog, redraw, content, search, status), lp2);
-        } else {
-            // 单数个：右半留空占位保持左卡半宽
-            View spacer = new View(context);
-            LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(
-                    0, 1, 1f);
-            lp2.leftMargin = (int) (6 * density);
-            row.addView(spacer, lp2);
+            if (i > 0) {
+                lp.leftMargin = gapPx;
+            }
+            if (i < rowItems.size()) {
+                row.addView(buildGridItem(context, rowItems.get(i), textMain, textSub, cardBg,
+                        density, accent, listener, dialog, redraw, content, search, status), lp);
+            } else {
+                // 末行不足：留空占位保持对齐
+                row.addView(new View(context), lp);
+            }
         }
         return row;
     }
