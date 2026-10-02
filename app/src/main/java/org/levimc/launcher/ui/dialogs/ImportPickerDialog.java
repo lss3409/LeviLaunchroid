@@ -711,7 +711,10 @@ public class ImportPickerDialog {
         // 提前声明供「取消」按钮引用
         final Runnable[] updateBottomRef = new Runnable[1];
 
-        MaterialButton batchCancel = new MaterialButton(context);
+        // v657：取消按钮 UI 兼容——弹窗同款 TextButton 扁平样式
+        //（Widget.MaterialComponents.Button.TextButton），文字染个性化强调色
+        MaterialButton batchCancel = new MaterialButton(new android.view.ContextThemeWrapper(
+                context, com.google.android.material.R.style.Widget_MaterialComponents_Button_TextButton));
         batchCancel.setAllCaps(false);
         batchCancel.setText("取消");
         batchCancel.setTextSize(13);
