@@ -103,9 +103,9 @@ public class SettingsActivity extends BaseActivity {
 
         personalizationManager = new PersonalizationManager(this);
 
-        if (savedInstanceState != null) {
-            selectedTabIndex = savedInstanceState.getInt(KEY_SELECTED_TAB, 0);
-        }
+        // v0.0.6：不再恢复上次停留的 tab——每次打开设置页默认「基础设置」
+        // （含语言切换），避免用户切到别的 tab 后找不到语言入口（用户反馈）
+        selectedTabIndex = 0;
 
         permissionsHandler = PermissionsHandler.getInstance();
         permissionResultLauncher = registerForActivityResult(
