@@ -314,10 +314,11 @@ Migration must complete before LBBL can continue.</string>
     <string name="help_minebbs_desc">Minecraft community forum</string>
     <string name="help_littleskin">LittleSkin</string>
     <string name="help_littleskin_desc">Minecraft skin site</string>
-    <string name="check_update_title">检查更新</string>
-    <string name="check_update_button">检查更新</string>
-    <string name="check_update_checking">正在检查更新…</string>
-    <string name="check_update_latest">已是最新版本</string>
+    <string name="check_update_title">Update</string>
+    <string name="check_update_button">Check Update</string>
+    <string name="check_update_checking">Checking for updates…</string>
+    <string name="check_update_latest">You are already on the latest version.</string>
+    <string name="check_update_failed">Update check failed. Check your network and try again.</string>
     <string name="custom_color_label">Custom Color (HEX/RGB)</string>
     <string name="custom_color_hint">#RRGGBB or R,G,B</string>
     <string name="apply">Apply</string>

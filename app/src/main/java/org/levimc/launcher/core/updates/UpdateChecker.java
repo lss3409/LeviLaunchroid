@@ -81,9 +81,13 @@ public final class UpdateChecker {
         public final java.util.List<String> apkUrls = new java.util.ArrayList<>(); // APK 直链候选
     }
 
+    /** 检查结果三态（v0.0.5：区分「网络失败」和「已是最新」，不再混为 null）。 */
+    public static final int RESULT_FAILED = 0;
+    public static final int RESULT_UP_TO_DATE = 1;
+    public static final int RESULT_UPDATE = 2;
+
     public interface Callback {
-        /** update 非空 = 发现新版本。 */
-        void onResult(Update update);
+        void onResult(int status, Update update);
     }
 
     private UpdateChecker() {
@@ -101,28 +105,37 @@ public final class UpdateChecker {
             sp.edit().putLong(KEY_LAST_CHECK, System.currentTimeMillis()).apply();
         }
         pool.execute(() -> {
-            Update u = check(app);
-            main.post(() -> cb.onResult(u));
+            try {
+                Update u = check(app);
+                main.post(() -> cb.onResult(u == null ? RESULT_UP_TO_DATE : RESULT_UPDATE, u));
+            } catch (Throwable t) {
+                Log.w(TAG, "检查更新失败: " + t.getClass().getSimpleName());
+                main.post(() -> cb.onResult(RESULT_FAILED, null));
+            }
         });
     }
 
     private static Update check(Context app) {
+        // v0.0.5：update.json 加分钟级时间戳 query——GitHub latest 重定向
+        // 会被 CDN 缓存，旧缓存曾导致「已是最新」误判（v0.0.4 实锤疑似），
+        // 每次检查换 query 绕过缓存命中旧内容
+        String base = UPDATE_URL + "?t=" + (System.currentTimeMillis() / 60_000);
         // v0.0.1：update.json 多源回退（GitHub 直链 → 镜像），拿到即止
-        for (String url : buildCandidates(UPDATE_URL)) {
+        for (String url : buildCandidates(base)) {
             try {
                 return checkOnce(app, url);
             } catch (Throwable t) {
                 Log.w(TAG, "更新源失败换下一个: " + url + " (" + t.getClass().getSimpleName() + ")");
             }
         }
-        return null;
+        throw new IllegalStateException("all update sources failed");
     }
 
     /** 单源检查；网络/解析失败抛异常（区别于「无更新」返回 null）。 */
     private static Update checkOnce(Context app, String url) throws Exception {
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-        conn.setConnectTimeout(10_000);
-        conn.setReadTimeout(15_000);
+        conn.setConnectTimeout(5_000);
+        conn.setReadTimeout(8_000);
         int code = conn.getResponseCode();
         if (code != 200) {
             conn.disconnect();
@@ -130,6 +143,7 @@ public final class UpdateChecker {
         }
         String body = readAll(conn.getInputStream());
         conn.disconnect();
+        Log.i(TAG, "源成功: " + url + " (" + body.length() + "B)");
         JSONObject json = new JSONObject(body);
         long remoteCode = json.optLong("code", 0);
         String remoteVersion = json.optString("version", "");
@@ -146,6 +160,7 @@ public final class UpdateChecker {
         } catch (Throwable ignored) {
         }
         if (remoteCode <= localCode) {
+            Log.i(TAG, "已是最新: remote=" + remoteCode + " local=" + localCode);
             return null;
         }
         Update u = new Update();

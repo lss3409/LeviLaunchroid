@@ -1052,6 +1052,11 @@
     <string name="settings_tab_updates">更新</string>
     <string name="settings_tab_about">关于</string>
     <string name="settings_tab_migration">存储</string>
+    <string name="check_update_title">检查更新</string>
+    <string name="check_update_button">检查更新</string>
+    <string name="check_update_checking">正在检查更新…</string>
+    <string name="check_update_latest">已是最新版本</string>
+    <string name="check_update_failed">检查更新失败，请检查网络后重试</string>
     <string name="settings_theme_desc">选择应用主题</string>
     <string name="launch_vertically">竖屏启动</string>
     <string name="launch_vertically_desc">强制游戏以竖屏模式启动</string>

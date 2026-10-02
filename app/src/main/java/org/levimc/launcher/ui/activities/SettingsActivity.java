@@ -20,6 +20,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.GridLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -155,6 +156,13 @@ public class SettingsActivity extends BaseActivity {
             selectedTabIndex = 0;
         }
         selectTab(tabs[selectedTabIndex]);
+
+        // v0.0.5：tab 行复位到最左——恢复上次 tab（如「关于」）时
+        // 第一个 tab「基础设置」（含语言切换）不能滚出屏幕外
+        HorizontalScrollView tabScroll = findViewById(R.id.settings_tab_scroll);
+        if (tabScroll != null) {
+            tabScroll.post(() -> tabScroll.scrollTo(0, 0));
+        }
     }
 
     @Override
@@ -179,13 +187,18 @@ public class SettingsActivity extends BaseActivity {
                     Toast.makeText(this, R.string.check_update_checking,
                             Toast.LENGTH_SHORT).show();
                     org.levimc.launcher.core.updates.UpdateChecker.checkAsync(
-                            this, true, u -> {
-                                if (u == null) {
-                                    Toast.makeText(this, R.string.check_update_latest,
-                                            Toast.LENGTH_SHORT).show();
-                                } else {
+                            this, true, (status, u) -> {
+                                if (status == org.levimc.launcher.core.updates
+                                        .UpdateChecker.RESULT_UPDATE) {
                                     org.levimc.launcher.core.updates.UpdateChecker
                                             .showUpdateDialog(this, u);
+                                } else if (status == org.levimc.launcher.core.updates
+                                        .UpdateChecker.RESULT_FAILED) {
+                                    Toast.makeText(this, R.string.check_update_failed,
+                                            Toast.LENGTH_SHORT).show();
+                                } else {
+                                    Toast.makeText(this, R.string.check_update_latest,
+                                            Toast.LENGTH_SHORT).show();
                                 }
                             });
                 });
