@@ -497,6 +497,17 @@
                 android:textColor="@color/text_secondary"
                 android:paddingEnd="4dp" />
 
+            <!-- 只读模式开关：睁眼=只读，笔=可编辑（v670） -->
+            <ImageView
+                android:id="@+id/fm_editor_readonly"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:padding="10dp"
+                android:src="@drawable/ic_eye"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                app:tint="@color/on_surface"
+                android:contentDescription="@null" />
+
             <TextView
                 android:id="@+id/fm_editor_save"
                 android:layout_width="wrap_content"

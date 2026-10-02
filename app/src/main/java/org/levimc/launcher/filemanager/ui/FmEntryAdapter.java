@@ -110,7 +110,7 @@ public class FmEntryAdapter extends RecyclerView.Adapter<FmEntryAdapter.Holder> 
         h.name.setText(e.getName());
         h.name.setTextColor(textPrimary);
 
-        // 图标
+        // 图标（图片条目显示彩色缩略图：必须清 tint，否则 SRC_IN 滤镜染成单色）
         int iconRes;
         if (e.isDirectory()) {
             iconRes = R.drawable.ic_folder;
@@ -120,7 +120,12 @@ public class FmEntryAdapter extends RecyclerView.Adapter<FmEntryAdapter.Holder> 
             iconRes = R.drawable.ic_file;
         }
         h.icon.setImageResource(iconRes);
-        h.icon.setColorFilter(0xFF8A8A8A);
+        if (isImage(e.getName())) {
+            h.icon.setColorFilter(null);
+            loadThumb(e, h.icon);
+        } else {
+            h.icon.setColorFilter(0xFF8A8A8A);
+        }
 
         // 副标题：大小 + 时间
         if (h.sub != null) {
@@ -179,6 +184,52 @@ public class FmEntryAdapter extends RecyclerView.Adapter<FmEntryAdapter.Holder> 
         float g = Color.green(fg) * ratio + Color.green(bg) * (1 - ratio);
         float b = Color.blue(fg) * ratio + Color.blue(bg) * (1 - ratio);
         return Color.rgb((int) r, (int) g, (int) b);
+    }
+
+    // ---------------- 图片缩略图（v670：列表内直接显示，恢复旧版能力） ----------------
+
+    private static final java.util.Map<String, android.graphics.Bitmap> THUMB_CACHE =
+            new java.util.LinkedHashMap<String, android.graphics.Bitmap>(32, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(java.util.Map.Entry<String, android.graphics.Bitmap> e) {
+                    return size() > 128;
+                }
+            };
+    private static final java.util.concurrent.ExecutorService THUMB_POOL =
+            java.util.concurrent.Executors.newFixedThreadPool(2);
+
+    private static boolean isImage(String name) {
+        String n = name.toLowerCase(Locale.ROOT);
+        return n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg")
+                || n.endsWith(".webp") || n.endsWith(".gif") || n.endsWith(".bmp");
+    }
+
+    private void loadThumb(FmEntry e, ImageView iv) {
+        final String path = e.getPath().toString();
+        iv.setTag(path);
+        android.graphics.Bitmap cached;
+        synchronized (THUMB_CACHE) {
+            cached = THUMB_CACHE.get(path);
+        }
+        if (cached != null) {
+            iv.setImageBitmap(cached);
+            return;
+        }
+        THUMB_POOL.execute(() -> {
+            android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
+            opts.inSampleSize = 8;
+            android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeFile(path, opts);
+            if (bmp != null) {
+                synchronized (THUMB_CACHE) {
+                    THUMB_CACHE.put(path, bmp);
+                }
+                iv.post(() -> {
+                    if (path.equals(iv.getTag())) {
+                        iv.setImageBitmap(bmp);
+                    }
+                });
+            }
+        });
     }
 
     public static String fmtSize(long size) {

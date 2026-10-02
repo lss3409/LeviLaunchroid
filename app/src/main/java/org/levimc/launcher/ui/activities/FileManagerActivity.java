@@ -100,6 +100,10 @@ public class FileManagerActivity extends BaseActivity {
     private boolean editorUserEdited;
     private boolean exitConfirmShown;
     private String lastEditorPath;
+    /** 只读模式（v670）：打开即只读（睁眼），点眼睛切换编辑（笔）；文件不可写时恒只读。 */
+    private boolean editorReadonly = true;
+    private boolean editorFileWritable = true;
+    private ImageView editorReadonlyToggle;
     private final Handler highlightHandler = new Handler(Looper.getMainLooper());
     private final Runnable highlightTask = this::runHighlight;
 
@@ -232,6 +236,7 @@ public class FileManagerActivity extends BaseActivity {
         editorDirty = findViewById(R.id.fm_editor_dirty);
         editorSave = findViewById(R.id.fm_editor_save);
         editorText = findViewById(R.id.fm_editor_text);
+        editorReadonlyToggle = findViewById(R.id.fm_editor_readonly);
         audioPanel = findViewById(R.id.fm_audio_panel);
         audioPlayPause = findViewById(R.id.fm_audio_play_pause);
         audioName = findViewById(R.id.fm_audio_name);
@@ -361,7 +366,7 @@ public class FileManagerActivity extends BaseActivity {
         items.add(getString(R.string.fm_ui_sort));
         items.add(getString(R.string.fm_ui_hidden) + (lastState != null && lastState.getShowHidden() ? " ✓" : ""));
         items.add(getString(R.string.fm_ui_clear_trash));
-        CustomAlertDialog moreDialog = new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this)
+        org.levimc.launcher.ui.dialogs.CustomAlertDialog moreDialog = new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this)
                 .setTitleText(getString(R.string.fm_ui_more))
                 .setItems(items.toArray(new String[0]), (d, which) -> {
                     String picked = items.get(which);
@@ -427,11 +432,15 @@ public class FileManagerActivity extends BaseActivity {
     // ---------------- 文件打开分发（v669：图片预览/音频播放/文本编辑/系统打开） ----------------
 
     private void openFileEntry(FmEntry entry) {
+        String name = entry.getName().toLowerCase(java.util.Locale.ROOT);
+        // 打开非音频内容时收起音频面板（防残留）
+        if (!isAudio(name)) {
+            releaseAudio();
+        }
         if (entry.isDirectory()) {
             vm.enterDirectory(entry);
             return;
         }
-        String name = entry.getName().toLowerCase(java.util.Locale.ROOT);
         java.io.File file = new java.io.File(entry.getPath().toString());
         if (isImage(name)) {
             FmDialogs.showImagePreview(this, file);
@@ -486,9 +495,9 @@ public class FileManagerActivity extends BaseActivity {
             mediaPlayer.setDataSource(file.getAbsolutePath());
             mediaPlayer.prepare();
             mediaPlayer.setOnCompletionListener(mp -> runOnUiThread(() -> {
-                audioPlayPause.setImageResource(R.drawable.ic_play);
                 audioSeek.setProgress(audioSeek.getMax());
                 audioCurrent.setText(audioDuration.getText());
+                releaseAudio();
             }));
             mediaPlayer.start();
             audioSourcePath = file.getAbsolutePath();
@@ -725,6 +734,14 @@ public class FileManagerActivity extends BaseActivity {
                     return kotlin.Unit.INSTANCE;
                 }));
         findViewById(R.id.fm_editor_back).setOnClickListener(v -> requestEditorClose());
+        editorReadonlyToggle.setOnClickListener(v -> {
+            if (!editorFileWritable) {
+                Toast.makeText(this, R.string.fm_ui_editor_readonly, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            editorReadonly = !editorReadonly;
+            applyEditorReadonly();
+        });
         editorText.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -753,6 +770,7 @@ public class FileManagerActivity extends BaseActivity {
         if (!pathStr.equals(lastEditorPath)) {
             lastEditorPath = pathStr;
             editorUserEdited = false;
+            editorReadonly = true;
         }
         showEditor();
         editorName.setText(ui.getPath().getFileName() != null
@@ -768,11 +786,12 @@ public class FileManagerActivity extends BaseActivity {
                 scheduleHighlight();
             }
         }
-        boolean writable = ui.getWritable() && !ui.getSaving();
-        editorText.setEnabled(writable);
-        if (!ui.getWritable()) {
-            editorText.setHint(R.string.fm_ui_editor_readonly);
+        editorFileWritable = ui.getWritable();
+        if (!editorFileWritable) {
+            editorReadonly = true; // 文件不可写恒只读
         }
+        applyEditorReadonly();
+        editorText.setEnabled(editorFileWritable && !ui.getSaving() && !editorReadonly);
         editorDirty.setVisibility(ui.getDirty() ? View.VISIBLE : View.GONE);
         editorDirty.setText(ui.getDirty() ? "●" : "");
 
@@ -785,6 +804,12 @@ public class FileManagerActivity extends BaseActivity {
         if (ui.getError() != null && !ui.getError().isEmpty()) {
             Toast.makeText(this, ui.getError(), Toast.LENGTH_SHORT).show();
         }
+    }
+
+    /** 只读开关：睁眼=只读，笔=可编辑（v670）。 */
+    private void applyEditorReadonly() {
+        editorReadonlyToggle.setImageResource(editorReadonly ? R.drawable.ic_eye : R.drawable.ic_edit);
+        editorText.setEnabled(editorFileWritable && !editorReadonly);
     }
 
     private void showExitConfirmDialog() {
@@ -833,6 +858,8 @@ public class FileManagerActivity extends BaseActivity {
         editorRoot.setVisibility(View.GONE);
         editorUserEdited = false;
         lastEditorPath = null;
+        editorReadonly = true;
+        editorFileWritable = true;
         // guard：清空文本不触发 watcher（否则 editorUserEdited 被置回 true + dirty 被污染）
         applyingHighlight = true;
         editorText.setText("");
@@ -989,6 +1016,10 @@ public class FileManagerActivity extends BaseActivity {
 
     @Override
     public void onBackPressed() {
+        if (audioPanel.getVisibility() == View.VISIBLE) {
+            releaseAudio();
+            return;
+        }
         if (editorRoot.getVisibility() == View.VISIBLE) {
             requestEditorClose();
             return;

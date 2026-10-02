@@ -240,6 +240,11 @@ public class FmDialogs {
         actions.add(() -> showPropertiesDialog(a, entry));
         items.add(a.getString(R.string.fm_ui_share));
         actions.add(() -> org.levimc.launcher.filemanager.logic.FmCompatKt.shareFile(a, new File(entry.getPath().toString())));
+        // MT 管理器深度编辑（v670 恢复旧版跳转；未安装 MT 时提示）
+        if (!entry.isDirectory()) {
+            items.add(a.getString(R.string.mt_manager));
+            actions.add(() -> openInMt(a, entry));
+        }
         items.add(a.getString(R.string.fm_ui_delete));
         actions.add(() -> showDeleteConfirm(a, vm, entry));
 
@@ -280,6 +285,22 @@ public class FmDialogs {
                 if (bitmap != null) imageView.setImageBitmap(bitmap);
             });
         }).start();
+    }
+
+    /** 跳转 MT 管理器深度编辑（v670，照旧版 openInMt）。 */
+    public static void openInMt(BaseActivity a, FmEntry entry) {
+        try {
+            android.net.Uri uri = androidx.core.content.FileProvider.getUriForFile(
+                    a, a.getPackageName() + ".fileprovider",
+                    new File(entry.getPath().toString()));
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setData(uri);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            intent.setPackage("bin.mt.plus");
+            a.startActivity(intent);
+        } catch (Exception e) {
+            android.widget.Toast.makeText(a, R.string.no_file_manager, android.widget.Toast.LENGTH_SHORT).show();
+        }
     }
 
     public static String guessMime(String name) {
