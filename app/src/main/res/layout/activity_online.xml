@@ -88,7 +88,7 @@
                     android:layout_gravity="bottom"
                     android:src="@drawable/ic_scenery_hills"
                     android:scaleType="fitXY"
-                    android:contentDescription="@string/online_scenery_hills" />
+                    android:contentDescription="@string/online_scenery_sub" />
 
                 <TextView
                     android:id="@+id/online_scenery_greeting"
