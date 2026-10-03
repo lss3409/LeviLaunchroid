@@ -78,12 +78,14 @@ Requirements:
 - No NDK needed unless you rebuild the bundled EasyTier core library
 
 ```bash
-git clone https://github.com/lss3409/LeviLaunchroid.git
+git clone --recurse-submodules https://github.com/lss3409/LeviLaunchroid.git
 cd LeviLaunchroid
 git tag v0.0.x   # versionName is derived from the git tag (semver)
 ./gradlew assembleDebug
 # APK: app/build/outputs/apk/debug/app-debug.apk
 ```
+
+The build uses two git submodules from upstream (preloader-android, libHttpClient) — initialize them with `git submodule update --init` if you cloned without `--recurse-submodules`.
 
 The EasyTier JNI library under `app/src/main/jniLibs/arm64-v8a/` is cross-compiled from [EasyTier](https://github.com/EasyTier/EasyTier) for Android (build script maintained outside this repo). Prebuilt binaries are committed, so a normal build does not need the Rust toolchain.
 
@@ -176,12 +178,14 @@ LBBL 是 [LeviLaunchroid](https://github.com/LiteLDev/LeviLaunchroid)（LeviMC �
 - 无需 NDK（除非重新编译内置的 EasyTier 核心库）
 
 ```bash
-git clone https://github.com/lss3409/LeviLaunchroid.git
+git clone --recurse-submodules https://github.com/lss3409/LeviLaunchroid.git
 cd LeviLaunchroid
 git tag v0.0.x   # versionName 取自 git tag（语义化版本）
 ./gradlew assembleDebug
 # APK 输出：app/build/outputs/apk/debug/app-debug.apk
 ```
+
+构建依赖官方遗留的两个 git 子模块（preloader-android、libHttpClient）——未用 `--recurse-submodules` 克隆时请手动执行 `git submodule update --init`。
 
 `app/src/main/jniLibs/arm64-v8a/` 下的 EasyTier JNI 库由 [EasyTier](https://github.com/EasyTier/EasyTier) 交叉编译而来（构建脚本在仓库外维护）。预编译产物已提交，普通构建无需 Rust 工具链。
 
