@@ -16,6 +16,8 @@ LBBL is a fork of [LeviLaunchroid](https://github.com/LiteLDev/LeviLaunchroid) (
 
 This project is **not affiliated with LiteLDev or the LeviMC team** — it is a personal fork. Some features were developed with reference to other open-source projects; see [References](#references) below.
 
+This fork was developed 100% with the assistance of the deepseek-v4-pro AI model.
+
 ---
 
 ## Features added in this fork
@@ -111,6 +113,8 @@ The EasyTier JNI library under `app/src/main/jniLibs/arm64-v8a/` is cross-compil
 LBBL 是 [LeviLaunchroid](https://github.com/LiteLDev/LeviLaunchroid)（LeviMC 社区的开源基岩版启动器，即安卓版 LeviLauncher）的一个分支。我们在官方启动器的基础上补充了一些功能，并修复了使用过程中遇到的各种问题。
 
 本项目是个人分支，**与 LiteLDev / LeviMC 团队无关**。部分功能参考了其他开源项目的实现，见文末[参考项目](#参考项目)。
+
+本分支 100% 由 deepseek-v4-pro 模型协助开发。
 
 ---
 
