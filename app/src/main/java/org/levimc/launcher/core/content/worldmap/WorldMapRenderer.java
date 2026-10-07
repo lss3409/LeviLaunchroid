@@ -6300,8 +6300,12 @@ public class WorldMapRenderer {
                 // CRS.Simple 的 lat 轴向上、PNG 像素 z 轴向下——两者
                 // 方向相反，标记 z 不取反会上下偏移 2×|z-中心|（用户
                 // "出生点/玩家位置向下偏移很多"的根因）。统一 lat=-z
-                .append("var BOUNDS=[[-").append(maxZ).append(',').append(minX).append("],[-")
-                .append(minZ).append(',').append(maxX).append("]];")
+                // v0.0.25：maxZ/minZ 为负时硬编码的 "[-" 前缀拼出
+                // "--480" 双负号 → JS 语法错误整个脚本崩掉、地图空白
+                // （用户"HTML 显示不了地图"根因）。改为拼接 -maxZ/-minZ
+                // 的计算值，变量自带符号不再叠加硬编码负号
+                .append("var BOUNDS=[[").append(-maxZ).append(',').append(minX).append("],[")
+                .append(-minZ).append(',').append(maxX).append("]];")
                 .append("L.imageOverlay('data:image/png;base64,").append(b64)
                 .append("',BOUNDS).addTo(map);")
                 .append("var FZ=map.getBoundsZoom(BOUNDS);")
