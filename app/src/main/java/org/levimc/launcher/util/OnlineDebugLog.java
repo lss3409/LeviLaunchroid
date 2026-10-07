@@ -21,6 +21,9 @@ public final class OnlineDebugLog {
         }
     }
 
+    /** v0.0.24：日志轮转上限——曾涨到 171MB（v698 教训），超 5MB 截断重写。 */
+    private static final long MAX_LOG_SIZE = 5 * 1024 * 1024;
+
     public static void log(String msg) {
         try {
             Context ctx = appContext;
@@ -30,6 +33,10 @@ public final class OnlineDebugLog {
             java.io.File f = new java.io.File(path);
             if (f.getParentFile() != null && !f.getParentFile().exists()) {
                 f.getParentFile().mkdirs();
+            }
+            if (f.length() > MAX_LOG_SIZE) {
+                java.io.FileWriter trunc = new java.io.FileWriter(f, false);
+                trunc.close();
             }
             java.io.FileWriter fw = new java.io.FileWriter(f, true);
             fw.write(System.currentTimeMillis() + " " + msg + "\n");

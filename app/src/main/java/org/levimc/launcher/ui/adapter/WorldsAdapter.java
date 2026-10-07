@@ -229,7 +229,7 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
         } else if (holder.hardcoreHeartBadge != null) {
             holder.hardcoreHeartBadge.setVisibility(View.GONE);
         }
-        holder.worldDescription.setText(holder.itemView.getContext().getString(R.string.world_meta, world.getGameMode(), world.getFormattedSize()));
+        holder.worldDescription.setText(holder.itemView.getContext().getString(R.string.world_meta, world.getGameMode(holder.itemView.getContext()), world.getFormattedSize()));
         holder.worldLastPlayed.setText(holder.itemView.getContext().getString(R.string.world_last_played, world.getFormattedLastModified()));
         holder.worldSeed.setText(holder.itemView.getContext().getString(R.string.seed_label, world.getSeed()));
         holder.worldSeed.setOnClickListener(v -> {

@@ -904,10 +904,6 @@ LeviLauncher जारी रखने से पहले माइग्रे
 <string name="help_mcwiki_desc">Minecraft विश्वकोश</string>
 <string name="help_bilibili">Bilibili</string>
 <string name="help_bilibili_desc">Bilibili वीडियो प्लेटफ़ॉर्म</string>
-<string name="help_minebbs">MineBBS</string>
-<string name="help_minebbs_desc">Minecraft सामुदायिक मंच</string>
-<string name="help_littleskin">LittleSkin</string>
-<string name="help_littleskin_desc">Minecraft स्किन साइट</string>
 <string name="check_update_title">अपडेट</string>
 <string name="check_update_button">अपडेट जाँचें</string>
 <string name="check_update_checking">अपडेट की जाँच हो रही है…</string>

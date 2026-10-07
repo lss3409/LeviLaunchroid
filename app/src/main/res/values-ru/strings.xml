@@ -907,10 +907,6 @@
 <string name="help_mcwiki_desc">Энциклопедия Minecraft</string>
 <string name="help_bilibili">Bilibili</string>
 <string name="help_bilibili_desc">Видеоплатформа Bilibili</string>
-<string name="help_minebbs">MineBBS</string>
-<string name="help_minebbs_desc">Форум сообщества Minecraft</string>
-<string name="help_littleskin">LittleSkin</string>
-<string name="help_littleskin_desc">Сайт скинов Minecraft</string>
 <string name="check_update_title">Обновление</string>
 <string name="check_update_button">Проверить обновления</string>
 <string name="check_update_checking">Проверка обновлений…</string>

@@ -1550,6 +1550,11 @@ import okhttp3.OkHttpClient;
 
     @Override
     protected void onDestroy() {
+        // v0.0.24：账号任务线程池释放（此前从未 shutdown，泄漏单线程）
+        if (accountExecutor != null) {
+            accountExecutor.shutdownNow();
+            accountExecutor = null;
+        }
         super.onDestroy();
     }
 

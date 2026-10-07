@@ -2258,7 +2258,7 @@ public class NbtViewerActivity extends BaseActivity {
         // 左栏 Tab1 世界信息（PRD 左栏）
         if (worldItem != null) {
             binding.infoSeed.setText(getString(R.string.nbt_summary_seed, worldItem.getSeed()));
-            binding.infoGamemode.setText(getString(R.string.nbt_summary_gamemode, worldItem.getGameMode()));
+            binding.infoGamemode.setText(getString(R.string.nbt_summary_gamemode, worldItem.getGameMode(this)));
             binding.infoHardcore.setText(getString(R.string.nbt_summary_hardcore,
                     yesNo(worldItem.isHardcore())));
             binding.infoDead.setText(getString(R.string.nbt_summary_dead,
@@ -2315,7 +2315,7 @@ public class NbtViewerActivity extends BaseActivity {
             binding.nbtSummaryName.setText(worldItem.getWorldName());
             StringBuilder info = new StringBuilder();
             info.append(getString(R.string.nbt_summary_seed, worldItem.getSeed())).append('\n');
-            info.append(getString(R.string.nbt_summary_gamemode, worldItem.getGameMode())).append('\n');
+            info.append(getString(R.string.nbt_summary_gamemode, worldItem.getGameMode(this))).append('\n');
             info.append(getString(R.string.nbt_summary_hardcore,
                     yesNo(worldItem.isHardcore()))).append('\n');
             info.append(getString(R.string.nbt_summary_dead,

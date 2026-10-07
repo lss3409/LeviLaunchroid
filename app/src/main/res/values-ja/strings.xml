@@ -874,10 +874,6 @@ LeviLauncher を続行するには移行を完了する必要があります。<
 <string name="help_mcwiki_desc">Minecraft 百科事典</string>
 <string name="help_bilibili">Bilibili</string>
 <string name="help_bilibili_desc">Bilibili 動画プラットフォーム</string>
-<string name="help_minebbs">MineBBS</string>
-<string name="help_minebbs_desc">Minecraft コミュニティフォーラム</string>
-<string name="help_littleskin">LittleSkin</string>
-<string name="help_littleskin_desc">Minecraft スキンサイト</string>
 <string name="check_update_title">アップデート</string>
 <string name="check_update_button">アップデートを確認</string>
 <string name="check_update_checking">アップデートを確認中…</string>

@@ -900,10 +900,6 @@ Migrasi harus selesai sebelum LeviLauncher dapat melanjutkan.</string>
 <string name="help_mcwiki_desc">Ensiklopedia Minecraft</string>
 <string name="help_bilibili">Bilibili</string>
 <string name="help_bilibili_desc">Platform video Bilibili</string>
-<string name="help_minebbs">MineBBS</string>
-<string name="help_minebbs_desc">Forum komunitas Minecraft</string>
-<string name="help_littleskin">LittleSkin</string>
-<string name="help_littleskin_desc">Situs skin Minecraft</string>
 <string name="check_update_title">Pembaruan</string>
 <string name="check_update_button">Periksa Pembaruan</string>
 <string name="check_update_checking">Memeriksa pembaruan…</string>

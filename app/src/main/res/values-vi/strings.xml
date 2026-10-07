@@ -937,10 +937,6 @@ Quá trình chuyển đổi phải hoàn tất trước khi LeviLauncher có th�
 <string name="help_mcwiki_desc">Bách khoa toàn thư Minecraft</string>
 <string name="help_bilibili">Bilibili</string>
 <string name="help_bilibili_desc">Nền tảng video Bilibili</string>
-<string name="help_minebbs">MineBBS</string>
-<string name="help_minebbs_desc">Diễn đàn cộng đồng Minecraft</string>
-<string name="help_littleskin">LittleSkin</string>
-<string name="help_littleskin_desc">Trang skin Minecraft</string>
 <string name="check_update_title">Cập nhật</string>
 <string name="check_update_button">Kiểm tra cập nhật</string>
 <string name="check_update_checking">Đang kiểm tra cập nhật…</string>

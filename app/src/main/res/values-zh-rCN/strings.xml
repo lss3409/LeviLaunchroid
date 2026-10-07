@@ -273,10 +273,6 @@
 <string name="help_mcwiki_desc">Minecraft 百科全书</string>
 <string name="help_bilibili">哔哩哔哩</string>
 <string name="help_bilibili_desc">B 站视频平台</string>
-<string name="help_minebbs">MineBBS</string>
-<string name="help_minebbs_desc">Minecraft 社区论坛</string>
-<string name="help_littleskin">LittleSkin</string>
-<string name="help_littleskin_desc">Minecraft 皮肤站</string>
 <string name="custom_color_label">自定义颜色（HEX/RGB）</string>
 <string name="custom_color_hint">#RRGGBB 或 R,G,B</string>
 <string name="apply">应用</string>

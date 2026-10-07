@@ -310,10 +310,6 @@ Migration must complete before LBBL can continue.</string>
 <string name="help_mcwiki_desc">Minecraft encyclopedia</string>
 <string name="help_bilibili">Bilibili</string>
 <string name="help_bilibili_desc">Bilibili video platform</string>
-<string name="help_minebbs">MineBBS</string>
-<string name="help_minebbs_desc">Minecraft community forum</string>
-<string name="help_littleskin">LittleSkin</string>
-<string name="help_littleskin_desc">Minecraft skin site</string>
 <string name="check_update_title">Update</string>
 <string name="check_update_button">Check Update</string>
 <string name="check_update_checking">Checking for updates…</string>

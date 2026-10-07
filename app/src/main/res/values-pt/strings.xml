@@ -877,10 +877,6 @@ A migração deve ser concluída antes que o LeviLauncher continue.</string>
 <string name="help_mcwiki_desc">Enciclopédia do Minecraft</string>
 <string name="help_bilibili">Bilibili</string>
 <string name="help_bilibili_desc">Plataforma de vídeos Bilibili</string>
-<string name="help_minebbs">MineBBS</string>
-<string name="help_minebbs_desc">Fórum da comunidade Minecraft</string>
-<string name="help_littleskin">LittleSkin</string>
-<string name="help_littleskin_desc">Site de skins do Minecraft</string>
 <string name="check_update_title">Atualizar</string>
 <string name="check_update_button">Verificar Atualização</string>
 <string name="check_update_checking">Verificando atualizações…</string>

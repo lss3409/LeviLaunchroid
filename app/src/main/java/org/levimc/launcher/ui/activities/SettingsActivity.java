@@ -809,7 +809,7 @@ public class SettingsActivity extends BaseActivity {
             btnApplyColor.setTextColor(Color.WHITE);
         }
 
-        int[] helpIconIds = {R.id.help_chunkbase_icon, R.id.help_mcwiki_icon, R.id.help_bilibili_icon, R.id.help_minebbs_icon, R.id.help_littleskin_icon};
+        int[] helpIconIds = {R.id.help_chunkbase_icon, R.id.help_mcwiki_icon, R.id.help_bilibili_icon};
         for (int id : helpIconIds) {
             ImageView icon = findViewById(id);
             if (icon != null && accent != 0) {
@@ -1169,8 +1169,7 @@ public class SettingsActivity extends BaseActivity {
                 openUrl("https://zh.minecraft.wiki/", getString(R.string.help_mcwiki)));
         findViewById(R.id.help_bilibili).setOnClickListener(v ->
                 openUrl("https://www.bilibili.com/", getString(R.string.help_bilibili)));
-        findViewById(R.id.help_minebbs).setVisibility(View.GONE);
-        findViewById(R.id.help_littleskin).setVisibility(View.GONE);
+        // v0.0.24：minebbs/littleskin 死 UI 清理（此前 setVisibility(GONE) 残留）
     }
 
     private void openUrl(String url, String title) {

@@ -64,8 +64,16 @@ public class WorldItem extends ContentItem {
         return worldName;
     }
 
+    /** v0.0.24：修复存档游戏模式恒显示 Unknown——无参版本硬编码 "Unknown"，
+     *  三处 UI 调用方误用。改为与有参版本同源的映射（英文，无 Context 时用）。 */
     public String getGameMode() {
-        return "Unknown";
+        switch (gameType) {
+            case 0: return "Survival";
+            case 1: return "Creative";
+            case 2: return "Adventure";
+            case 3: return "Spectator";
+            default: return "Unknown";
+        }
     }
 
     /** v0.0.11：按语言返回游戏模式文本。 */

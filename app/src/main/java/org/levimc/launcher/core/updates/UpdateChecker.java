@@ -120,15 +120,41 @@ public final class UpdateChecker {
         // 会被 CDN 缓存，旧缓存曾导致「已是最新」误判（v0.0.4 实锤疑似），
         // 每次检查换 query 绕过缓存命中旧内容
         String base = UPDATE_URL + "?t=" + (System.currentTimeMillis() / 60_000);
-        // v0.0.1：update.json 多源回退（GitHub 直链 → 镜像），拿到即止
-        for (String url : buildCandidates(base)) {
-            try {
-                return checkOnce(app, url);
-            } catch (Throwable t) {
-                Log.w(TAG, "更新源失败换下一个: " + url + " (" + t.getClass().getSimpleName() + ")");
+        // v0.0.24：多源竞速——GitHub 直链被墙时，串行回退要等满
+        // connect/read 超时（约 13s/源）才轮到镜像，用户体感「检查更新
+        // 很久没反应」。改为所有候选源并发请求，先成功者返回。
+        java.util.List<String> candidates = buildCandidates(base);
+        java.util.concurrent.ExecutorService race =
+                java.util.concurrent.Executors.newFixedThreadPool(candidates.size());
+        try {
+            java.util.concurrent.ExecutorCompletionService<Update> ecs =
+                    new java.util.concurrent.ExecutorCompletionService<>(race);
+            int submitted = 0;
+            for (String url : candidates) {
+                ecs.submit(() -> checkOnce(app, url));
+                submitted++;
             }
+            int failures = 0;
+            Update result = null;
+            while (failures < submitted) {
+                try {
+                    result = ecs.take().get();
+                    Log.i(TAG, "竞速成功（" + (submitted - failures) + " 源在跑）");
+                    break;
+                } catch (java.util.concurrent.ExecutionException e) {
+                    failures++;
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+            if (failures == submitted) {
+                throw new IllegalStateException("all update sources failed");
+            }
+            return result;
+        } finally {
+            race.shutdownNow();
         }
-        throw new IllegalStateException("all update sources failed");
     }
 
     /** 单源检查；网络/解析失败抛异常（区别于「无更新」返回 null）。 */
