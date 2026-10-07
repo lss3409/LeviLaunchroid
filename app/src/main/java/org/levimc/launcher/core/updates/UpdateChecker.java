@@ -318,61 +318,56 @@ public final class UpdateChecker {
                 dir.mkdirs();
             }
             File apk = new File(dir, "levi-update.apk");
-            for (String url : buildCandidatesForApk(u)) {
-                if (tryDownload(url, apk, (downloaded, total) -> {
-                    // 弹窗进度（隐藏后跳过）
-                    if (dialogShown.get() && !activity.isFinishing()) {
-                        main.post(() -> {
-                            if (!dialogShown.get() || activity.isFinishing()) {
-                                return;
-                            }
-                            if (total > 0) {
-                                int p = (int) (downloaded * 100 / total);
-                                bar.setProgress(p);
-                                pct.setText(p + "%  " + fmtMB(downloaded)
-                                        + "/" + fmtMB(total) + " MB");
-                            } else {
-                                bar.setIndeterminate(true);
-                                pct.setText(fmtMB(downloaded) + " MB");
-                            }
-                        });
+            // v0.0.26：先竞速探测选最快源（直链被墙时镜像立即顶上，
+            // 开 VPN 时直链胜出），失败再串行兜底
+            ProgressListener listener =
+                    makeProgressListener(dialogShown, activity, bar, pct, app, accent);
+            java.util.List<String> candidates = buildCandidatesForApk(u);
+            String fast = pickFastestSource(candidates);
+            boolean downloadedOk = false;
+            if (fast != null) {
+                downloadedOk = tryDownload(fast, apk, listener);
+            }
+            if (!downloadedOk) {
+                for (String url : candidates) {
+                    if (url.equals(fast)) {
+                        continue;
                     }
-                    // 通知进度（500ms 节流）
-                    long now = System.currentTimeMillis();
-                    if (now - lastNotifUpdate > 500 || downloaded >= total) {
-                        lastNotifUpdate = now;
-                        showDownloadNotification(app, accent, downloaded, total);
+                    if (tryDownload(url, apk, listener)) {
+                        downloadedOk = true;
+                        break;
                     }
-                })) {
-                    NotificationManagerCompat.from(app).cancel(NOTIF_DOWNLOAD_ID);
-                    showDoneNotification(app, accent, apk);
-                    main.post(() -> {
-                        if (dialogShown.get() && !activity.isFinishing()) {
-                            try {
-                                dialog.dismiss();
-                            } catch (Throwable ignored) {
-                            }
-                        }
-                        if (!activity.isFinishing()) {
-                            try {
-                                Uri uri = androidx.core.content.FileProvider.getUriForFile(
-                                        activity, activity.getPackageName() + ".fileprovider", apk);
-                                Intent install = new Intent(Intent.ACTION_VIEW);
-                                install.setDataAndType(uri,
-                                        "application/vnd.android.package-archive");
-                                install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                        | Intent.FLAG_ACTIVITY_NEW_TASK);
-                                activity.startActivity(install);
-                            } catch (Throwable t) {
-                                android.widget.Toast.makeText(activity,
-                                        activity.getString(R.string.update_installer_failed,
-                                                t.getClass().getSimpleName()),
-                                        android.widget.Toast.LENGTH_SHORT).show();
-                            }
-                        }
-                    });
-                    return;
                 }
+            }
+            if (downloadedOk) {
+                NotificationManagerCompat.from(app).cancel(NOTIF_DOWNLOAD_ID);
+                showDoneNotification(app, accent, apk);
+                main.post(() -> {
+                    if (dialogShown.get() && !activity.isFinishing()) {
+                        try {
+                            dialog.dismiss();
+                        } catch (Throwable ignored) {
+                        }
+                    }
+                    if (!activity.isFinishing()) {
+                        try {
+                            Uri uri = androidx.core.content.FileProvider.getUriForFile(
+                                    activity, activity.getPackageName() + ".fileprovider", apk);
+                            Intent install = new Intent(Intent.ACTION_VIEW);
+                            install.setDataAndType(uri,
+                                    "application/vnd.android.package-archive");
+                            install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                    | Intent.FLAG_ACTIVITY_NEW_TASK);
+                            activity.startActivity(install);
+                        } catch (Throwable t) {
+                            android.widget.Toast.makeText(activity,
+                                    activity.getString(R.string.update_installer_failed,
+                                            t.getClass().getSimpleName()),
+                                    android.widget.Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                });
+                return;
             }
             NotificationManagerCompat.from(app).cancel(NOTIF_DOWNLOAD_ID);
             main.post(() -> {
@@ -389,6 +384,37 @@ public final class UpdateChecker {
                 }
             });
         });
+    }
+
+    /** 下载进度回调（弹窗 + 通知栏共用，500ms 通知节流）。 */
+    private static ProgressListener makeProgressListener(
+            java.util.concurrent.atomic.AtomicBoolean dialogShown, Activity activity,
+            ProgressBar bar, TextView pct, Context app, int accent) {
+        return (downloaded, total) -> {
+            // 弹窗进度（隐藏后跳过）
+            if (dialogShown.get() && !activity.isFinishing()) {
+                main.post(() -> {
+                    if (!dialogShown.get() || activity.isFinishing()) {
+                        return;
+                    }
+                    if (total > 0) {
+                        int p = (int) (downloaded * 100 / total);
+                        bar.setProgress(p);
+                        pct.setText(p + "%  " + fmtMB(downloaded)
+                                + "/" + fmtMB(total) + " MB");
+                    } else {
+                        bar.setIndeterminate(true);
+                        pct.setText(fmtMB(downloaded) + " MB");
+                    }
+                });
+            }
+            // 通知进度（500ms 节流）
+            long now = System.currentTimeMillis();
+            if (now - lastNotifUpdate > 500 || downloaded >= total) {
+                lastNotifUpdate = now;
+                showDownloadNotification(app, accent, downloaded, total);
+            }
+        };
     }
 
     private static String fmtMB(long bytes) {
@@ -478,6 +504,51 @@ public final class UpdateChecker {
             list.addAll(buildCandidates(base));
         }
         return list;
+    }
+
+    /** v0.0.26：下载源竞速探测——直链被墙时串行等满超时才换源
+     * （用户反馈「下载一直 0%」；开 VPN 时镜像又不通）。所有候选源
+     * 并发探测，最快响应的源胜出，随后用胜出源全量下载。 */
+    private static String pickFastestSource(java.util.List<String> urls) {
+        if (urls.size() <= 1) {
+            return urls.isEmpty() ? null : urls.get(0);
+        }
+        java.util.concurrent.ExecutorService race =
+                java.util.concurrent.Executors.newFixedThreadPool(urls.size());
+        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicReference<String> winner =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        for (String url : urls) {
+            race.execute(() -> {
+                HttpURLConnection c = null;
+                try {
+                    c = (HttpURLConnection) new URL(url).openConnection();
+                    c.setConnectTimeout(4_000);
+                    c.setReadTimeout(4_000);
+                    c.setRequestProperty("Range", "bytes=0-0");
+                    int code = c.getResponseCode();
+                    if ((code == 200 || code == 206)
+                            && winner.compareAndSet(null, url)) {
+                        latch.countDown();
+                    }
+                } catch (Throwable t) {
+                    Log.w(TAG, "探测失败: " + url + " (" + t.getClass().getSimpleName() + ")");
+                } finally {
+                    if (c != null) {
+                        try { c.disconnect(); } catch (Throwable ignored) { }
+                    }
+                }
+            });
+        }
+        try {
+            latch.await(6, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        race.shutdownNow();
+        String w = winner.get();
+        Log.i(TAG, "竞速探测胜出: " + w);
+        return w;
     }
 
     /** 下载进度回调。total<=0 表示总大小未知。 */
