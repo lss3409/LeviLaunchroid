@@ -372,7 +372,7 @@ public class ModMenuButton {
             wmParams.height = dm.heightPixels;
             wmParams.x = 0;
             wmParams.y = 0;
-            windowManager.updateViewLayout(buttonView, wmParams);
+            windowManager.updateViewLayout(wrapperView, wmParams);
             buttonView.setTranslationX(absX);
             buttonView.setTranslationY(absY);
             dragExpanded = true;
@@ -405,7 +405,7 @@ public class ModMenuButton {
             wmParams.height = size;
             wmParams.x = nx;
             wmParams.y = ny;
-            windowManager.updateViewLayout(buttonView, wmParams);
+            windowManager.updateViewLayout(wrapperView, wmParams);
             buttonView.setTranslationX(0f);
             buttonView.setTranslationY(0f);
         } catch (Exception ignored) {
@@ -497,7 +497,7 @@ public class ModMenuButton {
                 wmParams.x = (int) (fromX + (targetX - fromX) * t);
                 wmParams.y = (int) (fromY + (targetY - fromY) * t);
                 try {
-                    windowManager.updateViewLayout(buttonView, wmParams);
+                    windowManager.updateViewLayout(wrapperView, wmParams);
                 } catch (Exception ignored) {
                 }
             });
@@ -509,7 +509,7 @@ public class ModMenuButton {
                     wmParams.x = targetX;
                     wmParams.y = targetY;
                     try {
-                        windowManager.updateViewLayout(buttonView, wmParams);
+                        windowManager.updateViewLayout(wrapperView, wmParams);
                     } catch (Exception ignored) {
                     }
                     saveBallPosition(targetX, targetY);
