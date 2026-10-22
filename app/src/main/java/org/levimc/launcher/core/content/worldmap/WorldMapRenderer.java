@@ -6499,21 +6499,38 @@ public class WorldMapRenderer {
                     }
                 }
                 // v0.4.138：膨胀填充——稀疏世界无数据 chunk 遮罩透明
-                // =透出底图（"2.31-0.62 倍透底图"根因）；左→右、上→下
-                // 两次传播用相邻群系色填满空洞（群系地域连续性）
+                // =透出底图（"2.31-0.62 倍透底图"根因）
+                // v0.4.154：改为「单层四向扩散」（原始数据快照做源）——
+                // 旧实现左→右单次扫描即无限传播：行首色拖满整行、列首
+                // 色拖满全列 = 「颜色分隔处长条占满整张卫星图」根因。
+                // 单层只填紧邻已知色的一圈空洞，大空洞中心保持透明
+                // （显示底图），不再产生色带长条
+                int[] src = px.clone();
                 for (int fy = 0; fy < ch; fy++) {
                     for (int fx = 1; fx < cw; fx++) {
                         int fi = fy * cw + fx;
-                        if (px[fi] == 0 && px[fi - 1] != 0) {
-                            px[fi] = px[fi - 1];
+                        if (px[fi] == 0 && src[fi - 1] != 0) {
+                            px[fi] = src[fi - 1];
+                        }
+                    }
+                    for (int fx = cw - 2; fx >= 0; fx--) {
+                        int fi = fy * cw + fx;
+                        if (px[fi] == 0 && src[fi + 1] != 0) {
+                            px[fi] = src[fi + 1];
                         }
                     }
                 }
-                for (int fy = 1; fy < ch; fy++) {
-                    for (int fx = 0; fx < cw; fx++) {
+                for (int fx = 0; fx < cw; fx++) {
+                    for (int fy = 1; fy < ch; fy++) {
                         int fi = fy * cw + fx;
-                        if (px[fi] == 0 && px[fi - cw] != 0) {
-                            px[fi] = px[fi - cw];
+                        if (px[fi] == 0 && src[fi - cw] != 0) {
+                            px[fi] = src[fi - cw];
+                        }
+                    }
+                    for (int fy = ch - 2; fy >= 0; fy--) {
+                        int fi = fy * cw + fx;
+                        if (px[fi] == 0 && src[fi + cw] != 0) {
+                            px[fi] = src[fi + cw];
                         }
                     }
                 }

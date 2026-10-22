@@ -7,7 +7,7 @@
 <string name="beta_badge">ベータ</string>
 <string name="debug_badge">デバッグ</string>
 <string name="cursor">カーソル</string>
-<string name="bedrock_edition">MCBE</string>
+<string name="bedrock_edition">Minecraft Bedrock</string>
 <string name="current_instance">現在のインスタンス</string>
 
     <!-- Mods -->

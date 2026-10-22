@@ -29,21 +29,12 @@ public class ModMenuButton {
     
     private float initialX, initialY, initialTouchX, initialTouchY;
     private boolean isDragging = false;
-    /** v0.4.153：拖动 relayout 节流——每帧最多一次 updateViewLayout
-     *  （逐 MOVE 事件 Binder relayout 在高采样率平板上背压=拖动卡）。 */
-    private boolean movePending = false;
-    private final android.view.Choreographer.FrameCallback moveFrame =
-            frameTimeNanos -> {
-                if (!movePending || windowManager == null || buttonView == null) {
-                    movePending = false;
-                    return;
-                }
-                movePending = false;
-                try {
-                    windowManager.updateViewLayout(buttonView, wmParams);
-                } catch (Exception ignored) {
-                }
-            };
+    /** v0.4.154：拖动展开态——拖动开始把窗口临时扩成全屏，球位置
+     *  全部走 translationX/Y（View 属性、RenderThread 合成、零 Binder）；
+     *  松手再恢复窗口尺寸并落位。逐 MOVE 事件 updateViewLayout 的同步
+     *  Binder relayout 在平板上积压 = 拖动帧率低不跟手（v0.4.153
+     *  帧节流只是把更新频率降到帧率，同步等待仍在，未治本）。 */
+    private boolean dragExpanded = false;
     private long touchDownTime = 0;
     private static final long TAP_TIMEOUT = 200;
     private static final float DRAG_THRESHOLD = 10f;
@@ -248,6 +239,12 @@ public class ModMenuButton {
                 if (snapAnimator != null && snapAnimator.isRunning()) {
                     snapAnimator.cancel();
                 }
+                // v0.4.154：同样取消贴边/隐藏的 view 动画——半隐藏
+                // （translationX/Y 200ms）进行中按下拖动，动画每帧覆写
+                // translation 与窗口位置叠加 = 拖动抖动不跟手主因
+                if (buttonView != null) {
+                    buttonView.animate().cancel();
+                }
                 // v443：触碰恢复——取消淡出、alpha 复原、贴边隐藏时
                 // 先滑出（150ms）；v476：同样取消深度隐藏；
                 // v479：取消菜单关闭后的延迟重隐藏（玩家开始拖动）
@@ -305,33 +302,21 @@ public class ModMenuButton {
                     if (edgeHidden) {
                         // 拖动时滑出全显再跟手
                         edgeHidden = false;
+                        buttonView.animate().cancel();
                         buttonView.setTranslationX(0f);
                         buttonView.setTranslationY(0f);
                     }
-                    wmParams.x = (int) (initialX + dx);
-                    wmParams.y = (int) (initialY + dy);
-                    // v0.4.153：节流到每帧一次 relayout——逐 MOVE 事件
-                    // updateViewLayout（跨进程 Binder）在高采样率平板上
-                    // 背压排队 = 拖动帧率低不跟手；帧对齐后最多每帧一次
-                    if (!movePending) {
-                        movePending = true;
-                        android.view.Choreographer.getInstance()
-                                .postFrameCallback(moveFrame);
+                    if (!dragExpanded) {
+                        // v0.4.154：拖动开始窗口临时扩全屏（一次
+                        // relayout），此后位置只走 translation——
+                        // 零 Binder、RenderThread 合成，跟手
+                        expandForDrag();
                     }
+                    buttonView.setTranslationX(initialX + dx);
+                    buttonView.setTranslationY(initialY + dy);
                 }
                 return true;
             case MotionEvent.ACTION_UP:
-                // v0.4.153：松手先冲刷最后一帧位置（移除节流回调，
-                // 直接同步一次 relayout），再吸附
-                if (movePending) {
-                    movePending = false;
-                    android.view.Choreographer.getInstance()
-                            .removeFrameCallback(moveFrame);
-                    try {
-                        windowManager.updateViewLayout(buttonView, wmParams);
-                    } catch (Exception ignored) {
-                    }
-                }
                 long elapsed = SystemClock.uptimeMillis() - touchDownTime;
                 if (!isDragging && elapsed < TAP_TIMEOUT) {
                     // v480：深度隐藏态单击只恢复成半隐藏（ACTION_DOWN
@@ -342,16 +327,81 @@ public class ModMenuButton {
                         handler.post(this::onButtonClick);
                     }
                 } else if (isDragging) {
+                    // v0.4.154：松手先恢复窗口尺寸并落位
+                    // （translation → 窗口位置），再吸附
+                    collapseAfterDrag();
                     // v442：松手吸附到最近屏幕边缘 + 半隐藏
                     snapToEdge();
                 }
                 isDragging = false;
                 return true;
             case MotionEvent.ACTION_CANCEL:
+                if (isDragging) {
+                    collapseAfterDrag();
+                    snapToEdge();
+                }
                 isDragging = false;
                 return true;
         }
         return false;
+    }
+
+    /** v0.4.154：拖动开始——窗口临时扩全屏（仅此一次 relayout），
+     *  球位置换算成 translation；此后 MOVE 全程 setTranslationX/Y
+     *  （RenderThread 合成，无同步 Binder）= 拖动真正跟手。 */
+    private void expandForDrag() {
+        if (dragExpanded || windowManager == null || buttonView == null
+                || wmParams == null) {
+            return;
+        }
+        try {
+            android.util.DisplayMetrics dm = activity.getResources().getDisplayMetrics();
+            // 球当前绝对位置 = 窗口位置 + 当前 translation（贴边隐藏
+            // 偏移已在 MOVE 里清零，这里仍按实际值换算）
+            float absX = wmParams.x + buttonView.getTranslationX();
+            float absY = wmParams.y + buttonView.getTranslationY();
+            wmParams.width = dm.widthPixels;
+            wmParams.height = dm.heightPixels;
+            wmParams.x = 0;
+            wmParams.y = 0;
+            windowManager.updateViewLayout(buttonView, wmParams);
+            buttonView.setTranslationX(absX);
+            buttonView.setTranslationY(absY);
+            dragExpanded = true;
+        } catch (Exception ignored) {
+        }
+    }
+
+    /** v0.4.154：拖动结束——窗口恢复按钮尺寸并落位到球的
+     *  translation 位置（钳制屏内），translation 清零。 */
+    private void collapseAfterDrag() {
+        if (!dragExpanded || windowManager == null || buttonView == null
+                || wmParams == null) {
+            return;
+        }
+        dragExpanded = false;
+        try {
+            android.util.DisplayMetrics dm = activity.getResources().getDisplayMetrics();
+            int size = buttonView.getWidth();
+            if (size <= 0) {
+                size = wmParams.width;
+            }
+            if (size <= 0) {
+                return;
+            }
+            int nx = (int) buttonView.getTranslationX();
+            int ny = (int) buttonView.getTranslationY();
+            nx = Math.max(0, Math.min(nx, dm.widthPixels - size));
+            ny = Math.max(0, Math.min(ny, dm.heightPixels - size));
+            wmParams.width = size;
+            wmParams.height = size;
+            wmParams.x = nx;
+            wmParams.y = ny;
+            windowManager.updateViewLayout(buttonView, wmParams);
+            buttonView.setTranslationX(0f);
+            buttonView.setTranslationY(0f);
+        } catch (Exception ignored) {
+        }
     }
 
     /** v443：贴边半隐藏（谷歌方案）——内容向屏外平移一半被窗口
@@ -606,6 +656,7 @@ public class ModMenuButton {
             menuOverlay.hide();
             menuOverlay = null;
         }
+        dragExpanded = false;
         if (!isShowing || buttonView == null) return;
         handler.removeCallbacks(fadeOutRunnable);
         handler.removeCallbacks(deepHideRunnable);

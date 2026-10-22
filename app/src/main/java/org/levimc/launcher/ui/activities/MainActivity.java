@@ -868,28 +868,30 @@ import okhttp3.OkHttpClient;
         viewModel.getModsLiveData().observe(this, this::updateModsUI);
     }
 
-    /** v0.4.153：MCBE 副标题排版——MC 与 BE 两段粗体，
-     *  BE 段染强调色（accent=0 时退化为纯粗体）。 */
+    /** v0.4.153：副标题显示完整单词 "Minecraft Bedrock"，其中
+     *  Mine 的 M、craft 的 C、Bed 的 Be 加粗+染强调色——潜移默化
+     *  让用户看出 MCBE = Minecraft Bedrock 缩写（M、c、Be 三段）。 */
     private void applyMcbeSubtitle(int accent) {
         android.widget.TextView sub = binding.bedrockEditionText;
         if (sub == null) {
             return;
         }
-        String s = getString(R.string.bedrock_edition);
+        String s = getString(R.string.bedrock_edition); // "Minecraft Bedrock"
         android.text.SpannableString sp =
                 new android.text.SpannableString(s);
-        if (s.length() >= 2) {
+        // M(0)、c(4)、Be(10-12) 三段加粗 + 强调色
+        int[][] segs = {{0, 1}, {4, 5}, {10, 12}};
+        for (int[] seg : segs) {
+            if (s.length() < seg[1]) {
+                continue;
+            }
             sp.setSpan(new android.text.style.StyleSpan(
-                            android.graphics.Typeface.BOLD), 0, 2,
-                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        }
-        if (s.length() >= 4) {
-            sp.setSpan(new android.text.style.StyleSpan(
-                            android.graphics.Typeface.BOLD), 2, 4,
+                            android.graphics.Typeface.BOLD), seg[0], seg[1],
                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             if (accent != 0) {
                 sp.setSpan(new android.text.style.ForegroundColorSpan(accent),
-                        2, 4, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                        seg[0], seg[1],
+                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             }
         }
         sub.setText(sp);

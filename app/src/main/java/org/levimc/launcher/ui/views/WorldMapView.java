@@ -342,9 +342,9 @@ public class WorldMapView extends View {
         if (!lodEnabled || fullMapBitmap == null || fullMapBitmap.isRecycled()) {
             return;
         }
-        if (fullMapWidth <= 2048 && fullMapHeight <= 2048) {
-            return;
-        }
+        // v0.4.154：小图（≤2048²）也预热 m2（缩小走 LOD 选级后
+        // 需要 mip 就绪，否则首帧兜底双线性=糊）——m2 位图 1/4
+        // 内存（≤4MB），代价可忽略
         int warmTo = Math.min(lodMaxLevel, 4);
         for (int lv = 2; lv <= warmTo; lv *= 2) {
             requestLodLevel(lv);
@@ -385,12 +385,13 @@ public class WorldMapView extends View {
         if (fullMapLinearPaint == null) {
             fullMapLinearPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
         }
-        // v0.4.98：小图（≤2048²）恒走原图——LOD 降采样只会糊它
-        // （fit 视图 m2 放大 1.5-1.9 倍最近邻=色块，"小地图糊"根因），
-        // 2048² 原图缩小重采样轻，不需要 LOD 也不卡
-        if (fullMapWidth <= 2048 && fullMapHeight <= 2048) {
-            canvas.drawBitmap(fullMapBitmap, null, fullMapDst,
-                    scalePx >= 1f ? fullMapPaint : fullMapLinearPaint);
+        // v0.4.98：小图（≤2048²）放大恒走原图——LOD 降采样只会糊它
+        // （fit 视图 m2 放大 1.5-1.9 倍最近邻=色块，"小地图糊"根因）
+        // v0.4.154：缩小不再双线性兜底——2048 全图双线性缩小=软糊
+        // （重新烘焙后保留缩小视图「地图糊、退出重进才恢复」根因），
+        // 缩小走下方 LOD 选级路径（mip 最近邻，清晰）
+        if (fullMapWidth <= 2048 && fullMapHeight <= 2048 && scalePx >= 1f) {
+            canvas.drawBitmap(fullMapBitmap, null, fullMapDst, fullMapPaint);
             lastDrawPath = "full-small";
             return;
         }
