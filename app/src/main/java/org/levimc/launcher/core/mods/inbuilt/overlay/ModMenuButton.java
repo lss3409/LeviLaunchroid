@@ -22,11 +22,6 @@ public class ModMenuButton {
 
     private final Activity activity;
     private View buttonView;
-    /** v0.4.155：窗口内容 wrapper——直接挂 WindowManager 的 View 会被
-     *  WMS 按窗口尺寸 measure（拖动扩全屏时球撑满整屏 =「变大」根因），
-     *  wrapper 随窗口伸缩、按钮 48dp 固定在内，平移走按钮 translation
-     *  （谷歌 AccessibilityFloatingMenuView「大窗口+内容移动」同款）。 */
-    private View wrapperView;
     private WindowManager windowManager;
     private WindowManager.LayoutParams wmParams;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -34,12 +29,6 @@ public class ModMenuButton {
     
     private float initialX, initialY, initialTouchX, initialTouchY;
     private boolean isDragging = false;
-    /** v0.4.154：拖动展开态——拖动开始把窗口临时扩成全屏，球位置
-     *  全部走 translationX/Y（View 属性、RenderThread 合成、零 Binder）；
-     *  松手再恢复窗口尺寸并落位。逐 MOVE 事件 updateViewLayout 的同步
-     *  Binder relayout 在平板上积压 = 拖动帧率低不跟手（v0.4.153
-     *  帧节流只是把更新频率降到帧率，同步等待仍在，未治本）。 */
-    private boolean dragExpanded = false;
     private long touchDownTime = 0;
     private static final long TAP_TIMEOUT = 200;
     private static final float DRAG_THRESHOLD = 10f;
@@ -188,14 +177,7 @@ public class ModMenuButton {
             }
 
             btn.setOnTouchListener(this::handleTouch);
-            // v0.4.155：wrapper 承载窗口尺寸（拖动扩全屏时按钮不撑大），
-            // 按钮 48dp 固定在内；半隐藏 translation 由 wrapper 裁剪
-            // （FrameLayout 默认 clipChildren），与原窗口 Surface 裁剪等效
-            FrameLayout wrapper = new FrameLayout(activity);
-            wrapper.addView(buttonView, new FrameLayout.LayoutParams(
-                    buttonSize, buttonSize));
-            wrapperView = wrapper;
-            windowManager.addView(wrapper, wmParams);
+            windowManager.addView(buttonView, wmParams);
             isShowing = true;
             applyOpacity();
             if (restoredAtEdge) {
@@ -240,6 +222,10 @@ public class ModMenuButton {
         return InbuiltModManager.getInstance(activity).getModMenuButtonOpacity() / 100f;
     }
 
+    private void applyButtonOpacity() {
+        applyOpacity();
+    }
+
     private boolean handleTouch(View v, MotionEvent event) {
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
@@ -247,9 +233,9 @@ public class ModMenuButton {
                 if (snapAnimator != null && snapAnimator.isRunning()) {
                     snapAnimator.cancel();
                 }
-                // v0.4.154：同样取消贴边/隐藏的 view 动画——半隐藏
-                // （translationX/Y 200ms）进行中按下拖动，动画每帧覆写
-                // translation 与窗口位置叠加 = 拖动抖动不跟手主因
+                // v0.4.158：同样取消进行中的贴边/隐藏 view 动画——
+                // 半隐藏（translationX/Y 200ms）进行中按下拖动，动画
+                // 每帧覆写 translation 与窗口位置叠加 = 拖动抖动不跟手
                 if (buttonView != null) {
                     buttonView.animate().cancel();
                 }
@@ -310,18 +296,12 @@ public class ModMenuButton {
                     if (edgeHidden) {
                         // 拖动时滑出全显再跟手
                         edgeHidden = false;
-                        buttonView.animate().cancel();
                         buttonView.setTranslationX(0f);
                         buttonView.setTranslationY(0f);
                     }
-                    if (!dragExpanded) {
-                        // v0.4.154：拖动开始窗口临时扩全屏（一次
-                        // relayout），此后位置只走 translation——
-                        // 零 Binder、RenderThread 合成，跟手
-                        expandForDrag();
-                    }
-                    buttonView.setTranslationX(initialX + dx);
-                    buttonView.setTranslationY(initialY + dy);
+                    wmParams.x = (int) (initialX + dx);
+                    wmParams.y = (int) (initialY + dy);
+                    windowManager.updateViewLayout(buttonView, wmParams);
                 }
                 return true;
             case MotionEvent.ACTION_UP:
@@ -335,88 +315,16 @@ public class ModMenuButton {
                         handler.post(this::onButtonClick);
                     }
                 } else if (isDragging) {
-                    // v0.4.154：松手先恢复窗口尺寸并落位
-                    // （translation → 窗口位置），再吸附
-                    collapseAfterDrag();
                     // v442：松手吸附到最近屏幕边缘 + 半隐藏
                     snapToEdge();
                 }
                 isDragging = false;
                 return true;
             case MotionEvent.ACTION_CANCEL:
-                if (isDragging) {
-                    collapseAfterDrag();
-                    snapToEdge();
-                }
                 isDragging = false;
                 return true;
         }
         return false;
-    }
-
-    /** v0.4.154：拖动开始——窗口临时扩全屏（仅此一次 relayout），
-     *  球位置换算成 translation；此后 MOVE 全程 setTranslationX/Y
-     *  （RenderThread 合成，无同步 Binder）= 拖动真正跟手。 */
-    private void expandForDrag() {
-        if (dragExpanded || windowManager == null || buttonView == null
-                || wmParams == null) {
-            return;
-        }
-        try {
-            android.util.DisplayMetrics dm = activity.getResources().getDisplayMetrics();
-            // 球当前绝对位置 = 窗口位置 + 当前 translation（贴边隐藏
-            // 偏移已在 MOVE 里清零，这里仍按实际值换算）
-            float absX = wmParams.x + buttonView.getTranslationX();
-            float absY = wmParams.y + buttonView.getTranslationY();
-            wmParams.width = dm.widthPixels;
-            wmParams.height = dm.heightPixels;
-            wmParams.x = 0;
-            wmParams.y = 0;
-            windowManager.updateViewLayout(wrapperView, wmParams);
-            buttonView.setTranslationX(absX);
-            buttonView.setTranslationY(absY);
-            dragExpanded = true;
-        } catch (Exception ignored) {
-        }
-    }
-
-    /** v0.4.154：拖动结束——窗口恢复按钮尺寸并落位到球的
-     *  translation 位置（钳制屏内），translation 清零。 */
-    private void collapseAfterDrag() {
-        if (!dragExpanded || windowManager == null || buttonView == null
-                || wmParams == null) {
-            return;
-        }
-        dragExpanded = false;
-        try {
-            android.util.DisplayMetrics dm = activity.getResources().getDisplayMetrics();
-            int size = buttonView.getWidth();
-            if (size <= 0) {
-                size = wmParams.width;
-            }
-            if (size <= 0) {
-                return;
-            }
-            int nx = (int) buttonView.getTranslationX();
-            int ny = (int) buttonView.getTranslationY();
-            nx = Math.max(0, Math.min(nx, dm.widthPixels - size));
-            ny = Math.max(0, Math.min(ny, dm.heightPixels - size));
-            wmParams.width = size;
-            wmParams.height = size;
-            wmParams.x = nx;
-            wmParams.y = ny;
-            windowManager.updateViewLayout(wrapperView, wmParams);
-            // v0.4.157：translation 清零延后到窗口 relayout 生效
-            // （View.post 在下一帧 traversal 之后执行）——立即清零时
-            // 窗口仍处全屏(0,0)，球闪现左上角一帧再弹回（松手闪跳）
-            wrapperView.post(() -> {
-                if (buttonView != null) {
-                    buttonView.setTranslationX(0f);
-                    buttonView.setTranslationY(0f);
-                }
-            });
-        } catch (Exception ignored) {
-        }
     }
 
     /** v443：贴边半隐藏（谷歌方案）——内容向屏外平移一半被窗口
@@ -504,7 +412,7 @@ public class ModMenuButton {
                 wmParams.x = (int) (fromX + (targetX - fromX) * t);
                 wmParams.y = (int) (fromY + (targetY - fromY) * t);
                 try {
-                    windowManager.updateViewLayout(wrapperView, wmParams);
+                    windowManager.updateViewLayout(buttonView, wmParams);
                 } catch (Exception ignored) {
                 }
             });
@@ -516,7 +424,7 @@ public class ModMenuButton {
                     wmParams.x = targetX;
                     wmParams.y = targetY;
                     try {
-                        windowManager.updateViewLayout(wrapperView, wmParams);
+                        windowManager.updateViewLayout(buttonView, wmParams);
                     } catch (Exception ignored) {
                     }
                     saveBallPosition(targetX, targetY);
@@ -658,13 +566,19 @@ public class ModMenuButton {
     }
     
 
-
+    
+    private void applyConfigurationChanges(String modId) {
+        InbuiltOverlayManager overlayManager = InbuiltOverlayManager.getInstance();
+        if (overlayManager != null) {
+            overlayManager.applyConfigurationChanges(modId);
+        }
+    }
+    
     public void hide() {
         if (menuOverlay != null) {
             menuOverlay.hide();
             menuOverlay = null;
         }
-        dragExpanded = false;
         if (!isShowing || buttonView == null) return;
         handler.removeCallbacks(fadeOutRunnable);
         handler.removeCallbacks(deepHideRunnable);
@@ -672,8 +586,7 @@ public class ModMenuButton {
         handler.post(() -> {
             try {
                 if (wmParams != null && windowManager != null) {
-                    windowManager.removeView(wrapperView != null
-                            ? wrapperView : buttonView);
+                    windowManager.removeView(buttonView);
                 } else {
                     ViewGroup rootView = activity.findViewById(android.R.id.content);
                     if (rootView != null) {
@@ -682,7 +595,6 @@ public class ModMenuButton {
                 }
             } catch (Exception ignored) {}
             buttonView = null;
-            wrapperView = null;
             isShowing = false;
         });
     }
