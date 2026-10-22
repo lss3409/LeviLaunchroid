@@ -336,6 +336,21 @@ public class ModMenuButton {
                     // 不动）——视觉=窗口(球位置)+dx=手指位置
                     buttonView.setTranslationX(dx);
                     buttonView.setTranslationY(dy);
+                    // v0.4.163d 诊断：每 30 事件输出窗口实际位置
+                    // （getLocationOnScreen）与目标位置/translation——
+                    // 定位拖动中跳（怀疑平板 WMS 强制全屏窗口位置归零）
+                    if (diagMoveCount % 30 == 0 && wrapperView != null) {
+                        int[] loc = new int[2];
+                        try {
+                            wrapperView.getLocationOnScreen(loc);
+                        } catch (Exception ignored) {
+                        }
+                        android.util.Log.i("ModMenuDrag", "diag loc=" + loc[0]
+                                + "," + loc[1] + " wm=" + wmParams.x + "," + wmParams.y
+                                + " trans=" + (int) buttonView.getTranslationX()
+                                + "," + (int) buttonView.getTranslationY()
+                                + " dx=" + (int) dx);
+                    }
                     // v0.4.160d：传输延迟诊断——前 1/3 与后 1/3 分段
                     long nowUp = SystemClock.uptimeMillis();
                     long transit = nowUp - event.getEventTime();
