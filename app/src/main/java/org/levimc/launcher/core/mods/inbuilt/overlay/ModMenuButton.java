@@ -517,8 +517,6 @@ public class ModMenuButton {
                 // 统一动画三量同帧更新彻底消除）
                 dragExpanded = false;
                 final int fSize = size;
-                final int fFullW = wmParams.width;
-                final int fFullH = wmParams.height;
                 final float fTx = buttonView.getTranslationX();
                 final float fTy = buttonView.getTranslationY();
                 snapAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f);
@@ -529,8 +527,9 @@ public class ModMenuButton {
                     float t = (float) a.getAnimatedValue();
                     wmParams.x = (int) (targetX * t);
                     wmParams.y = (int) (targetY * t);
-                    wmParams.width = (int) (fFullW + (fSize - fFullW) * t);
-                    wmParams.height = (int) (fFullH + (fSize - fFullH) * t);
+                    // v0.4.161：动画期间窗口尺寸保持全屏不缩——每帧
+                    // Surface resize 在平板 WMS 重=吸附动画「跳」（瞬移
+                    // 感）的根因；尺寸在动画结束后一次性恢复
                     buttonView.setTranslationX(fTx * (1f - t));
                     buttonView.setTranslationY(fTy * (1f - t));
                     try {
@@ -545,6 +544,8 @@ public class ModMenuButton {
                         // 1-2px 处，直接设置目标值
                         wmParams.x = targetX;
                         wmParams.y = targetY;
+                        // v0.4.161：尺寸一次性恢复（窗口左上已在目标
+                        // 位置，缩尺寸只影响透明区域，球视觉不动）
                         wmParams.width = fSize;
                         wmParams.height = fSize;
                         buttonView.setTranslationX(0f);
