@@ -517,45 +517,44 @@ public class ModMenuButton {
                 // 统一动画三量同帧更新彻底消除）
                 dragExpanded = false;
                 final int fSize = size;
-                final float fTx = buttonView.getTranslationX();
-                final float fTy = buttonView.getTranslationY();
+                final int fTx = (int) buttonView.getTranslationX();
+                final int fTy = (int) buttonView.getTranslationY();
                 snapAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f);
                 snapAnimator.setDuration(250);
                 snapAnimator.setInterpolator(
                         new android.view.animation.DecelerateInterpolator(1.5f));
                 snapAnimator.addUpdateListener(a -> {
                     float t = (float) a.getAnimatedValue();
-                    wmParams.x = (int) (targetX * t);
-                    wmParams.y = (int) (targetY * t);
-                    // v0.4.161：动画期间窗口尺寸保持全屏不缩——每帧
-                    // Surface resize 在平板 WMS 重=吸附动画「跳」（瞬移
-                    // 感）的根因；尺寸在动画结束后一次性恢复
-                    buttonView.setTranslationX(fTx * (1f - t));
-                    buttonView.setTranslationY(fTy * (1f - t));
-                    try {
-                        windowManager.updateViewLayout(wrapperView, wmParams);
-                    } catch (Exception ignored) {
-                    }
+                    // v0.4.162：动画期间窗口完全不动（全屏位置 relayout
+                    // 在平板 WMS 排队不生效=「滑向左上角再弹回」根因），
+                    // 只动 translation（RenderThread 合成，绝对平滑）
+                    buttonView.setTranslationX(fTx + (targetX - fTx) * t);
+                    buttonView.setTranslationY(fTy + (targetY - fTy) * t);
                 });
                 snapAnimator.addListener(new android.animation.AnimatorListenerAdapter() {
                     @Override
                     public void onAnimationEnd(android.animation.Animator animation) {
+                        if (!isShowing || buttonView == null || wrapperView == null) {
+                            return;
+                        }
                         // v445：精确校正——动画 int 插值可能停在距边缘
                         // 1-2px 处，直接设置目标值
                         wmParams.x = targetX;
                         wmParams.y = targetY;
-                        // v0.4.161：尺寸一次性恢复（窗口左上已在目标
-                        // 位置，缩尺寸只影响透明区域，球视觉不动）
+                        // 尺寸一次性恢复（一次 relayout）
                         wmParams.width = fSize;
                         wmParams.height = fSize;
-                        buttonView.setTranslationX(0f);
-                        buttonView.setTranslationY(0f);
+                        // translation 保持 (targetX,targetY)——窗口生效前
+                        // 视觉=窗口(0,0)+translation=吸附点 ✓ 不变；
+                        // 窗口生效后由 waitWindowApplied 探测再清零
+                        buttonView.setTranslationX(targetX);
+                        buttonView.setTranslationY(targetY);
                         try {
                             windowManager.updateViewLayout(wrapperView, wmParams);
                         } catch (Exception ignored) {
                         }
                         saveBallPosition(targetX, targetY);
-                        hideToEdge();
+                        waitWindowAppliedAndClear(targetX, targetY);
                     }
                 });
                 snapAnimator.start();
@@ -593,6 +592,39 @@ public class ModMenuButton {
             snapAnimator.start();
         } catch (Throwable ignored) {
         }
+    }
+
+    /** v0.4.162：逐帧探测窗口位置实际生效（平板 WMS 对 relayout 的
+     *  应用延迟不定），生效后才清零 translation——窗口生效前视觉=
+     *  窗口(0,0)+translation(吸附点)=吸附点（不变），清零后视觉=
+     *  窗口(吸附点)+0=吸附点（不变），全程无闪跳。 */
+    private void waitWindowAppliedAndClear(final int targetX, final int targetY) {
+        if (buttonView == null || wrapperView == null) {
+            return;
+        }
+        buttonView.postOnAnimation(new Runnable() {
+            @Override
+            public void run() {
+                if (!isShowing || buttonView == null || wrapperView == null) {
+                    return;
+                }
+                int[] loc = new int[2];
+                try {
+                    wrapperView.getLocationOnScreen(loc);
+                } catch (Exception ignored) {
+                    return;
+                }
+                if (loc[0] == targetX && loc[1] == targetY) {
+                    // 窗口已生效：清零 translation → 视觉=窗口=吸附点
+                    buttonView.setTranslationX(0f);
+                    buttonView.setTranslationY(0f);
+                    hideToEdge();
+                } else {
+                    // 未生效：下一帧再探测（translation 保持，视觉不变）
+                    buttonView.postOnAnimation(this);
+                }
+            }
+        });
     }
 
     /** v442：位置持久化（吸附落定后保存；show 时恢复）。 */
