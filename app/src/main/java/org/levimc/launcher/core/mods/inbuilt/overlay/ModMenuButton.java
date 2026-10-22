@@ -465,6 +465,7 @@ public class ModMenuButton {
                 // 因窗口定位与 translation 清零不同帧 = 左上角闪跳根因，
                 // 统一动画三量同帧更新彻底消除）
                 dragExpanded = false;
+                final int fSize = size;
                 final int fFullW = wmParams.width;
                 final int fFullH = wmParams.height;
                 final float fTx = buttonView.getTranslationX();
@@ -477,8 +478,8 @@ public class ModMenuButton {
                     float t = (float) a.getAnimatedValue();
                     wmParams.x = (int) (targetX * t);
                     wmParams.y = (int) (targetY * t);
-                    wmParams.width = (int) (fFullW + (size - fFullW) * t);
-                    wmParams.height = (int) (fFullH + (size - fFullH) * t);
+                    wmParams.width = (int) (fFullW + (fSize - fFullW) * t);
+                    wmParams.height = (int) (fFullH + (fSize - fFullH) * t);
                     buttonView.setTranslationX(fTx * (1f - t));
                     buttonView.setTranslationY(fTy * (1f - t));
                     try {
@@ -493,8 +494,8 @@ public class ModMenuButton {
                         // 1-2px 处，直接设置目标值
                         wmParams.x = targetX;
                         wmParams.y = targetY;
-                        wmParams.width = size;
-                        wmParams.height = size;
+                        wmParams.width = fSize;
+                        wmParams.height = fSize;
                         buttonView.setTranslationX(0f);
                         buttonView.setTranslationY(0f);
                         try {
