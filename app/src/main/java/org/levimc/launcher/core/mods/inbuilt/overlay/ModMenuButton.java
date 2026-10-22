@@ -438,8 +438,11 @@ public class ModMenuButton {
             // 旧窗口(球位置)+translation(0)=球位置，生效后视觉=新窗口
             // （球位置）+translation(0)=球位置，完全连续。此后 translation
             // 语义=相对窗口左上的增量（MOVE 里 dx 直接承载）
-            wmParams.width = dm.widthPixels;
-            wmParams.height = dm.heightPixels;
+            // v0.4.164：尺寸用「屏幕-1px」——平板 WMS 实测把精确全屏
+            // 窗口位置强制归零 (0,0)（diag loc=0,0 wm=3708,704），避开
+            // 全屏判定后位置保持才能生效
+            wmParams.width = dm.widthPixels - 1;
+            wmParams.height = dm.heightPixels - 1;
             windowManager.updateViewLayout(wrapperView, wmParams);
             dragExpanded = true;
         } catch (Exception ignored) {
