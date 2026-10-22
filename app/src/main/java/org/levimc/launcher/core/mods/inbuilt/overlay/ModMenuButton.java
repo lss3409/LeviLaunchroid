@@ -29,6 +29,13 @@ public class ModMenuButton {
     
     private float initialX, initialY, initialTouchX, initialTouchY;
     private boolean isDragging = false;
+    // v0.4.158d 拖动诊断统计（松手时汇总一行日志，调查后删除）
+    private long diagMoveCount;
+    private long diagRelayoutNs;
+    private long diagMaxRelayoutNs;
+    private long diagProcessNs;
+    private long diagFirstMoveMs;
+    private long diagLastMoveMs;
     private long touchDownTime = 0;
     private static final long TAP_TIMEOUT = 200;
     private static final float DRAG_THRESHOLD = 10f;
@@ -285,6 +292,13 @@ public class ModMenuButton {
                 initialTouchY = event.getRawY();
                 isDragging = false;
                 touchDownTime = SystemClock.uptimeMillis();
+                // v0.4.158d 拖动诊断：统计复位
+                diagMoveCount = 0;
+                diagRelayoutNs = 0;
+                diagMaxRelayoutNs = 0;
+                diagProcessNs = 0;
+                diagFirstMoveMs = 0;
+                diagLastMoveMs = 0;
                 return true;
             case MotionEvent.ACTION_MOVE:
                 float dx = event.getRawX() - initialTouchX;
@@ -293,6 +307,7 @@ public class ModMenuButton {
                     isDragging = true;
                 }
                 if (isDragging && windowManager != null && buttonView != null) {
+                    long t0 = System.nanoTime();
                     if (edgeHidden) {
                         // 拖动时滑出全显再跟手
                         edgeHidden = false;
@@ -301,7 +316,20 @@ public class ModMenuButton {
                     }
                     wmParams.x = (int) (initialX + dx);
                     wmParams.y = (int) (initialY + dy);
+                    long r0 = System.nanoTime();
                     windowManager.updateViewLayout(buttonView, wmParams);
+                    long relayoutNs = System.nanoTime() - r0;
+                    diagMoveCount++;
+                    diagRelayoutNs += relayoutNs;
+                    if (relayoutNs > diagMaxRelayoutNs) {
+                        diagMaxRelayoutNs = relayoutNs;
+                    }
+                    long nowMs = SystemClock.uptimeMillis();
+                    if (diagFirstMoveMs == 0) {
+                        diagFirstMoveMs = nowMs;
+                    }
+                    diagLastMoveMs = nowMs;
+                    diagProcessNs += System.nanoTime() - t0;
                 }
                 return true;
             case MotionEvent.ACTION_UP:
@@ -315,6 +343,16 @@ public class ModMenuButton {
                         handler.post(this::onButtonClick);
                     }
                 } else if (isDragging) {
+                    // v0.4.158d 拖动诊断：松手汇总（只打一行，日志有界）
+                    long durMs = diagLastMoveMs - diagFirstMoveMs;
+                    android.util.Log.i("ModMenuDrag", "diag moves=" + diagMoveCount
+                            + " durMs=" + durMs
+                            + " hz=" + (durMs > 0 ? diagMoveCount * 1000 / durMs : 0)
+                            + " relayoutAvgUs=" + (diagMoveCount > 0
+                            ? diagRelayoutNs / 1000 / diagMoveCount : 0)
+                            + " relayoutMaxUs=" + (diagMaxRelayoutNs / 1000)
+                            + " processAvgUs=" + (diagMoveCount > 0
+                            ? diagProcessNs / 1000 / diagMoveCount : 0));
                     // v442：松手吸附到最近屏幕边缘 + 半隐藏
                     snapToEdge();
                 }
