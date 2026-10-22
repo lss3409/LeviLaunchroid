@@ -332,8 +332,10 @@ public class ModMenuButton {
                         // 零 Binder、RenderThread 合成，跟手
                         expandForDrag();
                     }
-                    buttonView.setTranslationX(initialX + dx);
-                    buttonView.setTranslationY(initialY + dy);
+                    // v0.4.163：translation=增量（窗口位置保持球位置
+                    // 不动）——视觉=窗口(球位置)+dx=手指位置
+                    buttonView.setTranslationX(dx);
+                    buttonView.setTranslationY(dy);
                     // v0.4.160d：传输延迟诊断——前 1/3 与后 1/3 分段
                     long nowUp = SystemClock.uptimeMillis();
                     long transit = nowUp - event.getEventTime();
@@ -415,16 +417,15 @@ public class ModMenuButton {
         try {
             android.util.DisplayMetrics dm = activity.getResources().getDisplayMetrics();
             // 球当前绝对位置 = 窗口位置 + 当前 translation（贴边隐藏
-            // 偏移已在 MOVE 里清零，这里仍按实际值换算）
-            float absX = wmParams.x + buttonView.getTranslationX();
-            float absY = wmParams.y + buttonView.getTranslationY();
+            // v0.4.163：窗口位置保持球位置不动（只放大尺寸）——
+            // 归零方案（窗口移到(0,0)）在窗口生效前后 translation 基准
+            // 跳变一帧 = 拖动开始瞬移闪跳；保持位置后：生效前视觉=
+            // 旧窗口(球位置)+translation(0)=球位置，生效后视觉=新窗口
+            // （球位置）+translation(0)=球位置，完全连续。此后 translation
+            // 语义=相对窗口左上的增量（MOVE 里 dx 直接承载）
             wmParams.width = dm.widthPixels;
             wmParams.height = dm.heightPixels;
-            wmParams.x = 0;
-            wmParams.y = 0;
             windowManager.updateViewLayout(wrapperView, wmParams);
-            buttonView.setTranslationX(absX);
-            buttonView.setTranslationY(absY);
             dragExpanded = true;
         } catch (Exception ignored) {
         }
@@ -480,10 +481,13 @@ public class ModMenuButton {
             if (size <= 0) {
                 size = wmParams.width;
             }
-            // v0.4.159：球当前位置——展开态在 translation 上，普通态在窗口位置
+            // v0.4.159：球当前位置——展开态=窗口位置+translation
+            // （v0.4.163 增量语义），普通态在窗口位置
             final boolean expanded = dragExpanded;
-            int fromX = expanded ? (int) buttonView.getTranslationX() : wmParams.x;
-            int fromY = expanded ? (int) buttonView.getTranslationY() : wmParams.y;
+            int fromX = expanded
+                    ? wmParams.x + (int) buttonView.getTranslationX() : wmParams.x;
+            int fromY = expanded
+                    ? wmParams.y + (int) buttonView.getTranslationY() : wmParams.y;
             // v477：四边吸附——球心到四条边的距离取最近（用户要求
             // 顶部/底部也能吸附）；edgeSide: -1 左 / 1 右 / -2 顶 / 2 底
             float centerX = fromX + size / 2f;
@@ -517,19 +521,23 @@ public class ModMenuButton {
                 // 统一动画三量同帧更新彻底消除）
                 dragExpanded = false;
                 final int fSize = size;
-                final int fTx = (int) buttonView.getTranslationX();
-                final int fTy = (int) buttonView.getTranslationY();
+                // v0.4.163：球视觉绝对位置 = 窗口位置 + translation
+                // （translation 已改增量语义）
+                final int fTx = wmParams.x + (int) buttonView.getTranslationX();
+                final int fTy = wmParams.y + (int) buttonView.getTranslationY();
                 snapAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f);
                 snapAnimator.setDuration(250);
                 snapAnimator.setInterpolator(
                         new android.view.animation.DecelerateInterpolator(1.5f));
                 snapAnimator.addUpdateListener(a -> {
                     float t = (float) a.getAnimatedValue();
-                    // v0.4.162：动画期间窗口完全不动（全屏位置 relayout
-                    // 在平板 WMS 排队不生效=「滑向左上角再弹回」根因），
-                    // 只动 translation（RenderThread 合成，绝对平滑）
-                    buttonView.setTranslationX(fTx + (targetX - fTx) * t);
-                    buttonView.setTranslationY(fTy + (targetY - fTy) * t);
+                    // v0.4.162/163：动画期间窗口完全不动（全屏位置
+                    // relayout 在平板 WMS 排队不生效=「滑向左上角再
+                    // 弹回」根因），只动 translation（RenderThread 合成
+                    // 绝对平滑）；v0.4.163 translation 为增量语义（窗口
+                    // 位置=球起点），视觉=窗口(球起点)+translation 滑向吸附点
+                    buttonView.setTranslationX(fTx + (targetX - fTx) * t - wmParams.x);
+                    buttonView.setTranslationY(fTy + (targetY - fTy) * t - wmParams.y);
                 });
                 snapAnimator.addListener(new android.animation.AnimatorListenerAdapter() {
                     @Override
@@ -537,6 +545,10 @@ public class ModMenuButton {
                         if (!isShowing || buttonView == null || wrapperView == null) {
                             return;
                         }
+                        // translation 保持动画末值（=targetX-旧窗口位置，
+                        // 动画 update 里已设）——窗口生效前视觉=旧窗口+
+                        // translation=吸附点 ✓ 不变；窗口生效后由
+                        // waitWindowApplied 探测再清零
                         // v445：精确校正——动画 int 插值可能停在距边缘
                         // 1-2px 处，直接设置目标值
                         wmParams.x = targetX;
@@ -544,11 +556,6 @@ public class ModMenuButton {
                         // 尺寸一次性恢复（一次 relayout）
                         wmParams.width = fSize;
                         wmParams.height = fSize;
-                        // translation 保持 (targetX,targetY)——窗口生效前
-                        // 视觉=窗口(0,0)+translation=吸附点 ✓ 不变；
-                        // 窗口生效后由 waitWindowApplied 探测再清零
-                        buttonView.setTranslationX(targetX);
-                        buttonView.setTranslationY(targetY);
                         try {
                             windowManager.updateViewLayout(wrapperView, wmParams);
                         } catch (Exception ignored) {
