@@ -34,6 +34,18 @@ public class ModMenuButton {
     
     private float initialX, initialY, initialTouchX, initialTouchY;
     private boolean isDragging = false;
+    // v0.4.160d 拖动传输延迟诊断：eventTime 是内核触摸时间戳，
+    // uptimeMillis-eventTime = 事件从触摸面板到应用的传输耗时——
+    // 「越拖越延迟」若在此增长=系统输入管线积压（应用之外）
+    private long diagMoveCount;
+    private long diagTransitHeadMs;
+    private long diagTransitHeadN;
+    private long diagTransitTailMs;
+    private long diagTransitTailN;
+    private long diagTransitMaxMs;
+    private long diagEventGapHeadMs;
+    private long diagEventGapTailMs;
+    private long diagLastEventUptime;
     /** v0.4.154：拖动展开态——拖动开始把窗口临时扩成全屏，球位置
      *  全部走 translationX/Y（View 属性、RenderThread 合成、零 Binder）；
      *  松手再恢复窗口尺寸并落位。逐 MOVE 事件 updateViewLayout 的同步
@@ -322,6 +334,25 @@ public class ModMenuButton {
                     }
                     buttonView.setTranslationX(initialX + dx);
                     buttonView.setTranslationY(initialY + dy);
+                    // v0.4.160d：传输延迟诊断——前 1/3 与后 1/3 分段
+                    long nowUp = SystemClock.uptimeMillis();
+                    long transit = nowUp - event.getEventTime();
+                    if (transit > diagTransitMaxMs) {
+                        diagTransitMaxMs = transit;
+                    }
+                    if (diagMoveCount < 150) {
+                        diagTransitHeadMs += transit;
+                        diagTransitHeadN++;
+                        if (diagLastEventUptime > 0) {
+                            diagEventGapHeadMs += nowUp - diagLastEventUptime;
+                        }
+                    } else {
+                        diagTransitTailMs += transit;
+                        diagTransitTailN++;
+                        diagEventGapTailMs += nowUp - diagLastEventUptime;
+                    }
+                    diagMoveCount++;
+                    diagLastEventUptime = nowUp;
                 }
                 return true;
             case MotionEvent.ACTION_UP:
@@ -335,6 +366,26 @@ public class ModMenuButton {
                         handler.post(this::onButtonClick);
                     }
                 } else if (isDragging) {
+                    // v0.4.160d：松手输出分段诊断（一行，日志有界）
+                    android.util.Log.i("ModMenuDrag", "diag moves=" + diagMoveCount
+                            + " transitHeadAvgMs=" + (diagTransitHeadN > 0
+                            ? diagTransitHeadMs / diagTransitHeadN : 0)
+                            + " transitTailAvgMs=" + (diagTransitTailN > 0
+                            ? diagTransitTailMs / diagTransitTailN : 0)
+                            + " transitMaxMs=" + diagTransitMaxMs
+                            + " gapHeadAvgMs=" + (diagTransitHeadN > 1
+                            ? diagEventGapHeadMs / (diagTransitHeadN - 1) : 0)
+                            + " gapTailAvgMs=" + (diagTransitTailN > 1
+                            ? diagEventGapTailMs / (diagTransitTailN - 1) : 0));
+                    diagMoveCount = 0;
+                    diagTransitHeadMs = 0;
+                    diagTransitHeadN = 0;
+                    diagTransitTailMs = 0;
+                    diagTransitTailN = 0;
+                    diagTransitMaxMs = 0;
+                    diagEventGapHeadMs = 0;
+                    diagEventGapTailMs = 0;
+                    diagLastEventUptime = 0;
                     // v0.4.159：收尾统一交给 snapToEdge——dragExpanded
                     // 时「窗口位置/尺寸/translation 同帧插值动画」直接
                     // 从拖动态过渡到吸附点（不再单独 collapse：collapse
@@ -371,7 +422,7 @@ public class ModMenuButton {
             wmParams.height = dm.heightPixels;
             wmParams.x = 0;
             wmParams.y = 0;
-            windowManager.updateViewLayout(buttonView, wmParams);
+            windowManager.updateViewLayout(wrapperView, wmParams);
             buttonView.setTranslationX(absX);
             buttonView.setTranslationY(absY);
             dragExpanded = true;
@@ -519,7 +570,7 @@ public class ModMenuButton {
                 wmParams.x = (int) (fFromX + (targetX - fFromX) * t);
                 wmParams.y = (int) (fFromY + (targetY - fFromY) * t);
                 try {
-                    windowManager.updateViewLayout(buttonView, wmParams);
+                    windowManager.updateViewLayout(wrapperView, wmParams);
                 } catch (Exception ignored) {
                 }
             });
@@ -531,7 +582,7 @@ public class ModMenuButton {
                     wmParams.x = targetX;
                     wmParams.y = targetY;
                     try {
-                        windowManager.updateViewLayout(buttonView, wmParams);
+                        windowManager.updateViewLayout(wrapperView, wmParams);
                     } catch (Exception ignored) {
                     }
                     saveBallPosition(targetX, targetY);
