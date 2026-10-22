@@ -470,14 +470,20 @@ public class HardcoreBackupActivity extends BaseActivity {
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(false);
         scroll.setVerticalScrollBarEnabled(false);
+        // v0.4.153：底部留白 + 不裁剪——最后一行时间戳显示不全根因：
+        // 高度按每行 74dp 估算略小于实际行高，最底一行被 ScrollView
+        // 裁掉半行；padding 让滚动到底时最后一行完整露出
+        scroll.setClipToPadding(false);
+        scroll.setPadding(0, 0, 0, dp(10));
         final LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         scroll.addView(list, new ScrollView.LayoutParams(
                 ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
 
         // 自适应高度：按条目数量伸缩，最多占屏幕 55%，超过可滚动
+        // （v0.4.153：行高余量 74→84，配合底部 padding 双保险）
         int maxHeight = (int) (getResources().getDisplayMetrics().heightPixels * 0.55f);
-        int listHeight = Math.min(maxHeight, backups.size() * dp(74) + dp(4));
+        int listHeight = Math.min(maxHeight, backups.size() * dp(84) + dp(16));
         container.addView(scroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, listHeight));
 

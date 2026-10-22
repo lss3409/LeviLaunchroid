@@ -29,6 +29,21 @@ public class ModMenuButton {
     
     private float initialX, initialY, initialTouchX, initialTouchY;
     private boolean isDragging = false;
+    /** v0.4.153：拖动 relayout 节流——每帧最多一次 updateViewLayout
+     *  （逐 MOVE 事件 Binder relayout 在高采样率平板上背压=拖动卡）。 */
+    private boolean movePending = false;
+    private final android.view.Choreographer.FrameCallback moveFrame =
+            frameTimeNanos -> {
+                if (!movePending || windowManager == null || buttonView == null) {
+                    movePending = false;
+                    return;
+                }
+                movePending = false;
+                try {
+                    windowManager.updateViewLayout(buttonView, wmParams);
+                } catch (Exception ignored) {
+                }
+            };
     private long touchDownTime = 0;
     private static final long TAP_TIMEOUT = 200;
     private static final float DRAG_THRESHOLD = 10f;
@@ -295,10 +310,28 @@ public class ModMenuButton {
                     }
                     wmParams.x = (int) (initialX + dx);
                     wmParams.y = (int) (initialY + dy);
-                    windowManager.updateViewLayout(buttonView, wmParams);
+                    // v0.4.153：节流到每帧一次 relayout——逐 MOVE 事件
+                    // updateViewLayout（跨进程 Binder）在高采样率平板上
+                    // 背压排队 = 拖动帧率低不跟手；帧对齐后最多每帧一次
+                    if (!movePending) {
+                        movePending = true;
+                        android.view.Choreographer.getInstance()
+                                .postFrameCallback(moveFrame);
+                    }
                 }
                 return true;
             case MotionEvent.ACTION_UP:
+                // v0.4.153：松手先冲刷最后一帧位置（移除节流回调，
+                // 直接同步一次 relayout），再吸附
+                if (movePending) {
+                    movePending = false;
+                    android.view.Choreographer.getInstance()
+                            .removeFrameCallback(moveFrame);
+                    try {
+                        windowManager.updateViewLayout(buttonView, wmParams);
+                    } catch (Exception ignored) {
+                    }
+                }
                 long elapsed = SystemClock.uptimeMillis() - touchDownTime;
                 if (!isDragging && elapsed < TAP_TIMEOUT) {
                     // v480：深度隐藏态单击只恢复成半隐藏（ACTION_DOWN

@@ -6,7 +6,7 @@
 <string name="beta_badge">Beta</string>
 <string name="debug_badge">Hata Ayıklama</string>
 <string name="cursor">İmleç</string>
-<string name="bedrock_edition">Edition</string>
+<string name="bedrock_edition">MCBE</string>
 <string name="current_instance">Mevcut Örnek</string>
 
     <!-- Mods -->

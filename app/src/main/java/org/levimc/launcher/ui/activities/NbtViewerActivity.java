@@ -683,6 +683,11 @@ public class NbtViewerActivity extends BaseActivity {
     private void onBakeBatch(java.util.Set<Long> batch) {
         if (bakeTotalCount > 0 && batch != null && !batch.isEmpty()) {
             bakeDoneCount.addAndGet(batch.size());
+            // v0.4.153：视口优先烘焙的 chunk 不在初始 total 里——
+            // 实际渲染数可超估算总数，total 动态跟随（进度不超 100%）
+            if (bakeDoneCount.get() > bakeTotalCount) {
+                bakeTotalCount = bakeDoneCount.get();
+            }
             updateBakeProgressHud();
         }
         // v0.4.122：烘焙渐进中每 3 秒刷新一次 biome 遮罩（群系色
@@ -737,7 +742,9 @@ public class NbtViewerActivity extends BaseActivity {
         }
         binding.bakeProgress.setVisibility(View.VISIBLE);
         // v0.4.144：烘焙状态走字符串资源（11 语言）
-        String status = getString(R.string.bake_progress, done, total)
+        // v0.4.153：计数超 total 时显示夹取到 total（实际渲染 chunk 数
+        // 可能多于估算总数——「每次渲染的区块超过总渲染区块」）
+        String status = getString(R.string.bake_progress, Math.min(done, total), total)
                 + (done >= total ? getString(R.string.bake_finalizing) : "");
         binding.bakeProgress.setText(status);
         // v0.4.135：同步到右上角 FPS HUD（烘焙进行中实时刷新）
@@ -755,7 +762,11 @@ public class NbtViewerActivity extends BaseActivity {
             @Override
             public void onStart(int total) {
                 runOnUiThread(() -> {
-                    if (!isFinishing() && !isDestroyed() && currentMap == target) {
+                    // v0.4.153：currentMap==null（加载中）也接收进度——
+                    // 打开地图补缺烘焙时第一批批次常赶在完成回调恢复
+                    // currentMap 之前发出，全丢=进度一直 0 根因
+                    if (!isFinishing() && !isDestroyed()
+                            && (currentMap == target || currentMap == null)) {
                         showBakeProgress(total);
                     }
                 });
@@ -768,7 +779,8 @@ public class NbtViewerActivity extends BaseActivity {
             @Override
             public void onBatch(java.util.Set<Long> chunkKeys) {
                 runOnUiThread(() -> {
-                    if (isFinishing() || isDestroyed() || currentMap != target) {
+                    if (isFinishing() || isDestroyed()
+                            || (currentMap != target && currentMap != null)) {
                         return;
                     }
                     onBakeBatch(chunkKeys);
@@ -1584,6 +1596,26 @@ public class NbtViewerActivity extends BaseActivity {
                 return;
             }
             final java.io.File worldDir = currentWorldDir;
+            // v0.4.153：立即停掉在跑的烘焙与视口渲染——烘焙 worker 会
+            // 把结果写回刚删除的 bin（「清除后没触发重烘焙」根因：
+            // 删完又被烘焙写回，reload 读到写回的缓存秒开旧图）
+            if (bakeThread != null) {
+                bakeThread.interrupt();
+                bakeThread = null;
+            }
+            renderGen.incrementAndGet();
+            currentMap = null;
+            binding.worldMapImage.setWorldMap(null);
+            if (biomeScanThread != null) {
+                biomeScanThread.interrupt();
+                biomeScanThread = null;
+            }
+            if (tvBakeHealth != null) {
+                tvBakeHealth.setText(R.string.bake_health_checking);
+                tvBakeHealth.setTextColor(
+                        getResources().getColor(
+                                android.R.color.darker_gray, null));
+            }
             new Thread(() -> {
                 final int removed = clearWorldBakeCaches(worldDir);
                 runOnUiThread(() -> {
@@ -1595,18 +1627,6 @@ public class NbtViewerActivity extends BaseActivity {
                         // 保存会把坏图回灌磁盘（「删 bin 重烘焙不顶用」根因：
                         // loadMapForDimension 开头 saveChunkCache 保存 currentMap，
                         // 删除的 bin 被内存坏数据原样写回）
-                        currentMap = null;
-                        binding.worldMapImage.setWorldMap(null);
-                        if (biomeScanThread != null) {
-                            biomeScanThread.interrupt();
-                            biomeScanThread = null;
-                        }
-                        if (tvBakeHealth != null) {
-                            tvBakeHealth.setText(R.string.bake_health_checking);
-                            tvBakeHealth.setTextColor(
-                                    getResources().getColor(
-                                            android.R.color.darker_gray, null));
-                        }
                         // 重载触发重新烘焙（保留视图位置）
                         reloadMapForCurrentDimension();
                     }
@@ -1921,7 +1941,8 @@ public class NbtViewerActivity extends BaseActivity {
                 + " cacheHasBiome=" + fMap.cacheHasBiome);
         // v0.4.143：低内存设备跳过遮罩与独立扫描（≈50MB+ 附加内存，
         // 手机 OOM 根因）——群系层在放大路径仍由 tile 显示
-        if (lowMemDevice()) {
+        // v0.4.153：改用 512MB 阈值——平板（512MB heap）不再误判
+        if (lowMemBiome()) {
             android.util.Log.i("NbtViewer", "refreshBiomeMask SKIP lowMem");
             return;
         }
@@ -2408,7 +2429,15 @@ public class NbtViewerActivity extends BaseActivity {
                 // 导致的临时失败自愈；存档确实无数据时 3 次后放弃）
                 final int[] attempts = {0};
                 final Runnable[] retry = new Runnable[1];
-                retry[0] = () -> renderPool.execute(() -> {
+                retry[0] = () -> {
+                    // v0.4.153：renderPool 为 null（销毁/清理窗口）时直接
+                    // 放弃——tombstone lambda$loadMapForDimension$77 NPE
+                    // 根因（存档更新测试：销毁后 retry 仍在队列执行）
+                    final ExecutorService pool = renderPool;
+                    if (pool == null || isFinishing() || isDestroyed()) {
+                        return;
+                    }
+                    pool.execute(() -> {
                     CpuScheduler.pinCurrentThreadToBigCores();
                     final PlayerInfo pinfo = readPlayerInfoByPrefix(dbDir);
                     runOnUiThread(() -> {
@@ -2440,6 +2469,7 @@ public class NbtViewerActivity extends BaseActivity {
                         }
                     });
                 });
+                };
                 flushHandler.postDelayed(retry[0], 1500);
             }
             runOnUiThread(() -> {
@@ -2631,6 +2661,14 @@ public class NbtViewerActivity extends BaseActivity {
      *  大内存附加功能，保住主渲染。 */
     private boolean lowMemDevice() {
         return Runtime.getRuntime().maxMemory() < 768L * 1024 * 1024;
+    }
+
+    /** v0.4.153：群系遮罩专用判定（阈值 512MB）——平板 largeHeap 后
+     *  maxMemory=512 被 768 阈值误判低内存 → 遮罩扫描永远跳过 =
+     *  「重烘焙后生物群系不显示」根因。真低端机（256/384MB）仍跳过；
+     *  compose 等大内存功能保持 768 保守阈值不变。 */
+    private boolean lowMemBiome() {
+        return Runtime.getRuntime().maxMemory() < 512L * 1024 * 1024;
     }
 
     private void composeFullMapAsync(WorldMapRenderer.WorldMap targetMap, int attempt) {
