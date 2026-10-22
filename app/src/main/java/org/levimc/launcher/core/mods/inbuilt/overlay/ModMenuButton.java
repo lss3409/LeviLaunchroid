@@ -406,8 +406,15 @@ public class ModMenuButton {
             wmParams.x = nx;
             wmParams.y = ny;
             windowManager.updateViewLayout(wrapperView, wmParams);
-            buttonView.setTranslationX(0f);
-            buttonView.setTranslationY(0f);
+            // v0.4.157：translation 清零延后到窗口 relayout 生效
+            // （View.post 在下一帧 traversal 之后执行）——立即清零时
+            // 窗口仍处全屏(0,0)，球闪现左上角一帧再弹回（松手闪跳）
+            wrapperView.post(() -> {
+                if (buttonView != null) {
+                    buttonView.setTranslationX(0f);
+                    buttonView.setTranslationY(0f);
+                }
+            });
         } catch (Exception ignored) {
         }
     }
