@@ -868,19 +868,20 @@ import okhttp3.OkHttpClient;
         viewModel.getModsLiveData().observe(this, this::updateModsUI);
     }
 
-    /** v0.4.153：副标题显示完整单词 "Minecraft Bedrock"，其中
-     *  Mine 的 M、craft 的 C、Bed 的 Be 加粗+染强调色——潜移默化
-     *  让用户看出 MCBE = Minecraft Bedrock 缩写（M、c、Be 三段）。 */
+    /** v0.4.155：副标题显示完整词组 "Minecraft Bedrock Edition"，
+     *  其中 Mine 的 M、craft 的 C、Bed 的 B、Edition 的 E 加粗+染
+     *  强调色——潜移默化让用户看出 MCBE = Minecraft Bedrock
+     *  Edition 缩写（MC=Minecraft，BE=Bedrock Edition）。 */
     private void applyMcbeSubtitle(int accent) {
         android.widget.TextView sub = binding.bedrockEditionText;
         if (sub == null) {
             return;
         }
-        String s = getString(R.string.bedrock_edition); // "Minecraft Bedrock"
+        String s = getString(R.string.bedrock_edition);
         android.text.SpannableString sp =
                 new android.text.SpannableString(s);
-        // M(0)、c(4)、Be(10-12) 三段加粗 + 强调色
-        int[][] segs = {{0, 1}, {4, 5}, {10, 12}};
+        // "Minecraft Bedrock Edition"：M(0)、c(4)、B(10)、E(18) 四段
+        int[][] segs = {{0, 1}, {4, 5}, {10, 11}, {18, 19}};
         for (int[] seg : segs) {
             if (s.length() < seg[1]) {
                 continue;

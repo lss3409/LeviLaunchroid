@@ -599,7 +599,7 @@
 
     <!-- Missing translations -->
 <string name="cursor">Курсор</string>
-<string name="bedrock_edition">Minecraft Bedrock</string>
+<string name="bedrock_edition">Minecraft Bedrock Edition</string>
 <string name="current_instance">Текущий экземпляр</string>
 <string name="content_mgmt_section_title">Управление контентом</string>
 <string name="misc_section_title">Разное</string>

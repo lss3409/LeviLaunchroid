@@ -6,7 +6,7 @@
 <string name="beta_badge">Beta</string>
 <string name="debug_badge">Debug</string>
 <string name="cursor">Cursor</string>
-<string name="bedrock_edition">Minecraft Bedrock</string>
+<string name="bedrock_edition">Minecraft Bedrock Edition</string>
 <string name="current_instance">Current Instance</string>
 
     <!-- Mods -->

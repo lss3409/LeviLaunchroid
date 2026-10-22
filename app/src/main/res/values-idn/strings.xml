@@ -603,7 +603,7 @@ Migrasi harus selesai sebelum LeviLauncher dapat melanjutkan.</string>
 
     <!-- Missing translations -->
 <string name="cursor">Kursor</string>
-<string name="bedrock_edition">Minecraft Bedrock</string>
+<string name="bedrock_edition">Minecraft Bedrock Edition</string>
 <string name="current_instance">Instans Saat Ini</string>
 <string name="content_mgmt_section_title">Manajemen Konten</string>
 <string name="misc_section_title">Lain-lain</string>

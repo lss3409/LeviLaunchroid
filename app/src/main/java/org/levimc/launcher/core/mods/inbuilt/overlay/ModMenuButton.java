@@ -22,6 +22,11 @@ public class ModMenuButton {
 
     private final Activity activity;
     private View buttonView;
+    /** v0.4.155：窗口内容 wrapper——直接挂 WindowManager 的 View 会被
+     *  WMS 按窗口尺寸 measure（拖动扩全屏时球撑满整屏 =「变大」根因），
+     *  wrapper 随窗口伸缩、按钮 48dp 固定在内，平移走按钮 translation
+     *  （谷歌 AccessibilityFloatingMenuView「大窗口+内容移动」同款）。 */
+    private View wrapperView;
     private WindowManager windowManager;
     private WindowManager.LayoutParams wmParams;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -183,7 +188,14 @@ public class ModMenuButton {
             }
 
             btn.setOnTouchListener(this::handleTouch);
-            windowManager.addView(buttonView, wmParams);
+            // v0.4.155：wrapper 承载窗口尺寸（拖动扩全屏时按钮不撑大），
+            // 按钮 48dp 固定在内；半隐藏 translation 由 wrapper 裁剪
+            // （FrameLayout 默认 clipChildren），与原窗口 Surface 裁剪等效
+            FrameLayout wrapper = new FrameLayout(activity);
+            wrapper.addView(buttonView, new FrameLayout.LayoutParams(
+                    buttonSize, buttonSize));
+            wrapperView = wrapper;
+            windowManager.addView(wrapper, wmParams);
             isShowing = true;
             applyOpacity();
             if (restoredAtEdge) {
@@ -226,10 +238,6 @@ public class ModMenuButton {
     /** v443：用户设置的悬浮球透明度（0-1）。 */
     private float applyBaseOpacity() {
         return InbuiltModManager.getInstance(activity).getModMenuButtonOpacity() / 100f;
-    }
-
-    private void applyButtonOpacity() {
-        applyOpacity();
     }
 
     private boolean handleTouch(View v, MotionEvent event) {
@@ -643,14 +651,7 @@ public class ModMenuButton {
     }
     
 
-    
-    private void applyConfigurationChanges(String modId) {
-        InbuiltOverlayManager overlayManager = InbuiltOverlayManager.getInstance();
-        if (overlayManager != null) {
-            overlayManager.applyConfigurationChanges(modId);
-        }
-    }
-    
+
     public void hide() {
         if (menuOverlay != null) {
             menuOverlay.hide();
@@ -664,7 +665,8 @@ public class ModMenuButton {
         handler.post(() -> {
             try {
                 if (wmParams != null && windowManager != null) {
-                    windowManager.removeView(buttonView);
+                    windowManager.removeView(wrapperView != null
+                            ? wrapperView : buttonView);
                 } else {
                     ViewGroup rootView = activity.findViewById(android.R.id.content);
                     if (rootView != null) {
@@ -673,6 +675,7 @@ public class ModMenuButton {
                 }
             } catch (Exception ignored) {}
             buttonView = null;
+            wrapperView = null;
             isShowing = false;
         });
     }
