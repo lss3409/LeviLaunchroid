@@ -2063,7 +2063,18 @@ public class WorldMapView extends View {
             float topY = offsetY + (slimeMaskCz0 * 16L - map.minBlockZ) * pixelsPerBlock;
             slimeMaskDst.set(leftX, topY,
                     leftX + slimeMaskW * chunkPx, topY + slimeMaskH * chunkPx);
-            canvas.drawBitmap(slimeMaskBitmap, null, slimeMaskDst, fullMapPaint);
+            // v0.4.172 回滚（用户指令）：放大（chunkPx>=1）最近邻保持
+            // 锐利色块；缩小线性滤波避免亚像素绿点被最近邻采样丢弃
+            // （缩小看全图时史莱姆不可见/斑点化）
+            if (chunkPx >= 1f) {
+                canvas.drawBitmap(slimeMaskBitmap, null, slimeMaskDst, fullMapPaint);
+            } else {
+                if (slimeMaskSoftPaint == null) {
+                    slimeMaskSoftPaint = new Paint();
+                    slimeMaskSoftPaint.setFilterBitmap(true);
+                }
+                canvas.drawBitmap(slimeMaskBitmap, null, slimeMaskDst, slimeMaskSoftPaint);
+            }
             return;
         }
         float chunkPx = 16f * pixelsPerBlock;
@@ -2088,7 +2099,7 @@ public class WorldMapView extends View {
             return;
         }
         Paint slimePaint = new Paint();
-        slimePaint.setColor(0x7F00C853); // v0.4.165：18%→50% 太淡看不清
+        slimePaint.setColor(0x2E00C853); // v0.4.172 回滚（用户指令）：恢复 18% 淡色
         Paint borderPaint = new Paint();
         borderPaint.setStyle(Paint.Style.STROKE);
         borderPaint.setColor(0x8800E676);
