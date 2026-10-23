@@ -1451,6 +1451,8 @@ Invite code: P/%1$s
 <string name="news_enable_notifications">Enable notifications</string>
 <string name="news_refresh">Refresh news</string>
 <string name="news_empty">No news has been published yet.</string>
+    <string name="news_tab_lbbl">LBBL</string>
+    <string name="news_tab_official">LeviLauncher Official</string>
 <string name="news_read_more">Read more</string>
 <string name="news_important">Important</string>
 <string name="news_refreshed">News updated</string>

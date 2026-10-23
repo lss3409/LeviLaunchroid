@@ -1850,7 +1850,7 @@ public class NbtViewerActivity extends BaseActivity {
                         currentStructures.addAll(cached);
                         if ("overworld".equals(mapDimension)) {
                             synchronized (seedStructures) {
-                                currentStructures.addAll(seedStructures);
+                                currentStructures.addAll(filterPredictedStructures(seedStructures, currentMap));
                             }
                         }
                     }
@@ -1874,7 +1874,7 @@ public class NbtViewerActivity extends BaseActivity {
                                     currentStructures.addAll(strs);
                                     if ("overworld".equals(mapDimension)) {
                                         synchronized (seedStructures) {
-                                            currentStructures.addAll(seedStructures);
+                                            currentStructures.addAll(filterPredictedStructures(seedStructures, currentMap));
                                         }
                                     }
                                 }
@@ -2195,7 +2195,7 @@ public class NbtViewerActivity extends BaseActivity {
                                 // clear 会把标记清掉——"一闪而过"根因）
                                 if ("overworld".equals(mapDimension)) {
                                     synchronized (seedStructures) {
-                                        currentStructures.addAll(seedStructures);
+                                        currentStructures.addAll(filterPredictedStructures(seedStructures, currentMap));
                                     }
                                 }
                             }
@@ -2512,7 +2512,7 @@ public class NbtViewerActivity extends BaseActivity {
                         // （切维度回来不丢）
                         if ("overworld".equals(mapDimension)) {
                             synchronized (seedStructures) {
-                                currentStructures.addAll(seedStructures);
+                                currentStructures.addAll(filterPredictedStructures(seedStructures, currentMap));
                             }
                         }
                     }
@@ -2896,6 +2896,32 @@ public class NbtViewerActivity extends BaseActivity {
         // 旧 UI 已删：权限/结构卡不再渲染
     }
 
+    /** v0.4.165：SeedFinder 种子预测结构过滤——只保留「已生成区块」
+     *  （db 有数据、chunkColors 已烘焙）上的预测结构；未加载区块
+     *  不再显示（「修复 mansion/temple/outpost 不显示后结构跑到未
+     *  加载区块」回归修复——预测值不受存档数据限制，需按数据过滤）。 */
+    private java.util.List<WorldMapRenderer.StructureMarker> filterPredictedStructures(
+            java.util.List<WorldMapRenderer.StructureMarker> all,
+            WorldMapRenderer.WorldMap m) {
+        java.util.List<WorldMapRenderer.StructureMarker> out =
+                new java.util.ArrayList<>();
+        if (m == null || m.chunkColors == null) {
+            return out;
+        }
+        for (WorldMapRenderer.StructureMarker s : all) {
+            if (!s.predicted) {
+                out.add(s);
+                continue;
+            }
+            long key = ((long) Math.floorDiv(s.x, 16) << 32)
+                    | (Math.floorDiv(s.z, 16) & 0xFFFFFFFFL);
+            if (m.chunkColors.containsKey(key)) {
+                out.add(s);
+            }
+        }
+        return out;
+    }
+
     /** 名字 hash 生成 8×8 像素头像（HTML 原型 makeAvatar 同款思路）。 */
     private android.graphics.Bitmap pixelAvatar(String name, int px) {
         int seed = 0;
@@ -3084,7 +3110,7 @@ public class NbtViewerActivity extends BaseActivity {
                                 // clear 会把标记清掉——"一闪而过"根因）
                                 if ("overworld".equals(mapDimension)) {
                                     synchronized (seedStructures) {
-                                        currentStructures.addAll(seedStructures);
+                                        currentStructures.addAll(filterPredictedStructures(seedStructures, currentMap));
                                     }
                                 }
                             }

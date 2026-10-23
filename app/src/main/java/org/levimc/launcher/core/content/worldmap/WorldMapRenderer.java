@@ -3136,7 +3136,7 @@ public class WorldMapRenderer {
                 cw, ch, android.graphics.Bitmap.Config.ARGB_8888);
         android.graphics.Canvas c = new android.graphics.Canvas(bmp);
         android.graphics.Paint green = new android.graphics.Paint();
-        green.setColor(0x2E00C853);
+        green.setColor(0x7F00C853); // v0.4.165：18%→50% 太淡看不清
         if (map.chunkColors != null) {
             // v0.4.55：快照遍历——烘焙线程并发 put 时直接遍历
             // HashMap 会抛 ConcurrentModificationException（v0.4.54

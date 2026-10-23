@@ -31,10 +31,15 @@ public final class NewsRepository {
     }
 
     public static final String REMOTE_URL = "https://raw.githubusercontent.com/LiteLDev/LeviLaunchroid/main/resources/launcher/news.json";
+    /** v0.4.165：LBBL 更新公告源（lss3409/LeviLaunchroid 仓库同款
+     *  news.json，铃铛双栏位——LBBL 公告 + LeviLauncher 官方）。 */
+    public static final String REMOTE_URL_LBBL = "https://raw.githubusercontent.com/lss3409/LeviLaunchroid/main/resources/launcher/news_lbbl.json";
     private static final String ASSET_PATH = "launcher/news.json";
     private static final String CACHE_FILE = "launcher_news.json";
+    private static final String CACHE_FILE_LBBL = "launcher_news_lbbl.json";
     private static final String PREFS = "launcher_news_repository";
     private static final String KEY_LAST_REFRESH = "last_refresh";
+    private static final String KEY_LAST_REFRESH_LBBL = "last_refresh_lbbl";
     private static final long REFRESH_INTERVAL_MS = 5L * 60L * 1000L;
     private static final Gson GSON = new Gson();
     private static final OkHttpClient HTTP = new OkHttpClient();
@@ -44,6 +49,7 @@ public final class NewsRepository {
     private static final List<Callback> REFRESH_CALLBACKS = new ArrayList<>();
     private static boolean refreshing;
     private static volatile NewsFeed memoryCache;
+    private static volatile NewsFeed memoryCacheLbbl;
 
     private NewsRepository() {
     }
@@ -51,6 +57,12 @@ public final class NewsRepository {
     public static void loadCached(Context context, Callback callback) {
         Context appContext = context.getApplicationContext();
         EXECUTOR.execute(() -> deliver(callback, loadLocal(appContext), null));
+    }
+
+    /** v0.4.165：LBBL 源缓存读取（独立缓存文件）。 */
+    public static void loadCachedLbbl(Context context, Callback callback) {
+        Context appContext = context.getApplicationContext();
+        EXECUTOR.execute(() -> deliver(callback, loadLocalLbbl(appContext), null));
     }
 
     public static void refreshIfStale(Context context, Callback callback) {
@@ -63,19 +75,40 @@ public final class NewsRepository {
         refresh(context, callback);
     }
 
+    /** v0.4.165：LBBL 源时效刷新。 */
+    public static void refreshIfStaleLbbl(Context context, Callback callback) {
+        SharedPreferences prefs = context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        long elapsed = System.currentTimeMillis() - prefs.getLong(KEY_LAST_REFRESH_LBBL, 0L);
+        if (elapsed < REFRESH_INTERVAL_MS) {
+            loadCachedLbbl(context, callback);
+            return;
+        }
+        refreshLbbl(context, callback);
+    }
+
     public static void refresh(Context context, Callback callback) {
+        refreshFrom(context, callback, false);
+    }
+
+    /** v0.4.165：LBBL 源强制刷新。 */
+    public static void refreshLbbl(Context context, Callback callback) {
+        refreshFrom(context, callback, true);
+    }
+
+    private static void refreshFrom(Context context, Callback callback, boolean lbbl) {
         Context appContext = context.getApplicationContext();
         synchronized (REFRESH_LOCK) {
             if (callback != null) REFRESH_CALLBACKS.add(callback);
             if (refreshing) return;
             refreshing = true;
         }
+        final boolean fLbbl = lbbl;
         EXECUTOR.execute(() -> {
             NewsFeed result;
             Throwable resultError = null;
             try {
                 Request request = new Request.Builder()
-                        .url(REMOTE_URL)
+                        .url(fLbbl ? REMOTE_URL_LBBL : REMOTE_URL)
                         .header("Cache-Control", "no-cache")
                         .build();
                 try (Response response = HTTP.newCall(request).execute()) {
@@ -84,15 +117,21 @@ public final class NewsRepository {
                     }
                     String json = response.body().string();
                     NewsFeed feed = parse(json);
-                    writeCache(appContext, json);
-                    memoryCache = feed;
+                    if (fLbbl) {
+                        writeCacheLbbl(appContext, json);
+                        memoryCacheLbbl = feed;
+                    } else {
+                        writeCache(appContext, json);
+                        memoryCache = feed;
+                    }
                     appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                            .edit().putLong(KEY_LAST_REFRESH, System.currentTimeMillis()).apply();
+                            .edit().putLong(fLbbl ? KEY_LAST_REFRESH_LBBL : KEY_LAST_REFRESH,
+                                    System.currentTimeMillis()).apply();
                     NewsState.notifyChanged(appContext);
                     result = feed;
                 }
             } catch (Throwable error) {
-                result = loadLocal(appContext);
+                result = fLbbl ? loadLocalLbbl(appContext) : loadLocal(appContext);
                 resultError = error;
             }
 
@@ -127,6 +166,24 @@ public final class NewsRepository {
         return cached;
     }
 
+    /** v0.4.165：LBBL 源本地缓存（无 asset 兜底——空 feed）。 */
+    private static NewsFeed loadLocalLbbl(Context context) {
+        NewsFeed cached = memoryCacheLbbl;
+        if (cached != null) return cached;
+        File cacheFile = new File(context.getFilesDir(), CACHE_FILE_LBBL);
+        if (cacheFile.isFile()) {
+            try (InputStream input = new FileInputStream(cacheFile)) {
+                cached = parse(readUtf8(input));
+                memoryCacheLbbl = cached;
+                return cached;
+            } catch (Exception ignored) {
+            }
+        }
+        cached = new NewsFeed();
+        memoryCacheLbbl = cached;
+        return cached;
+    }
+
     private static NewsFeed parse(String json) {
         NewsFeed feed = GSON.fromJson(json, NewsFeed.class);
         if (feed == null || feed.schemaVersion != 1) {
@@ -152,6 +209,26 @@ public final class NewsRepository {
     private static void writeCache(Context context, String json) throws Exception {
         File target = new File(context.getFilesDir(), CACHE_FILE);
         File temporary = new File(context.getFilesDir(), CACHE_FILE + ".tmp");
+        try (FileOutputStream output = new FileOutputStream(temporary)) {
+            output.write(json.getBytes(StandardCharsets.UTF_8));
+            output.getFD().sync();
+        }
+        try {
+            Files.move(
+                    temporary.toPath(),
+                    target.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE
+            );
+        } catch (java.nio.file.AtomicMoveNotSupportedException ignored) {
+            Files.move(temporary.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    /** v0.4.165：LBBL 源缓存写入（独立文件）。 */
+    private static void writeCacheLbbl(Context context, String json) throws Exception {
+        File target = new File(context.getFilesDir(), CACHE_FILE_LBBL);
+        File temporary = new File(context.getFilesDir(), CACHE_FILE_LBBL + ".tmp");
         try (FileOutputStream output = new FileOutputStream(temporary)) {
             output.write(json.getBytes(StandardCharsets.UTF_8));
             output.getFD().sync();

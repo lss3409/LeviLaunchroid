@@ -1497,6 +1497,9 @@ public class WorldMapView extends View {
     /** v413：矿石标点图层——v425 起优先用 MC 原版贴图
      *  （assets/ore_textures/<短名>.png，如 diamond_ore.png），
      *  无贴图回退色块菱形（视口内才画，大地图 2 万+ 标点全画会卡）。 */
+    /** v0.4.165：矿石层滞回状态（跨 ppb 阈值往返防闪烁）。 */
+    private boolean oreLayerVisible = true;
+
     private void drawOreMarkers(android.graphics.Canvas canvas) {
         if (!showOreLayer || map == null || map.oreMarkers == null
                 || map.oreMarkers.isEmpty()) {
@@ -1505,9 +1508,13 @@ public class WorldMapView extends View {
         // v0.4.113：ppb<0.5 跳过——缩小到全图时 2 万矿石标点
         // 密集超过屏幕分辨率（画了也是噪点糊屏），每帧 2 万个
         // path+draw=主线程 150ms/帧（0.37 倍卡根因主犯）
-        if (pixelsPerBlock < 0.5f) {
+        // v0.4.165：滞回（0.5 隐藏 / 0.45 恢复）——捏合跨阈值往返
+        // 时整层忽隐忽现 = 滑动/捏合中矿石闪烁根因
+        if (pixelsPerBlock < (oreLayerVisible ? 0.45f : 0.5f)) {
+            oreLayerVisible = false;
             return;
         }
+        oreLayerVisible = true;
         // v0.4.118：抽稀不限倍率——5.5 倍时小世界视口内仍有
         // 4000+ 矿石点每帧全画（"5.5倍也开始卡"）；点击检测走
         // 全量列表与绘制无关。视口内超过 1200 个按比例跳画
@@ -2064,7 +2071,7 @@ public class WorldMapView extends View {
             return;
         }
         Paint slimePaint = new Paint();
-        slimePaint.setColor(0x2E00C853);
+        slimePaint.setColor(0x7F00C853); // v0.4.165：18%→50% 太淡看不清
         Paint borderPaint = new Paint();
         borderPaint.setStyle(Paint.Style.STROKE);
         borderPaint.setColor(0x8800E676);
@@ -2840,8 +2847,10 @@ public class WorldMapView extends View {
             // v0.4.146：默认屏幕锚定（始终显示同款逻辑——指针钉在
             // 屏幕上，任何缩放都不跑出视口；此前 world-follow 世界
             // 坐标在特定缩放下换算到屏幕外="老 bug 指针不显示"）。
-            // 用户澄清：滑动/捏合中隐藏，正常点击后显示
+            // v0.4.165：滑动/捏合中永久清除——不再自动恢复，
+            // 下次点击屏幕才会重新显示（用户要求）
             if (scaling || panning) {
+                tapScreenX = -1f;
                 return;
             }
             sx = tapScreenX;

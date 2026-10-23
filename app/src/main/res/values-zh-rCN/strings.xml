@@ -1400,6 +1400,8 @@
 <string name="news_enable_notifications">启用通知</string>
 <string name="news_refresh">刷新新闻</string>
 <string name="news_empty">暂时还没有发布新闻。</string>
+    <string name="news_tab_lbbl">LBBL 公告</string>
+    <string name="news_tab_official">LeviLauncher 官方</string>
 <string name="news_read_more">阅读更多</string>
 <string name="news_important">重要</string>
 <string name="news_refreshed">新闻已更新</string>

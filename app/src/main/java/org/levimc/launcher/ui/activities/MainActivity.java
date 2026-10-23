@@ -142,8 +142,9 @@ import okhttp3.OkHttpClient;
 
     /** v0.4.38：剪贴板邀请码检测（夸克式）——复制了 LBBL 邀请文本
      *  回启动器自动弹「加入房间」确认窗，确认后深链直达联机页填码。
-     *  v0.4.40：加时效（剪贴板内容超过 15 分钟不弹）+ 点加入直接进房间。 */
-    private static final long CLIP_AGE_MAX_MS = 15 * 60_000L;
+     *  v0.4.40：加时效 + 点加入直接进房间。
+     *  v0.4.165：时效 15→5 分钟（用户要求链接超过五分钟失效）。 */
+    private static final long CLIP_AGE_MAX_MS = 5 * 60_000L;
 
     private void checkClipboardInvite() {
         try {
@@ -178,14 +179,16 @@ import okhttp3.OkHttpClient;
                 prefs.edit().remove("self_copied").apply();
                 return;
             }
-            // 同码只提示一次（剪贴板换成别的码才再弹）
-            if (code.equals(prefs.getString("last_prompted", ""))) {
+            // v0.4.165：同一粘贴只提示一次（code+时间戳——进启动器
+            // 只读取一次；玩家再次粘贴=新时间戳才再弹）
+            String promptKey = code + "|" + ts;
+            if (promptKey.equals(prefs.getString("last_prompted", ""))) {
                 return;
             }
             if (clipboardDialog != null && clipboardDialog.isShowing()) {
                 return;
             }
-            prefs.edit().putString("last_prompted", code).apply();
+            prefs.edit().putString("last_prompted", promptKey).apply();
             String display = "P/" + code;
             clipboardDialog = new CustomAlertDialog(this)
                     .setTitleText(getString(R.string.online_clipboard_title))
