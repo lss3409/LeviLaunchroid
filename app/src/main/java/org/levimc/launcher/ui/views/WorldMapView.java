@@ -1346,6 +1346,25 @@ public class WorldMapView extends View {
         }
         return span;
     }
+
+    /** v0.4.166（回迁）：span 选级滞回——帧率自适应（adaptEma）实时
+     *  波动会让 pickLodSpan 每帧在 8/16 间抖 → clod 整链 miss 重建
+     *  → 矿石等叠加层视觉闪烁（「放大不闪缩小闪」=放大不走 LOD
+     *  路径）；新 span 需连续 12 帧（约 200ms）保持才切换。 */
+    private int lodSpanPending = 0;
+    private int lodSpanPendingFrames = 0;
+
+    private int stableLodSpan() {
+        int want = pickLodSpan();
+        if (want != lodSpanPending) {
+            lodSpanPending = want;
+            lodSpanPendingFrames = 0;
+        }
+        if (++lodSpanPendingFrames >= 12) {
+            return want;
+        }
+        return curLodSpan > 0 ? curLodSpan : want;
+    }
     private float scaleFocusX;
     private float scaleFocusY;
 
@@ -1496,6 +1515,9 @@ public class WorldMapView extends View {
     /** v413：矿石标点图层——v425 起优先用 MC 原版贴图
      *  （assets/ore_textures/<短名>.png，如 diamond_ore.png），
      *  无贴图回退色块菱形（视口内才画，大地图 2 万+ 标点全画会卡）。 */
+    /** v0.4.165（回迁）：矿石层滞回状态（跨 ppb 阈值往返防闪烁）。 */
+    private boolean oreLayerVisible = true;
+
     private void drawOreMarkers(android.graphics.Canvas canvas) {
         if (!showOreLayer || map == null || map.oreMarkers == null
                 || map.oreMarkers.isEmpty()) {
@@ -1504,40 +1526,48 @@ public class WorldMapView extends View {
         // v0.4.113：ppb<0.5 跳过——缩小到全图时 2 万矿石标点
         // 密集超过屏幕分辨率（画了也是噪点糊屏），每帧 2 万个
         // path+draw=主线程 150ms/帧（0.37 倍卡根因主犯）
-        if (pixelsPerBlock < 0.5f) {
+        // v0.4.165（回迁）：滞回（0.5 隐藏 / 0.45 恢复）——捏合跨阈值
+        // 往返时整层忽隐忽现 = 滑动/捏合中矿石闪烁根因
+        if (pixelsPerBlock < (oreLayerVisible ? 0.45f : 0.5f)) {
+            oreLayerVisible = false;
             return;
         }
+        oreLayerVisible = true;
         // v0.4.118：抽稀不限倍率——5.5 倍时小世界视口内仍有
         // 4000+ 矿石点每帧全画（"5.5倍也开始卡"）；点击检测走
-        // 全量列表与绘制无关。视口内超过 1200 个按比例跳画
+        // 全量列表与绘制无关。视口内超过上限按比例跳画
+        // v0.4.168（回迁）：抽稀按「全局列表索引」取模（原按视口遍历
+        // 计数——缩放时视口边界每帧变化→同一矿石序号每帧变→画/不画
+        // 交替=「低于 16 倍率缩放中闪烁、静止只显示部分」根因）；
+        // 上限 1200→3000（「显示不全」缓解，平板可扛）
         int oreStride = 1;
-        if (pixelsPerBlock < 16f && map.oreMarkers.size() > 1500) {
+        if (pixelsPerBlock < 16f && map.oreMarkers.size() > 3000) {
             if (scaling || panning) {
                 // v0.4.138：手势动画中冻结抽稀步长——stride 随视口
                 // 计数每帧跳变=矿石点集合变化=闪烁根因；手势结束重算
                 oreStride = Math.max(1, lastOreStride);
             } else {
                 // v0.4.140：总量近似（省 2 万次计数循环）
-                oreStride = Math.max(1, map.oreMarkers.size() / 1200);
+                oreStride = Math.max(1, map.oreMarkers.size() / 3000);
                 lastOreStride = oreStride;
             }
         }
-        int oreCount = 0;
         drawnOres = 0;
         float r = Math.max(3.5f, pixelsPerBlock * 0.9f);
         // v0.4.123：Path/Paint/RectF 字段复用（每帧新建=GC 抖动）
         android.graphics.Path p = orePath;
         p.reset();
         android.graphics.Paint texPaint = oreTexPaint;
+        int oreIdx = 0;
         for (WorldMapRenderer.OreMarker m : map.oreMarkers) {
+            if ((oreIdx++ % oreStride) != 0) {
+                continue;
+            }
             float sx = offsetX + (m.blockX - map.minBlockX + 0.5f) * pixelsPerBlock;
             float sy = offsetY + (m.blockZ - map.minBlockZ + 0.5f) * pixelsPerBlock;
             // v0.4.138：边缘缓冲 20→60——滑动时矿石点进出边界突然
             // 出现/消失=闪烁的另一半根因
             if (sx < -60 || sx > getWidth() + 60 || sy < -60 || sy > getHeight() + 60) {
-                continue;
-            }
-            if ((oreCount++ % oreStride) != 0) {
                 continue;
             }
             drawnOres++;
@@ -1634,7 +1664,7 @@ public class WorldMapView extends View {
         // v0.4.101：ppb<3 走动态 span 超级块（块像素恒定目标、块屏
         // ~100px），LOD 开关统一控制；ppb≥3 逐 chunk 锐利
         if (lodEnabled && pixelsPerBlock < 3f) {
-            drawChunkLodLayer(canvas, pickLodSpan());
+            drawChunkLodLayer(canvas, stableLodSpan());
             return;
         }
         int viewW = getWidth();
@@ -2840,7 +2870,10 @@ public class WorldMapView extends View {
             // 屏幕上，任何缩放都不跑出视口；此前 world-follow 世界
             // 坐标在特定缩放下换算到屏幕外="老 bug 指针不显示"）。
             // 用户澄清：滑动/捏合中隐藏，正常点击后显示
+            // v0.4.165（回迁）：滑动/捏合中永久清除——不再自动恢复，
+            // 下次点击屏幕才会重新显示（用户要求）
             if (scaling || panning) {
+                tapScreenX = -1f;
                 return;
             }
             sx = tapScreenX;
