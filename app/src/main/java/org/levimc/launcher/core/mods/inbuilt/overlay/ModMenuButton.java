@@ -210,6 +210,9 @@ public class ModMenuButton {
             windowManager.addView(wrapper, wmParams);
             isShowing = true;
             applyOpacity();
+            // v0.4.170：球创建成功诊断（分辨「球不是这个类」vs
+            // 「触摸没到球」）
+            diagDump("SHOW");
             if (restoredAtEdge) {
                 buttonView.post(this::hideToEdge);
             }
