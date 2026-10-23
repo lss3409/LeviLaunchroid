@@ -1536,35 +1536,39 @@ public class WorldMapView extends View {
         oreLayerVisible = true;
         // v0.4.118：抽稀不限倍率——5.5 倍时小世界视口内仍有
         // 4000+ 矿石点每帧全画（"5.5倍也开始卡"）；点击检测走
-        // 全量列表与绘制无关。视口内超过 1200 个按比例跳画
+        // 全量列表与绘制无关。视口内超过上限按比例跳画
+        // v0.4.168：抽稀按「全局列表索引」取模（原按视口遍历计数——
+        // 缩放时视口边界每帧变化→同一矿石序号每帧变→画/不画交替=
+        // 「低于 16 倍率缩放中闪烁、静止只显示部分」根因）；上限
+        // 1200→3000（「显示不全」缓解，平板可扛）
         int oreStride = 1;
-        if (pixelsPerBlock < 16f && map.oreMarkers.size() > 1500) {
+        if (pixelsPerBlock < 16f && map.oreMarkers.size() > 3000) {
             if (scaling || panning) {
                 // v0.4.138：手势动画中冻结抽稀步长——stride 随视口
                 // 计数每帧跳变=矿石点集合变化=闪烁根因；手势结束重算
                 oreStride = Math.max(1, lastOreStride);
             } else {
                 // v0.4.140：总量近似（省 2 万次计数循环）
-                oreStride = Math.max(1, map.oreMarkers.size() / 1200);
+                oreStride = Math.max(1, map.oreMarkers.size() / 3000);
                 lastOreStride = oreStride;
             }
         }
-        int oreCount = 0;
         drawnOres = 0;
         float r = Math.max(3.5f, pixelsPerBlock * 0.9f);
         // v0.4.123：Path/Paint/RectF 字段复用（每帧新建=GC 抖动）
         android.graphics.Path p = orePath;
         p.reset();
         android.graphics.Paint texPaint = oreTexPaint;
+        int oreIdx = 0;
         for (WorldMapRenderer.OreMarker m : map.oreMarkers) {
+            if ((oreIdx++ % oreStride) != 0) {
+                continue;
+            }
             float sx = offsetX + (m.blockX - map.minBlockX + 0.5f) * pixelsPerBlock;
             float sy = offsetY + (m.blockZ - map.minBlockZ + 0.5f) * pixelsPerBlock;
             // v0.4.138：边缘缓冲 20→60——滑动时矿石点进出边界突然
             // 出现/消失=闪烁的另一半根因
             if (sx < -60 || sx > getWidth() + 60 || sy < -60 || sy > getHeight() + 60) {
-                continue;
-            }
-            if ((oreCount++ % oreStride) != 0) {
                 continue;
             }
             drawnOres++;
@@ -2049,23 +2053,17 @@ public class WorldMapView extends View {
         }
         // v0.4.54：遮罩位图路径——单次 drawBitmap（每 chunk 1 像素预渲染，
         // 只含有数据的史莱姆 chunk；缩放任意比例零额外开销）。
-        // 放大（chunkPx>=1）最近邻保持锐利色块；缩小线性滤波避免
-        // 亚像素绿点被最近邻采样丢弃（缩小看全图时史莱姆不可见）
+        // v0.4.168：恒最近邻——线性滤波把 1px 遮罩点平滑成半透明
+        // 斑点（50% 透明度后更明显=「区块变斑点」新 bug 根因）；
+        // 最近邻=锐利方块（区块形式）。极缩小（chunkPx<1）时点可能
+        // 采样丢弃不可见，可接受（主要观察区间 chunkPx≥1）
         if (slimeMaskBitmap != null && !slimeMaskBitmap.isRecycled()) {
             float chunkPx = 16f * pixelsPerBlock;
             float leftX = offsetX + (slimeMaskCx0 * 16L - map.minBlockX) * pixelsPerBlock;
             float topY = offsetY + (slimeMaskCz0 * 16L - map.minBlockZ) * pixelsPerBlock;
             slimeMaskDst.set(leftX, topY,
                     leftX + slimeMaskW * chunkPx, topY + slimeMaskH * chunkPx);
-            if (chunkPx >= 1f) {
-                canvas.drawBitmap(slimeMaskBitmap, null, slimeMaskDst, fullMapPaint);
-            } else {
-                if (slimeMaskSoftPaint == null) {
-                    slimeMaskSoftPaint = new Paint();
-                    slimeMaskSoftPaint.setFilterBitmap(true);
-                }
-                canvas.drawBitmap(slimeMaskBitmap, null, slimeMaskDst, slimeMaskSoftPaint);
-            }
+            canvas.drawBitmap(slimeMaskBitmap, null, slimeMaskDst, fullMapPaint);
             return;
         }
         float chunkPx = 16f * pixelsPerBlock;
