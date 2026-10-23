@@ -311,6 +311,11 @@ public class ModMenuButton {
                 initialTouchY = event.getRawY();
                 isDragging = false;
                 touchDownTime = SystemClock.uptimeMillis();
+                // v0.4.169：点击/按下也写诊断（「碰一下跳左上角」路径
+                // 无拖动事件，之前埋点只在 MOVE 里=日志为空）
+                diagDump("DOWN dragExpanded=" + dragExpanded
+                        + " edgeHidden=" + edgeHidden
+                        + " deepHidden=" + deepHidden);
                 return true;
             case MotionEvent.ACTION_MOVE:
                 float dx = event.getRawX() - initialTouchX;
@@ -388,6 +393,10 @@ public class ModMenuButton {
             case MotionEvent.ACTION_UP:
                 long elapsed = SystemClock.uptimeMillis() - touchDownTime;
                 if (!isDragging && elapsed < TAP_TIMEOUT) {
+                    // v0.4.169：点击路径诊断（「碰一下跳左上角」）
+                    diagDump("UP tap dragExpanded=" + dragExpanded
+                            + " edgeHidden=" + edgeHidden
+                            + " deepOnDown=" + deepOnDown);
                     // v480：深度隐藏态单击只恢复成半隐藏（ACTION_DOWN
                     // 已处理），不打开菜单——双击第二下（此时已是
                     // 半隐藏，按原逻辑）才打开；半隐藏/可见态单击
@@ -396,6 +405,9 @@ public class ModMenuButton {
                         handler.post(this::onButtonClick);
                     }
                 } else if (isDragging) {
+                    // v0.4.169：松手诊断（拖动汇总+窗口状态）
+                    diagDump("UP drag dragExpanded=" + dragExpanded
+                            + " edgeHidden=" + edgeHidden);
                     // v0.4.160d：松手输出分段诊断（一行，日志有界）
                     android.util.Log.i("ModMenuDrag", "diag moves=" + diagMoveCount
                             + " transitHeadAvgMs=" + (diagTransitHeadN > 0
@@ -432,6 +444,39 @@ public class ModMenuButton {
                 return true;
         }
         return false;
+    }
+
+    /** v0.4.169：统一诊断输出——窗口实际位置（getLocationOnScreen）
+     *  与目标位置/translation/状态，双写 logcat+应用私有文件
+     *  （平板 logcat 被 EasyTierMgr 刷爆，文件 run-as cat 可靠）。 */
+    private void diagDump(String tag) {
+        int[] loc = new int[2];
+        String locStr = "n/a";
+        if (wrapperView != null) {
+            try {
+                wrapperView.getLocationOnScreen(loc);
+                locStr = loc[0] + "," + loc[1];
+            } catch (Exception ignored) {
+            }
+        }
+        String msg = "diag[" + tag + "] loc=" + locStr
+                + " wm=" + (wmParams != null ? wmParams.x + "," + wmParams.y : "null")
+                + " wmSize=" + (wmParams != null
+                ? wmParams.width + "x" + wmParams.height : "null")
+                + " trans=" + (buttonView != null
+                ? (int) buttonView.getTranslationX() + ","
+                + (int) buttonView.getTranslationY() : "null");
+        android.util.Log.i("ModMenuDrag", msg);
+        try {
+            java.io.File f = new java.io.File(activity.getFilesDir(), "drag_diag.log");
+            if (f.length() > 64 * 1024) {
+                f.delete();
+            }
+            java.io.FileOutputStream os = new java.io.FileOutputStream(f, true);
+            os.write((msg + "\n").getBytes("UTF-8"));
+            os.close();
+        } catch (Exception ignored) {
+        }
     }
 
     /** v0.4.154：拖动开始——窗口临时扩全屏（仅此一次 relayout），
