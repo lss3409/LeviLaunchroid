@@ -1347,6 +1347,25 @@ public class WorldMapView extends View {
         }
         return span;
     }
+
+    /** v0.4.166：span 选级滞回——帧率自适应（adaptEma）实时波动会让
+     *  pickLodSpan 每帧在 8/16 间抖 → clod 整链 miss 重建 → 矿石等
+     *  叠加层视觉闪烁（「放大不闪缩小闪」=放大不走 LOD 路径）；
+     *  新 span 需连续 12 帧（约 200ms）保持才切换。 */
+    private int lodSpanPending = 0;
+    private int lodSpanPendingFrames = 0;
+
+    private int stableLodSpan() {
+        int want = pickLodSpan();
+        if (want != lodSpanPending) {
+            lodSpanPending = want;
+            lodSpanPendingFrames = 0;
+        }
+        if (++lodSpanPendingFrames >= 12) {
+            return want;
+        }
+        return curLodSpan > 0 ? curLodSpan : want;
+    }
     private float scaleFocusX;
     private float scaleFocusY;
 
@@ -1642,7 +1661,7 @@ public class WorldMapView extends View {
         // v0.4.101：ppb<3 走动态 span 超级块（块像素恒定目标、块屏
         // ~100px），LOD 开关统一控制；ppb≥3 逐 chunk 锐利
         if (lodEnabled && pixelsPerBlock < 3f) {
-            drawChunkLodLayer(canvas, pickLodSpan());
+            drawChunkLodLayer(canvas, stableLodSpan());
             return;
         }
         int viewW = getWidth();
@@ -2592,8 +2611,14 @@ public class WorldMapView extends View {
 
     /** 结构标记（结构图层：村庄房子图标 / 刷怪笼 / 末地传送门）。 */
     private void drawStructures(Canvas canvas) {
-        if (!showStructures || structures.isEmpty() || pixelsPerBlock < 0.5f) {
+        if (!showStructures || structures.isEmpty()) {
             return;
+        }
+        // v0.4.166：ppb<0.5 不再整层跳过（缩小看全图=「结构显示
+        // 一会又消失」根因），改按倍率抽稀（越缩小画得越稀）
+        int structStride = 1;
+        if (pixelsPerBlock < 0.5f) {
+            structStride = Math.max(1, (int) (0.5f / pixelsPerBlock));
         }
         // v0.4.123：Paint 字段复用（此前每帧/每结构新建）
         Paint p = structPaint;
@@ -2603,7 +2628,11 @@ public class WorldMapView extends View {
         Paint labelPaint = pixelsPerBlock >= 0.9f ? structLabelPaint : null;
         Paint iconPaint = structIconPaint;
         drawnStructures = 0;
+        int structCount = 0;
         for (WorldMapRenderer.StructureMarker m : structures) {
+            if ((structCount++ % structStride) != 0) {
+                continue;
+            }
             // v0.4.136：SeedFinder 预测结构（predicted=true）不要求
             // chunk 已渲染——预测位置本就允许未生成区域显示（恢复
             // v0.4.57 设计；v0.4.61 收紧导致"丛林神殿/林地府邸/前哨
