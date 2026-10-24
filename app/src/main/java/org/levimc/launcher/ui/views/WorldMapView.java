@@ -1330,9 +1330,11 @@ public class WorldMapView extends View {
                     return false;
                 }
             };
-    private final java.util.Set<Long> chunkLodPending = new java.util.HashSet<>();
-    // v0.4.122：biome 遮罩位图（slimeMask 同款：每 chunk 4×4 像素
-    // 群系色全图位图，单次 drawBitmap 任意倍率叠加）
+    // v0.4.181：HashSet→ConcurrentHashMap.newKeySet——UI 线程 add/clear
+    // 与 LOD 线程池 remove 并发访问非线程安全集合，HashMap 树化
+    // 竞态=ClassCastException Node→TreeNode（tombstone 0.4.179）
+    private final java.util.Set<Long> chunkLodPending =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
     /** 换图代次——后台块生成结果跨图丢弃（防串污染）。 */
     // volatile：LOD 后台任务开头读它快速丢弃换图/退出后的无用任务
     // （v0.4.114——连续进出世界时静态线程池队列积压任务持有旧
