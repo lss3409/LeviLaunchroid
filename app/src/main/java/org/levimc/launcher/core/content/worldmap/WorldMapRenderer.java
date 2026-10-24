@@ -6395,7 +6395,7 @@ public class WorldMapRenderer {
                 // v0.4.143：低内存设备（手机 536MB heap）跳过独立扫描——
                 // 遮罩位图+px 数组+chunkBiomeColors 双写 ≈50MB+，
                 // 手机地图查看器 OOM 崩溃根因（tombstone 实测 331KB until OOM）
-                if (Runtime.getRuntime().maxMemory() < 768L * 1024 * 1024) {
+                if (Runtime.getRuntime().maxMemory() < 512L * 1024 * 1024) { // v0.4.175：768→512——平板512MB heap被误判跳过群系遮罩（大地图小缩放群系不显示根因）；真低端机仍跳过
                     Log.i(TAG, "biome 独立扫描跳过：低内存设备 maxMemory="
                             + Runtime.getRuntime().maxMemory());
                     return;

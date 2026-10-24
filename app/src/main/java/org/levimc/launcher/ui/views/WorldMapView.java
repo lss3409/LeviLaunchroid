@@ -263,6 +263,22 @@ public class WorldMapView extends View {
 
     /** 设置世界数据；keepView=true 时保留当前缩放与位置（y 轴偏移重载等场景）。 */
     public void setWorldMap(@Nullable WorldMapRenderer.WorldMap map, boolean keepView) {
+        WorldMapRenderer.WorldMap oldMap = this.map;
+        // v0.4.175：同源全图继承——替换 map 无自带全图时，继承旧 map
+        // （RLE 秒开骨架 fQuick/fSkeleton）的全图位图：chunk 地图替换
+        // 后无缝挂载，避免「chunk tile 冷启动=启动器背景空白+渲染
+        // 线程满载 20 帧、缩放才出图」（重开大地图用户实测）。
+        // 切维度 dim 不同不继承（数据不同源）。
+        if (map != null && (map.fullImage == null || map.fullImage.isRecycled())
+                && oldMap != null && oldMap.fullImage != null
+                && !oldMap.fullImage.isRecycled()
+                && sameWorldSource(map, oldMap)) {
+            map.fullImage = oldMap.fullImage;
+            map.fullImageW = oldMap.fullImageW;
+            map.fullImageH = oldMap.fullImageH;
+            map.fullImageBlockScale = oldMap.fullImageBlockScale;
+            oldMap.fullImage = null; // 所有权转移（防二次回收）
+        }
         this.map = map;
         // 换图后旧 tile/LOD 全部失效
         for (Bitmap b : chunkTiles.values()) {
@@ -355,6 +371,15 @@ public class WorldMapView extends View {
         if (fullMapBitmap == null) {
             return;
         }
+        // v0.4.175：新 map 继承同一位图（RLE 同源）——不回收，
+        // installFullMap 稍后重新挂载（setWorldMap 继承流程）
+        if (map != null && map.fullImage == fullMapBitmap) {
+            releaseLodChain();
+            fullMapBitmap = null;
+            fullMapWidth = 0;
+            fullMapHeight = 0;
+            return;
+        }
         releaseLodChain();
         if (lodInFlight > 0) {
             retiredSources.add(fullMapBitmap);
@@ -362,6 +387,15 @@ public class WorldMapView extends View {
             fullMapBitmap.recycle();
         }
         fullMapBitmap = null;
+    }
+
+    /** v0.4.175：两个地图数据同源（同 db 同维度）——全图位图可继承。 */
+    private static boolean sameWorldSource(WorldMapRenderer.WorldMap a,
+                                           WorldMapRenderer.WorldMap b) {
+        if (a == null || b == null) return false;
+        if (a.chunkSourceDim != b.chunkSourceDim) return false;
+        if (a.chunkSourceDir == null || b.chunkSourceDir == null) return false;
+        return a.chunkSourceDir.equals(b.chunkSourceDir);
     }
 
     /** 全图模式绘制：单次 drawBitmap + GPU 变换（零 CPU 重采样）。
