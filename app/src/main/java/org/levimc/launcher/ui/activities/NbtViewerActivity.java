@@ -3331,6 +3331,22 @@ public class NbtViewerActivity extends BaseActivity {
                     });
                 }
                 binding.worldMapImage.setEntityData(fEntities);
+                // v0.4.182：全量解析结果写 maybeParse 缓存——此前
+                // maybeParseEntitiesStructures（图层开关联动）用自己
+                // streaming 解析的少量结果 clear+覆盖全量（StrucDiag
+                // 实测 296→3，「结构显示一会又消失」根因）
+                int loadDimId = "nether".equals(mapDimension) ? 1
+                        : "end".equals(mapDimension) ? 2 : 0;
+                if (fEntities != null) {
+                    synchronized (entityParseCache) {
+                        entityParseCache.put(loadDimId, fEntities);
+                    }
+                }
+                if (fStructures != null) {
+                    synchronized (structureParseCache) {
+                        structureParseCache.put(loadDimId, fStructures);
+                    }
+                }
                 // v427：合并进 currentStructures 并按检测开关过滤——
                 // 直接传 fStructures 会覆盖开关的过滤状态（关检测后
                 // 重进地图，desert_temple/outpost 又出现）
