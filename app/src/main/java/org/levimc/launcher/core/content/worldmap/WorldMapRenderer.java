@@ -3168,6 +3168,11 @@ public class WorldMapRenderer {
     public static Object[] buildSlimeChunkMask(WorldMap map) {
         if (map == null || (map.chunkColors == null && map.colors == null)
                 || (map.chunkColors != null && map.chunkColors.isEmpty())) {
+            Log.i(TAG, "SlimeDiag buildMask: null 输入 map=" + map
+                    + " chunkColors=" + (map != null && map.chunkColors != null
+                            ? map.chunkColors.size() : "null")
+                    + " colors=" + (map != null && map.colors != null
+                            ? map.width + "x" + map.height : "null"));
             return null;
         }
         int cx0 = Math.floorDiv(map.minBlockX, 16);
@@ -3179,6 +3184,7 @@ public class WorldMapRenderer {
         // 在任意缩放下都保持可见区块形式。位图 4 倍边长=16 倍像素，
         // 上限相应收紧（16MB 位图封顶）。
         if ((long) cw * ch > 250_000L) {
+            Log.i(TAG, "SlimeDiag buildMask: 超限 cw*ch=" + ((long) cw * ch));
             // v0.4.55：稀疏大 bounds 世界（下界 chunk 散布 3 万方块）的
             // 包围盒可达 350 万像素=14MB 位图，生成+drawBitmap 太重——
             // 超限返回 null 回退逐块绘制（视口只有几百 chunk，流畅）
@@ -3260,6 +3266,17 @@ public class WorldMapRenderer {
                 }
             }
         }
+        int slimeDrawn = 0;
+        for (int y = 0; y < bmp.getHeight(); y++) {
+            for (int x = 0; x < bmp.getWidth(); x++) {
+                if ((bmp.getPixel(x, y) & 0xFF000000) != 0) {
+                    slimeDrawn++;
+                }
+            }
+        }
+        Log.i(TAG, "SlimeDiag buildMask OK: 位图=" + bmp.getWidth() + "x" + bmp.getHeight()
+                + " 逻辑chunk=" + cw + "x" + ch + " 非透明像素=" + slimeDrawn
+                + " chunkColors=" + (map.chunkColors != null ? map.chunkColors.size() : 0));
         return new Object[]{bmp, cx0, cz0, cw, ch};
     }
 

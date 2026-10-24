@@ -601,6 +601,10 @@ public class WorldMapView extends View {
         slimeMaskCz0 = cz0;
         slimeMaskW = w;
         slimeMaskH = h;
+        android.util.Log.i("WorldMap", "SlimeDiag setSlimeMask: 位图="
+                + (mask != null ? mask.getWidth() + "x" + mask.getHeight() : "null")
+                + " 逻辑=" + w + "x" + h + " 起点chunk=" + cx0 + "," + cz0
+                + " showSlimeChunks=" + showSlimeChunks);
         invalidate();
     }
 

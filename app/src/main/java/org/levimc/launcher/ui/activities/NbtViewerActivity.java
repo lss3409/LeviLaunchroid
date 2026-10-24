@@ -3364,11 +3364,11 @@ public class NbtViewerActivity extends BaseActivity {
             // v0.4.114：initialFitAll 按维度（主世界大图 fit 起步）
             binding.worldMapImage.initialFitAll = "overworld".equals(mapDimension);
             binding.worldMapImage.setWorldMap(worldMap, skeletonShown);
-            // v0.4.113：普通世界打开恢复视图记忆
-            // （骨架已显示则保持视角不跳）
-            if (!skeletonShown) {
-                restoreMapViewMemory();
-            }
+            // v0.4.113：普通世界打开恢复视图记忆。
+            // v0.4.177：无条件恢复——此前骨架（RLE 秒开）显示时跳过，
+            // 打开停在 fit 出生点/中心（「默认打开位置阴间」根因）；
+            // 骨架数据是全量 RLE，恢复上次位置有效（用户反馈没生效）
+            restoreMapViewMemory();
             scheduleBiomePrescan(worldMap);
             // v0.4.151：烘焙健康检测（渲染校正——纯色块占比）
             scheduleBakeHealthCheck(worldMap);
