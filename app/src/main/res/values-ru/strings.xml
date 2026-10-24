@@ -2034,4 +2034,9 @@
     <string name="scan_folder_pick">Pick from file manager</string>
     <string name="scan_folder_pick_failed">Cannot open file manager, please enter the path manually</string>
     <string name="scan_folder_not_dir">Path does not exist or is not a folder</string>
+    <string name="scan_folder_new">New folder</string>
+    <string name="scan_folder_select">Select</string>
+    <string name="scan_folder_apply">Apply</string>
+    <string name="scan_folder_confirm">Delete</string>
+    <string name="scan_folder_delete_confirm">Delete folder "%1$s"?</string>
 </resources>

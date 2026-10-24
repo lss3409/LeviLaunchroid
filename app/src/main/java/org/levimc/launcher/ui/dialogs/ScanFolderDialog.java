@@ -1,10 +1,9 @@
 package org.levimc.launcher.ui.dialogs;
 
-import android.app.Activity;
 import android.content.Context;
-import android.content.Intent;
 import android.net.Uri;
-import android.text.InputType;
+import android.text.TextWatcher;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
@@ -18,6 +17,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.snackbar.Snackbar;
 
 import org.json.JSONArray;
 import org.levimc.launcher.R;
@@ -29,12 +29,13 @@ import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.List;
 
-/** v0.4.178：扫描指定文件夹——内容管理导入的补充入口（贴图按钮）。
- *  多选文件夹持久化（JSON），添加走「自定义存储路径」样式输入框
- *  （空文本+hint 示例）+ SAF 文件管理器选择；创建/删除交互参照
- *  自定义超平坦方案（列表条目+移除按钮）。扫描复用
- *  GlobalImportScanner.scanDirsAsync，结果进 foundSoFar 供
- *  ImportPickerDialog 读取。 */
+/** v0.4.179：扫描指定文件夹——入口在导入菜单（ImportPickerDialog）。
+ *  交互完全按用户指定：
+ *  · 新建文件夹 → 列表生成带文本框的空实例 + 「选择/应用」双态按钮
+ *    （复用存储自定义路径逻辑：空=选择，有文本=应用，当前路径在
+ *    hint；选择=SAF 文件管理器选目录自动应用）
+ *  · 删除 → 气泡确认框（Snackbar「删除此文件夹？」+确认）
+ *  · 扫描复用 GlobalImportScanner.scanDirsAsync，结果走 foundSoFar */
 public final class ScanFolderDialog {
 
     private static final String PREFS = "import_scan_folders";
@@ -70,16 +71,33 @@ public final class ScanFolderDialog {
                 .putString(KEY_DIRS, arr.toString()).apply();
     }
 
+    /** SAF 树 uri → 真实路径（primary: 段解析；失败返回 null 手输兜底）。 */
+    private static String safTreeToPath(Uri uri) {
+        try {
+            String seg = uri.getLastPathSegment();
+            if (seg == null || !seg.startsWith("primary:")) {
+                return null;
+            }
+            String rel = URLDecoder.decode(seg.substring("primary:".length()), "UTF-8");
+            String base = android.os.Environment.getExternalStorageDirectory().getAbsolutePath();
+            return base + "/" + rel;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     /** 打开指定文件夹管理弹窗；扫描完成后回调结果并自动关闭。 */
-    public static void show(androidx.activity.ComponentActivity activity, OnScanListener listener) {
+    public static void show(androidx.activity.ComponentActivity activity,
+                            OnScanListener listener) {
         if (activity.isFinishing() || activity.isDestroyed()) {
             return;
         }
         List<String> dirs = new ArrayList<>(loadFolders(activity));
+        float density = activity.getResources().getDisplayMetrics().density;
+        int pad = (int) (12 * density);
 
         LinearLayout root = new LinearLayout(activity);
         root.setOrientation(LinearLayout.VERTICAL);
-        int pad = (int) (12 * activity.getResources().getDisplayMetrics().density);
         root.setPadding(pad, 0, pad, 0);
 
         TextView hint = new TextView(activity);
@@ -89,44 +107,73 @@ public final class ScanFolderDialog {
         hint.setPadding(0, pad, 0, pad);
         root.addView(hint);
 
-        // 文件夹列表（ScrollView + 动态条目，超平坦式条目+删除）
+        // 文件夹列表（ScrollView + 动态条目）
         ScrollView scroll = new ScrollView(activity);
         LinearLayout list = new LinearLayout(activity);
         list.setOrientation(LinearLayout.VERTICAL);
         scroll.addView(list, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        // 列表限高：条目多时滚动（弹窗限高同理）
-        scroll.getLayoutParams();
         root.addView(scroll, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, (int) (220 * activity.getResources().getDisplayMetrics().density)));
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                (int) (240 * density)));
 
         final List<String> fDirs = dirs;
         final LinearLayout fList = list;
         final CustomAlertDialog[] dialogRef = new CustomAlertDialog[1];
-
         final Runnable[] redrawRef = new Runnable[1];
+        // SAF 选目录（空实例「选择」按钮用；应用对象引用）
+        final EditText[] safTargetRef = new EditText[1];
+        ActivityResultLauncher<Uri> treeLauncher = activity.registerForActivityResult(
+                new ActivityResultContracts.OpenDocumentTree(), uri -> {
+                    if (uri != null) {
+                        String path = safTreeToPath(uri);
+                        if (path != null && safTargetRef[0] != null) {
+                            safTargetRef[0].setText(path);
+                            // 选完自动应用（存储路径同款：选完直接应用）
+                            applyNewFolder(activity, fDirs, safTargetRef[0], redrawRef[0]);
+                        }
+                    }
+                });
+
         redrawRef[0] = () -> {
             fList.removeAllViews();
             for (int i = 0; i < fDirs.size(); i++) {
                 final int idx = i;
                 LinearLayout row = new LinearLayout(activity);
                 row.setOrientation(LinearLayout.HORIZONTAL);
-                row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                row.setGravity(Gravity.CENTER_VERTICAL);
                 TextView path = new TextView(activity);
                 path.setText(fDirs.get(idx));
                 path.setTextColor(activity.getColor(R.color.on_surface));
                 path.setTextSize(13f);
-                path.setPadding(0, (int) (6 * activity.getResources().getDisplayMetrics().density), 0,
-                        (int) (6 * activity.getResources().getDisplayMetrics().density));
+                path.setPadding(0, (int) (6 * density), 0, (int) (6 * density));
                 ImageButton del = new ImageButton(activity);
                 del.setImageResource(R.drawable.ic_delete);
-                del.setBackgroundResource(android.R.attr.borderlessButtonStyle);
+                // v0.4.179：selectableItemBackgroundBorderless 必须
+                // resolveAttribute 拿 drawable ID——直接 setBackgroundResource
+                // (android.R.attr.borderlessButtonStyle) 把 attr 当 drawable
+                // 用 = ResourcesNotFoundException（tombstone 0.4.177）
+                android.util.TypedValue tv = new android.util.TypedValue();
+                activity.getTheme().resolveAttribute(
+                        android.R.attr.selectableItemBackgroundBorderless, tv, true);
+                del.setBackgroundResource(tv.resourceId);
                 del.setColorFilter(0xFF8A8A8A);
                 del.setContentDescription(activity.getString(R.string.scan_folder_remove));
                 del.setOnClickListener(v -> {
-                    fDirs.remove(idx);
-                    saveFolders(activity, fDirs);
-                    redrawRef[0].run();
+                    // 气泡删除确认（用户指定）
+                    Snackbar.make(activity.findViewById(android.R.id.content),
+                                    activity.getString(R.string.scan_folder_delete_confirm,
+                                            fDirs.get(idx)),
+                                    Snackbar.LENGTH_LONG)
+                            .setAction(R.string.scan_folder_confirm, view -> {
+                                fDirs.remove(idx);
+                                saveFolders(activity, fDirs);
+                                redrawRef[0].run();
+                            })
+                            .setActionTextColor(
+                                    new org.levimc.launcher.util.PersonalizationManager(activity)
+                                            .getAccentColor())
+                            .show();
                 });
                 row.addView(path, new LinearLayout.LayoutParams(
                         0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
@@ -139,19 +186,19 @@ public final class ScanFolderDialog {
                 empty.setText(R.string.scan_folder_empty);
                 empty.setTextColor(activity.getColor(R.color.text_secondary));
                 empty.setTextSize(13f);
-                empty.setPadding(0, (int) (8 * activity.getResources().getDisplayMetrics().density), 0, 0);
+                empty.setPadding(0, (int) (8 * density), 0, 0);
                 fList.addView(empty);
             }
         };
         redrawRef[0].run();
 
-        // 底部操作行：添加 + 开始扫描（MaterialButton + AccentStyler）
+        // 底部操作行：新建文件夹 + 开始扫描
         LinearLayout actions = new LinearLayout(activity);
         actions.setOrientation(LinearLayout.HORIZONTAL);
         actions.setPadding(0, pad, 0, 0);
         MaterialButton add = new MaterialButton(activity, null,
                 com.google.android.material.R.attr.materialButtonStyle);
-        add.setText(R.string.scan_folder_add);
+        add.setText(R.string.scan_folder_new);
         add.setAllCaps(false);
         add.setLayoutParams(new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
@@ -169,12 +216,66 @@ public final class ScanFolderDialog {
         actions.addView(scan);
         root.addView(actions);
 
-        add.setOnClickListener(v -> showAddDialog(activity, fDirs, save -> {
-            if (save) {
-                saveFolders(activity, fDirs);
-                redrawRef[0].run();
+        // 新建文件夹：追加带文本框的空实例条目（选择/应用双态按钮）
+        final boolean[] instanceOpen = {false};
+        add.setOnClickListener(v -> {
+            if (instanceOpen[0]) {
+                return; // 已有未应用的空实例
             }
-        }));
+            instanceOpen[0] = true;
+            fList.removeAllViews();
+            // 先重画已有条目
+            redrawRef[0].run();
+            // 空实例行：文本框 + 选择/应用
+            LinearLayout row = new LinearLayout(activity);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            EditText input = new EditText(activity);
+            input.setHint(R.string.scan_folder_input_hint);
+            input.setSingleLine(true);
+            input.setTextSize(13f);
+            input.setTextColor(activity.getColor(R.color.on_surface));
+            input.setHintTextColor(activity.getColor(R.color.text_secondary));
+            MaterialButton pick = new MaterialButton(activity, null,
+                    com.google.android.material.R.attr.materialButtonStyle);
+            pick.setAllCaps(false);
+            // v0.4.23 双态逻辑：空=「选择」（开文件管理器，选完自动
+            // 应用）/有文本=「应用」（应用输入内容）
+            pick.setText(R.string.scan_folder_select);
+            AccentStyler.stylePrimary(activity, pick);
+            final MaterialButton fPick = pick;
+            input.addTextChangedListener(new TextWatcher() {
+                @Override public void beforeTextChanged(CharSequence s, int st, int ct, int af) {}
+                @Override public void onTextChanged(CharSequence s, int st, int bf, int ct) {
+                    fPick.setText(input.getText().toString().trim().isEmpty()
+                            ? R.string.scan_folder_select
+                            : R.string.scan_folder_apply);
+                }
+                @Override public void afterTextChanged(android.text.Editable s) {}
+            });
+            pick.setOnClickListener(pv -> {
+                if (input.getText().toString().trim().isEmpty()) {
+                    safTargetRef[0] = input;
+                    try {
+                        treeLauncher.launch(null);
+                    } catch (Exception e) {
+                        Toast.makeText(activity, R.string.scan_folder_pick_failed,
+                                Toast.LENGTH_SHORT).show();
+                    }
+                } else {
+                    if (applyNewFolder(activity, fDirs, input, redrawRef[0])) {
+                        instanceOpen[0] = false;
+                    }
+                }
+            });
+            row.addView(input, new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            LinearLayout.LayoutParams bLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            bLp.setMarginStart((int) (8 * density));
+            row.addView(pick, bLp);
+            fList.addView(row);
+        });
 
         scan.setOnClickListener(v -> {
             if (fDirs.isEmpty()) {
@@ -184,19 +285,15 @@ public final class ScanFolderDialog {
             if (dialogRef[0] != null) {
                 dialogRef[0].dismiss();
             }
-            // 结果给 ImportPickerDialog 的缓存/实时读取通道
-            GlobalImportScanner.scanDirsAsync(toFiles(fDirs),
+            List<File> roots = new ArrayList<>();
+            for (String d : fDirs) {
+                roots.add(new File(d));
+            }
+            GlobalImportScanner.scanDirsAsync(roots,
                     new GlobalImportScanner.Listener() {
-                        @Override
-                        public void onFound(GlobalImportScanner.Candidate c) {
-                        }
-
-                        @Override
-                        public void onProgress(String path) {
-                        }
-
-                        @Override
-                        public void onDone(List<GlobalImportScanner.Candidate> result) {
+                        @Override public void onFound(GlobalImportScanner.Candidate c) {}
+                        @Override public void onProgress(String path) {}
+                        @Override public void onDone(List<GlobalImportScanner.Candidate> result) {
                             activity.runOnUiThread(() -> {
                                 if (listener != null) {
                                     listener.onScanDone(result);
@@ -214,119 +311,23 @@ public final class ScanFolderDialog {
         dialog.show();
     }
 
-    private static List<File> toFiles(List<String> dirs) {
-        List<File> out = new ArrayList<>();
-        for (String d : dirs) {
-            out.add(new File(d));
+    /** 应用空实例的输入：校验目录存在 → 加入列表并重画；失败提示。 */
+    private static boolean applyNewFolder(Context activity, List<String> dirs,
+                                          EditText input, Runnable redraw) {
+        String path = input.getText().toString().trim();
+        if (path.isEmpty()) {
+            return false;
         }
-        return out;
-    }
-
-    /** 添加文件夹弹窗：自定义存储路径样式输入框（空文本+hint 示例）
-     *  + SAF 文件管理器选择 + 添加。 */
-    private static void showAddDialog(androidx.activity.ComponentActivity activity, List<String> dirs,
-                                      java.util.function.Consumer<Boolean> onSaved) {
-        LinearLayout root = new LinearLayout(activity);
-        root.setOrientation(LinearLayout.VERTICAL);
-        int pad = (int) (12 * activity.getResources().getDisplayMetrics().density);
-        root.setPadding(pad, pad, pad, 0);
-
-        EditText input = new EditText(activity);
-        input.setHint(R.string.scan_folder_input_hint);
-        input.setSingleLine(true);
-        input.setInputType(InputType.TYPE_CLASS_TEXT);
-        input.setTextSize(13f);
-        input.setTextColor(activity.getColor(R.color.on_surface));
-        input.setHintTextColor(activity.getColor(R.color.text_secondary));
-        root.addView(input);
-
-        LinearLayout row = new LinearLayout(activity);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setPadding(0, pad, 0, 0);
-        MaterialButton pick = new MaterialButton(activity, null,
-                com.google.android.material.R.attr.materialButtonStyle);
-        pick.setText(R.string.scan_folder_pick);
-        pick.setAllCaps(false);
-        pick.setLayoutParams(new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        AccentStyler.styleSecondary(activity, pick);
-        MaterialButton confirm = new MaterialButton(activity, null,
-                com.google.android.material.R.attr.materialButtonStyle);
-        confirm.setText(R.string.scan_folder_add);
-        confirm.setAllCaps(false);
-        LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        cLp.setMarginStart(pad / 2);
-        confirm.setLayoutParams(cLp);
-        AccentStyler.stylePrimary(activity, confirm);
-        row.addView(pick);
-        row.addView(confirm);
-        root.addView(row);
-
-        CustomAlertDialog dialog = new CustomAlertDialog(activity)
-                .setTitleText(activity.getString(R.string.scan_folder_add_title))
-                .setCustomView(root)
-                .setNegativeButton(activity.getString(R.string.cancel), null);
-        dialog.show();
-
-        final CustomAlertDialog fDialog = dialog;
-        pick.setOnClickListener(v -> {
-            // SAF 文档树选择（primary: 段解析为主存储真实路径）
-            try {
-                ActivityResultLauncher<Intent> launcher =
-                        activity.registerForActivityResult(
-                                new ActivityResultContracts.StartActivityForResult(),
-                                result -> {
-                                    Intent data = result.getData();
-                                    if (data != null && data.getData() != null) {
-                                        String path = safTreeToPath(data.getData());
-                                        if (path != null) {
-                                            input.setText(path);
-                                        }
-                                    }
-                                });
-                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                launcher.launch(intent);
-            } catch (Exception e) {
-                Toast.makeText(activity, R.string.scan_folder_pick_failed,
-                        Toast.LENGTH_SHORT).show();
-            }
-        });
-        confirm.setOnClickListener(v -> {
-            String path = input.getText().toString().trim();
-            if (path.isEmpty()) {
-                Toast.makeText(activity, R.string.scan_folder_input_hint,
-                        Toast.LENGTH_SHORT).show();
-                return;
-            }
-            File f = new File(path);
-            if (!f.isDirectory()) {
-                Toast.makeText(activity, R.string.scan_folder_not_dir,
-                        Toast.LENGTH_SHORT).show();
-                return;
-            }
-            if (!dirs.contains(path)) {
-                dirs.add(path);
-            }
-            fDialog.dismiss();
-            onSaved.accept(true);
-        });
-    }
-
-    /** SAF 树 uri → 真实路径（主存储 primary:Download%2Fmods →
-     *  /storage/emulated/0/Download/mods；解析不了返回 null 手输兜底）。 */
-    private static String safTreeToPath(Uri uri) {
-        try {
-            String seg = uri.getLastPathSegment();
-            if (seg == null || !seg.startsWith("primary:")) {
-                return null;
-            }
-            String rel = URLDecoder.decode(seg.substring("primary:".length()), "UTF-8");
-            String base = android.os.Environment.getExternalStorageDirectory().getAbsolutePath();
-            return base + "/" + rel;
-        } catch (Exception e) {
-            return null;
+        File f = new File(path);
+        if (!f.isDirectory()) {
+            Toast.makeText(activity, R.string.scan_folder_not_dir, Toast.LENGTH_SHORT).show();
+            return false;
         }
+        if (!dirs.contains(path)) {
+            dirs.add(path);
+        }
+        saveFolders(activity, dirs);
+        redraw.run();
+        return true;
     }
 }

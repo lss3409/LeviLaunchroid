@@ -1921,7 +1921,10 @@ public class NbtViewerActivity extends BaseActivity {
                 + " cacheHasBiome=" + fMap.cacheHasBiome);
         // v0.4.143：低内存设备跳过遮罩与独立扫描（≈50MB+ 附加内存，
         // 手机 OOM 根因）——群系层在放大路径仍由 tile 显示
-        if (lowMemDevice()) {
+        // v0.4.179：门槛 768→512——平板 512MB heap 被外层拦截，扫描
+        // 根本没启动（scanBiomeMaskAsync 内部 512 修复够不着）；
+        // 真低端机（256/384MB）仍跳过
+        if (Runtime.getRuntime().maxMemory() < 512L * 1024 * 1024) {
             android.util.Log.i("NbtViewer", "refreshBiomeMask SKIP lowMem");
             return;
         }

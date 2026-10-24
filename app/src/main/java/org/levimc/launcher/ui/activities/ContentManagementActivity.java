@@ -133,11 +133,6 @@ public class ContentManagementActivity extends BaseActivity {
         // v602/v707：导入按钮走全局扫描可视化
         // 选择（存档/资源包/行为包/结构），兜底走原文件管理器
         binding.importContentButton.setOnClickListener(v -> showImportPicker());
-        // v0.4.178：扫描指定文件夹入口（贴图按钮）——扫描完成后
-        // 打开导入弹窗展示结果（foundSoFar 通道）
-        binding.scanFolderButton.setOnClickListener(v ->
-                org.levimc.launcher.ui.dialogs.ScanFolderDialog.show(this,
-                        result -> showImportPicker()));
         binding.versionText.setOnClickListener(v -> showVersionPicker());
         // v0.0.23：共享文件夹按钮恢复为进入共享文件夹视图——导入菜单由
         // 共享文件夹内部的导入按钮触发（v707 误把这里绑成导入菜单）

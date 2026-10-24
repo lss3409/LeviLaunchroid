@@ -328,6 +328,45 @@ public class ImportPickerDialog {
             return false;
         });
 
+        // v0.4.179：扫描指定文件夹入口（导入菜单内——用户指定位置）
+        final Dialog fDialog0 = dialog;
+        LinearLayout scanEntry = new LinearLayout(context);
+        scanEntry.setOrientation(LinearLayout.HORIZONTAL);
+        scanEntry.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        scanEntry.setPadding((int) (14 * density), (int) (8 * density),
+                (int) (14 * density), (int) (8 * density));
+        scanEntry.setBackground(roundBg(context, cardBg));
+        android.graphics.drawable.Drawable scanIcon =
+                context.getDrawable(R.drawable.ic_folder_scan);
+        if (scanIcon != null) {
+            scanIcon.setTint(0xFF8A8A8A); // 图标灰（内容管理同款）
+            scanIcon.setBounds(0, 0, (int) (22 * density), (int) (22 * density));
+        }
+        TextView scanLabel = new TextView(context);
+        scanLabel.setText(R.string.scan_folder_title);
+        scanLabel.setTextColor(textMain);
+        scanLabel.setTextSize(14f);
+        scanLabel.setCompoundDrawables(scanIcon, null, null, null);
+        scanLabel.setCompoundDrawablePadding((int) (8 * density));
+        scanEntry.addView(scanLabel, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView scanGo = new TextView(context);
+        scanGo.setText("›");
+        scanGo.setTextColor(textSub);
+        scanGo.setTextSize(18f);
+        scanEntry.addView(scanGo);
+        LinearLayout.LayoutParams seLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        seLp.topMargin = (int) (8 * density);
+        root.addView(scanEntry, seLp);
+        scanEntry.setOnClickListener(v -> {
+            fDialog0.dismiss();
+            if (context instanceof androidx.activity.ComponentActivity) {
+                ScanFolderDialog.show((androidx.activity.ComponentActivity) context,
+                        result -> show(context, listener));
+            }
+        });
+
         // v610：分类卡固定区（吸顶，条目滚动时始终显示）
         LinearLayout cardsHost = new LinearLayout(context);
         cardsHostView = cardsHost;

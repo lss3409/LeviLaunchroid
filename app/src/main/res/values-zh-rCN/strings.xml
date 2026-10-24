@@ -1908,4 +1908,9 @@
     <string name="scan_folder_pick">文件管理器选择</string>
     <string name="scan_folder_pick_failed">无法打开文件管理器，请手动输入路径</string>
     <string name="scan_folder_not_dir">路径不存在或不是文件夹</string>
+    <string name="scan_folder_new">新建文件夹</string>
+    <string name="scan_folder_select">选择</string>
+    <string name="scan_folder_apply">应用</string>
+    <string name="scan_folder_confirm">删除</string>
+    <string name="scan_folder_delete_confirm">删除文件夹「%1$s」？</string>
 </resources>
