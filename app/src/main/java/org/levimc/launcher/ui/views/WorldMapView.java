@@ -681,6 +681,29 @@ public class WorldMapView extends View {
         // removeIf 静默修改（结构开关"关掉不显示"的帮凶）
         this.structures = structures != null
                 ? new ArrayList<>(structures) : new ArrayList<>();
+        // v0.4.182：结构消失诊断——每次设置打总数+预测数+调用栈
+        // 前 3 帧（哪个调用点在清结构一目了然）
+        int predicted = 0;
+        for (WorldMapRenderer.StructureMarker m : this.structures) {
+            if (m.predicted) {
+                predicted++;
+            }
+        }
+        StackTraceElement[] st = Thread.currentThread().getStackTrace();
+        StringBuilder sb = new StringBuilder("StrucDiag setMarkers total=")
+                .append(this.structures.size()).append(" predicted=").append(predicted);
+        int shown = 0;
+        for (int i = 3; i < st.length && shown < 3; i++) {
+            String cn = st[i].getClassName();
+            if (cn.startsWith("java.") || cn.startsWith("android.")) {
+                continue;
+            }
+            sb.append(" <- ").append(cn.substring(cn.lastIndexOf('.') + 1))
+                    .append(".").append(st[i].getMethodName())
+                    .append(":").append(st[i].getLineNumber());
+            shown++;
+        }
+        android.util.Log.i("WorldMap", sb.toString());
         invalidate();
     }
 
