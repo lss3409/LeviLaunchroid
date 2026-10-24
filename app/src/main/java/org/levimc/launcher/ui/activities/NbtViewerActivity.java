@@ -431,6 +431,10 @@ public class NbtViewerActivity extends BaseActivity {
             if (checked) {
                 refreshBiomeMask();
             }
+            // v0.4.180：切换后重拼全图纹理（compose 含/不含群系色）
+            if (currentMap != null && binding != null) {
+                composeFullMapAsync(currentMap);
+            }
             // v418：biome 数据延迟读（v20 拆分文件）——开启图层且
             // 内存无数据时后台读 biome 缓存
             if (checked && currentMap != null && currentWorldDir != null
@@ -1944,45 +1948,32 @@ public class NbtViewerActivity extends BaseActivity {
                         if (!self.isFinishing() && !self.isDestroyed()
                                 && self.currentMap == fMap
                                 && self.binding.layerBiome.isChecked()) {
-                            self.binding.worldMapImage.setBiomeMaskPixels(batch);
-                            // v0.4.129：扫描批次到达时节流重建 chunk
-                            // tile——chunkBiomeColors 已填充，放大路径
-                            // tile 直接显示精细群系（不再是 1px/chunk
-                            // 蒙版马赛克）
+                            // v0.4.180：扫描双写 chunkBiomeColors 已填充，
+                            // 节流重建 tile+LOD 块（渐进群系显示；
+                            // 遮罩位图路径删除）
                             long now = android.os.SystemClock.uptimeMillis();
                             if (now - self.lastBiomeTileRefresh >= 2000) {
                                 self.lastBiomeTileRefresh = now;
-                                self.binding.worldMapImage.clearChunkData();
+                                self.binding.worldMapImage.refreshBiomeTiles();
                             }
                             // v0.4.133：最后一字节判断——扫描线程已死=
                             // 批次全部到达，读取状态清除
                             if (self.biomeScanThread == null
                                     || !self.biomeScanThread.isAlive()) {
+                                self.binding.worldMapImage.refreshBiomeTiles();
                                 self.binding.worldMapImage.setReadStatus(null);
                             }
-                        } else {
-                            ((android.graphics.Bitmap) batch[0]).recycle();
                         }
                     }));
             return;
         }
+        // v0.4.180：遮罩位图体系删除——缓存群系加载完成后直接
+        // 重建 tile+LOD（chunkBiomeColors 数据源渲染）
         renderPool.execute(() -> {
-            Object[] mask = WorldMapRenderer.buildBiomeChunkMask(fMap);
-            android.util.Log.i("NbtViewer", "buildBiomeChunkMask="
-                    + (mask != null ? ("OK " + ((Integer) mask[3])
-                    + "x" + ((Integer) mask[4])) : "NULL"));
-            if (mask == null) {
-                return;
-            }
             runOnUiThread(() -> {
                 if (!isFinishing() && !isDestroyed() && currentMap == fMap
                         && binding.layerBiome.isChecked()) {
-                    binding.worldMapImage.setBiomeMask(
-                            (android.graphics.Bitmap) mask[0],
-                            (Integer) mask[1], (Integer) mask[2],
-                            (Integer) mask[3], (Integer) mask[4]);
-                } else {
-                    ((android.graphics.Bitmap) mask[0]).recycle();
+                    binding.worldMapImage.refreshBiomeTiles();
                 }
             });
         });
@@ -2663,7 +2654,7 @@ public class NbtViewerActivity extends BaseActivity {
                 // v0.4.98：尺寸上限用户可调（prefs compose_max_dim，
                 // 默认 4096；大地图卡就调小如 2048）
                 full = org.levimc.launcher.core.content.worldmap.MapImageComposer
-                        .compose(targetMap, composeMaxDim());
+                        .compose(targetMap, composeMaxDim(), binding.layerBiome.isChecked());
             } catch (OutOfMemoryError oom) {
                 // v0.4.143：低内存设备全图位图分配失败不崩——
                 // 保持 chunk 路径渲染（手机 OOM tombstone 防护）

@@ -17,11 +17,19 @@ public final class MapImageComposer {
 
     /** 拼整图像素：返回 {width, height, pixels...}（降采样后）。无数据返回 null。 */
     public static int[] compose(WorldMapRenderer.WorldMap map) {
-        return compose(map, MAX_DIM);
+        return compose(map, MAX_DIM, false);
     }
 
     /** v0.4.73：可指定边长上限（HTML 导出放宽到 8192 保清晰度）。 */
     public static int[] compose(WorldMapRenderer.WorldMap map, int maxDim) {
+        return compose(map, maxDim, false);
+    }
+
+    /** v0.4.180：useBiome=true 时群系图层开启——chunk 色直接换成
+     *  chunkBiomeColors（与 tile/LOD 路径同款替代，群系显示重写
+     *  统一数据源）。 */
+    public static int[] compose(WorldMapRenderer.WorldMap map, int maxDim,
+                                boolean useBiome) {
         if (map == null || map.width <= 0 || map.height <= 0) {
             return null;
         }
@@ -55,12 +63,23 @@ public final class MapImageComposer {
             return null;
         }
         // 大世界：遍历 chunk 填充（像素色缓存在 16×16 int[] 中）
+        // v0.4.180：群系图层开启时 chunk 色换成 chunkBiomeColors
+        // （tile/LOD 同款替代——全图纹理也统一群系数据源）
+        java.util.Map<Long, int[]> biomeSrc =
+                (useBiome && map.chunkBiomeColors != null)
+                        ? map.chunkBiomeColors : null;
         for (java.util.Map.Entry<Long, int[]> e : map.chunkColors.entrySet()) {
             int cx = (int) (e.getKey() >> 32);
             int cz = (int) (long) e.getKey();
             int[] chunk = e.getValue();
             if (chunk == null || chunk.length < 256) {
                 continue;
+            }
+            if (biomeSrc != null) {
+                int[] bc = biomeSrc.get(e.getKey());
+                if (bc != null && bc.length >= 256) {
+                    chunk = bc;
+                }
             }
             int baseBx = cx * 16;
             int baseBz = cz * 16;
