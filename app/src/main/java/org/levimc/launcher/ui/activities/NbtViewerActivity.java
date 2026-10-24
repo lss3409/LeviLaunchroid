@@ -1834,7 +1834,7 @@ public class NbtViewerActivity extends BaseActivity {
                         currentStructures.addAll(cached);
                         if ("overworld".equals(mapDimension)) {
                             synchronized (seedStructures) {
-                                currentStructures.addAll(seedStructures);
+                                currentStructures.addAll(filterPredictedStructures(seedStructures, currentMap));
                             }
                         }
                     }
@@ -1858,7 +1858,7 @@ public class NbtViewerActivity extends BaseActivity {
                                     currentStructures.addAll(strs);
                                     if ("overworld".equals(mapDimension)) {
                                         synchronized (seedStructures) {
-                                            currentStructures.addAll(seedStructures);
+                                            currentStructures.addAll(filterPredictedStructures(seedStructures, currentMap));
                                         }
                                     }
                                 }
@@ -1952,7 +1952,7 @@ public class NbtViewerActivity extends BaseActivity {
                             // 节流重建 tile+LOD 块（渐进群系显示；
                             // 遮罩位图路径删除）
                             long now = android.os.SystemClock.uptimeMillis();
-                            if (now - self.lastBiomeTileRefresh >= 2000) {
+                            if (now - self.lastBiomeTileRefresh >= 10000) { // v0.4.186：2s→10s——频繁清LOD重建=「隔一会刷新一下+卡」
                                 self.lastBiomeTileRefresh = now;
                                 self.binding.worldMapImage.refreshBiomeTiles();
                             }
@@ -2168,7 +2168,7 @@ public class NbtViewerActivity extends BaseActivity {
                                 // clear 会把标记清掉——"一闪而过"根因）
                                 if ("overworld".equals(mapDimension)) {
                                     synchronized (seedStructures) {
-                                        currentStructures.addAll(seedStructures);
+                                        currentStructures.addAll(filterPredictedStructures(seedStructures, currentMap));
                                     }
                                 }
                             }
@@ -2472,7 +2472,7 @@ public class NbtViewerActivity extends BaseActivity {
                         // （切维度回来不丢）
                         if ("overworld".equals(mapDimension)) {
                             synchronized (seedStructures) {
-                                currentStructures.addAll(seedStructures);
+                                currentStructures.addAll(filterPredictedStructures(seedStructures, currentMap));
                             }
                         }
                     }
@@ -2773,7 +2773,9 @@ public class NbtViewerActivity extends BaseActivity {
                     if ("overworld".equals(mapDimension)) {
                         synchronized (currentStructures) {
                             currentStructures.removeIf(m -> seedFromSet(m));
-                            currentStructures.addAll(found);
+                            // v0.4.186：预测结构止步已渲染区块（用户定案）
+                            currentStructures.addAll(
+                                    filterPredictedStructures(found, currentMap));
                         }
                         dedupeStructures(); binding.worldMapImage.setStructureMarkers(
                                 new java.util.ArrayList<>(currentStructures));
@@ -2862,10 +2864,36 @@ public class NbtViewerActivity extends BaseActivity {
             }
             if ("overworld".equals(mapDimension) && currentMap != null) {
                 synchronized (seedStructures) {
-                    currentStructures.addAll(seedStructures);
+                    currentStructures.addAll(filterPredictedStructures(seedStructures, currentMap));
                 }
             }
         }
+    }
+
+    /** v0.4.186（用户拍板定案）：SeedFinder 种子预测结构过滤——只保留
+     *  「已渲染区块」（chunkColors 有数据）上的预测结构；未加载区块
+     *  （背景）不显示结构。此前多版反复（v0.4.165 加过滤→v0.4.172
+     *  回滚→v0.4.186 恢复），最终定案：止步已渲染区块。 */
+    private java.util.List<WorldMapRenderer.StructureMarker> filterPredictedStructures(
+            java.util.List<WorldMapRenderer.StructureMarker> all,
+            WorldMapRenderer.WorldMap m) {
+        java.util.List<WorldMapRenderer.StructureMarker> out =
+                new java.util.ArrayList<>();
+        if (m == null || m.chunkColors == null) {
+            return out;
+        }
+        for (WorldMapRenderer.StructureMarker s : all) {
+            if (!s.predicted) {
+                out.add(s);
+                continue;
+            }
+            long key = ((long) Math.floorDiv(s.x, 16) << 32)
+                    | (Math.floorDiv(s.z, 16) & 0xFFFFFFFFL);
+            if (m.chunkColors.containsKey(key)) {
+                out.add(s);
+            }
+        }
+        return out;
     }
 
     /** 名字 hash 生成 8×8 像素头像（HTML 原型 makeAvatar 同款思路）。 */
@@ -3056,7 +3084,7 @@ public class NbtViewerActivity extends BaseActivity {
                                 // clear 会把标记清掉——"一闪而过"根因）
                                 if ("overworld".equals(mapDimension)) {
                                     synchronized (seedStructures) {
-                                        currentStructures.addAll(seedStructures);
+                                        currentStructures.addAll(filterPredictedStructures(seedStructures, currentMap));
                                     }
                                 }
                             }
