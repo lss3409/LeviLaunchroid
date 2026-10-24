@@ -1897,4 +1897,15 @@
     <string name="bake_health_checking">正在检测渲染…</string>
     <string name="bake_health_ok">渲染正常</string>
     <string name="bake_health_warn">检测到 %1$d/%2$d 个异常区块，建议重新烘焙</string>
+    <string name="scan_folder_title">扫描指定文件夹</string>
+    <string name="scan_folder_hint">扫描以下文件夹中的世界、资源包、行为包与结构：</string>
+    <string name="scan_folder_empty">还没有添加文件夹</string>
+    <string name="scan_folder_add">添加</string>
+    <string name="scan_folder_remove">移除</string>
+    <string name="scan_folder_start">开始扫描</string>
+    <string name="scan_folder_add_title">添加文件夹</string>
+    <string name="scan_folder_input_hint">文件夹路径，如 /storage/emulated/0/Download</string>
+    <string name="scan_folder_pick">文件管理器选择</string>
+    <string name="scan_folder_pick_failed">无法打开文件管理器，请手动输入路径</string>
+    <string name="scan_folder_not_dir">路径不存在或不是文件夹</string>
 </resources>

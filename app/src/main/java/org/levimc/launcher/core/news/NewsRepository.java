@@ -179,7 +179,13 @@ public final class NewsRepository {
             } catch (Exception ignored) {
             }
         }
-        cached = new NewsFeed();
+        // v0.4.178：asset 兜底（resources 目录映射为 assets，APK 内置
+        // 公告——平板连 GitHub raw 失败时也有内容，不再是空 feed）
+        try (InputStream input = context.getAssets().open("launcher/news_lbbl.json")) {
+            cached = parse(readUtf8(input));
+        } catch (Exception ignored) {
+            cached = new NewsFeed();
+        }
         memoryCacheLbbl = cached;
         return cached;
     }

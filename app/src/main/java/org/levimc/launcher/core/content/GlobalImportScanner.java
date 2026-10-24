@@ -159,6 +159,45 @@ public final class GlobalImportScanner {
         t.start();
     }
 
+    /** v0.4.178：指定文件夹扫描（内容管理「扫描指定文件夹」功能——
+     *  与全盘扫描同构，扫描根换成用户指定的多个目录；结果同样进
+     *  sFound/foundSoFar 供 ImportPickerDialog 读取）。 */
+    public static void scanDirsAsync(List<File> dirs, Listener listener) {
+        if (dirs == null || dirs.isEmpty()) {
+            if (listener != null) {
+                listener.onDone(new ArrayList<>());
+            }
+            return;
+        }
+        final List<File> roots = new ArrayList<>(dirs);
+        Thread t = new Thread(() -> {
+            try {
+                List<Candidate> out = new ArrayList<>();
+                Set<String> seen = new HashSet<>();
+                sLiveCount = 0;
+                sFound = out;
+                for (File root : roots) {
+                    Listener l = sListener != null ? sListener : listener;
+                    if (l != null) {
+                        l.onProgress(root.getAbsolutePath());
+                    }
+                    if (root.isDirectory()) {
+                        scanDir(root, 16, out, seen);
+                    }
+                }
+                if (listener != null) {
+                    listener.onDone(out);
+                }
+            } catch (Throwable e) {
+                if (listener != null) {
+                    listener.onDone(new ArrayList<>());
+                }
+            }
+        }, "folder-import-scan");
+        t.setDaemon(true);
+        t.start();
+    }
+
     private static List<Candidate> scan(Listener listener) {
         List<Candidate> out = new ArrayList<>();
         Set<String> seen = new HashSet<>();

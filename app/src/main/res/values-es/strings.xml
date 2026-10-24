@@ -1993,4 +1993,15 @@ Código de invitación: P/%1$s
     <string name="bake_health_checking">Comprobando renderizado…</string>
     <string name="bake_health_ok">Renderizado correcto</string>
     <string name="bake_health_warn">%1$d/%2$d chunks anómalos detectados, se recomienda volver a hornear</string>
+    <string name="scan_folder_title">Scan specified folders</string>
+    <string name="scan_folder_hint">Folders to scan for worlds, resource packs, behavior packs and structures:</string>
+    <string name="scan_folder_empty">No folders added yet</string>
+    <string name="scan_folder_add">Add</string>
+    <string name="scan_folder_remove">Remove</string>
+    <string name="scan_folder_start">Start scan</string>
+    <string name="scan_folder_add_title">Add folder</string>
+    <string name="scan_folder_input_hint">Folder path, e.g. /storage/emulated/0/Download</string>
+    <string name="scan_folder_pick">Pick from file manager</string>
+    <string name="scan_folder_pick_failed">Cannot open file manager, please enter the path manually</string>
+    <string name="scan_folder_not_dir">Path does not exist or is not a folder</string>
 </resources>
