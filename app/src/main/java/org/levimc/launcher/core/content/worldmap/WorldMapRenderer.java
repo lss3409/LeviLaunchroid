@@ -3117,6 +3117,54 @@ public class WorldMapRenderer {
         return new Object[]{bmp, cx0, cz0, cw * S, ch * S};
     }
 
+    /** v0.4.176：渲染结构统一——colors 卫星图全量数组转 chunkColors
+     *  （每 chunk 16×16 采样），小地图此后与大地图同走 chunk tile +
+     *  LOD + 全图纹理路径（用户拍板「大小地图一个逻辑」，避免
+     *  大地图/小地图 bug 分叉不好修）。colors 是 final 字段不释放
+     *  （小地图 5M ints≈20MB 保留，cachedBmp 路径删除后反而省了
+     *  8MB 视口位图）；chunkColors 已非空时幂等直接返回。 */
+    public static void toChunkColors(WorldMap map) {
+        if (map == null || map.colors == null || map.width <= 0 || map.height <= 0) {
+            return;
+        }
+        if (map.chunkColors != null && !map.chunkColors.isEmpty()) {
+            return;
+        }
+        int cx0 = Math.floorDiv(map.minBlockX, 16);
+        int cz0 = Math.floorDiv(map.minBlockZ, 16);
+        int cw = (map.width + 15) / 16;
+        int ch = (map.height + 15) / 16;
+        Map<Long, int[]> cc = new java.util.concurrent.ConcurrentHashMap<>();
+        for (int cz = 0; cz < ch; cz++) {
+            for (int cx = 0; cx < cw; cx++) {
+                int[] tile = new int[256];
+                boolean any = false;
+                for (int bz = 0; bz < 16; bz++) {
+                    int py = cz * 16 + bz;
+                    if (py >= map.height) {
+                        break;
+                    }
+                    int row = py * map.width;
+                    for (int bx = 0; bx < 16; bx++) {
+                        int px = cx * 16 + bx;
+                        if (px >= map.width) {
+                            break;
+                        }
+                        int v = map.colors[row + px];
+                        tile[bz * 16 + bx] = v;
+                        if ((v & 0xFF000000) != 0) {
+                            any = true;
+                        }
+                    }
+                }
+                if (any) {
+                    cc.put(pack(cx0 + cx, cz0 + cz), tile);
+                }
+            }
+        }
+        map.chunkColors = cc;
+    }
+
     public static Object[] buildSlimeChunkMask(WorldMap map) {
         if (map == null || (map.chunkColors == null && map.colors == null)
                 || (map.chunkColors != null && map.chunkColors.isEmpty())) {
@@ -3126,17 +3174,23 @@ public class WorldMapRenderer {
         int cz0 = Math.floorDiv(map.minBlockZ, 16);
         int cw = Math.max(1, Math.floorDiv(map.minBlockX + map.width - 1, 16) - cx0 + 1);
         int ch = Math.max(1, Math.floorDiv(map.minBlockZ + map.height - 1, 16) - cz0 + 1);
-        if ((long) cw * ch > 1_000_000L) {
+        // v0.4.176：每 chunk 画 4×4 像素块——1px 点在缩小/线性滤波下
+        // 被采样成半透明斑点（「史莱姆变斑点」根因）；4×4 实心块
+        // 在任意缩放下都保持可见区块形式。位图 4 倍边长=16 倍像素，
+        // 上限相应收紧（16MB 位图封顶）。
+        if ((long) cw * ch > 250_000L) {
             // v0.4.55：稀疏大 bounds 世界（下界 chunk 散布 3 万方块）的
             // 包围盒可达 350 万像素=14MB 位图，生成+drawBitmap 太重——
             // 超限返回 null 回退逐块绘制（视口只有几百 chunk，流畅）
             return null;
         }
+        final int SLIME_MASK_SCALE = 4;
         android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(
-                cw, ch, android.graphics.Bitmap.Config.ARGB_8888);
+                cw * SLIME_MASK_SCALE, ch * SLIME_MASK_SCALE,
+                android.graphics.Bitmap.Config.ARGB_8888);
         android.graphics.Canvas c = new android.graphics.Canvas(bmp);
         android.graphics.Paint green = new android.graphics.Paint();
-        green.setColor(0x2E00C853);
+        green.setColor(0x7F00C853); // v0.4.176：18%→50%（用户反馈太淡）
         if (map.chunkColors != null) {
             // v0.4.55：快照遍历——烘焙线程并发 put 时直接遍历
             // HashMap 会抛 ConcurrentModificationException（v0.4.54
@@ -3162,7 +3216,10 @@ public class WorldMapRenderer {
                 if (!isSlimeChunk(cx, cz)) {
                     continue;
                 }
-                c.drawPoint(cx - cx0, cz - cz0, green);
+                c.drawRect((cx - cx0) * SLIME_MASK_SCALE,
+                        (cz - cz0) * SLIME_MASK_SCALE,
+                        (cx - cx0) * SLIME_MASK_SCALE + SLIME_MASK_SCALE,
+                        (cz - cz0) * SLIME_MASK_SCALE + SLIME_MASK_SCALE, green);
             }
         } else {
             // v0.4.54：小世界（colors 数组）路径——bounds 包络内未生成
@@ -3196,7 +3253,9 @@ public class WorldMapRenderer {
                         }
                     }
                     if (has) {
-                        c.drawPoint(lcx, lcz, green);
+                        c.drawRect(lcx * SLIME_MASK_SCALE, lcz * SLIME_MASK_SCALE,
+                                lcx * SLIME_MASK_SCALE + SLIME_MASK_SCALE,
+                                lcz * SLIME_MASK_SCALE + SLIME_MASK_SCALE, green);
                     }
                 }
             }

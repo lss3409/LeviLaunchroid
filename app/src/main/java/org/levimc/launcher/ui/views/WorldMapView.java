@@ -263,6 +263,11 @@ public class WorldMapView extends View {
 
     /** 设置世界数据；keepView=true 时保留当前缩放与位置（y 轴偏移重载等场景）。 */
     public void setWorldMap(@Nullable WorldMapRenderer.WorldMap map, boolean keepView) {
+        // v0.4.176：渲染结构统一——小地图 colors 卫星图转 chunkColors，
+        // 此后大小地图同走 chunk tile+LOD+全图纹理路径
+        if (map != null && map.colors != null) {
+            WorldMapRenderer.toChunkColors(map);
+        }
         WorldMapRenderer.WorldMap oldMap = this.map;
         // v0.4.175：同源全图继承——替换 map 无自带全图时，继承旧 map
         // （RLE 秒开骨架 fQuick/fSkeleton）的全图位图：chunk 地图替换
@@ -824,7 +829,11 @@ public class WorldMapView extends View {
         // 反馈；clod 渐进填充保证秒显）——下界/末地保持放大起步
         // （v380 教训：fit 进 LOD 黑屏），由 initialFitAll 按维度区分；
         // 有记忆时 restoreView 覆盖本方法
-        if (map.colors != null || initialFitAll) {
+        // v0.4.176：统一后 colors 恒 null，小地图判定改 chunk 数
+        // （≤1024 chunk 视为小世界——fit 全图起步）
+        if (initialFitAll || (map.chunkColors != null
+                && !map.chunkColors.isEmpty()
+                && map.chunkColors.size() <= 1024)) {
             setPpb(fit);
         } else {
             setPpb(maxPixelsPerBlock);
@@ -1462,54 +1471,15 @@ public class WorldMapView extends View {
             // ③ 骨架期无底层可退
             drawFullMapLayer(canvas);
         } else if (map.chunkColors != null) {
-            // 大世界：chunk tile 平铺（BTR 同款）——零重采样、零 39MB 大位图，
-            // 每帧只 drawBitmap 视口内 chunk 的小 tile（GPU 加速）
+            // chunk tile 平铺（BTR 同款）——零重采样、零 39MB 大位图，
+            // 每帧只 drawBitmap 视口内 chunk 的小 tile（GPU 加速）。
+            // v0.4.176：大小地图统一——小地图 colors 已在 setWorldMap
+            // 转成 chunkColors，同走此路径
             drawChunkLayer(canvas);
         } else {
-            // 小世界整图路径：缓存位图三分支
-            // 1) 纯平移 → 直接平移缓存位图，零重采样（拖动流畅）；
-            // 2) 缩放/跳转动画期间 → 缓存位图按捏合焦点做缩放预览；
-            // 3) 其它 → 全量重采样。
-            lastDrawPath = "cached";
-            boolean ppbChanged = Math.abs(pixelsPerBlock - cachedPpb) > 1e-4f;
-            boolean farMoved = Math.abs(offsetX - cachedOffsetX) >= viewW
-                    || Math.abs(offsetY - cachedOffsetY) >= viewH;
-            if (scalePreviewActive && cachedBmp != null && !farMoved) {
-                // 缓存位图变换预览：屏幕 = offset + k × (缓存坐标 - cachedOffset)
-                // v0.4.75+：最近邻画笔（默认双线性把放大预览糊掉——
-                // "小地图最大缩放变糊"根因，HTML 同款锐利）
-                float k = pixelsPerBlock / cachedPpb;
-                canvas.save();
-                canvas.translate(offsetX, offsetY);
-                canvas.scale(k, k);
-                canvas.translate(-cachedOffsetX, -cachedOffsetY);
-                canvas.drawBitmap(cachedBmp, 0, 0, fullMapPaint);
-                canvas.restore();
-            } else if (cachedBmp == null || cachedW != viewW || cachedH != viewH
-                    || ppbChanged || farMoved) {
-                // 缓存位图必须 ARGB_8888：RGB_565 无 alpha 通道，未生成区域的透明色
-                // (COLOR_BACKGROUND=0) 写入后被存成纯黑，地图上出现成片黑块
-                // （tju 大范围稀疏世界未生成 chunk 多，问题尤为明显）。
-                if (pixelsBuf == null || pixelsBuf.length != viewW * ROW_BATCH) {
-                    pixelsBuf = new int[viewW * ROW_BATCH];
-                }
-                if (cachedBmp == null || cachedW != viewW || cachedH != viewH) {
-                    if (cachedBmp != null) {
-                        cachedBmp.recycle();
-                    }
-                    cachedBmp = Bitmap.createBitmap(viewW, viewH, Bitmap.Config.ARGB_8888);
-                    cachedW = viewW;
-                    cachedH = viewH;
-                }
-                resampleRegion(0, viewH);
-                cachedPpb = pixelsPerBlock;
-                cachedOffsetX = offsetX;
-                cachedOffsetY = offsetY;
-                canvas.drawBitmap(cachedBmp, 0, 0, null);
-            } else {
-                // 平移缓存位图（边缘露出背景，松手/移出屏幕后自动全量重绘）
-                canvas.drawBitmap(cachedBmp, offsetX - cachedOffsetX, offsetY - cachedOffsetY, null);
-            }
+            // v0.4.176：无像素数据骨架（bounds-only 未命中 RLE 且无
+            // chunkColors）——画背景等待烘焙线程补全
+            lastDrawPath = "empty";
         }
         // v0.4.97：捏合缩放动画期间只画底图+玩家标记——大地图缩小时
         // 视口覆盖全图，矿石标点/结构/实体几千条每帧重绘才是缩放卡的
@@ -2127,7 +2097,7 @@ public class WorldMapView extends View {
             return;
         }
         Paint slimePaint = new Paint();
-        slimePaint.setColor(0x2E00C853);
+        slimePaint.setColor(0x7F00C853); // v0.4.176：18%→50%（用户反馈太淡）
         Paint borderPaint = new Paint();
         borderPaint.setStyle(Paint.Style.STROKE);
         borderPaint.setColor(0x8800E676);
@@ -2186,40 +2156,9 @@ public class WorldMapView extends View {
             }
             return has;
         }
-        if (map.colors != null) {
-            // v0.4.54：小世界查全图数组真实 alpha（此前恒 true——
-            // bounds 包络内未生成区域 COLOR_BACKGROUND 透明也画框）
-            long ck = packChunk(cx, cz);
-            Boolean cached = chunkDataCache.get(ck);
-            if (cached != null) {
-                return cached;
-            }
-            int bx = cx * 16 - map.minBlockX;
-            int bz = cz * 16 - map.minBlockZ;
-            boolean has = false;
-            if (bx < map.width && bz < map.height && bx + 16 > 0 && bz + 16 > 0) {
-                int lx0 = Math.max(0, bx);
-                int lx1 = Math.min(map.width, bx + 16);
-                int lz0 = Math.max(0, bz);
-                int lz1 = Math.min(map.height, bz + 16);
-                for (int lz = lz0; lz < lz1 && !has; lz++) {
-                    int row = lz * map.width;
-                    for (int lx = lx0; lx < lx1; lx++) {
-                        if ((map.colors[row + lx] & 0xFF000000) != 0) {
-                            has = true;
-                            break;
-                        }
-                    }
-                }
-            }
-            if (chunkDataCache.size() > 200000) {
-                chunkDataCache.clear();
-            }
-            chunkDataCache.put(ck, has);
-            return has;
-        }
-        // v0.4.54：无像素数据（骨架/RLE 快图期）不画史莱姆——此前
-        // 恒 true，进图瞬间全 bounds 画框
+        // v0.4.176：colors 已统一转 chunkColors（小地图也走上方
+        // chunkColors 分支）；无像素数据（骨架/RLE 快图期）不画
+        // 史莱姆——此前恒 true，进图瞬间全 bounds 画框
         return false;
     }
 
