@@ -3365,12 +3365,16 @@ public class NbtViewerActivity extends BaseActivity {
                 // 实测 296→3，「结构显示一会又消失」根因）
                 int loadDimId = "nether".equals(mapDimension) ? 1
                         : "end".equals(mapDimension) ? 2 : 0;
-                if (fEntities != null) {
+                // v0.4.187：只有非空结果才写缓存——大地图首开 fEntities
+                // 是空列表（实体延迟到首屏后解析），v0.4.183 把空列表
+                // 写进缓存=maybeParse 命中空缓存跳过流式解析=实体开
+                // 关打开后要等 20+ 秒延迟解析才显示（用户实测）
+                if (fEntities != null && !fEntities.isEmpty()) {
                     synchronized (entityParseCache) {
                         entityParseCache.put(loadDimId, fEntities);
                     }
                 }
-                if (fStructures != null) {
+                if (fStructures != null && !fStructures.isEmpty()) {
                     synchronized (structureParseCache) {
                         structureParseCache.put(loadDimId, fStructures);
                     }
