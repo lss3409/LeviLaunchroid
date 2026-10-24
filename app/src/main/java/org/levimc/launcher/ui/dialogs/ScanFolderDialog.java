@@ -56,8 +56,12 @@ public final class ScanFolderDialog {
     public static void installTreePicker(androidx.activity.ComponentActivity activity) {
         sTreePicker = activity.registerForActivityResult(
                 new ActivityResultContracts.OpenDocumentTree(), uri -> {
+                    // v0.4.185：诊断——回调是否到达、uri 解析结果
+                    android.util.Log.i("ScanFolderDiag", "treePicker callback uri="
+                            + uri + " sSafTarget=" + (sSafTarget != null));
                     if (uri != null) {
                         String path = safTreeToPath(uri);
+                        android.util.Log.i("ScanFolderDiag", "safTreeToPath=" + path);
                         if (path != null && sSafTarget != null) {
                             sSafTarget.setText(path);
                             // v0.4.184：setText 触发 Watcher 切「应用」态，

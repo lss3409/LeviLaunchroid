@@ -3135,9 +3135,18 @@ public class WorldMapRenderer {
         int cw = (map.width + 15) / 16;
         int ch = (map.height + 15) / 16;
         Map<Long, int[]> cc = new java.util.concurrent.ConcurrentHashMap<>();
+        // v0.4.185：小地图群系——biomeColors 全量数组同款转
+        // chunkBiomeColors（v0.4.180 群系重写后渲染三路径只查
+        // chunkBiomeColors，小地图的 biomeColors 数组被漏掉=
+        // 「小地图群系不显示」根因）
+        int[] bio = map.biomeColors;
+        Map<Long, int[]> bcc = (bio != null && map.width > 0
+                && bio.length >= map.width * map.height)
+                ? new java.util.concurrent.ConcurrentHashMap<>() : null;
         for (int cz = 0; cz < ch; cz++) {
             for (int cx = 0; cx < cw; cx++) {
                 int[] tile = new int[256];
+                int[] btile = bcc != null ? new int[256] : null;
                 boolean any = false;
                 for (int bz = 0; bz < 16; bz++) {
                     int py = cz * 16 + bz;
@@ -3155,14 +3164,23 @@ public class WorldMapRenderer {
                         if ((v & 0xFF000000) != 0) {
                             any = true;
                         }
+                        if (btile != null) {
+                            btile[bz * 16 + bx] = bio[row + px];
+                        }
                     }
                 }
                 if (any) {
                     cc.put(pack(cx0 + cx, cz0 + cz), tile);
+                    if (bcc != null) {
+                        bcc.put(pack(cx0 + cx, cz0 + cz), btile);
+                    }
                 }
             }
         }
         map.chunkColors = cc;
+        if (bcc != null) {
+            map.chunkBiomeColors = bcc;
+        }
     }
 
     public static Object[] buildSlimeChunkMask(WorldMap map) {
