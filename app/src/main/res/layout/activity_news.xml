@@ -68,6 +68,47 @@
             android:tint="@color/text_secondary" />
     </LinearLayout>
 
+    <!-- v0.4.165：双栏位 Tab——LBBL 公告 + LeviLauncher 官方 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/news_tab_lbbl"
+            style="@style/Widget.MaterialComponents.Button"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:backgroundTint="@color/primary"
+            android:fontFamily="@font/misans"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:text="@string/news_tab_lbbl"
+            android:textAllCaps="false"
+            android:textColor="@color/on_primary"
+            android:textSize="13sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/news_tab_official"
+            style="@style/Widget.MaterialComponents.Button"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:backgroundTint="@color/surface"
+            android:fontFamily="@font/misans"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:text="@string/news_tab_official"
+            android:textAllCaps="false"
+            android:textColor="@color/on_surface"
+            android:textSize="13sp" />
+    </LinearLayout>
+
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"

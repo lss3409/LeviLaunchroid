@@ -2324,10 +2324,9 @@ public class NbtViewerActivity extends BaseActivity {
                                     return;
                                 }
                                 binding.worldMapImage.setEntityData(fE);
-                                synchronized (currentStructures) {
-                                    currentStructures.clear();
-                                    currentStructures.addAll(fS);
-                                }
+                                // v0.4.174：统一填充（含种子结构——此前漏合并=
+                                // 结构显示一帧又消失的路径之一）
+                                fillStructures(fS);
                                 dedupeStructures(); binding.worldMapImage.setStructureMarkers(currentStructures);
                                 renderLeftPointList(null);
                                 refreshDataPanelExtras(fS, null);
@@ -2361,11 +2360,8 @@ public class NbtViewerActivity extends BaseActivity {
                                         }
                                         binding.worldMapImage.setEntityData(
                                                 ents != null ? ents : new java.util.ArrayList<>());
-                                        synchronized (currentStructures) {
-                                            currentStructures.clear();
-                                            currentStructures.addAll(strs != null ? strs
-                                                    : new java.util.ArrayList<>());
-                                        }
+                                        // v0.4.174：统一填充（含种子结构）
+                                        fillStructures(strs);
                                         dedupeStructures(); binding.worldMapImage.setStructureMarkers(currentStructures);
                                         renderLeftPointList(null);
                                         refreshDataPanelExtras(
@@ -2858,6 +2854,26 @@ public class NbtViewerActivity extends BaseActivity {
         // 旧 UI 已删：权限/结构卡不再渲染
     }
 
+    /** v0.4.174（回迁 v0.4.167）：结构列表统一填充——db 解析结构 +
+     *  种子预测结构一次合并，杜绝「clear 后漏合并种子=结构显示
+     *  一帧又消失、6 秒后才延迟出现」的路径遗漏（v0.4.58「一闪
+     *  而过」同款根因的历史修复分散在各回调，有 3 处回填路径漏
+     *  掉：小世界切维度缓存回填/6 秒解析回填/首开 loadData 完成）。
+     *  不做已加载区块过滤——未加载区块的预测结构也显示（用户要求）。 */
+    private void fillStructures(java.util.List<WorldMapRenderer.StructureMarker> base) {
+        synchronized (currentStructures) {
+            currentStructures.clear();
+            if (base != null) {
+                currentStructures.addAll(base);
+            }
+            if ("overworld".equals(mapDimension) && currentMap != null) {
+                synchronized (seedStructures) {
+                    currentStructures.addAll(seedStructures);
+                }
+            }
+        }
+    }
+
     /** 名字 hash 生成 8×8 像素头像（HTML 原型 makeAvatar 同款思路）。 */
     private android.graphics.Bitmap pixelAvatar(String name, int px) {
         int seed = 0;
@@ -3324,14 +3340,9 @@ public class NbtViewerActivity extends BaseActivity {
                 // v427：合并进 currentStructures 并按检测开关过滤——
                 // 直接传 fStructures 会覆盖开关的过滤状态（关检测后
                 // 重进地图，desert_temple/outpost 又出现）
-                synchronized (currentStructures) {
-                    currentStructures.clear();
-                    // v0.4.48：超平坦/全新世界无结构数据时 fStructures 为
-                    // null——addAll(null) NPE 崩溃（用户实测超平坦世界）
-                    if (fStructures != null) {
-                        currentStructures.addAll(fStructures);
-                    }
-                }
+                // v0.4.174：统一填充（含种子结构；fStructures 为 null
+                // 时 fillStructures 已做空值防护——v0.4.48 NPE 修复保留）
+                fillStructures(fStructures);
                 dedupeStructures(); binding.worldMapImage.setStructureMarkers(
                         new java.util.ArrayList<>(currentStructures));
                 refreshDataPanelExtras(fStructures, fEntries);
