@@ -33,6 +33,8 @@ public class SharedFolderActivity extends BaseActivity {
         super.onCreate(savedInstanceState);
         binding = ActivitySharedFolderBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        // v0.4.184：SAF 选目录 launcher 预注册（同上）
+        org.levimc.launcher.ui.dialogs.ScanFolderDialog.installTreePicker(this);
 
         DynamicAnim.applyPressScaleRecursively(binding.getRoot());
 

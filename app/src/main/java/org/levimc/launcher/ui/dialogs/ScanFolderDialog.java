@@ -45,6 +45,28 @@ public final class ScanFolderDialog {
         void onScanDone(List<GlobalImportScanner.Candidate> result);
     }
 
+    /** v0.4.184：SAF 选目录 launcher——ActivityResult API 必须在
+     *  Activity STARTED 前注册（点击时才注册=IllegalStateException
+     *  tombstone 0.4.182）；调用 Activity onCreate 时 installTreePicker
+     *  预注册，点击时直接用。 */
+    private static ActivityResultLauncher<Uri> sTreePicker;
+    private static EditText sSafTarget;
+
+    /** Activity onCreate 调用（ContentManagement/SharedFolder 等）。 */
+    public static void installTreePicker(androidx.activity.ComponentActivity activity) {
+        sTreePicker = activity.registerForActivityResult(
+                new ActivityResultContracts.OpenDocumentTree(), uri -> {
+                    if (uri != null) {
+                        String path = safTreeToPath(uri);
+                        if (path != null && sSafTarget != null) {
+                            sSafTarget.setText(path);
+                            // v0.4.184：setText 触发 Watcher 切「应用」态，
+                            // 不自动 apply（用户确认后再点应用）
+                        }
+                    }
+                });
+    }
+
     public static List<String> loadFolders(Context context) {
         List<String> out = new ArrayList<>();
         String json = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -121,20 +143,8 @@ public final class ScanFolderDialog {
         final LinearLayout fList = list;
         final CustomAlertDialog[] dialogRef = new CustomAlertDialog[1];
         final Runnable[] redrawRef = new Runnable[1];
-        // SAF 选目录（空实例「选择」按钮用；应用对象引用）
-        final EditText[] safTargetRef = new EditText[1];
-        ActivityResultLauncher<Uri> treeLauncher = activity.registerForActivityResult(
-                new ActivityResultContracts.OpenDocumentTree(), uri -> {
-                    if (uri != null) {
-                        String path = safTreeToPath(uri);
-                        if (path != null && safTargetRef[0] != null) {
-                            safTargetRef[0].setText(path);
-                            // 选完自动应用（存储路径同款：选完直接应用）
-                            applyNewFolder(activity, fDirs, safTargetRef[0], redrawRef[0]);
-                        }
-                    }
-                });
-
+        // v0.4.184：SAF launcher 由 Activity onCreate 预注册（installTreePicker），
+        // 选完 setText 后由输入框 Watcher 自动切「应用」态
         redrawRef[0] = () -> {
             fList.removeAllViews();
             for (int i = 0; i < fDirs.size(); i++) {
@@ -255,9 +265,14 @@ public final class ScanFolderDialog {
             });
             pick.setOnClickListener(pv -> {
                 if (input.getText().toString().trim().isEmpty()) {
-                    safTargetRef[0] = input;
+                    sSafTarget = input;
                     try {
-                        treeLauncher.launch(null);
+                        if (sTreePicker != null) {
+                            sTreePicker.launch(null);
+                        } else {
+                            Toast.makeText(activity, R.string.scan_folder_pick_failed,
+                                    Toast.LENGTH_SHORT).show();
+                        }
                     } catch (Exception e) {
                         Toast.makeText(activity, R.string.scan_folder_pick_failed,
                                 Toast.LENGTH_SHORT).show();

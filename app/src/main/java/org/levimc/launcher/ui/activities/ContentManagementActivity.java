@@ -80,6 +80,9 @@ public class ContentManagementActivity extends BaseActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityContentManagementBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        // v0.4.184：SAF 选目录 launcher 预注册（点击时才注册会抛
+        // IllegalStateException——必须在 STARTED 前）
+        org.levimc.launcher.ui.dialogs.ScanFolderDialog.installTreePicker(this);
 
         DynamicAnim.applyPressScaleRecursively(binding.getRoot());
 
