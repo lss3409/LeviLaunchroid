@@ -117,12 +117,16 @@ public class FmEntryAdapter extends RecyclerView.Adapter<FmEntryAdapter.Holder> 
         } else if (e.getArchiveType() != null) {
             iconRes = R.drawable.ic_export;
         } else {
-            iconRes = R.drawable.ic_file;
+            iconRes = fileTypeIcon(e.getName());
         }
         h.icon.setImageResource(iconRes);
         if (isImage(e.getName())) {
             h.icon.setColorFilter(null);
             loadThumb(e, h.icon);
+        } else if (iconRes != R.drawable.ic_file && iconRes != R.drawable.ic_folder
+                && iconRes != R.drawable.ic_export) {
+            // v0.4.188：分类贴图（json/md/txt/音频/代码）保持原色不染灰
+            h.icon.setColorFilter(null);
         } else {
             h.icon.setColorFilter(0xFF8A8A8A);
         }
@@ -202,6 +206,34 @@ public class FmEntryAdapter extends RecyclerView.Adapter<FmEntryAdapter.Holder> 
         String n = name.toLowerCase(Locale.ROOT);
         return n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg")
                 || n.endsWith(".webp") || n.endsWith(".gif") || n.endsWith(".bmp");
+    }
+
+    /** v0.4.188：按扩展名返回分类贴图（用户提供 SVG：
+     *  json/md/txt/音频/代码[bin、material 等特殊 MC 代码格式]）。 */
+    private static int fileTypeIcon(String name) {
+        String n = name.toLowerCase(Locale.ROOT);
+        if (n.endsWith(".json")) {
+            return R.drawable.ic_file_json;
+        }
+        if (n.endsWith(".md")) {
+            return R.drawable.ic_file_md;
+        }
+        if (n.endsWith(".txt")) {
+            return R.drawable.ic_file_txt;
+        }
+        if (n.endsWith(".ogg") || n.endsWith(".mp3") || n.endsWith(".wav")
+                || n.endsWith(".flac") || n.endsWith(".m4a") || n.endsWith(".opus")) {
+            return R.drawable.ic_file_audio;
+        }
+        // 特殊格式 MC 代码文件（bin/material 等）+ 常见代码格式
+        if (n.endsWith(".bin") || n.endsWith(".material") || n.endsWith(".mcfunction")
+                || n.endsWith(".mcstructure") || n.endsWith(".js") || n.endsWith(".ts")
+                || n.endsWith(".java") || n.endsWith(".kt") || n.endsWith(".py")
+                || n.endsWith(".c") || n.endsWith(".h") || n.endsWith(".cpp")
+                || n.endsWith(".lua") || n.endsWith(".sh")) {
+            return R.drawable.ic_file_code;
+        }
+        return R.drawable.ic_file;
     }
 
     /** v0.4.76：小图整数倍最近邻放大到长边 ~256（列表 icon 用；原图

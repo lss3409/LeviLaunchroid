@@ -1,6 +1,9 @@
 package org.levimc.launcher.ui.dialogs;
 
+import android.app.Dialog;
 import android.content.Context;
+import android.view.Window;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.text.TextWatcher;
 import android.view.Gravity;
@@ -97,14 +100,25 @@ public final class ScanFolderDialog {
                 .putString(KEY_DIRS, arr.toString()).apply();
     }
 
-    /** SAF 树 uri → 真实路径（primary: 段解析；失败返回 null 手输兜底）。 */
+    /** SAF 树 uri → 真实路径（primary: 段解析；失败返回 null 手输兜底）。
+     *  v0.4.188：先整体 URLDecode 再检查前缀——平板 SAF 返回的
+     *  lastPathSegment 常是 primary%3ADownload%3Amods（冒号被编码），
+     *  解码前 startsWith("primary:") 恒 false=「选择后空白」根因。 */
     private static String safTreeToPath(Uri uri) {
         try {
             String seg = uri.getLastPathSegment();
-            if (seg == null || !seg.startsWith("primary:")) {
+            if (seg == null) {
                 return null;
             }
-            String rel = URLDecoder.decode(seg.substring("primary:".length()), "UTF-8");
+            String decoded = URLDecoder.decode(seg, "UTF-8");
+            if (!decoded.startsWith("primary:")) {
+                // 兼容无编码形式（某些 ROM 直接给 primary:Download）
+                if (!seg.startsWith("primary:")) {
+                    return null;
+                }
+                decoded = seg;
+            }
+            String rel = decoded.substring("primary:".length());
             String base = android.os.Environment.getExternalStorageDirectory().getAbsolutePath();
             return base + "/" + rel;
         } catch (Exception e) {
@@ -122,9 +136,49 @@ public final class ScanFolderDialog {
         float density = activity.getResources().getDisplayMetrics().density;
         int pad = (int) (12 * density);
 
+        // v0.4.189：与导入菜单同尺寸的二级菜单（DialogSizer 同款）
+        final Dialog dialog = new Dialog(activity);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        final int width = org.levimc.launcher.util.DialogSizer.dialogWidth(activity, 560);
+
         LinearLayout root = new LinearLayout(activity);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(pad, 0, pad, 0);
+        root.setBackgroundResource(R.drawable.bg_rounded_card);
+        root.setPadding((int) (20 * density), (int) (12 * density),
+                (int) (20 * density), (int) (16 * density));
+
+        // 顶部：〈返回键（左上角）+ 标题
+        LinearLayout topRow = new LinearLayout(activity);
+        topRow.setOrientation(LinearLayout.HORIZONTAL);
+        topRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView back = new TextView(activity);
+        back.setText("〈");
+        back.setTextSize(22f);
+        back.setTextColor(activity.getColor(R.color.text_secondary));
+        back.setPadding(0, 0, (int) (12 * density), 0);
+        back.setOnClickListener(v -> {
+            dialog.dismiss();
+            // 返回上一级菜单（导入菜单）
+            if (activity instanceof android.content.Context) {
+                org.levimc.launcher.ui.dialogs.ImportPickerDialog.show(activity,
+                        new org.levimc.launcher.ui.dialogs.ImportPickerDialog.Listener() {
+                            @Override
+                            public void onPick(java.io.File file) {
+                            }
+                            @Override
+                            public void onPickFromFiles() {
+                            }
+                        });
+            }
+        });
+        TextView title = new TextView(activity);
+        title.setText(R.string.scan_folder_title);
+        title.setTextColor(activity.getColor(R.color.on_surface));
+        title.setTextSize(16f);
+        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        topRow.addView(back);
+        topRow.addView(title);
+        root.addView(topRow);
 
         TextView hint = new TextView(activity);
         hint.setText(R.string.scan_folder_hint);
@@ -146,6 +200,7 @@ public final class ScanFolderDialog {
         final List<String> fDirs = dirs;
         final LinearLayout fList = list;
         final CustomAlertDialog[] dialogRef = new CustomAlertDialog[1];
+        final Dialog[] fDialogHolder = new Dialog[]{dialog};
         final Runnable[] redrawRef = new Runnable[1];
         // v0.4.184：SAF launcher 由 Activity onCreate 预注册（installTreePicker），
         // 选完 setText 后由输入框 Watcher 自动切「应用」态
@@ -301,9 +356,7 @@ public final class ScanFolderDialog {
                 Toast.makeText(activity, R.string.scan_folder_empty, Toast.LENGTH_SHORT).show();
                 return;
             }
-            if (dialogRef[0] != null) {
-                dialogRef[0].dismiss();
-            }
+            fDialogHolder[0].dismiss();
             List<File> roots = new ArrayList<>();
             for (String d : fDirs) {
                 roots.add(new File(d));
@@ -322,11 +375,13 @@ public final class ScanFolderDialog {
                     });
         });
 
-        CustomAlertDialog dialog = new CustomAlertDialog(activity)
-                .setTitleText(activity.getString(R.string.scan_folder_title))
-                .setCustomView(root)
-                .setNegativeButton(activity.getString(R.string.cancel), null);
-        dialogRef[0] = dialog;
+        // v0.4.189：二级菜单尺寸同导入菜单（DialogSizer 560dp）
+        dialog.setContentView(root);
+        Window w = dialog.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawableResource(android.R.color.transparent);
+            w.setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
         dialog.show();
     }
 
