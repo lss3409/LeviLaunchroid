@@ -9,7 +9,9 @@
   #c{display:block;}
   #hint{position:fixed;left:0;right:0;bottom:12px;text-align:center;
     color:rgba(255,255,255,.5);font:12px sans-serif;pointer-events:none;}
-  #axes{position:fixed;left:10px;bottom:10px;pointer-events:none;}
+  /* v0.4.199：底部 64dp 相册条覆盖展示区——轴动态上移到条上方
+     （create/layoutAxes 按窗口高度算，CSS 兜底） */
+  #axes{position:fixed;left:10px;bottom:12px;pointer-events:none;}
 </style>
 </head>
 <body>
@@ -80,21 +82,30 @@ function doLoad(dataUrl) {
 function loadSkin(dataUrl) { doLoad(dataUrl); }
 
 // v0.4.197：左下角 XYZ 坐标轴（地图查看器 3D 视图同款等距轴）
-// v0.4.198：轴随模型旋转更新——100ms 循环读相机方位角（OrbitControls
-// yaw），X/Z 轴在等距投影中绕中心转 -yaw（相机转 +yaw 等效模型转 -yaw）
+// v0.4.198/199：轴随模型旋转更新——100ms 循环读相机方位角与模型自转。
+// skinview3d 的 autoRotate 是模型自转（playerWrapper.rotation.y +=），
+// 拖动是 OrbitControls 相机转（yaw）——模型视觉旋转 V = r - yaw，
+// 轴作为「模型身上的轴」跟随 V 转。等距投影：绕 Y 转 V 后
+// 世界 X → sx=(cosV+sinV)k, sy=(cosV-sinV)j；Z → (sinV-cosV, sinV+cosV)。
 function drawAxes() {
   var a = document.getElementById('axes');
   var g = a.getContext('2d');
+  // v0.4.199：循环重绘必须先重置 transform——translate 会累积
+  // （每帧 +28px 轴漂移出画布），clearRect 也受当前 transform 影响
+  g.setTransform(1, 0, 0, 1, 0, 0);
   g.clearRect(0, 0, 72, 72);
   g.translate(28, 46);
-  var yaw = 0;
+  var yaw = 0, r = 0;
   try {
     if (viewer && viewer.camera && viewer.camera.position) {
       var p = viewer.camera.position;
       yaw = Math.atan2(p.x, p.z);
     }
+    if (viewer && viewer.playerWrapper && viewer.playerWrapper.rotation) {
+      r = viewer.playerWrapper.rotation.y || 0;
+    }
   } catch (e) {}
-  var th = -yaw;
+  var th = r - yaw;
   var cosT = Math.cos(th), sinT = Math.sin(th);
   var k = Math.cos(Math.PI / 6), j = Math.sin(Math.PI / 6);
   var len = 20;
@@ -117,11 +128,20 @@ function startAxesLoop() {
   axesLoop = setInterval(drawAxes, 100);
 }
 
+// v0.4.199：轴位置动态上移到相册条（WebView 高度 64/340）上方，
+// 底部相册条会遮住 fixed bottom:12 的轴
+function layoutAxes() {
+  var a = document.getElementById('axes');
+  var h = window.innerHeight || document.documentElement.clientHeight || 850;
+  a.style.bottom = (h * 64 / 340 + 12) + 'px';
+}
+
 var initTries = 0;
 function tryInit() {
   if (window.innerWidth > 0 || document.documentElement.clientWidth > 0) {
     create();
     drawAxes();
+    layoutAxes();
     startAxesLoop();
   } else if (initTries++ < 30) {
     setTimeout(tryInit, 100);
@@ -130,6 +150,7 @@ function tryInit() {
 window.addEventListener('load', tryInit);
 window.addEventListener('resize', function() {
   if (viewer) { create(); }
+  layoutAxes();
   drawAxes();
 });
 </script>
