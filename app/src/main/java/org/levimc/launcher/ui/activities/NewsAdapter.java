@@ -69,7 +69,12 @@ final class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.Holder> {
         holder.card.setStrokeColor(holder.itemView.getContext().getColor(R.color.primary));
 
         View.OnClickListener open = v -> {
-            if (TextUtils.isEmpty(item.url)) return;
+            if (TextUtils.isEmpty(item.url)) {
+                // v0.4.200：无 GitHub release 的历史版本——本地详情弹窗
+                // （不拉链接；有 release 的跳对应版本 releases 页）
+                showLocalDetail(holder.itemView.getContext(), item);
+                return;
+            }
             Uri uri = Uri.parse(item.url);
             String scheme = uri.getScheme();
             if (!("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme))) return;
@@ -84,6 +89,20 @@ final class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.Holder> {
     @Override
     public int getItemCount() {
         return items.size();
+    }
+
+    /** v0.4.200：无 url 条目点击——本地详情弹窗（版本更新内容）。 */
+    private void showLocalDetail(android.content.Context context, NewsItem item) {
+        String detail = item.summary;
+        if (TextUtils.isEmpty(detail)) {
+            detail = item.title;
+        }
+        new org.levimc.launcher.ui.dialogs.CustomAlertDialog(context)
+                .setTitleText(item.title)
+                .setMessage(detail)
+                .setPositiveButton(context.getString(R.string.close), d -> {})
+                .setCanceledOnTouchOutside(true)
+                .show();
     }
 
     private String formatDate(String value) {

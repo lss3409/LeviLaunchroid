@@ -82,11 +82,15 @@ function doLoad(dataUrl) {
 function loadSkin(dataUrl) { doLoad(dataUrl); }
 
 // v0.4.197：左下角 XYZ 坐标轴（地图查看器 3D 视图同款等距轴）
-// v0.4.198/199：轴随模型旋转更新——100ms 循环读相机方位角与模型自转。
+// v0.4.198/199：轴随模型旋转更新——100ms 循环读相机位与模型自转。
 // skinview3d 的 autoRotate 是模型自转（playerWrapper.rotation.y +=），
-// 拖动是 OrbitControls 相机转（yaw）——模型视觉旋转 V = r - yaw，
-// 轴作为「模型身上的轴」跟随 V 转。等距投影：绕 Y 转 V 后
-// 世界 X → sx=(cosV+sinV)k, sy=(cosV-sinV)j；Z → (sinV-cosV, sinV+cosV)。
+// 拖动是 OrbitControls 相机转。
+// v0.4.200：完整相机基投影——三轴都从相机位精确投影（此前 Y 轴画死
+// 垂直，垂直拖动时 Y 轴不倾斜）。相机基：f=前向（相机→原点），
+// r=cross(f,up) 右，u=cross(r,f) 上；模型轴经自转 r 后投影到相机空间
+// (cx,cy,cz)，等距 sx=(cx+cz)k, sy=(-cy+(cx-cz)j)。水平拖动（polar
+// 不变）时 |p|、py 恒定 → Y 轴投影恒定（物理正确）；垂直拖动时 Y 轴
+// 随俯仰倾斜。
 function drawAxes() {
   var a = document.getElementById('axes');
   var g = a.getContext('2d');
@@ -95,31 +99,39 @@ function drawAxes() {
   g.setTransform(1, 0, 0, 1, 0, 0);
   g.clearRect(0, 0, 72, 72);
   g.translate(28, 46);
-  var yaw = 0, r = 0;
+  var px = 0, py = 12, pz = 42, r = 0;
   try {
     if (viewer && viewer.camera && viewer.camera.position) {
       var p = viewer.camera.position;
-      yaw = Math.atan2(p.x, p.z);
+      px = p.x; py = p.y; pz = p.z;
     }
     if (viewer && viewer.playerWrapper && viewer.playerWrapper.rotation) {
       r = viewer.playerWrapper.rotation.y || 0;
     }
   } catch (e) {}
-  var th = r - yaw;
-  var cosT = Math.cos(th), sinT = Math.sin(th);
-  var k = Math.cos(Math.PI / 6), j = Math.sin(Math.PI / 6);
-  var len = 20;
-  // 世界 +X 绕 Y 转 th → 等距投影 sx=(dx-dz)k, sy=(dx+dz)j
-  var xx = (cosT + sinT) * k * len, xy = (cosT - sinT) * j * len;
-  var zx = (sinT - cosT) * k * len, zy = (sinT + cosT) * j * len;
+  var pl = Math.sqrt(px * px + py * py + pz * pz) || 1;
+  var fx = -px / pl, fy = -py / pl, fz = -pz / pl;   // 前向
+  var rx = -fz, rz = fx;                              // cross(f, (0,1,0)) 未归一化
+  var rl = Math.sqrt(rx * rx + rz * rz) || 1;
+  rx /= rl; rz /= rl;
+  var ux = -rz * fy, uy = rz * fx - rx * fz, uz = rx * fy;  // 上 = cross(r, f)
+  var cr = Math.cos(r), sr = Math.sin(r);
+  var k = Math.cos(Math.PI / 6), j = Math.sin(Math.PI / 6), len = 20;
+  function proj(vx, vy, vz) {
+    var cx = vx * rx + vz * rz;         // ry=0
+    var cy = vx * ux + vy * uy + vz * uz;
+    var cz = vx * fx + vy * fy + vz * fz;
+    return [(cx + cz) * k * len, (-cy + (cx - cz) * j) * len];
+  }
+  var X = proj(cr, 0, -sr), Y = proj(0, 1, 0), Z = proj(sr, 0, cr);
   g.lineWidth = 2;
-  g.strokeStyle = '#E0564B'; g.beginPath(); g.moveTo(0, 0); g.lineTo(xx, xy); g.stroke();
-  g.strokeStyle = '#4CAF50'; g.beginPath(); g.moveTo(0, 0); g.lineTo(0, -20); g.stroke();
-  g.strokeStyle = '#5C8DD8'; g.beginPath(); g.moveTo(0, 0); g.lineTo(zx, zy); g.stroke();
+  g.strokeStyle = '#E0564B'; g.beginPath(); g.moveTo(0, 0); g.lineTo(X[0], X[1]); g.stroke();
+  g.strokeStyle = '#4CAF50'; g.beginPath(); g.moveTo(0, 0); g.lineTo(Y[0], Y[1]); g.stroke();
+  g.strokeStyle = '#5C8DD8'; g.beginPath(); g.moveTo(0, 0); g.lineTo(Z[0], Z[1]); g.stroke();
   g.font = 'bold 10px sans-serif';
-  g.fillStyle = '#E0564B'; g.fillText('X', xx * 1.3, xy * 1.3 + 3);
-  g.fillStyle = '#4CAF50'; g.fillText('Y', 4, -24);
-  g.fillStyle = '#5C8DD8'; g.fillText('Z', zx * 1.3, zy * 1.3 + 3);
+  g.fillStyle = '#E0564B'; g.fillText('X', X[0] * 1.3, X[1] * 1.3 + 3);
+  g.fillStyle = '#4CAF50'; g.fillText('Y', Y[0] * 1.3 - 3, Y[1] * 1.3);
+  g.fillStyle = '#5C8DD8'; g.fillText('Z', Z[0] * 1.3, Z[1] * 1.3 + 3);
 }
 
 var axesLoop = null;
