@@ -2010,4 +2010,7 @@ Código de invitación: P/%1$s
     <string name="scan_folder_confirm">Delete</string>
     <string name="scan_folder_delete_confirm">Delete folder "%1$s"?</string>
     <string name="settings_tab_debug">Debug</string>
+    <string name="skin_preview_title">Skin 3D Preview</string>
+    <string name="skin_preview_open">3D Preview</string>
+    <string name="skin_preview_failed">Cannot read skin from this pack</string>
 </resources>

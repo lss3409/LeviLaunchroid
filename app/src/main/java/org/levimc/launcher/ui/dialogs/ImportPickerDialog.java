@@ -1281,6 +1281,35 @@ public class ImportPickerDialog {
         hp.bottomMargin = (int) (8 * density);
         head.setLayoutParams(hp);
         content.addView(head);
+        // v0.4.194：皮肤包 3D 预览入口（解包 skins.json 取首个皮肤）
+        if (c.skinPack) {
+            LinearLayout skinRow = new LinearLayout(context);
+            skinRow.setOrientation(LinearLayout.HORIZONTAL);
+            skinRow.setGravity(Gravity.CENTER_VERTICAL);
+            skinRow.setBackground(roundBg(context, cardBg));
+            skinRow.setPadding((int) (12 * density), (int) (10 * density),
+                    (int) (12 * density), (int) (10 * density));
+            LinearLayout.LayoutParams srp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            srp.bottomMargin = (int) (8 * density);
+            skinRow.setLayoutParams(srp);
+            TextView skinLabel = new TextView(context);
+            skinLabel.setText(context.getString(R.string.skin_preview_open));
+            skinLabel.setTextColor(accent != 0 ? accent : textMain);
+            skinLabel.setTextSize(14f);
+            skinLabel.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            skinRow.addView(skinLabel, new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            TextView skinGo = new TextView(context);
+            skinGo.setText("›");
+            skinGo.setTextColor(textSub);
+            skinGo.setTextSize(18f);
+            skinRow.addView(skinGo);
+            skinRow.setOnClickListener(v ->
+                    org.levimc.launcher.ui.dialogs.SkinPackPreview.open(context, c));
+            content.addView(skinRow);
+        }
+
 
         LinearLayout iconWrap = new LinearLayout(context);
         iconWrap.setGravity(Gravity.CENTER);

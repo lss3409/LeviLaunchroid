@@ -114,21 +114,6 @@
                         android:clickable="true"
                         android:focusable="true" />
 
-                    <TextView
-                        android:id="@+id/tab_debug"
-                        android:layout_width="wrap_content"
-                        android:layout_height="32dp"
-                        android:layout_marginStart="8dp"
-                        android:paddingHorizontal="16dp"
-                        android:gravity="center"
-                        android:text="@string/settings_tab_debug"
-                        android:fontFamily="@font/misans"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13sp"
-                        android:background="@drawable/bg_tab_unselected"
-                        android:clickable="true"
-                        android:focusable="true" />
-
                 </LinearLayout>
             </HorizontalScrollView>
 
@@ -1310,28 +1295,7 @@
                     </LinearLayout>
                 </LinearLayout>
 
-                        <LinearLayout
-                android:id="@+id/section_debug"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:visibility="gone"
-                android:orientation="vertical">
-
-                <ScrollView
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:scrollbars="none"
-                    android:fillViewport="true">
-
-                    <LinearLayout
-                        android:id="@+id/debug_container"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="16dp" />
-
-                </ScrollView>
-            </LinearLayout>
+            
 
 </FrameLayout>
 

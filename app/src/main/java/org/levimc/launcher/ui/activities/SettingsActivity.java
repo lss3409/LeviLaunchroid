@@ -65,13 +65,11 @@ public class SettingsActivity extends BaseActivity {
     private TextView tabPersonalize;
     private TextView tabMigration;
     private TextView tabAbout;
-    private TextView tabDebug;
 
     private View sectionBasic;
     private View sectionPersonalize;
     private View sectionMigration;
     private View sectionAbout;
-    private View sectionDebug;
 
     private int selectedTabIndex = 0;
 
@@ -227,26 +225,20 @@ public class SettingsActivity extends BaseActivity {
         tabPersonalize = findViewById(R.id.tab_personalize);
         tabMigration = findViewById(R.id.tab_migration);
         tabAbout = findViewById(R.id.tab_about);
-        tabDebug = findViewById(R.id.tab_debug);
-
         sectionBasic = findViewById(R.id.section_basic);
         sectionPersonalize = findViewById(R.id.section_personalize);
         sectionMigration = findViewById(R.id.section_migration);
         sectionAbout = findViewById(R.id.section_about);
-        sectionDebug = findViewById(R.id.section_debug);
 
         tabBasic.setOnClickListener(v -> { selectedTabIndex = 0; selectTab(tabBasic); });
         tabPersonalize.setOnClickListener(v -> { selectedTabIndex = 1; selectTab(tabPersonalize); });
         tabAbout.setOnClickListener(v -> { selectedTabIndex = 2; selectTab(tabAbout); });
         tabMigration.setOnClickListener(v -> { selectedTabIndex = 3; selectTab(tabMigration); });
-        tabDebug.setOnClickListener(v -> { selectedTabIndex = 4; selectTab(tabDebug); });
-        // v0.4.192：调试页（M3 Dummy UI 展示）
-        setupDebugSection();
     }
 
     private void selectTab(TextView selectedTab) {
         TextView[] tabs = getSettingsTabs();
-        View[] sections = {sectionBasic, sectionPersonalize, sectionAbout, sectionMigration, sectionDebug};
+        View[] sections = {sectionBasic, sectionPersonalize, sectionAbout, sectionMigration};
 
         int accent = personalizationManager.getAccentColor();
 
@@ -281,7 +273,7 @@ public class SettingsActivity extends BaseActivity {
     }
 
     private TextView[] getSettingsTabs() {
-        return new TextView[]{tabBasic, tabPersonalize, tabAbout, tabMigration, tabDebug};
+        return new TextView[]{tabBasic, tabPersonalize, tabAbout, tabMigration};
     }
 
     private void setupBasicSection() {
@@ -1419,347 +1411,5 @@ public class SettingsActivity extends BaseActivity {
     }
 
 
-    /** v0.4.192：调试页——M3 风格 Dummy UI 展示（点击无反馈，供用户
-     *  查看样式后点名调整；每个样式带名字标签）。旧 UI 对照放底部。 */
-    private void setupDebugSection() {
-        LinearLayout host = findViewById(R.id.debug_container);
-        if (host == null) return;
-        float d = getResources().getDisplayMetrics().density;
-        int accent = personalizationManager.getAccentColor();
-        int surface = getColor(R.color.surface);
-        int onSurface = getColor(R.color.on_surface);
-        int textSub = getColor(R.color.text_secondary);
-
-        java.util.function.Function<String, TextView> label = name -> {
-            TextView t = new TextView(this);
-            t.setText(name);
-            t.setTextColor(textSub);
-            t.setTextSize(12f);
-            t.setPadding(0, (int) (18 * d), 0, (int) (6 * d));
-            return t;
-        };
-        java.util.function.BiFunction<Integer, Integer, LinearLayout> card = (hpx, padpx) -> {
-            LinearLayout v = new LinearLayout(this);
-            v.setOrientation(LinearLayout.VERTICAL);
-            int ph = (int) (padpx * d);
-            v.setPadding(ph, ph, ph, ph);
-            android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
-            gd.setColor(surface);
-            gd.setCornerRadius(16 * d);
-            v.setBackground(gd);
-            v.setElevation(2 * d);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, hpx > 0 ? (int) (hpx * d) : LinearLayout.LayoutParams.WRAP_CONTENT);
-            lp.bottomMargin = (int) (10 * d);
-            v.setLayoutParams(lp);
-            return v;
-        };
-
-        // 1. M3 分段按钮 SegmentedButton
-        host.addView(label.apply("1. M3 分段按钮 SegmentedButton"));
-        LinearLayout segCard = card.apply(56, 4);
-        segCard.setGravity(Gravity.CENTER);
-        LinearLayout seg = new LinearLayout(this);
-        seg.setOrientation(LinearLayout.HORIZONTAL);
-        android.graphics.drawable.GradientDrawable segBg = new android.graphics.drawable.GradientDrawable();
-        segBg.setColor(getColor(R.color.surface_variant));
-        segBg.setCornerRadius(22 * d);
-        seg.setBackground(segBg);
-        seg.setPadding((int) (3 * d), (int) (3 * d), (int) (3 * d), (int) (3 * d));
-        String[] segItems = {"地图", "列表", "标签"};
-        for (int i = 0; i < segItems.length; i++) {
-            TextView item = new TextView(this);
-            item.setText(segItems[i]);
-            item.setTextSize(13f);
-            item.setGravity(Gravity.CENTER);
-            item.setPadding((int) (14 * d), 0, (int) (14 * d), 0);
-            if (i == 1) {
-                android.graphics.drawable.GradientDrawable sel = new android.graphics.drawable.GradientDrawable();
-                sel.setColor(surface);
-                sel.setCornerRadius(18 * d);
-                item.setBackground(sel);
-                item.setElevation(2 * d);
-                item.setTextColor(accent != 0 ? accent : onSurface);
-                item.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-            } else {
-                item.setTextColor(textSub);
-            }
-            seg.addView(item, new LinearLayout.LayoutParams(
-                    0, (int) (36 * d), 1f));
-        }
-        segCard.addView(seg, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, (int) (44 * d)));
-        host.addView(segCard);
-
-        // 2. M3 填充卡片 FilledCard
-        host.addView(label.apply("2. M3 填充卡片 FilledCard"));
-        LinearLayout fillCard = card.apply(0, 16);
-        android.graphics.drawable.GradientDrawable fcBg = new android.graphics.drawable.GradientDrawable();
-        fcBg.setColor(getColor(R.color.surface_variant));
-        fcBg.setCornerRadius(12 * d);
-        fillCard.setBackground(fcBg);
-        TextView fcTitle = new TextView(this);
-        fcTitle.setText("卡片标题");
-        fcTitle.setTextColor(onSurface);
-        fcTitle.setTextSize(15f);
-        fcTitle.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        fillCard.addView(fcTitle);
-        TextView fcBody = new TextView(this);
-        fcBody.setText("M3 填充卡片使用 surfaceVariant 底色，圆角 12dp，承载标题与正文内容。");
-        fcBody.setTextColor(textSub);
-        fcBody.setTextSize(13f);
-        fcBody.setPadding(0, (int) (6 * d), 0, (int) (10 * d));
-        fillCard.addView(fcBody);
-        TextView fcAction = new TextView(this);
-        fcAction.setText("操作按钮");
-        fcAction.setTextColor(accent != 0 ? accent : onSurface);
-        fcAction.setTextSize(13f);
-        fcAction.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        fillCard.addView(fcAction);
-        host.addView(fillCard);
-
-        // 3. M3 顶部栏 TopAppBar
-        host.addView(label.apply("3. M3 顶部栏 TopAppBar"));
-        LinearLayout topCard = card.apply(48, 0);
-        topCard.setPadding(0, 0, 0, 0);
-        topCard.setGravity(Gravity.CENTER_VERTICAL);
-        TextView nav = new TextView(this);
-        nav.setText("☰");
-        nav.setTextColor(onSurface);
-        nav.setTextSize(18f);
-        nav.setPadding((int) (16 * d), 0, (int) (12 * d), 0);
-        TextView tbTitle = new TextView(this);
-        tbTitle.setText("标题");
-        tbTitle.setTextColor(onSurface);
-        tbTitle.setTextSize(16f);
-        tbTitle.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        TextView tbAct = new TextView(this);
-        tbAct.setText("🔍 ⋮");
-        tbAct.setTextColor(textSub);
-        tbAct.setTextSize(14f);
-        tbAct.setPadding((int) (12 * d), 0, (int) (16 * d), 0);
-        topCard.addView(nav);
-        topCard.addView(tbTitle, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        topCard.addView(tbAct);
-        host.addView(topCard);
-
-        // 4. M3 开关行 SwitchRow
-        host.addView(label.apply("4. M3 开关行 SwitchRow"));
-        LinearLayout swCard = card.apply(52, 14);
-        swCard.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout swText = new LinearLayout(this);
-        swText.setOrientation(LinearLayout.VERTICAL);
-        TextView swTitle = new TextView(this);
-        swTitle.setText("图层显示");
-        swTitle.setTextColor(onSurface);
-        swTitle.setTextSize(14f);
-        swText.addView(swTitle);
-        TextView swSub = new TextView(this);
-        swSub.setText("开关行的副标题说明");
-        swSub.setTextColor(textSub);
-        swSub.setTextSize(12f);
-        swText.addView(swSub);
-        android.widget.Switch sw = new android.widget.Switch(this);
-        sw.setChecked(true);
-        sw.setShowText(false);
-        if (accent != 0) {
-            sw.setTrackTintList(android.content.res.ColorStateList.valueOf(accent));
-            sw.setThumbTintList(android.content.res.ColorStateList.valueOf(Color.WHITE));
-        }
-        swCard.addView(swText, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        swCard.addView(sw);
-        host.addView(swCard);
-
-        // 5. M3 文本字段 OutlinedTextField
-        host.addView(label.apply("5. M3 文本字段 OutlinedTextField"));
-        LinearLayout tfCard = card.apply(56, 14);
-        EditText tf = new EditText(this);
-        tf.setHint("浮动标签风格提示");
-        tf.setHintTextColor(textSub);
-        tf.setTextColor(onSurface);
-        tf.setTextSize(13f);
-        tf.setSingleLine(true);
-        tf.setPadding((int) (12 * d), 0, (int) (12 * d), 0);
-        android.graphics.drawable.GradientDrawable tfBg = new android.graphics.drawable.GradientDrawable();
-        tfBg.setStroke((int) (1.2 * d), accent != 0 ? accent : textSub);
-        tfBg.setCornerRadius(8 * d);
-        tfBg.setColor(android.graphics.Color.TRANSPARENT);
-        tf.setBackground(tfBg);
-        tfCard.addView(tf);
-        host.addView(tfCard);
-
-        // 6. M3 列表项 ListItem
-        host.addView(label.apply("6. M3 列表项 ListItem"));
-        LinearLayout liCard = card.apply(56, 12);
-        liCard.setGravity(Gravity.CENTER_VERTICAL);
-        TextView liIcon = new TextView(this);
-        liIcon.setText("🗺");
-        liIcon.setTextSize(18f);
-        liIcon.setPadding(0, 0, (int) (12 * d), 0);
-        LinearLayout liText = new LinearLayout(this);
-        liText.setOrientation(LinearLayout.VERTICAL);
-        TextView liTitle = new TextView(this);
-        liTitle.setText("列表项标题");
-        liTitle.setTextColor(onSurface);
-        liTitle.setTextSize(14f);
-        liText.addView(liTitle);
-        TextView liSub = new TextView(this);
-        liSub.setText("三行列表：副标题 + 尾随操作");
-        liSub.setTextColor(textSub);
-        liSub.setTextSize(12f);
-        liText.addView(liSub);
-        TextView liTrail = new TextView(this);
-        liTrail.setText("›");
-        liTrail.setTextColor(textSub);
-        liTrail.setTextSize(20f);
-        liCard.addView(liIcon);
-        liCard.addView(liText, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        liCard.addView(liTrail);
-        host.addView(liCard);
-
-        // 7. M3 数字徽标 Badge
-        host.addView(label.apply("7. M3 数字徽标 Badge"));
-        LinearLayout bdCard = card.apply(56, 14);
-        bdCard.setGravity(Gravity.CENTER_VERTICAL);
-        TextView bdIcon = new TextView(this);
-        bdIcon.setText("🔔");
-        bdIcon.setTextSize(18f);
-        bdIcon.setPadding(0, 0, (int) (16 * d), 0);
-        TextView bdBadge = new TextView(this);
-        bdBadge.setText("12");
-        bdBadge.setTextColor(Color.WHITE);
-        bdBadge.setTextSize(11f);
-        bdBadge.setGravity(Gravity.CENTER);
-        bdBadge.setBackgroundColor(accent != 0 ? accent : 0xFFB3261E);
-        bdBadge.getBackground().setTint(accent != 0 ? accent : 0xFFB3261E);
-        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
-                (int) (18 * d), (int) (18 * d));
-        bdBadge.setLayoutParams(blp);
-        TextView bdLabel = new TextView(this);
-        bdLabel.setText("图标角标（计数徽标）");
-        bdLabel.setTextColor(textSub);
-        bdLabel.setTextSize(12f);
-        bdLabel.setPadding((int) (16 * d), 0, 0, 0);
-        bdCard.addView(bdIcon);
-        bdCard.addView(bdBadge);
-        bdCard.addView(bdLabel);
-        host.addView(bdCard);
-
-        // 8. M3 悬浮按钮 FAB
-        host.addView(label.apply("8. M3 悬浮按钮 FAB"));
-        LinearLayout fabCard = card.apply(64, 14);
-        fabCard.setGravity(Gravity.CENTER_VERTICAL);
-        TextView fab = new TextView(this);
-        fab.setText("+");
-        fab.setTextColor(Color.WHITE);
-        fab.setTextSize(22f);
-        fab.setGravity(Gravity.CENTER);
-        fab.setBackgroundColor(accent != 0 ? accent : 0xFF6750A4);
-        fab.getBackground().setTint(accent != 0 ? accent : 0xFF6750A4);
-        fab.setElevation(6 * d);
-        LinearLayout.LayoutParams flp = new LinearLayout.LayoutParams(
-                (int) (48 * d), (int) (48 * d));
-        fab.setLayoutParams(flp);
-        TextView fabExt = new TextView(this);
-        fabExt.setText("  扩展 FAB");
-        fabExt.setTextColor(accent != 0 ? accent : onSurface);
-        fabExt.setTextSize(13f);
-        fabExt.setPadding((int) (10 * d), 0, 0, 0);
-        fabCard.addView(fab);
-        fabCard.addView(fabExt);
-        host.addView(fabCard);
-
-        // 9. M3 进度指示 Progress
-        host.addView(label.apply("9. M3 进度指示 Progress"));
-        LinearLayout pgCard = card.apply(0, 14);
-        LinearLayout pgRow = new LinearLayout(this);
-        pgRow.setGravity(Gravity.CENTER_VERTICAL);
-        android.widget.ProgressBar circ = new android.widget.ProgressBar(this);
-        if (accent != 0) {
-            circ.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(accent));
-        }
-        circ.setPadding(0, 0, (int) (16 * d), 0);
-        pgRow.addView(circ);
-        TextView pgLabel = new TextView(this);
-        pgLabel.setText("线性进度（下方）+ 圆形进度");
-        pgLabel.setTextColor(textSub);
-        pgLabel.setTextSize(12f);
-        pgRow.addView(pgLabel);
-        pgCard.addView(pgRow);
-        android.widget.ProgressBar lin = new android.widget.ProgressBar(this, null,
-                android.R.attr.progressBarStyleHorizontal);
-        lin.setProgress(60);
-        if (accent != 0) {
-            lin.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
-        }
-        lin.setPadding(0, (int) (8 * d), 0, 0);
-        pgCard.addView(lin);
-        host.addView(pgCard);
-
-        // 10. M3 芯片组 Chips
-        host.addView(label.apply("10. M3 芯片组 Chips"));
-        LinearLayout chipCard = card.apply(48, 12);
-        chipCard.setGravity(Gravity.CENTER_VERTICAL);
-        String[] chipItems = {"全部", "世界", "资源包", "行为包"};
-        for (int i = 0; i < chipItems.length; i++) {
-            TextView chip = new TextView(this);
-            chip.setText(chipItems[i]);
-            chip.setTextSize(12f);
-            chip.setGravity(Gravity.CENTER);
-            chip.setPadding((int) (12 * d), 0, (int) (12 * d), 0);
-            android.graphics.drawable.GradientDrawable cbg = new android.graphics.drawable.GradientDrawable();
-            if (i == 0) {
-                cbg.setColor(accent != 0 ? accent : onSurface);
-                chip.setTextColor(Color.WHITE);
-            } else {
-                cbg.setStroke((int) (1 * d), textSub);
-                cbg.setColor(android.graphics.Color.TRANSPARENT);
-                chip.setTextColor(onSurface);
-            }
-            cbg.setCornerRadius(14 * d);
-            chip.setBackground(cbg);
-            LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT, (int) (28 * d));
-            clp.setMarginEnd((int) (6 * d));
-            chip.setLayoutParams(clp);
-            chipCard.addView(chip);
-        }
-        host.addView(chipCard);
-
-        // ---- 旧 UI 对照 ----
-        host.addView(label.apply("旧版 · 实底按钮（导入按钮样式）"));
-        LinearLayout oldCard1 = card.apply(0, 14);
-        android.widget.Button oldBtn = new android.widget.Button(this);
-        oldBtn.setText("旧版实底按钮");
-        oldBtn.setAllCaps(false);
-        oldBtn.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
-                getColor(R.color.primary)));
-        oldBtn.setTextColor(getColor(R.color.on_primary));
-        oldCard1.addView(oldBtn);
-        host.addView(oldCard1);
-
-        host.addView(label.apply("旧版 · 开关行（带图标）"));
-        LinearLayout oldCard2 = card.apply(52, 14);
-        oldCard2.setGravity(Gravity.CENTER_VERTICAL);
-        TextView oldSwTitle = new TextView(this);
-        oldSwTitle.setText("旧版开关行标题");
-        oldSwTitle.setTextColor(onSurface);
-        oldSwTitle.setTextSize(14f);
-        android.widget.Switch oldSw = new android.widget.Switch(this);
-        oldSw.setChecked(true);
-        oldCard2.addView(oldSwTitle, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        oldCard2.addView(oldSw);
-        host.addView(oldCard2);
-
-        host.addView(label.apply("旧版 · 圆角卡片（导入弹窗卡）"));
-        LinearLayout oldCard3 = card.apply(56, 14);
-        oldCard3.setGravity(Gravity.CENTER);
-        TextView oldCardText = new TextView(this);
-        oldCardText.setText("旧版卡片内容");
-        oldCardText.setTextColor(onSurface);
-        oldCardText.setTextSize(13f);
-        oldCard3.addView(oldCardText);
-        host.addView(oldCard3);
-    }
 
 }

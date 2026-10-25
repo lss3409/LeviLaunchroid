@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<style>
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;
+    background:linear-gradient(180deg,#3a3f4b 0%,#23262e 100%);}
+  canvas{display:block;}
+  #hint{position:fixed;left:0;right:0;bottom:12px;text-align:center;
+    color:rgba(255,255,255,.5);font:12px sans-serif;pointer-events:none;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hint">拖动旋转 · 滚轮缩放</div>
+<script src="skinview3d.bundle.js"></script>
+<script>
+var viewer = null;
+var pending = null;
+function fit() {
+  var c = document.getElementById('c');
+  c.width = window.innerWidth;
+  c.height = window.innerHeight;
+}
+function create() {
+  fit();
+  try {
+    viewer = new skinview3d.SkinViewer({
+      canvas: document.getElementById('c'),
+      width: window.innerWidth,
+      height: window.innerHeight
+    });
+    try { viewer.autoRotate = true; } catch (e) {}
+    try { viewer.fov = 70; } catch (e) {}
+    try { viewer.zoom = 0.85; } catch (e) {}
+  } catch (e) {
+    viewer = null;
+  }
+  if (pending && viewer) {
+    var p = pending; pending = null;
+    doLoad(p);
+  }
+}
+function doLoad(dataUrl) {
+  if (!viewer) { pending = dataUrl; return; }
+  try { viewer.loadSkin(dataUrl); } catch (e) {}
+}
+function loadSkin(dataUrl) { doLoad(dataUrl); }
+window.addEventListener('load', create);
+window.addEventListener('resize', fit);
+</script>
+</body>
+</html>
