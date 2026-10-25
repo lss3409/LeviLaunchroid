@@ -275,9 +275,9 @@ public final class SkinPreviewDialog {
             // 重建后把选中项滚到中心
             if (thumbs[current[0]] != null && fStrip.getWidth() > 0) {
                 View sel = thumbs[current[0]];
-                int tx = sel.getLeft() + sel.getWidth() / 2 - fGallery.getWidth() / 2;
-                tx = Math.max(0, Math.min(tx, Math.max(0,
-                        fStrip.getWidth() - fGallery.getWidth())));
+                final int tx = clampScrollX(
+                        sel.getLeft() + sel.getWidth() / 2 - fGallery.getWidth() / 2,
+                        fStrip.getWidth(), fGallery.getWidth());
                 fGallery.post(() -> fGallery.scrollTo(tx, 0));
             }
         };
@@ -305,6 +305,12 @@ public final class SkinPreviewDialog {
         }
         dialog.setOnDismissListener(d -> webView.destroy());
         dialog.show();
+    }
+
+    /** 滚动位置收敛到 [0, contentW - viewW]（lambda 捕获需 effectively
+     *  final——重赋值收敛抽静态方法）。 */
+    private static int clampScrollX(int target, int contentW, int viewW) {
+        return Math.max(0, Math.min(target, Math.max(0, contentW - viewW)));
     }
 
     private static void showFallback2D(ImageView iv, java.io.File png) {
