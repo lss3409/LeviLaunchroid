@@ -20,7 +20,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 
 import com.google.android.material.button.MaterialButton;
-import com.google.android.material.snackbar.Snackbar;
+import android.widget.PopupWindow;
 
 import org.json.JSONArray;
 import org.levimc.launcher.R;
@@ -237,20 +237,13 @@ public final class ScanFolderDialog {
                 del.setColorFilter(0xFF8A8A8A);
                 del.setContentDescription(activity.getString(R.string.scan_folder_remove));
                 del.setOnClickListener(v -> {
-                    // 气泡删除确认（用户指定）
-                    Snackbar.make(activity.findViewById(android.R.id.content),
-                                    activity.getString(R.string.scan_folder_delete_confirm,
-                                            fDirs.get(idx)),
-                                    Snackbar.LENGTH_LONG)
-                            .setAction(R.string.scan_folder_confirm, view -> {
-                                fDirs.remove(idx);
-                                saveFolders(activity, fDirs);
-                                redrawRef[0].run();
-                            })
-                            .setActionTextColor(
-                                    new org.levimc.launcher.util.PersonalizationManager(activity)
-                                            .getAccentColor())
-                            .show();
+                    // v0.4.191：气泡删除确认（M3 风格——PopupWindow 锚定
+                    // 删除按钮：圆角气泡+阴影+accent 确认/灰取消文字按钮）
+                    showDeleteBubble(activity, v, fDirs.get(idx), () -> {
+                        fDirs.remove(idx);
+                        saveFolders(activity, fDirs);
+                        redrawRef[0].run();
+                    });
                 });
                 row.addView(path, new LinearLayout.LayoutParams(
                         0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
@@ -391,6 +384,72 @@ public final class ScanFolderDialog {
             w.setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
         dialog.show();
+    }
+
+    /** v0.4.191：气泡删除确认（M3 风格）——PopupWindow 锚定条目删除
+     *  按钮下方：surface 圆角气泡 + 阴影 + 确认（accent）/取消（灰）
+     *  文字按钮；点外部自动关闭。 */
+    private static void showDeleteBubble(Context ctx, View anchor, String path,
+                                         Runnable onConfirm) {
+        float density = ctx.getResources().getDisplayMetrics().density;
+        int pad = (int) (14 * density);
+        LinearLayout bubble = new LinearLayout(ctx);
+        bubble.setOrientation(LinearLayout.VERTICAL);
+        bubble.setPadding(pad, (int) (10 * density), pad, (int) (10 * density));
+        android.graphics.drawable.GradientDrawable bg =
+                new android.graphics.drawable.GradientDrawable();
+        bg.setColor(ctx.getColor(R.color.surface));
+        bg.setCornerRadius(12 * density);
+        bg.setStroke(1, ctx.getColor(R.color.surface));
+        bubble.setBackground(bg);
+        bubble.setElevation(8 * density);
+
+        TextView msg = new TextView(ctx);
+        msg.setText(ctx.getString(R.string.scan_folder_delete_confirm, path));
+        msg.setTextColor(ctx.getColor(R.color.on_surface));
+        msg.setTextSize(13f);
+        bubble.addView(msg);
+
+        LinearLayout row = new LinearLayout(ctx);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.END);
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        rlp.topMargin = (int) (6 * density);
+        row.setLayoutParams(rlp);
+
+        TextView cancel = new TextView(ctx);
+        cancel.setText(ctx.getString(R.string.cancel));
+        cancel.setTextColor(ctx.getColor(R.color.text_secondary));
+        cancel.setTextSize(13f);
+        cancel.setPadding((int) (10 * density), (int) (4 * density),
+                (int) (10 * density), (int) (4 * density));
+        cancel.setOnClickListener(v2 -> {
+        });
+        TextView confirm = new TextView(ctx);
+        confirm.setText(ctx.getString(R.string.scan_folder_confirm));
+        confirm.setTextColor(new org.levimc.launcher.util.PersonalizationManager(ctx)
+                .getAccentColor());
+        confirm.setTextSize(13f);
+        confirm.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        confirm.setPadding((int) (10 * density), (int) (4 * density),
+                (int) (10 * density), (int) (4 * density));
+        row.addView(cancel);
+        row.addView(confirm);
+        bubble.addView(row);
+
+        final PopupWindow popup = new PopupWindow(bubble,
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        popup.setOutsideTouchable(true);
+        popup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(
+                android.graphics.Color.TRANSPARENT));
+        popup.setElevation(8 * density);
+        cancel.setOnClickListener(v2 -> popup.dismiss());
+        confirm.setOnClickListener(v2 -> {
+            popup.dismiss();
+            onConfirm.run();
+        });
+        popup.showAsDropDown(anchor, -(int) (80 * density), (int) (6 * density));
     }
 
     /** 应用空实例的输入：校验目录存在 → 加入列表并重画；失败提示。 */
