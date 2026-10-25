@@ -32,12 +32,17 @@ public final class SkinPackPreview {
     }
 
     public static void open(Context context, GlobalImportScanner.Candidate c) {
-        List<SkinEntry> skins = extractSkins(context, c.file);
+        open(context, c.file, c.name);
+    }
+
+    /** v0.4.198：内容管理三点菜单入口（ResourcePackItem 无 Candidate）。 */
+    public static void open(Context context, File packFile, String name) {
+        List<SkinEntry> skins = extractSkins(context, packFile);
         if (skins == null || skins.isEmpty()) {
             Toast.makeText(context, R.string.skin_preview_failed, Toast.LENGTH_SHORT).show();
             return;
         }
-        SkinPreviewDialog.show(context, skins, 0, c.name);
+        SkinPreviewDialog.show(context, skins, 0, name);
     }
 
     /** 解包皮肤包：skins.json 的 skins[] 全部 texture → 提取 PNG 到缓存。 */

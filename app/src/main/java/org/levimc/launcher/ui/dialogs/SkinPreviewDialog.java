@@ -1,5 +1,7 @@
 package org.levimc.launcher.ui.dialogs;
 
+import android.animation.Animator;
+import android.animation.OvershootInterpolator;
 import android.app.Dialog;
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -7,12 +9,14 @@ import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Rect;
 import android.graphics.drawable.GradientDrawable;
 import android.util.Base64;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.view.animation.DecelerateInterpolator;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -29,8 +33,12 @@ import java.io.ByteArrayOutputStream;
 import java.util.List;
 
 /** v0.4.194/197：皮肤 3D 预览弹窗（方案三：WebView + skinview3d 本地化）。
- *  v0.4.197：多皮肤支持——底部相册条（正面渲染缩略图，点击切换
- *  3D 主视图）；WebGL 不可用降级 2D 平铺。 */
+ *  v0.4.197：多皮肤支持——相册条（正面渲染缩略图，点击切换 3D 主视图）。
+ *  v0.4.198：相册条移入 3D 展示区内部（覆盖底部）；缩略图改为仅头部
+ *  （8,8-16,16）最近邻整数倍放大（文件管理器 upscaleThumb 同款，像素
+ *  清晰不糊）；相册动画——选中项「抽出放大」（Overshoot），滚动时
+ *  缩略图按距中心距离连续缩放跟随（M3 丝滑感），滚动停止吸附最近项
+ *  居中并切换选中。 */
 public final class SkinPreviewDialog {
 
     public static void show(Context context,
@@ -44,6 +52,7 @@ public final class SkinPreviewDialog {
         float density = context.getResources().getDisplayMetrics().density;
         int accent = new org.levimc.launcher.util.PersonalizationManager(context)
                 .getAccentColor();
+        int accentSafe = accent != 0 ? accent : Color.WHITE;
 
         Dialog dialog = new Dialog(context);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
@@ -90,6 +99,33 @@ public final class SkinPreviewDialog {
 
         final boolean[] pageLoaded = {false};
         final Runnable[] updateGalleryRef = new Runnable[1];
+
+        // v0.4.198：相册条移入 3D 展示区内部——覆盖在预览底部
+        HorizontalScrollView gallery = new HorizontalScrollView(context);
+        gallery.setHorizontalScrollBarEnabled(false);
+        gallery.setClipToPadding(false);
+        LinearLayout strip = new LinearLayout(context);
+        strip.setOrientation(LinearLayout.HORIZONTAL);
+        strip.setGravity(Gravity.CENTER_VERTICAL);
+        int stripPad = (int) (8 * density);
+        strip.setPadding(stripPad, (int) (6 * density), stripPad, (int) (6 * density));
+        gallery.addView(strip, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        // 半透明底条（顶部圆角），与展示区融合
+        GradientDrawable gBg = new GradientDrawable();
+        gBg.setColor(Color.parseColor("#CC1A1D23"));
+        gBg.setCornerRadii(new float[]{10 * density, 10 * density, 10 * density,
+                10 * density, 0, 0, 0, 0});
+        gallery.setBackground(gBg);
+        FrameLayout.LayoutParams glp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, (int) (64 * density));
+        glp.gravity = Gravity.BOTTOM;
+        stage.addView(gallery, glp);
+
+        final HorizontalScrollView fGallery = gallery;
+        final ImageView[] thumbs = new ImageView[skins.size()];
+        final Runnable[] snapRef = new Runnable[1];
+
         final java.util.function.Consumer<Integer> applySkin = idx -> {
             if (!pageLoaded[0]) {
                 return;
@@ -124,54 +160,125 @@ public final class SkinPreviewDialog {
         });
         webView.loadUrl("file:///android_asset/skin_viewer/skin_preview.html");
 
-        // v0.4.197：底部相册条（正面渲染缩略图 + 当前高亮）
-        HorizontalScrollView gallery = new HorizontalScrollView(context);
-        gallery.setHorizontalScrollBarEnabled(false);
-        LinearLayout strip = new LinearLayout(context);
-        strip.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout.LayoutParams glp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, (int) (76 * density));
-        glp.topMargin = (int) (8 * density);
-        gallery.setLayoutParams(glp);
-        gallery.addView(strip, new ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        root.addView(gallery);
-
         final LinearLayout fStrip = strip;
+        // v0.4.198：滚动停止后吸附最近项居中；中心项 ≠ 当前选中则切换
+        snapRef[0] = () -> {
+            int center = fGallery.getScrollX() + fGallery.getWidth() / 2;
+            int best = current[0];
+            int bestDist = Integer.MAX_VALUE;
+            for (int i = 0; i < thumbs.length; i++) {
+                View t = thumbs[i];
+                if (t == null) {
+                    continue;
+                }
+                int d = Math.abs(t.getLeft() + t.getWidth() / 2 - center);
+                if (d < bestDist) {
+                    bestDist = d;
+                    best = i;
+                }
+            }
+            View bt = thumbs[best];
+            if (bt == null) {
+                return;
+            }
+            int targetX = bt.getLeft() + bt.getWidth() / 2 - fGallery.getWidth() / 2;
+            targetX = Math.max(0, Math.min(targetX,
+                    fStrip.getWidth() - fGallery.getWidth()));
+            if (Math.abs(targetX - fGallery.getScrollX()) > 2) {
+                fGallery.smoothScrollTo(targetX, 0);
+            }
+            if (best != current[0]) {
+                current[0] = best;
+                applySkin.accept(best);
+            }
+        };
+        // v0.4.198：滚动时缩略图按距中心距离连续缩放——「选中一样的动画跟随」
+        fGallery.setOnScrollChangeListener((v, sx, sy, osx, osy) -> {
+            int center = sx + fGallery.getWidth() / 2;
+            float half = Math.max(1f, fGallery.getWidth() / 2f);
+            for (int i = 0; i < thumbs.length; i++) {
+                View t = thumbs[i];
+                if (t == null) {
+                    continue;
+                }
+                float dist = Math.min(1f,
+                        Math.abs(t.getLeft() + t.getWidth() / 2 - center) / half);
+                float s = 1.15f - 0.35f * dist;
+                t.animate().scaleX(s).scaleY(s)
+                        .setDuration(120)
+                        .setInterpolator(new DecelerateInterpolator())
+                        .start();
+            }
+            // 滚动停止 150ms 后吸附（重置计时）
+            fGallery.removeCallbacks(snapRef[0]);
+            fGallery.postDelayed(snapRef[0], 150);
+        });
+
         updateGalleryRef[0] = () -> {
             fStrip.removeAllViews();
+            java.util.Arrays.fill(thumbs, null);
+            int thumbPx = (int) (48 * density);
             for (int i = 0; i < skins.size(); i++) {
                 final int idx = i;
                 ImageView thumb = new ImageView(context);
                 thumb.setScaleType(ImageView.ScaleType.FIT_CENTER);
-                thumb.setBackgroundColor(Color.parseColor("#2A2D35"));
                 Bitmap bmp = loadSkinBitmap(skins.get(i).png);
                 if (bmp != null) {
-                    // 「3D 正面转二维」观感：皮肤图裁出头部+身体正面
-                    // 区域（64×64 布局的头+胸腹中部），视觉接近模型正面
-                    thumb.setImageBitmap(faceCrop(bmp));
+                    // v0.4.198：仅头部（8,8-16,16）+ 最近邻整数倍放大
+                    // （文件管理器 upscaleThumb 同款——像素清晰不糊）
+                    thumb.setImageBitmap(headCrop(bmp, thumbPx));
                 }
                 LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
-                        (int) (56 * density), (int) (64 * density));
+                        thumbPx, thumbPx);
                 tlp.setMarginEnd((int) (6 * density));
                 thumb.setLayoutParams(tlp);
+                GradientDrawable bg = new GradientDrawable();
                 if (i == current[0]) {
-                    GradientDrawable sel = new GradientDrawable();
-                    sel.setStroke((int) (2 * density), accent != 0 ? accent : Color.WHITE);
-                    sel.setCornerRadius(6 * density);
-                    thumb.setBackground(sel);
+                    bg.setStroke((int) (2 * density), accentSafe);
+                    bg.setColor(Color.parseColor("#33FFFFFF"));
+                    thumb.setScaleX(1.15f);
+                    thumb.setScaleY(1.15f);
                 } else {
-                    GradientDrawable un = new GradientDrawable();
-                    un.setColor(Color.parseColor("#2A2D35"));
-                    un.setCornerRadius(6 * density);
-                    thumb.setBackground(un);
+                    bg.setColor(Color.parseColor("#2A2D35"));
+                    thumb.setScaleX(1f);
+                    thumb.setScaleY(1f);
                 }
+                bg.setCornerRadius(6 * density);
+                thumb.setBackground(bg);
                 thumb.setOnClickListener(v -> {
+                    if (idx == current[0]) {
+                        return;
+                    }
                     current[0] = idx;
+                    // v0.4.198：选中「抽出放大」——1.0→1.3（Overshoot）回落到 1.15
+                    thumb.animate().scaleX(1.3f).scaleY(1.3f)
+                            .setDuration(160)
+                            .setInterpolator(new OvershootInterpolator(1.6f))
+                            .setListener(new Animator.AnimatorListener() {
+                                @Override public void onAnimationStart(Animator a) {}
+                                @Override public void onAnimationEnd(Animator a) {
+                                    thumb.animate().scaleX(1.15f).scaleY(1.15f)
+                                            .setDuration(120)
+                                            .setInterpolator(new DecelerateInterpolator())
+                                            .setListener(null)
+                                            .start();
+                                }
+                                @Override public void onAnimationCancel(Animator a) {}
+                                @Override public void onAnimationRepeat(Animator a) {}
+                            })
+                            .start();
                     applySkin.accept(idx);
-                    updateGalleryRef[0].run();
                 });
+                thumbs[idx] = thumb;
                 fStrip.addView(thumb);
+            }
+            // 重建后把选中项滚到中心
+            if (thumbs[current[0]] != null && fStrip.getWidth() > 0) {
+                View sel = thumbs[current[0]];
+                int tx = sel.getLeft() + sel.getWidth() / 2 - fGallery.getWidth() / 2;
+                tx = Math.max(0, Math.min(tx, Math.max(0,
+                        fStrip.getWidth() - fGallery.getWidth())));
+                fGallery.post(() -> fGallery.scrollTo(tx, 0));
             }
         };
         updateGalleryRef[0].run();
@@ -179,7 +286,7 @@ public final class SkinPreviewDialog {
         // 底部：关闭
         TextView close = new TextView(context);
         close.setText(R.string.close);
-        close.setTextColor(accent != 0 ? accent : Color.WHITE);
+        close.setTextColor(accentSafe);
         close.setTextSize(14f);
         close.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         close.setGravity(Gravity.CENTER);
@@ -208,30 +315,31 @@ public final class SkinPreviewDialog {
         }
     }
 
-    /** 「模型正面」缩略图：取皮肤图头部+胸腹中部竖条（64×64 布局：
-     *  头 8,8-16,16、身体 20,20-28,32 区域），上下拼接成正面观感。 */
-    private static Bitmap faceCrop(Bitmap src) {
+    /** v0.4.198：相册缩略图——仅头部（64×64 布局 8,8-16,16），最近邻
+     *  整数倍放大到目标尺寸（filterBitmap=false，像素清晰）。 */
+    private static Bitmap headCrop(Bitmap src, int targetPx) {
         if (src == null) {
             return null;
         }
         int w = src.getWidth();
         int h = src.getHeight();
-        if (w < 64 || h < 64) {
-            return Bitmap.createScaledBitmap(src, 56, 64, true);
+        int hw = Math.max(1, w / 8);
+        int hh = Math.max(1, h / 8);
+        if (hw < 2 || hh < 2) {
+            return Bitmap.createScaledBitmap(src, targetPx, targetPx, false);
         }
-        // 头（8,8-16,16）+ 身体正面（20,20-28,32）→ 2 段拼接
-        Bitmap head = Bitmap.createBitmap(src, w / 8, h / 8, w / 8, h / 8);
-        Bitmap body = Bitmap.createBitmap(src, w * 20 / 64, h * 20 / 64,
-                w * 8 / 64, h * 12 / 64);
-        Bitmap out = Bitmap.createBitmap(w / 8, h / 8 + h * 12 / 64,
-                Bitmap.Config.ARGB_8888);
-        Canvas cv = new Canvas(out);
-        Paint p = new Paint(Paint.FILTER_BITMAP_FLAG);
-        cv.drawBitmap(head, 0, 0, p);
-        cv.drawBitmap(body, 0, h / 8f, p);
+        Bitmap head = Bitmap.createBitmap(src, w / 8, h / 8, hw, hh);
+        int up = Math.max(1, targetPx / Math.max(hw, hh));
+        if (up <= 1) {
+            return head;
+        }
+        Bitmap scaled = Bitmap.createBitmap(hw * up, hh * up, Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(scaled);
+        Paint p = new Paint();
+        p.setFilterBitmap(false); // 最近邻——8×8 像素放大清晰
+        c.drawBitmap(head, null, new Rect(0, 0, hw * up, hh * up), p);
         head.recycle();
-        body.recycle();
-        return out;
+        return scaled;
     }
 
     /** 皮肤图加载（OOM 防护：采样解码上限 1024）。 */

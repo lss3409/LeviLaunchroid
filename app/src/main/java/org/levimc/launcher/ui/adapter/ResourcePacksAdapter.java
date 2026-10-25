@@ -226,12 +226,21 @@ public class ResourcePacksAdapter extends RecyclerView.Adapter<ResourcePacksAdap
                 })
         ));
         // v0.1.0：激活到存档（仅带 uuid 的包可用）
-        if (pack.getUuid() != null && !pack.getUuid().isEmpty()) {
+        if (pack.getUuid() != null && !pack.getUuid().isEmpty()
+                && !pack.isSkinPack()) {
             actions.add(1, new ContentActionPopup.Action(
                     R.drawable.ic_check, R.string.activate_to_world, false, () -> {
                 if (onResourcePackActionListener != null) {
                     onResourcePackActionListener.onResourcePackActivate(pack);
                 }
+            }));
+        }
+        // v0.4.198：皮肤包加「3D 预览」（最前）
+        if (pack.isSkinPack()) {
+            actions.add(0, new ContentActionPopup.Action(
+                    R.drawable.ic_3d_view, R.string.skin_preview_open, false, () -> {
+                org.levimc.launcher.ui.dialogs.SkinPackPreview.open(
+                        anchor.getContext(), pack.getFile(), pack.getPackName());
             }));
         }
         ContentActionPopup.show(anchor, pack.getPackName(), actions);
