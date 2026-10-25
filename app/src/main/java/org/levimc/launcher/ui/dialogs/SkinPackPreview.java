@@ -11,25 +11,37 @@ import org.levimc.launcher.core.content.GlobalImportScanner;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-/** v0.4.194：皮肤包 3D 预览入口——解包 .mcpack（zip）读 skins.json
- *  取首个皮肤 texture（PNG），提取到缓存临时文件后打开
- *  SkinPreviewDialog（WebView + skinview3d；失败降级 2D）。 */
+/** v0.4.194/197：皮肤包 3D 预览入口——解包 .mcpack（zip）读 skins.json
+ *  提取全部皮肤 PNG（v0.4.197：多皮肤支持，底部相册翻页）。 */
 public final class SkinPackPreview {
 
+    /** 单个皮肤条目。 */
+    public static class SkinEntry {
+        public final String name;
+        public final File png;
+
+        SkinEntry(String name, File png) {
+            this.name = name;
+            this.png = png;
+        }
+    }
+
     public static void open(Context context, GlobalImportScanner.Candidate c) {
-        File png = extractFirstSkin(context, c.file);
-        if (png == null) {
+        List<SkinEntry> skins = extractSkins(context, c.file);
+        if (skins == null || skins.isEmpty()) {
             Toast.makeText(context, R.string.skin_preview_failed, Toast.LENGTH_SHORT).show();
             return;
         }
-        SkinPreviewDialog.show(context, png, c.name);
+        SkinPreviewDialog.show(context, skins, 0, c.name);
     }
 
-    /** 解包皮肤包：skins.json 的 skins[0].texture → 提取 PNG 到缓存。 */
-    private static File extractFirstSkin(Context context, File packFile) {
+    /** 解包皮肤包：skins.json 的 skins[] 全部 texture → 提取 PNG 到缓存。 */
+    private static List<SkinEntry> extractSkins(Context context, File packFile) {
         if (packFile == null || !packFile.isFile()) {
             return null;
         }
@@ -38,7 +50,6 @@ public final class SkinPackPreview {
             return null;
         }
         try (ZipFile zip = new ZipFile(packFile)) {
-            // 1) 读 skins.json
             ZipEntry jsonEntry = null;
             java.util.Enumeration<? extends ZipEntry> entries = zip.entries();
             while (entries.hasMoreElements()) {
@@ -54,7 +65,7 @@ public final class SkinPackPreview {
             }
             String jsonText;
             try (InputStream in = zip.getInputStream(jsonEntry)) {
-                byte[] buf = new byte[(int) Math.min(jsonEntry.getSize(), 64 * 1024)];
+                byte[] buf = new byte[(int) Math.min(jsonEntry.getSize(), 128 * 1024)];
                 int total = 0;
                 int n;
                 while (total < buf.length && (n = in.read(buf, total, buf.length - total)) > 0) {
@@ -67,36 +78,47 @@ public final class SkinPackPreview {
             if (skins == null || skins.length() == 0) {
                 return null;
             }
-            String texture = skins.optJSONObject(0).optString("texture", null);
-            if (texture == null || texture.isEmpty()) {
-                return null;
-            }
-            // 2) 提取 PNG（texture 可能是相对路径）
-            ZipEntry pngEntry = zip.getEntry(texture);
-            if (pngEntry == null) {
-                // 带目录前缀重试
-                java.util.Enumeration<? extends ZipEntry> all = zip.entries();
-                while (all.hasMoreElements()) {
-                    ZipEntry e = all.nextElement();
-                    if (e.getName().endsWith("/" + texture) || e.getName().equals(texture)) {
-                        pngEntry = e;
-                        break;
+            List<SkinEntry> out = new ArrayList<>();
+            long stamp = System.currentTimeMillis();
+            for (int i = 0; i < skins.length(); i++) {
+                JSONObject s = skins.optJSONObject(i);
+                if (s == null) {
+                    continue;
+                }
+                String texture = s.optString("texture", null);
+                if (texture == null || texture.isEmpty()) {
+                    continue;
+                }
+                ZipEntry pngEntry = zip.getEntry(texture);
+                if (pngEntry == null) {
+                    java.util.Enumeration<? extends ZipEntry> all = zip.entries();
+                    while (all.hasMoreElements()) {
+                        ZipEntry e = all.nextElement();
+                        if (e.getName().endsWith("/" + texture) || e.getName().equals(texture)) {
+                            pngEntry = e;
+                            break;
+                        }
                     }
                 }
-            }
-            if (pngEntry == null) {
-                return null;
-            }
-            File out = new File(cacheDir, "skin_" + System.currentTimeMillis() + ".png");
-            try (InputStream in = zip.getInputStream(pngEntry);
-                 FileOutputStream fos = new FileOutputStream(out)) {
-                byte[] buf = new byte[16 * 1024];
-                int n;
-                while ((n = in.read(buf)) > 0) {
-                    fos.write(buf, 0, n);
+                if (pngEntry == null) {
+                    continue;
                 }
+                File outFile = new File(cacheDir, "skin_" + stamp + "_" + i + ".png");
+                try (InputStream in = zip.getInputStream(pngEntry);
+                     FileOutputStream fos = new FileOutputStream(outFile)) {
+                    byte[] buf = new byte[16 * 1024];
+                    int n;
+                    while ((n = in.read(buf)) > 0) {
+                        fos.write(buf, 0, n);
+                    }
+                }
+                String name = s.optString("localization_name", null);
+                if (name == null || name.isEmpty()) {
+                    name = texture.replaceAll(".*/", "").replaceAll("\\.png$", "");
+                }
+                out.add(new SkinEntry(name, outFile));
             }
-            return out;
+            return out.isEmpty() ? null : out;
         } catch (Exception e) {
             return null;
         }

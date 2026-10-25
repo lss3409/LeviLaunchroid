@@ -6,13 +6,15 @@
 <style>
   html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;
     background:linear-gradient(180deg,#3a3f4b 0%,#23262e 100%);}
-  canvas{display:block;width:100%!important;height:100%!important;}
+  #c{display:block;}
   #hint{position:fixed;left:0;right:0;bottom:12px;text-align:center;
     color:rgba(255,255,255,.5);font:12px sans-serif;pointer-events:none;}
+  #axes{position:fixed;left:10px;bottom:10px;pointer-events:none;}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
+<canvas id="axes" width="72" height="72"></canvas>
 <div id="hint">拖动旋转 · 滚轮缩放</div>
 <script src="skinview3d.bundle.js"></script>
 <script>
@@ -20,11 +22,10 @@ var viewer = null;
 var pending = null;
 
 function realSize() {
-  // WebView 首帧 innerWidth/Height 可能是 0——保底 320×480
-  return {
-    w: Math.max(320, window.innerWidth || document.documentElement.clientWidth || 320),
-    h: Math.max(480, window.innerHeight || document.documentElement.clientHeight || 480)
-  };
+  var w = window.innerWidth || document.documentElement.clientWidth;
+  var h = window.innerHeight || document.documentElement.clientHeight;
+  if (!w || !h) { return {w: 360, h: 520}; }
+  return {w: w, h: h};
 }
 
 function create() {
@@ -40,11 +41,18 @@ function create() {
       height: s.h
     });
     try { viewer.autoRotate = true; } catch (e) {}
-    try { viewer.fov = 70; } catch (e) {}
-    try { viewer.zoom = 0.8; } catch (e) {}
+    try { viewer.fov = 55; } catch (e) {}
+    try { viewer.zoom = 0.75; } catch (e) {}
+    // 相机轻微俯视（比例修正：正侧面平视会显矮）
+    try {
+      var cam = viewer.camera;
+      cam.position.set(20, 12, 42);
+      cam.lookAt(0, 0, 0);
+    } catch (e) {}
   } catch (e) {
     viewer = null;
   }
+  bindDrag();
   if (pending && viewer) {
     var p = pending; pending = null;
     doLoad(p);
@@ -56,6 +64,14 @@ function destroy() {
   viewer = null;
 }
 
+// v0.4.197：用户拖动时关闭自动旋转
+function bindDrag() {
+  var c = document.getElementById('c');
+  c.addEventListener('pointerdown', function() {
+    if (viewer) { try { viewer.autoRotate = false; } catch (e) {} }
+  });
+}
+
 function doLoad(dataUrl) {
   if (!viewer) { pending = dataUrl; return; }
   try { viewer.loadSkin(dataUrl); } catch (e) {}
@@ -63,11 +79,28 @@ function doLoad(dataUrl) {
 
 function loadSkin(dataUrl) { doLoad(dataUrl); }
 
-// v0.4.196：等布局完成再初始化（canvas 0 尺寸创建=模型跑左上角根因）
+// v0.4.197：左下角 XYZ 坐标轴（地图查看器 3D 视图同款等距轴）
+function drawAxes() {
+  var a = document.getElementById('axes');
+  var g = a.getContext('2d');
+  g.clearRect(0, 0, 72, 72);
+  g.translate(28, 46);
+  g.lineWidth = 2;
+  // X（红）右下、Y（绿）上、Z（蓝）左下——等距投影
+  g.strokeStyle = '#E0564B'; g.beginPath(); g.moveTo(0, 0); g.lineTo(18, 10); g.stroke();
+  g.strokeStyle = '#4CAF50'; g.beginPath(); g.moveTo(0, 0); g.lineTo(0, -20); g.stroke();
+  g.strokeStyle = '#5C8DD8'; g.beginPath(); g.moveTo(0, 0); g.lineTo(-18, 10); g.stroke();
+  g.font = 'bold 10px sans-serif';
+  g.fillStyle = '#E0564B'; g.fillText('X', 22, 14);
+  g.fillStyle = '#4CAF50'; g.fillText('Y', 4, -24);
+  g.fillStyle = '#5C8DD8'; g.fillText('Z', -26, 16);
+}
+
 var initTries = 0;
 function tryInit() {
   if (window.innerWidth > 0 || document.documentElement.clientWidth > 0) {
     create();
+    drawAxes();
   } else if (initTries++ < 30) {
     setTimeout(tryInit, 100);
   }
@@ -75,6 +108,7 @@ function tryInit() {
 window.addEventListener('load', tryInit);
 window.addEventListener('resize', function() {
   if (viewer) { create(); }
+  drawAxes();
 });
 </script>
 </body>
