@@ -1282,9 +1282,8 @@ public class ImportPickerDialog {
         head.setLayoutParams(hp);
         content.addView(head);
         // v0.4.194：皮肤包 3D 预览入口（解包 skins.json 取首个皮肤）
-        // v0.4.195：条件放宽——skinPack 识别失败时按 .mcpack 扩展名兜底
-        if (c.skinPack || (c.file != null && c.file.getName() != null
-                && c.file.getName().toLowerCase(Locale.ROOT).endsWith(".mcpack"))) {
+        // v0.4.196：恢复严格条件（用户确认入口在导入菜单，之前是找错位置）
+        if (c.skinPack) {
             LinearLayout skinRow = new LinearLayout(context);
             skinRow.setOrientation(LinearLayout.HORIZONTAL);
             skinRow.setGravity(Gravity.CENTER_VERTICAL);

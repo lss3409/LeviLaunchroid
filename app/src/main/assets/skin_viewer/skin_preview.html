@@ -6,7 +6,7 @@
 <style>
   html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;
     background:linear-gradient(180deg,#3a3f4b 0%,#23262e 100%);}
-  canvas{display:block;}
+  canvas{display:block;width:100%!important;height:100%!important;}
   #hint{position:fixed;left:0;right:0;bottom:12px;text-align:center;
     color:rgba(255,255,255,.5);font:12px sans-serif;pointer-events:none;}
 </style>
@@ -18,22 +18,30 @@
 <script>
 var viewer = null;
 var pending = null;
-function fit() {
-  var c = document.getElementById('c');
-  c.width = window.innerWidth;
-  c.height = window.innerHeight;
+
+function realSize() {
+  // WebView 首帧 innerWidth/Height 可能是 0——保底 320×480
+  return {
+    w: Math.max(320, window.innerWidth || document.documentElement.clientWidth || 320),
+    h: Math.max(480, window.innerHeight || document.documentElement.clientHeight || 480)
+  };
 }
+
 function create() {
-  fit();
+  if (viewer) { destroy(); }
+  var s = realSize();
+  var c = document.getElementById('c');
+  c.width = s.w;
+  c.height = s.h;
   try {
     viewer = new skinview3d.SkinViewer({
-      canvas: document.getElementById('c'),
-      width: window.innerWidth,
-      height: window.innerHeight
+      canvas: c,
+      width: s.w,
+      height: s.h
     });
     try { viewer.autoRotate = true; } catch (e) {}
     try { viewer.fov = 70; } catch (e) {}
-    try { viewer.zoom = 0.85; } catch (e) {}
+    try { viewer.zoom = 0.8; } catch (e) {}
   } catch (e) {
     viewer = null;
   }
@@ -42,13 +50,32 @@ function create() {
     doLoad(p);
   }
 }
+
+function destroy() {
+  try { if (viewer && viewer.dispose) viewer.dispose(); } catch (e) {}
+  viewer = null;
+}
+
 function doLoad(dataUrl) {
   if (!viewer) { pending = dataUrl; return; }
   try { viewer.loadSkin(dataUrl); } catch (e) {}
 }
+
 function loadSkin(dataUrl) { doLoad(dataUrl); }
-window.addEventListener('load', create);
-window.addEventListener('resize', fit);
+
+// v0.4.196：等布局完成再初始化（canvas 0 尺寸创建=模型跑左上角根因）
+var initTries = 0;
+function tryInit() {
+  if (window.innerWidth > 0 || document.documentElement.clientWidth > 0) {
+    create();
+  } else if (initTries++ < 30) {
+    setTimeout(tryInit, 100);
+  }
+}
+window.addEventListener('load', tryInit);
+window.addEventListener('resize', function() {
+  if (viewer) { create(); }
+});
 </script>
 </body>
 </html>
