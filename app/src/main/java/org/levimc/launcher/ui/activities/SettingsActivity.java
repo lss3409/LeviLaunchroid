@@ -227,16 +227,21 @@ public class SettingsActivity extends BaseActivity {
         tabPersonalize = findViewById(R.id.tab_personalize);
         tabMigration = findViewById(R.id.tab_migration);
         tabAbout = findViewById(R.id.tab_about);
+        tabDebug = findViewById(R.id.tab_debug);
 
         sectionBasic = findViewById(R.id.section_basic);
         sectionPersonalize = findViewById(R.id.section_personalize);
         sectionMigration = findViewById(R.id.section_migration);
         sectionAbout = findViewById(R.id.section_about);
+        sectionDebug = findViewById(R.id.section_debug);
 
         tabBasic.setOnClickListener(v -> { selectedTabIndex = 0; selectTab(tabBasic); });
         tabPersonalize.setOnClickListener(v -> { selectedTabIndex = 1; selectTab(tabPersonalize); });
         tabAbout.setOnClickListener(v -> { selectedTabIndex = 2; selectTab(tabAbout); });
         tabMigration.setOnClickListener(v -> { selectedTabIndex = 3; selectTab(tabMigration); });
+        tabDebug.setOnClickListener(v -> { selectedTabIndex = 4; selectTab(tabDebug); });
+        // v0.4.192：调试页（M3 Dummy UI 展示）
+        setupDebugSection();
     }
 
     private void selectTab(TextView selectedTab) {
