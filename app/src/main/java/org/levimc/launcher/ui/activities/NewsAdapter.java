@@ -97,12 +97,13 @@ final class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.Holder> {
         if (TextUtils.isEmpty(detail)) {
             detail = item.title;
         }
-        new org.levimc.launcher.ui.dialogs.CustomAlertDialog(context)
-                .setTitleText(item.title)
-                .setMessage(detail)
-                .setPositiveButton(context.getString(R.string.close), d -> {})
-                .setCanceledOnTouchOutside(true)
-                .show();
+        org.levimc.launcher.ui.dialogs.CustomAlertDialog dlg =
+                new org.levimc.launcher.ui.dialogs.CustomAlertDialog(context)
+                        .setTitleText(item.title)
+                        .setMessage(detail)
+                        .setPositiveButton(context.getString(R.string.close), d -> {});
+        dlg.setCanceledOnTouchOutside(true);
+        dlg.show();
     }
 
     private String formatDate(String value) {
