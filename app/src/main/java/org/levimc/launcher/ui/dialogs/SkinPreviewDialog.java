@@ -1,7 +1,6 @@
 package org.levimc.launcher.ui.dialogs;
 
 import android.animation.Animator;
-import android.animation.OvershootInterpolator;
 import android.app.Dialog;
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -17,6 +16,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.animation.DecelerateInterpolator;
+import android.view.animation.OvershootInterpolator;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
