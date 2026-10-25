@@ -2035,4 +2035,5 @@ Davet kodu: P/%1$s
     <string name="scan_folder_apply">Apply</string>
     <string name="scan_folder_confirm">Delete</string>
     <string name="scan_folder_delete_confirm">Delete folder "%1$s"?</string>
+    <string name="settings_tab_debug">Debug</string>
 </resources>
