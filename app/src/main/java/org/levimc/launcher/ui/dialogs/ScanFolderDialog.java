@@ -100,10 +100,11 @@ public final class ScanFolderDialog {
                 .putString(KEY_DIRS, arr.toString()).apply();
     }
 
-    /** SAF 树 uri → 真实路径（primary: 段解析；失败返回 null 手输兜底）。
-     *  v0.4.188：先整体 URLDecode 再检查前缀——平板 SAF 返回的
-     *  lastPathSegment 常是 primary%3ADownload%3Amods（冒号被编码），
-     *  解码前 startsWith("primary:") 恒 false=「选择后空白」根因。 */
+    /** SAF 树 uri → 真实路径（primary:/卷 ID: 段解析；失败返回 null
+     *  手输兜底）。v0.4.188：先整体 URLDecode 再检查前缀——平板 SAF
+     *  返回的 lastPathSegment 常是 primary%3ADownload%3Amods（冒号被
+     *  编码），解码前 startsWith("primary:") 恒 false=「选择后空白」
+     *  根因。v0.4.190：支持 TF 卡卷（1A2B-3C4D:dir → /storage/1A2B-3C4D/dir）。 */
     private static String safTreeToPath(Uri uri) {
         try {
             String seg = uri.getLastPathSegment();
@@ -111,16 +112,23 @@ public final class ScanFolderDialog {
                 return null;
             }
             String decoded = URLDecoder.decode(seg, "UTF-8");
-            if (!decoded.startsWith("primary:")) {
+            int idx = decoded.indexOf(':');
+            if (idx <= 0) {
                 // 兼容无编码形式（某些 ROM 直接给 primary:Download）
-                if (!seg.startsWith("primary:")) {
+                idx = seg.indexOf(':');
+                if (idx <= 0) {
                     return null;
                 }
                 decoded = seg;
             }
-            String rel = decoded.substring("primary:".length());
-            String base = android.os.Environment.getExternalStorageDirectory().getAbsolutePath();
-            return base + "/" + rel;
+            String vol = decoded.substring(0, idx);
+            String rel = decoded.substring(idx + 1);
+            if ("primary".equals(vol)) {
+                return android.os.Environment.getExternalStorageDirectory()
+                        .getAbsolutePath() + "/" + rel;
+            }
+            // 外置存储卷（TF 卡）：/storage/<卷ID>/<路径>
+            return "/storage/" + vol + "/" + rel;
         } catch (Exception e) {
             return null;
         }

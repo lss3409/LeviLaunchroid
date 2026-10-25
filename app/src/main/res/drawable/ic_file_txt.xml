@@ -1,14 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v0.4.188：文件管理器分类图标（用户提供 SVG 转换） -->
+<!-- v0.4.190：统一文档模板 + 类型元素（贴图风格统一化） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="1024"
-    android:viewportHeight="1024">
+    android:viewportWidth="24"
+    android:viewportHeight="24">
     <path
-        android:fillColor="#4B4E54"
-        android:pathData="M667.36 68.64L656 64H293.28a60 60 0 0 0-64 56 66.24 66.24 0 0 0 0 9.76v146.08h-51.36a75.68 75.68 0 0 0-65.76 80v415.2h117.6V960H912V332.96z m-13.92 66.24l174.4 188.16h-144a37.76 37.76 0 0 1-34.88-28.16v-160zM161.44 356.16c0-11.68 4.8-32 18.72-32H512c14.24 0 23.68 20.96 23.68 32v368H160zM276.8 912v-140.96h305.92V356.16a77.76 77.76 0 0 0-70.56-80H276.8V129.92c0-13.76 0-18.72 16-18.72h313.6v183.68a81.6 81.6 0 0 0 80 75.68h178.56V912z"/>
+        android:fillColor="#FFDFE2E8"
+        android:pathData="M7,2.5 C5.6,2.5 4.5,3.6 4.5,5 L4.5,19 C4.5,20.4 5.6,21.5 7,21.5 L17,21.5 C18.4,21.5 19.5,20.4 19.5,19 L19.5,8 L14,2.5 Z"/>
     <path
-        android:fillColor="#4B4E54"
-        android:pathData="M369.44 457.44v179.2a22.4 22.4 0 1 1-44.8 0v-179.2H246.4a22.4 22.4 0 0 1 0-44.8H448a22.4 22.4 0 0 1 0 44.8z"/>
+        android:fillColor="#FFB9BEC7"
+        android:pathData="M14,2.5 L19.5,8 L14,8 Z"/>
+    <path
+        android:fillColor="#FF4B4E54"
+        android:pathData="M8.6,10.8 h6.8 v1.3 h-6.8 Z M8.6,13.6 h6.8 v1.3 h-6.8 Z M8.6,16.4 h4.6 v1.3 h-4.6 Z"/>
 </vector>
