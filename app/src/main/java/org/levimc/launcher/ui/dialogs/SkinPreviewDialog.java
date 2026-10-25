@@ -89,6 +89,7 @@ public final class SkinPreviewDialog {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         final boolean[] pageLoaded = {false};
+        final Runnable[] updateGalleryRef = new Runnable[1];
         final java.util.function.Consumer<Integer> applySkin = idx -> {
             if (!pageLoaded[0]) {
                 return;
@@ -99,9 +100,10 @@ public final class SkinPreviewDialog {
                 webView.evaluateJavascript(
                         "loadSkin('data:image/png;base64," + bitmapToBase64(bmp) + "');", null);
             }
-            updateGallerySelection();
+            if (updateGalleryRef[0] != null) {
+                updateGalleryRef[0].run();
+            }
         };
-        final Runnable[] updateGalleryRef = new Runnable[1];
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -173,7 +175,6 @@ public final class SkinPreviewDialog {
             }
         };
         updateGalleryRef[0].run();
-        final Runnable[] updateGallerySelection = new Runnable[]{updateGalleryRef[0]};
 
         // 底部：关闭
         TextView close = new TextView(context);
