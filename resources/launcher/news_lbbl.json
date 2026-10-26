@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "items": [
     {
-      "id": "release-v0.4.199",
-      "title": "v0.4.199（当前版本）",
-      "summary": "皮肤包 3D 皮肤预览\n导入菜单新增扫描指定文件夹\n修复了已知问题",
+      "id": "release-v0.4.200",
+      "title": "v0.4.200（当前版本）",
+      "summary": "扫描指定文件夹改设置语义\n修复扫描指定文件夹后导入菜单不变\n新建/应用指定文件夹后自动重新扫描",
       "publishedAt": "2026-10-26T00:00:00Z",
       "category": "Release",
-      "url": "https://github.com/lss3409/levi-updates/releases/tag/v0.4.199",
+      "url": "https://github.com/lss3409/levi-updates/releases/tag/v0.4.200",
       "important": true,
       "notify": false
     },
