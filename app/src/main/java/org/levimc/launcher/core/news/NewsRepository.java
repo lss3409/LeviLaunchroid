@@ -34,6 +34,14 @@ public final class NewsRepository {
     /** v0.4.165：LBBL 更新公告源（lss3409/LeviLaunchroid 仓库同款
      *  news.json，铃铛双栏位——LBBL 公告 + LeviLauncher 官方）。 */
     public static final String REMOTE_URL_LBBL = "https://raw.githubusercontent.com/lss3409/LeviLaunchroid/main/resources/launcher/news_lbbl.json";
+    /** v0.4.201：新闻多源回退（检查更新同款镜像前缀）——raw 直连
+     *  国内经常失败只显示内置旧公告，失败依次试 ghproxy 镜像。 */
+    private static final String[] NEWS_MIRRORS = {
+            "https://ghproxy.net/",
+            "https://gh-proxy.org/",
+            "https://gh.zwy.one/",
+            "https://mirror.ghproxy.com/",
+    };
     private static final String ASSET_PATH = "launcher/news.json";
     private static final String CACHE_FILE = "launcher_news.json";
     private static final String CACHE_FILE_LBBL = "launcher_news_lbbl.json";
@@ -107,29 +115,20 @@ public final class NewsRepository {
             NewsFeed result;
             Throwable resultError = null;
             try {
-                Request request = new Request.Builder()
-                        .url(fLbbl ? REMOTE_URL_LBBL : REMOTE_URL)
-                        .header("Cache-Control", "no-cache")
-                        .build();
-                try (Response response = HTTP.newCall(request).execute()) {
-                    if (!response.isSuccessful() || response.body() == null) {
-                        throw new IllegalStateException("News request failed with HTTP " + response.code());
-                    }
-                    String json = response.body().string();
-                    NewsFeed feed = parse(json);
-                    if (fLbbl) {
-                        writeCacheLbbl(appContext, json);
-                        memoryCacheLbbl = feed;
-                    } else {
-                        writeCache(appContext, json);
-                        memoryCache = feed;
-                    }
-                    appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                            .edit().putLong(fLbbl ? KEY_LAST_REFRESH_LBBL : KEY_LAST_REFRESH,
-                                    System.currentTimeMillis()).apply();
-                    NewsState.notifyChanged(appContext);
-                    result = feed;
+                String json = fetchNewsJson(fLbbl);
+                NewsFeed feed = parse(json);
+                if (fLbbl) {
+                    writeCacheLbbl(appContext, json);
+                    memoryCacheLbbl = feed;
+                } else {
+                    writeCache(appContext, json);
+                    memoryCache = feed;
                 }
+                appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                        .edit().putLong(fLbbl ? KEY_LAST_REFRESH_LBBL : KEY_LAST_REFRESH,
+                                System.currentTimeMillis()).apply();
+                NewsState.notifyChanged(appContext);
+                result = feed;
             } catch (Throwable error) {
                 result = fLbbl ? loadLocalLbbl(appContext) : loadLocal(appContext);
                 resultError = error;
@@ -143,6 +142,35 @@ public final class NewsRepository {
             }
             for (Callback pending : callbacks) deliver(pending, result, resultError);
         });
+    }
+
+    /** v0.4.201：直链 → ghproxy 镜像前缀顺序重试拉取新闻 JSON（任一成功即停）。 */
+    private static String fetchNewsJson(boolean lbbl) throws Exception {
+        String base = lbbl ? REMOTE_URL_LBBL : REMOTE_URL;
+        String[] urls = new String[NEWS_MIRRORS.length + 1];
+        urls[0] = base;
+        for (int i = 0; i < NEWS_MIRRORS.length; i++) {
+            urls[i + 1] = NEWS_MIRRORS[i] + base;
+        }
+        Exception last = null;
+        for (String url : urls) {
+            try {
+                Request request = new Request.Builder()
+                        .url(url)
+                        .header("Cache-Control", "no-cache")
+                        .build();
+                try (Response response = HTTP.newCall(request).execute()) {
+                    if (!response.isSuccessful() || response.body() == null) {
+                        throw new IllegalStateException(
+                                "News request failed with HTTP " + response.code());
+                    }
+                    return response.body().string();
+                }
+            } catch (Exception e) {
+                last = e;
+            }
+        }
+        throw last != null ? last : new IllegalStateException("all news mirrors failed");
     }
 
     private static NewsFeed loadLocal(Context context) {
