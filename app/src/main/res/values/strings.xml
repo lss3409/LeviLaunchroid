@@ -1270,10 +1270,12 @@ Virtual IP: %1$s
 <string name="online_state_idle">Not connected</string>
 <string name="online_state_connected_fmt">Connected · Virtual IP %1$s</string>
     <string name="online_share_text">【LBBL Invite】
-Join my Minecraft world! Invite code: P/%1$s
-Open LBBL → Online → Join, then paste the code</string>
+Join my Minecraft world! Invite code: %1$s
+Open LBBL → Online → Join, then paste the code————————%2$s</string>
     <string name="online_clipboard_title">LBBL invite detected</string>
     <string name="online_clipboard_msg">Invite code in clipboard: %1$s\nJoin this room?</string>
+    <string name="online_clipboard_expired_title">Invite expired</string>
+    <string name="online_clipboard_expired_msg">The room no longer exists or the invite timed out. Ask the host for a fresh one.</string>
     <string name="online_clipboard_join">Join room</string>
 <string name="online_state_discovering">Looking for host on the local network…</string>
 <string name="online_my_room">Your Room</string>
@@ -1292,7 +1294,7 @@ Open LBBL → Online → Join, then paste the code</string>
 <string name="online_code_progress_fmt">%1$d/16</string>
 <string name="online_code_valid">✓ Invite code valid</string>
     <string name="online_room_created_fmt">Room created ✓
-Invite code: P/%1$s
+Invite code: %1$s
 (Friends on the same Wi-Fi can join with this code)</string>
 <string name="voice_mute">Muted</string>
 <string name="voice_open">Mic on</string>

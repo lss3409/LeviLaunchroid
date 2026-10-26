@@ -1246,6 +1246,8 @@ LeviLauncher を続行するには移行を完了する必要があります。<
 <string name="online_state_connected_fmt">接続済み · 仮想 IP %1$s</string>
     <string name="online_clipboard_title">LBBL 招待を検出しました</string>
     <string name="online_clipboard_msg">クリップボードに招待コード：%1$s\nルームに参加しますか？</string>
+    <string name="online_clipboard_expired_title">招待の有効期限切れ</string>
+    <string name="online_clipboard_expired_msg">ルームが存在しないか、招待の有効期限が切れています。ホストに新しい招待をもらってください。</string>
     <string name="online_clipboard_join">ルームに参加</string>
 <string name="online_state_discovering">ローカルネットワーク上でホストを探しています…</string>
 <string name="online_my_room">あなたのルーム</string>
@@ -1822,10 +1824,10 @@ LeviLauncher を続行するには移行を完了する必要があります。<
 仮想 IP：%1$s
 （ルーム一覧とワンタップ参加は近日対応予定）</string>
     <string name="online_share_text">【LBBL 招待】
-私の Minecraft ワールドに参加しよう！招待コード：P/%1$s
-LBBL を開く → オンライン → 参加、コードを貼り付け</string>
+私の Minecraft ワールドに参加しよう！招待コード：%1$s
+LBBL を開く → オンライン → 参加、コードを貼り付け————————%2$s</string>
     <string name="online_room_created_fmt">ルームを作成しました ✓
-招待コード：P/%1$s
+招待コード：%1$s
 （同じ Wi-Fi の友達がこのコードで参加できます）</string>
     <!-- v0.0.11 新词条（2026-10-03） -->
     <string name="scan_type_world">ワールド</string>

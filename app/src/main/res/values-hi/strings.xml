@@ -1276,6 +1276,8 @@ LeviLauncher जारी रखने से पहले माइग्रे
 <string name="online_state_connected_fmt">कनेक्टेड · वर्चुअल IP %1$s</string>
     <string name="online_clipboard_title">LBBL आमंत्रण मिला</string>
     <string name="online_clipboard_msg">क्लिपबोर्ड में आमंत्रण कोड: %1$s\nकमरे में शामिल हों?</string>
+    <string name="online_clipboard_expired_title">निमंत्रण समाप्त</string>
+    <string name="online_clipboard_expired_msg">कमरा मौजूद नहीं है या निमंत्रण की समय सीमा समाप्त हो गई। होस्ट से नया निमंत्रण मांगें।</string>
     <string name="online_clipboard_join">कमरे में शामिल हों</string>
 <string name="online_state_discovering">स्थानीय नेटवर्क पर होस्ट खोजा जा रहा है…</string>
 <string name="online_my_room">आपका रूम</string>
@@ -1852,10 +1854,10 @@ LeviLauncher जारी रखने से पहले माइग्रे
 वर्चुअल IP: %1$s
 (रूम सूची और एक-क्लिक जुड़ाव जल्द आ रहा है)</string>
     <string name="online_share_text">【LBBL आमंत्रण】
-मेरी Minecraft दुनिया में जुड़ें! आमंत्रण कोड: P/%1$s
-LBBL खोलें → ऑनलाइन → जुड़ें, फिर कोड पेस्ट करें</string>
+मेरी Minecraft दुनिया में जुड़ें! आमंत्रण कोड: %1$s
+LBBL खोलें → ऑनलाइन → जुड़ें, फिर कोड पेस्ट करें————————%2$s</string>
     <string name="online_room_created_fmt">रूम बन गया ✓
-आमंत्रण कोड: P/%1$s
+आमंत्रण कोड: %1$s
 (एक ही Wi-Fi पर मौजूद दोस्त इस कोड से जुड़ सकते हैं)</string>
     <!-- v0.0.11 新词条（2026-10-03） -->
     <string name="scan_type_world">दुनिया</string>

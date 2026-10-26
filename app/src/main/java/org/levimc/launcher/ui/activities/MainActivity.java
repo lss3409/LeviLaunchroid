@@ -140,11 +140,22 @@ import okhttp3.OkHttpClient;
     /** v0.4.38：剪贴板邀请弹窗（防叠加重入）。 */
     private CustomAlertDialog clipboardDialog;
 
+    /** v0.4.201：静默探测进行中（防 onResume 重入）。 */
+    private volatile boolean inviteProbing = false;
+
+    /** v0.4.201：邀请文案时间戳（「————————yyyy M:d HH:mm」尾缀）。 */
+    private static final java.util.regex.Pattern INVITE_TS_PATTERN =
+            java.util.regex.Pattern.compile(
+                    "——+\\s*(\\d{4})\\s+(\\d{1,2}):(\\d{1,2})\\s+(\\d{1,2}):(\\d{2})\\s*$");
+
+    /** v0.4.201：邀请时效——时间戳超过 3 分钟静默忽略（未来容差 1 分钟）。 */
+    private static final long INVITE_MAX_AGE_MS = 3 * 60_000L;
+
     /** v0.4.38：剪贴板邀请码检测（夸克式）——复制了 LBBL 邀请文本
      *  回启动器自动弹「加入房间」确认窗，确认后深链直达联机页填码。
-     *  v0.4.40：加时效（剪贴板内容超过 15 分钟不弹）+ 点加入直接进房间。 */
-    private static final long CLIP_AGE_MAX_MS = 15 * 60_000L;
-
+     *  v0.4.201：改为文案时间戳校验（无时间戳的旧文案直接忽略——根治
+     *  「千年以前误扫」：部分 ROM 系统时间戳读不到导致 15 分钟时效失效）
+     *  + 静默探测（房间有效才弹加入窗，无效弹「邀请码已失效」）。 */
     private void checkClipboardInvite() {
         try {
             ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
@@ -152,22 +163,31 @@ import okhttp3.OkHttpClient;
                 return;
             }
             ClipData cd = cm.getPrimaryClip();
-            // v0.4.40：时效——剪贴板内容太旧（15 分钟）视为过期邀请不弹
-            long ts = 0;
-            try {
-                ts = cd.getDescription() == null ? 0 : cd.getDescription().getTimestamp();
-            } catch (Exception ignored) {
-            }
-            if (ts > 0 && System.currentTimeMillis() - ts > CLIP_AGE_MAX_MS) {
-                return;
-            }
             ClipData.Item item = cd.getItemAt(0);
             if (item == null || item.getText() == null) {
                 return;
             }
+            String text = item.getText().toString();
+            // v0.4.201：先校验时间戳——无时间戳（旧文案）静默忽略
+            java.util.regex.Matcher m = INVITE_TS_PATTERN.matcher(text);
+            if (!m.find()) {
+                return;
+            }
+            long age = 0;
+            try {
+                java.util.Calendar cal = java.util.Calendar.getInstance();
+                cal.set(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)) - 1,
+                        Integer.parseInt(m.group(3)), Integer.parseInt(m.group(4)),
+                        Integer.parseInt(m.group(5)), 0);
+                age = System.currentTimeMillis() - cal.getTimeInMillis();
+            } catch (Exception e) {
+                return;
+            }
+            if (age > INVITE_MAX_AGE_MS || age < -60_000L) {
+                return; // 超时（或设备时钟偏差过大）——无反应
+            }
             // formatInput 自带「任意文本提取 + mod 7 校验」（v526）
-            String code = org.levimc.launcher.core.online.InviteCode.formatInput(
-                    item.getText().toString());
+            String code = org.levimc.launcher.core.online.InviteCode.formatInput(text);
             if (code.isEmpty()) {
                 return;
             }
@@ -178,7 +198,7 @@ import okhttp3.OkHttpClient;
                 prefs.edit().remove("self_copied").apply();
                 return;
             }
-            // 同码只提示一次（剪贴板换成别的码才再弹）
+            // 同码只处理一次（剪贴板换成别的码才再处理）
             if (code.equals(prefs.getString("last_prompted", ""))) {
                 return;
             }
@@ -186,22 +206,160 @@ import okhttp3.OkHttpClient;
                 return;
             }
             prefs.edit().putString("last_prompted", code).apply();
-            String display = "P/" + code;
-            clipboardDialog = new CustomAlertDialog(this)
-                    .setTitleText(getString(R.string.online_clipboard_title))
-                    .setMessage(getString(R.string.online_clipboard_msg, display))
-                    .setPositiveButton(getString(R.string.online_clipboard_join), d -> {
-                        // v0.4.40：direct=1——联机页直接发起加入，不再弹加入窗
-                        Intent intent = new Intent(this, OnlineActivity.class);
-                        intent.setData(Uri.parse("lbb://invite?code="
-                                + Uri.encode(display) + "&direct=1"));
-                        startActivity(intent);
-                    })
-                    .setNegativeButton(getString(R.string.cancel), null);
-            clipboardDialog.setOnDismissListener(d -> clipboardDialog = null);
-            clipboardDialog.show();
+            // v0.4.201：后台静默探测房间有效性，有效才弹加入确认窗
+            probeRoomSilently(code);
         } catch (Exception ignored) {
         }
+    }
+
+    /** v0.4.201：静默探测——组网 + c:ping 房主房间中心；有效弹加入窗，
+     *  无效弹「邀请码已失效」。约束：正在联机（EasyTier 非 IDLE）或
+     *  VPN 未授权时静默跳过（onResume 自动流程绝不弹系统授权框 v707）。 */
+    private void probeRoomSilently(String code) {
+        if (inviteProbing) {
+            return;
+        }
+        org.levimc.launcher.core.online.InviteCode.Result r =
+                org.levimc.launcher.core.online.InviteCode.parse("P/" + code);
+        if (!r.ok()) {
+            return;
+        }
+        org.levimc.launcher.core.online.EasyTierManager et =
+                org.levimc.launcher.core.online.EasyTierManager.get();
+        if (et.getState() != org.levimc.launcher.core.online.EasyTierManager.State.IDLE) {
+            return; // 自己正在联机，不打断现有连接
+        }
+        try {
+            if (android.net.VpnService.prepare(this) != null) {
+                return; // 未授权——静默放弃（不弹系统授权框）
+            }
+        } catch (Throwable t) {
+            return;
+        }
+        inviteProbing = true;
+        org.levimc.launcher.core.online.InviteCode.Parsed parsed = r.parsed;
+        new Thread(() -> {
+            boolean alive = probeRoom(et, parsed);
+            runOnUiThread(() -> {
+                inviteProbing = false;
+                if (isFinishing() || isDestroyed()) {
+                    return;
+                }
+                if (alive) {
+                    showClipboardJoinDialog(code);
+                } else {
+                    showClipboardExpiredDialog(code);
+                }
+            });
+        }, "invite-probe").start();
+    }
+
+    /** 后台组网 + c:ping；结束无论结果退出网络。 */
+    private boolean probeRoom(org.levimc.launcher.core.online.EasyTierManager et,
+                              org.levimc.launcher.core.online.InviteCode.Parsed parsed) {
+        try {
+            List<String> peers = new ArrayList<>(org.levimc.launcher.core.online
+                    .LanDiscovery.discover(parsed.networkName, 1500));
+            for (String p : org.levimc.launcher.core.online.RelayStore.load(this)) {
+                if (!peers.contains(p)) {
+                    peers.add(p);
+                }
+            }
+            final java.util.concurrent.CountDownLatch latch =
+                    new java.util.concurrent.CountDownLatch(1);
+            final int[] result = {0}; // 0=pending 1=已组网 -1=失败
+            et.join(this, parsed.networkName, parsed.networkSecret, (state, detail) -> {
+                if (state == org.levimc.launcher.core.online.EasyTierManager.State.CONNECTED) {
+                    result[0] = 1;
+                    latch.countDown();
+                } else if (state == org.levimc.launcher.core.online.EasyTierManager.State.FAILED) {
+                    result[0] = -1;
+                    latch.countDown();
+                }
+            }, peers);
+            try {
+                latch.await(12, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (InterruptedException ie) {
+                result[0] = -1;
+            }
+            boolean alive = result[0] == 1 && pingRoomCenter(et);
+            et.stop(this);
+            return alive;
+        } catch (Throwable t) {
+            try {
+                et.stop(this);
+            } catch (Throwable ignored) {
+            }
+            return false;
+        }
+    }
+
+    /** UDP c:ping 房主房间中心（固定虚拟 IP + 路由表解析 IP 双候选），3s 超时。 */
+    private boolean pingRoomCenter(org.levimc.launcher.core.online.EasyTierManager et) {
+        android.net.Network vpn = org.levimc.launcher.core.online.EasyTierManager
+                .waitForVpnNetwork(5000);
+        if (vpn == null) {
+            return false;
+        }
+        try (java.net.DatagramSocket sock = new java.net.DatagramSocket()) {
+            vpn.bindSocket(sock);
+            sock.setSoTimeout(3000);
+            String req = "c:ping\0{\"time\":" + System.currentTimeMillis() + "}";
+            byte[] data = req.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            java.util.Set<String> hosts = new java.util.LinkedHashSet<>();
+            hosts.add("10.144.144.144");
+            String hv = et.getHostVirtualIp();
+            if (hv != null && !hv.isEmpty()) {
+                hosts.add(hv);
+            }
+            for (String h : hosts) {
+                try {
+                    java.net.DatagramPacket out = new java.net.DatagramPacket(data, data.length,
+                            java.net.InetAddress.getByName(h),
+                            org.levimc.launcher.core.online.RoomCenter.PORT);
+                    sock.send(out);
+                    byte[] buf = new byte[2048];
+                    java.net.DatagramPacket in = new java.net.DatagramPacket(buf, buf.length);
+                    sock.receive(in);
+                    String resp = new String(in.getData(), 0, in.getLength(),
+                            java.nio.charset.StandardCharsets.UTF_8);
+                    if (resp.contains("returnTime")) {
+                        return true;
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
+    }
+
+    /** v0.4.201：房间有效——弹「加入房间」确认窗（v0.4.38 原逻辑）。 */
+    private void showClipboardJoinDialog(String code) {
+        String display = "P/" + code;
+        clipboardDialog = new CustomAlertDialog(this)
+                .setTitleText(getString(R.string.online_clipboard_title))
+                .setMessage(getString(R.string.online_clipboard_msg, display))
+                .setPositiveButton(getString(R.string.online_clipboard_join), d -> {
+                    // v0.4.40：direct=1——联机页直接发起加入，不再弹加入窗
+                    Intent intent = new Intent(this, OnlineActivity.class);
+                    intent.setData(Uri.parse("lbb://invite?code="
+                            + Uri.encode(display) + "&direct=1"));
+                    startActivity(intent);
+                })
+                .setNegativeButton(getString(R.string.cancel), null);
+        clipboardDialog.setOnDismissListener(d -> clipboardDialog = null);
+        clipboardDialog.show();
+    }
+
+    /** v0.4.201：房间无效——弹「邀请码已失效」提示。 */
+    private void showClipboardExpiredDialog(String code) {
+        clipboardDialog = new CustomAlertDialog(this)
+                .setTitleText(getString(R.string.online_clipboard_expired_title))
+                .setMessage(getString(R.string.online_clipboard_expired_msg))
+                .setPositiveButton(getString(android.R.string.ok), null);
+        clipboardDialog.setOnDismissListener(d -> clipboardDialog = null);
+        clipboardDialog.show();
     }
 
 

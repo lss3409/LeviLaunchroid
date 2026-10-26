@@ -1477,15 +1477,24 @@ public final class OnlineActivity extends BaseActivity
         }, "qr-gen").start();
     }
 
-    /** 系统分享（微信/QQ 等），纯文本邀请消息（v0.4.38 回滚 HTML 邀请卡）。 */
+    /** 系统分享（微信/QQ 等），纯文本邀请消息（v0.4.38 回滚 HTML 邀请卡）。
+     *  v0.4.201：文案尾加时间戳（「————————yyyy M:d HH:mm」）——接收端
+     *  剪贴板检测据此判 3 分钟时效，杜绝旧邀请误扫。 */
     private void systemShareCode() {
         if (currentCode == null) {
             return;
         }
         Intent send = new Intent(Intent.ACTION_SEND);
         send.setType("text/plain");
-        send.putExtra(Intent.EXTRA_TEXT, getString(R.string.online_share_text, "P/" + currentCode));
+        send.putExtra(Intent.EXTRA_TEXT, getString(R.string.online_share_text,
+                "P/" + currentCode, inviteTimestamp()));
         startActivity(Intent.createChooser(send, getString(R.string.online_share_code)));
+    }
+
+    /** v0.4.201：邀请时间戳（与 MainActivity 解析格式一致：yyyy M:d HH:mm）。 */
+    private static String inviteTimestamp() {
+        return new java.text.SimpleDateFormat("yyyy M:d HH:mm", java.util.Locale.US)
+                .format(new java.util.Date(System.currentTimeMillis()));
     }
 
     /** v541：当前个性化强调色。 */

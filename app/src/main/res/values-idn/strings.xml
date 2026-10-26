@@ -1272,6 +1272,8 @@ Migrasi harus selesai sebelum LeviLauncher dapat melanjutkan.</string>
 <string name="online_state_connected_fmt">Terhubung · IP Virtual %1$s</string>
     <string name="online_clipboard_title">Undangan LBBL terdeteksi</string>
     <string name="online_clipboard_msg">Kode undangan di papan klip: %1$s\nBergabung ke ruangan?</string>
+    <string name="online_clipboard_expired_title">Undangan kedaluwarsa</string>
+    <string name="online_clipboard_expired_msg">Ruangan tidak ada lagi atau undangan telah kedaluwarsa. Minta undangan baru dari host.</string>
     <string name="online_clipboard_join">Bergabung ke ruangan</string>
 <string name="online_state_discovering">Mencari host di jaringan lokal…</string>
 <string name="online_my_room">Ruangan Anda</string>
@@ -1848,10 +1850,10 @@ Migrasi harus selesai sebelum LeviLauncher dapat melanjutkan.</string>
 IP Virtual: %1$s
 (Daftar ruangan dan gabung sekali ketuk segera hadir)</string>
     <string name="online_share_text">【Undangan LBBL】
-Bergabunglah ke dunia Minecraft saya! Kode undangan: P/%1$s
-Buka LBBL → Online → Gabung, lalu tempel kodenya</string>
+Bergabunglah ke dunia Minecraft saya! Kode undangan: %1$s
+Buka LBBL → Online → Gabung, lalu tempel kodenya————————%2$s</string>
     <string name="online_room_created_fmt">Ruangan dibuat ✓
-Kode undangan: P/%1$s
+Kode undangan: %1$s
 (Teman di Wi-Fi yang sama dapat bergabung dengan kode ini)</string>
     <!-- v0.0.11 新词条（2026-10-03） -->
     <string name="scan_type_world">Dunia</string>

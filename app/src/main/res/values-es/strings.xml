@@ -1249,6 +1249,8 @@ La migración debe completarse antes de continuar con LeviLauncher.</string>
 <string name="online_state_connected_fmt">Conectado · IP virtual %1$s</string>
     <string name="online_clipboard_title">Invitación de LBBL detectada</string>
     <string name="online_clipboard_msg">Código de invitación en el portapapeles: %1$s\n¿Unirse a la sala?</string>
+    <string name="online_clipboard_expired_title">Invitación caducada</string>
+    <string name="online_clipboard_expired_msg">La sala ya no existe o la invitación expiró. Pide al anfitrión una nueva.</string>
     <string name="online_clipboard_join">Unirse a la sala</string>
 <string name="online_state_discovering">Buscando anfitrión en la red local…</string>
 <string name="online_my_room">Tu sala</string>
@@ -1825,10 +1827,10 @@ La migración debe completarse antes de continuar con LeviLauncher.</string>
 IP virtual: %1$s
 (Próximamente: lista de salas y unión con un toque)</string>
     <string name="online_share_text">【Invitación de LBBL】
-¡Únete a mi mundo de Minecraft! Código de invitación: P/%1$s
-Abre LBBL → En línea → Unirse y pega el código</string>
+¡Únete a mi mundo de Minecraft! Código de invitación: %1$s
+Abre LBBL → En línea → Unirse y pega el código————————%2$s</string>
     <string name="online_room_created_fmt">Sala creada ✓
-Código de invitación: P/%1$s
+Código de invitación: %1$s
 (Los amigos en la misma Wi-Fi pueden unirse con este código)</string>
     <!-- v0.0.11 新词条（2026-10-03） -->
     <string name="scan_type_world">Mundo</string>

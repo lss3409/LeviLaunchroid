@@ -199,6 +199,18 @@ public class SettingsActivity extends BaseActivity {
                                 // v0.0.12：检查慢时用户可能已退出设置页，
                                 // Activity 销毁后弹窗会 BadTokenException 崩溃（vivo 实测）
                                 if (isFinishing() || isDestroyed()) {
+                                    // v0.4.201：已切出设置页——改在主页弹
+                                    // （仍在启动器内不丢更新提示）
+                                    org.levimc.launcher.ui.activities.MainActivity m =
+                                            org.levimc.launcher.ui.activities
+                                                    .MainActivity.sInstance;
+                                    if (status == org.levimc.launcher.core.updates
+                                            .UpdateChecker.RESULT_UPDATE && u != null
+                                            && m != null && !m.isFinishing()
+                                            && !m.isDestroyed()) {
+                                        org.levimc.launcher.core.updates.UpdateChecker
+                                                .showUpdateDialog(m, u);
+                                    }
                                     return;
                                 }
                                 if (status == org.levimc.launcher.core.updates

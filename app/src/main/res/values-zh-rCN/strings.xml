@@ -1259,10 +1259,12 @@
 <string name="online_state_idle">未连接</string>
 <string name="online_state_connected_fmt">已连接 · 虚拟 IP %1$s</string>
     <string name="online_share_text">【LBBL 联机邀请】
-来我的世界联机！邀请码：P/%1$s
-打开 LBBL 启动器 → 联机 → 加入房间，粘贴邀请码即可</string>
+来我的世界联机！邀请码：%1$s
+打开 LBBL 启动器 → 联机 → 加入房间，粘贴邀请码即可————————%2$s</string>
     <string name="online_clipboard_title">检测到 LBBL 联机邀请</string>
     <string name="online_clipboard_msg">剪贴板中有邀请码：%1$s\n是否加入房间？</string>
+    <string name="online_clipboard_expired_title">邀请码已失效</string>
+    <string name="online_clipboard_expired_msg">房间已不存在或邀请超时了，请让房主重新分享一份新的邀请喵</string>
     <string name="online_clipboard_join">加入房间</string>
 <string name="online_state_discovering">正在局域网内寻找房主…</string>
 <string name="online_my_room">我的房间</string>
@@ -1281,7 +1283,7 @@
 <string name="online_code_progress_fmt">%1$d/16</string>
 <string name="online_code_valid">✓ 邀请码有效</string>
     <string name="online_room_created_fmt">房间已创建 ✓
-邀请码：P/%1$s
+邀请码：%1$s
 （同 WiFi 的好友输入此码即可加入）</string>
 <string name="voice_mute">闭麦</string>
 <string name="voice_open">开麦</string>

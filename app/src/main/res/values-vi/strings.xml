@@ -1278,6 +1278,8 @@ Quá trình chuyển đổi phải hoàn tất trước khi LeviLauncher có th�
 <string name="online_state_connected_fmt">Đã kết nối · IP ảo %1$s</string>
     <string name="online_clipboard_title">Đã phát hiện lời mời LBBL</string>
     <string name="online_clipboard_msg">Mã mời trong khay nhớ tạm: %1$s\nTham gia phòng?</string>
+    <string name="online_clipboard_expired_title">Lời mời hết hạn</string>
+    <string name="online_clipboard_expired_msg">Phòng không còn tồn tại hoặc lời mời đã hết hạn. Hãy xin chủ phòng lời mời mới.</string>
     <string name="online_clipboard_join">Tham gia phòng</string>
 <string name="online_state_discovering">Đang tìm chủ phòng trên mạng nội bộ…</string>
 <string name="online_my_room">Phòng của bạn</string>
@@ -1854,10 +1856,10 @@ Quá trình chuyển đổi phải hoàn tất trước khi LeviLauncher có th�
 IP ảo: %1$s
 (Danh sách phòng và tham gia một chạm sắp ra mắt)</string>
     <string name="online_share_text">【Lời mời LBBL】
-Tham gia thế giới Minecraft của tôi! Mã mời: P/%1$s
-Mở LBBL → Trực tuyến → Tham gia, sau đó dán mã</string>
+Tham gia thế giới Minecraft của tôi! Mã mời: %1$s
+Mở LBBL → Trực tuyến → Tham gia, sau đó dán mã————————%2$s</string>
     <string name="online_room_created_fmt">Đã tạo phòng ✓
-Mã mời: P/%1$s
+Mã mời: %1$s
 (Bạn bè dùng cùng Wi-Fi có thể tham gia bằng mã này)</string>
     <!-- v0.0.11 新词条（2026-10-03） -->
     <string name="scan_type_world">Thế giới</string>

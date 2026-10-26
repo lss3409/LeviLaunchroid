@@ -1275,6 +1275,8 @@ LeviLauncher\'ın devam edebilmesi için taşımanın tamamlanması gerekiyor.</
 <string name="online_state_connected_fmt">Bağlandı · Sanal IP %1$s</string>
     <string name="online_clipboard_title">LBBL daveti algılandı</string>
     <string name="online_clipboard_msg">Panoda davet kodu: %1$s\nOdaya katılınsın mı?</string>
+    <string name="online_clipboard_expired_title">Davet geçersiz</string>
+    <string name="online_clipboard_expired_msg">Oda artık yok veya davetin süresi doldu. Sunucudan yeni bir davet isteyin.</string>
     <string name="online_clipboard_join">Odaya katıl</string>
 <string name="online_state_discovering">Yerel ağda sunucu aranıyor…</string>
 <string name="online_my_room">Senin Odan</string>
@@ -1851,10 +1853,10 @@ LeviLauncher\'ın devam edebilmesi için taşımanın tamamlanması gerekiyor.</
 Sanal IP: %1$s
 (Oda listesi ve tek dokunuşla katılma yakında)</string>
     <string name="online_share_text">【LBBL Daveti】
-Minecraft dünyama katıl! Davet kodu: P/%1$s
-LBBL → Çevrimiçi → Katıl\'ı aç, sonra kodu yapıştır</string>
+Minecraft dünyama katıl! Davet kodu: %1$s
+LBBL → Çevrimiçi → Katıl\'ı aç, sonra kodu yapıştır————————%2$s</string>
     <string name="online_room_created_fmt">Oda oluşturuldu ✓
-Davet kodu: P/%1$s
+Davet kodu: %1$s
 (Aynı Wi-Fi\'deki arkadaşlar bu kodla katılabilir)</string>
     <!-- v0.0.11 新词条（2026-10-03） -->
     <string name="scan_type_world">Dünya</string>

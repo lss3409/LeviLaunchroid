@@ -1279,6 +1279,8 @@
 <string name="online_state_connected_fmt">Подключено · Виртуальный IP %1$s</string>
     <string name="online_clipboard_title">Обнаружено приглашение LBBL</string>
     <string name="online_clipboard_msg">Код приглашения в буфере обмена: %1$s\nПрисоединиться к комнате?</string>
+    <string name="online_clipboard_expired_title">Приглашение недействительно</string>
+    <string name="online_clipboard_expired_msg">Комната больше не существует или срок приглашения истёк. Попросите у хоста новое.</string>
     <string name="online_clipboard_join">Присоединиться</string>
 <string name="online_state_discovering">Поиск хоста в локальной сети…</string>
 <string name="online_my_room">Ваша комната</string>
@@ -1855,10 +1857,10 @@
 Виртуальный IP: %1$s
 (Список комнат и присоединение в одно касание скоро появятся)</string>
     <string name="online_share_text">【Приглашение LBBL】
-Присоединяйтесь к моему миру Minecraft! Код приглашения: P/%1$s
-Откройте LBBL → Онлайн → Присоединиться и вставьте код</string>
+Присоединяйтесь к моему миру Minecraft! Код приглашения: %1$s
+Откройте LBBL → Онлайн → Присоединиться и вставьте код————————%2$s</string>
     <string name="online_room_created_fmt">Комната создана ✓
-Код приглашения: P/%1$s
+Код приглашения: %1$s
 (Друзья в той же сети Wi-Fi могут присоединиться по этому коду)</string>
     <!-- v0.0.11 新词条（2026-10-03） -->
     <string name="scan_type_world">Мир</string>
