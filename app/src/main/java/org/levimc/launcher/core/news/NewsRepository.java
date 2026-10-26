@@ -35,12 +35,12 @@ public final class NewsRepository {
      *  news.json，铃铛双栏位——LBBL 公告 + LeviLauncher 官方）。 */
     public static final String REMOTE_URL_LBBL = "https://raw.githubusercontent.com/lss3409/LeviLaunchroid/main/resources/launcher/news_lbbl.json";
     /** v0.4.201：新闻多源回退（检查更新同款镜像前缀）——raw 直连
-     *  国内经常失败只显示内置旧公告，失败依次试 ghproxy 镜像。 */
+     *  国内经常失败只显示内置旧公告，失败依次试 ghproxy 镜像。
+     *  2026-10-26 PC 实测存活：ghproxy.net/gh-proxy.org 200；
+     *  gh.zwy.one/mirror.ghproxy.com 已死（000），勿再回填。 */
     private static final String[] NEWS_MIRRORS = {
             "https://ghproxy.net/",
             "https://gh-proxy.org/",
-            "https://gh.zwy.one/",
-            "https://mirror.ghproxy.com/",
     };
     private static final String ASSET_PATH = "launcher/news.json";
     private static final String CACHE_FILE = "launcher_news.json";
