@@ -54,20 +54,21 @@ public class ImportPickerDialog {
     private static List<GlobalImportScanner.Candidate> cachedCandidates;
     /** v647：缓存仅在完整扫描完成后可用（扫描中途关弹窗缓存不完整）。 */
     private static boolean scanComplete;
-    /** v0.4.200：指定文件夹扫描结果接管——ScanFolderDialog 扫描完成后
-     *  设置，下一次 show() 优先用该结果渲染（不启动全盘扫描、不进缓存
-     *  分支）；show() 消费后清空，重新打开回到全盘。 */
-    private static List<GlobalImportScanner.Candidate> sDirResults;
+    /** v0.4.201：内存缓存所属模式（true=指定文件夹，false=全盘）——模式
+     *  切换时旧缓存不得复用（指定文件夹结果 ≠ 全盘结果）。 */
+    private static boolean cachedDirsMode;
     /** v0.4.200：最近一次 show 的 listener（ScanFolderDialog 返回时复用，
      *  避免空 listener 导致导入按钮无响应）。 */
     private static Listener sLastListener;
 
-    /** v0.4.200：指定文件夹扫描完成——用结果接管下一次导入菜单渲染。
-     *  修复「扫描指定文件夹后菜单不变」：此前 onScanDone 结果被丢弃，
-     *  重开 show() 又走缓存/全盘扫描。 */
+    /** v0.4.201：指定文件夹扫描完成——结果写入指定文件夹缓存后打开导入
+     *  菜单（设置语义：此后菜单一律扫指定区域，此处立即显示刚扫的结果）。 */
     public static void showWithDirResults(Context context, Listener listener,
                                           List<GlobalImportScanner.Candidate> result) {
-        sDirResults = result;
+        cachedCandidates = result;
+        scanComplete = true;
+        cachedDirsMode = true;
+        saveScanCache(context, result, true);
         show(context, listener);
     }
 
@@ -142,9 +143,12 @@ public class ImportPickerDialog {
             });
 
     // v648：扫描结果持久化缓存——打开弹窗立即显示上次结果，后台重扫刷新
+    // v0.4.201：指定文件夹模式用独立缓存文件（全盘结果不可混用）
     private static final String CACHE_FILE = "import_scan_cache.json";
+    private static final String CACHE_FILE_DIRS = "import_scan_cache_dirs.json";
 
-    private static void saveScanCache(Context context, List<GlobalImportScanner.Candidate> list) {
+    private static void saveScanCache(Context context, List<GlobalImportScanner.Candidate> list,
+                                      boolean dirMode) {
         if (list == null) {
             return;
         }
@@ -163,7 +167,8 @@ public class ImportPickerDialog {
                 arr.put(o);
             }
             try (java.io.FileOutputStream fos = context.getApplicationContext()
-                    .openFileOutput(CACHE_FILE, Context.MODE_PRIVATE)) {
+                    .openFileOutput(dirMode ? CACHE_FILE_DIRS : CACHE_FILE,
+                            Context.MODE_PRIVATE)) {
                 fos.write(arr.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
             }
         } catch (Throwable ignored) {
@@ -171,10 +176,12 @@ public class ImportPickerDialog {
     }
 
     /** 读持久化缓存（icon 不存——由后台线程按路径重新提取）。 */
-    private static List<GlobalImportScanner.Candidate> loadScanCache(Context context) {
+    private static List<GlobalImportScanner.Candidate> loadScanCache(Context context,
+                                                                     boolean dirMode) {
         try {
             java.io.File f = new java.io.File(
-                    context.getApplicationContext().getFilesDir(), CACHE_FILE);
+                    context.getApplicationContext().getFilesDir(),
+                    dirMode ? CACHE_FILE_DIRS : CACHE_FILE);
             if (!f.exists()) {
                 return null;
             }
@@ -241,6 +248,15 @@ public class ImportPickerDialog {
 
     public static void show(Context context, Listener listener) {
         sLastListener = listener; // v0.4.200：ScanFolderDialog 返回复用
+        // v0.4.201：扫描范围=设置语义——已设置指定文件夹则只扫指定区域，
+        // 未设置才全盘（每次打开实时读取，删光列表即恢复全盘）
+        final boolean dirMode = !ScanFolderDialog.loadFolders(context).isEmpty();
+        final List<java.io.File> dirRoots = new ArrayList<>();
+        if (dirMode) {
+            for (String d : ScanFolderDialog.loadFolders(context)) {
+                dirRoots.add(new java.io.File(d));
+            }
+        }
         Dialog dialog = new Dialog(context);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         float density = context.getResources().getDisplayMetrics().density;
@@ -560,24 +576,15 @@ public class ImportPickerDialog {
             }
         });
 
-        // v0.4.200：指定文件夹扫描结果接管——优先于缓存/全盘分支；
-        // 消费一次后清空（此视图是临时的，重开导入菜单回到全盘）
-        if (sDirResults != null) {
-            List<GlobalImportScanner.Candidate> dirList = sDirResults;
-            sDirResults = null;
-            results[0] = dirList;
-            expandedType = (dirList == null || dirList.isEmpty())
-                    ? GROUPS[0][0] : firstNonEmptyType(dirList);
-            status.setText(dirList == null || dirList.isEmpty()
-                    ? "指定文件夹：未发现可导入内容"
-                    : "指定文件夹：发现 " + dirList.size() + " 项，点分类卡展开");
-            redrawRef[0].run();
-        } else if (cachedCandidates != null && scanComplete) {
+        // v647：缓存仅在完整扫描完成后可用；v0.4.201：缓存须与当前
+        // 扫描范围同模式（指定文件夹缓存不显示在全盘模式，反之亦然）
+        if (cachedCandidates != null && scanComplete && cachedDirsMode == dirMode) {
             results[0] = cachedCandidates;
             if (expandedType < 0) {
                 expandedType = firstNonEmptyType(cachedCandidates);
             }
-            status.setText("发现 " + cachedCandidates.size() + " 项，点分类卡展开");
+            status.setText((dirMode ? "指定文件夹：发现 " : "发现 ")
+                    + cachedCandidates.size() + " 项，点分类卡展开");
             redrawRef[0].run();
         } else {
             results[0] = new ArrayList<>();
@@ -596,23 +603,31 @@ public class ImportPickerDialog {
             placeholder.setGravity(Gravity.CENTER);
             placeholder.setPadding(0, (int) (20 * density), 0, 0);
             content.addView(placeholder);
-            int live = GlobalImportScanner.liveCount();
-            status.setText(live > 0 ? "正在扫描…（已有 " + live + " 项）" : "正在扫描…");
+            if (dirMode) {
+                // v0.4.201：指定文件夹模式——liveCount 是全盘计数不可混用
+                status.setText("正在扫描指定文件夹…");
+            } else {
+                int live = GlobalImportScanner.liveCount();
+                status.setText(live > 0 ? "正在扫描…（已有 " + live + " 项）" : "正在扫描…");
+            }
             // v648：持久化缓存——打开弹窗立即显示上次扫描结果，后台重扫刷新
-            List<GlobalImportScanner.Candidate> cached = loadScanCache(context);
+            List<GlobalImportScanner.Candidate> cached = loadScanCache(context, dirMode);
             if (cached != null) {
                 results[0] = cached;
                 for (GlobalImportScanner.Candidate c : cached) {
                     knownPaths.add(c.path);
                 }
                 expandedType = firstNonEmptyType(cached);
-                status.setText("已载入上次结果 " + cached.size() + " 项，正在刷新…");
+                status.setText((dirMode ? "指定文件夹：已载入上次结果 " : "已载入上次结果 ")
+                        + cached.size() + " 项，正在刷新…");
                 redrawRef[0].run();
-            } else {
+            } else if (!dirMode) {
                 // v706：无磁盘缓存但首次扫描仍在进行（首次打开没扫完就
                 // 退出，二次打开）——直接用扫描线程已发现的结果填充，
                 // 否则要等深潜阶段的新 onFound 才显示（浅层资源早已发现，
-                // 新候选迟迟不来，弹窗一直挂着「正在扫描」占位）
+                // 新候选迟迟不来，弹窗一直挂着「正在扫描」占位）。
+                // v0.4.201：仅全盘模式适用——指定文件夹模式下 foundSoFar
+                // 可能是全盘扫描残留，不可混用
                 List<GlobalImportScanner.Candidate> soFar =
                         GlobalImportScanner.foundSoFar();
                 if (soFar != null && !soFar.isEmpty()) {
@@ -705,7 +720,7 @@ public class ImportPickerDialog {
                     relimitRef.run();
                 }
             };
-            GlobalImportScanner.scanAsync(new GlobalImportScanner.Listener() {
+            final GlobalImportScanner.Listener scanListener = new GlobalImportScanner.Listener() {
                 @Override
                 public void onProgress(String scanning) {
                     runOnUi(context, () -> {
@@ -723,7 +738,7 @@ public class ImportPickerDialog {
                         if (p.length() > 42) {
                             p = "…" + p.substring(p.length() - 41);
                         }
-                        status.setText("正在扫描：" + p);
+                        status.setText((dirMode ? "正在扫描指定文件夹：" : "正在扫描：") + p);
                     });
                 }
 
@@ -740,6 +755,7 @@ public class ImportPickerDialog {
                         List<GlobalImportScanner.Candidate> list = results[0];
                         list.add(c);
                         cachedCandidates = list;
+                        cachedDirsMode = dirMode; // v0.4.201：增量也随本次模式
                         if (expandedType < 0) {
                             // 首个候选：定展开分类并首次全量渲染
                             expandedType = firstNonEmptyType(list);
@@ -763,24 +779,34 @@ public class ImportPickerDialog {
                     runOnUi(context, () -> {
                         cachedCandidates = candidates;
                         scanComplete = true;
+                        cachedDirsMode = dirMode; // v0.4.201：缓存模式随本次扫描
                         // v648：完整结果写持久化缓存（下次打开立即显示）
-                        saveScanCache(context, candidates);
+                        saveScanCache(context, candidates, dirMode);
                         if (closed[0]) {
                             return;
                         }
                         results[0] = candidates;
                         if (candidates == null || candidates.isEmpty()) {
-                            status.setText("扫描完成，未发现可导入内容");
+                            status.setText(dirMode ? "指定文件夹：未发现可导入内容"
+                                    : "扫描完成，未发现可导入内容");
                         } else {
                             if (expandedType < 0) {
                                 expandedType = firstNonEmptyType(candidates);
                             }
-                            status.setText("发现 " + candidates.size() + " 项，点分类卡展开");
+                            status.setText((dirMode ? "指定文件夹：发现 " : "发现 ")
+                                    + candidates.size() + " 项，点分类卡展开");
                         }
                         redrawRef[0].run();
                     });
                 }
-            });
+            };
+            if (dirMode) {
+                // v0.4.201：设置语义——已设置指定文件夹则只扫指定区域，
+                // 不再启动全盘扫描
+                GlobalImportScanner.scanDirsAsync(dirRoots, scanListener);
+            } else {
+                GlobalImportScanner.scanAsync(scanListener);
+            }
         }
 
         // 底部：从文件管理器选择——与导入同款强调色按钮
