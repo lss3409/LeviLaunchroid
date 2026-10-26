@@ -166,18 +166,10 @@ public final class ScanFolderDialog {
         back.setPadding(0, 0, (int) (12 * density), 0);
         back.setOnClickListener(v -> {
             dialog.dismiss();
-            // 返回上一级菜单（导入菜单）
-            if (activity instanceof android.content.Context) {
-                org.levimc.launcher.ui.dialogs.ImportPickerDialog.show(activity,
-                        new org.levimc.launcher.ui.dialogs.ImportPickerDialog.Listener() {
-                            @Override
-                            public void onPick(java.io.File file) {
-                            }
-                            @Override
-                            public void onPickFromFiles() {
-                            }
-                        });
-            }
+            // 返回上一级菜单（导入菜单）；v0.4.200：复用最近一次导入
+            // 菜单的 listener——空 listener 会致返回后导入按钮无响应
+            org.levimc.launcher.ui.dialogs.ImportPickerDialog.show(activity,
+                    org.levimc.launcher.ui.dialogs.ImportPickerDialog.lastListener());
         });
         TextView title = new TextView(activity);
         title.setText(R.string.scan_folder_title);
@@ -286,6 +278,34 @@ public final class ScanFolderDialog {
         actions.addView(scan);
         root.addView(actions);
 
+        // v0.4.200：扫描启动抽成共用 Runnable——「开始扫描」按钮与
+        // 应用新文件夹成功后自动扫描走同一逻辑（dismiss 本弹窗 →
+        // scanDirsAsync → 结果经 listener 回传接管导入菜单）
+        final Runnable[] startScanRef = new Runnable[1];
+        startScanRef[0] = () -> {
+            if (fDirs.isEmpty()) {
+                Toast.makeText(activity, R.string.scan_folder_empty, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            fDialogHolder[0].dismiss();
+            List<File> roots = new ArrayList<>();
+            for (String d : fDirs) {
+                roots.add(new File(d));
+            }
+            GlobalImportScanner.scanDirsAsync(roots,
+                    new GlobalImportScanner.Listener() {
+                        @Override public void onFound(GlobalImportScanner.Candidate c) {}
+                        @Override public void onProgress(String path) {}
+                        @Override public void onDone(List<GlobalImportScanner.Candidate> result) {
+                            activity.runOnUiThread(() -> {
+                                if (listener != null) {
+                                    listener.onScanDone(result);
+                                }
+                            });
+                        }
+                    });
+        };
+
         // 新建文件夹：追加带文本框的空实例条目（选择/应用双态按钮）
         final boolean[] instanceOpen = {false};
         add.setOnClickListener(v -> {
@@ -340,6 +360,9 @@ public final class ScanFolderDialog {
                 } else {
                     if (applyNewFolder(activity, fDirs, input, redrawRef[0])) {
                         instanceOpen[0] = false;
+                        // v0.4.200：应用成功后自动扫描（与「开始扫描」
+                        // 同逻辑，无需用户再手动点一次）
+                        startScanRef[0].run();
                     }
                 }
             });
@@ -352,29 +375,7 @@ public final class ScanFolderDialog {
             fList.addView(row);
         });
 
-        scan.setOnClickListener(v -> {
-            if (fDirs.isEmpty()) {
-                Toast.makeText(activity, R.string.scan_folder_empty, Toast.LENGTH_SHORT).show();
-                return;
-            }
-            fDialogHolder[0].dismiss();
-            List<File> roots = new ArrayList<>();
-            for (String d : fDirs) {
-                roots.add(new File(d));
-            }
-            GlobalImportScanner.scanDirsAsync(roots,
-                    new GlobalImportScanner.Listener() {
-                        @Override public void onFound(GlobalImportScanner.Candidate c) {}
-                        @Override public void onProgress(String path) {}
-                        @Override public void onDone(List<GlobalImportScanner.Candidate> result) {
-                            activity.runOnUiThread(() -> {
-                                if (listener != null) {
-                                    listener.onScanDone(result);
-                                }
-                            });
-                        }
-                    });
-        });
+        scan.setOnClickListener(v -> startScanRef[0].run());
 
         // v0.4.189：二级菜单尺寸同导入菜单（DialogSizer 560dp）
         dialog.setContentView(root);

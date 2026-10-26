@@ -54,6 +54,27 @@ public class ImportPickerDialog {
     private static List<GlobalImportScanner.Candidate> cachedCandidates;
     /** v647：缓存仅在完整扫描完成后可用（扫描中途关弹窗缓存不完整）。 */
     private static boolean scanComplete;
+    /** v0.4.200：指定文件夹扫描结果接管——ScanFolderDialog 扫描完成后
+     *  设置，下一次 show() 优先用该结果渲染（不启动全盘扫描、不进缓存
+     *  分支）；show() 消费后清空，重新打开回到全盘。 */
+    private static List<GlobalImportScanner.Candidate> sDirResults;
+    /** v0.4.200：最近一次 show 的 listener（ScanFolderDialog 返回时复用，
+     *  避免空 listener 导致导入按钮无响应）。 */
+    private static Listener sLastListener;
+
+    /** v0.4.200：指定文件夹扫描完成——用结果接管下一次导入菜单渲染。
+     *  修复「扫描指定文件夹后菜单不变」：此前 onScanDone 结果被丢弃，
+     *  重开 show() 又走缓存/全盘扫描。 */
+    public static void showWithDirResults(Context context, Listener listener,
+                                          List<GlobalImportScanner.Candidate> result) {
+        sDirResults = result;
+        show(context, listener);
+    }
+
+    /** v0.4.200：ScanFolderDialog 返回键复用最近一次导入菜单 listener。 */
+    public static Listener lastListener() {
+        return sLastListener;
+    }
     /** v647：四张分类卡的数量文本（增量扫描时直接更新，不重建卡片区）。 */
     private static final TextView[] cardCountViews = new TextView[4];
     private static Runnable relimitRef;
@@ -219,6 +240,7 @@ public class ImportPickerDialog {
             R.drawable.ic_behavior, R.drawable.ic_modules};
 
     public static void show(Context context, Listener listener) {
+        sLastListener = listener; // v0.4.200：ScanFolderDialog 返回复用
         Dialog dialog = new Dialog(context);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         float density = context.getResources().getDisplayMetrics().density;
@@ -287,8 +309,10 @@ public class ImportPickerDialog {
         scanFolderEntry.setOnClickListener(v -> {
             dialog.dismiss();
             if (context instanceof androidx.activity.ComponentActivity) {
+                // v0.4.200：扫描完成用结果接管导入菜单（此前 result
+                // 被丢弃，重开 show 又走全盘=菜单无变化的根因）
                 ScanFolderDialog.show((androidx.activity.ComponentActivity) context,
-                        result -> show(context, listener));
+                        result -> showWithDirResults(context, listener, result));
             }
         });
         // v653：两列/一列自由切换（图标显示当前布局）
@@ -536,8 +560,19 @@ public class ImportPickerDialog {
             }
         });
 
-        // v647：缓存仅在完整扫描完成后可用；扫描进行中重开弹窗则换绑监听者接管
-        if (cachedCandidates != null && scanComplete) {
+        // v0.4.200：指定文件夹扫描结果接管——优先于缓存/全盘分支；
+        // 消费一次后清空（此视图是临时的，重开导入菜单回到全盘）
+        if (sDirResults != null) {
+            List<GlobalImportScanner.Candidate> dirList = sDirResults;
+            sDirResults = null;
+            results[0] = dirList;
+            expandedType = (dirList == null || dirList.isEmpty())
+                    ? GROUPS[0][0] : firstNonEmptyType(dirList);
+            status.setText(dirList == null || dirList.isEmpty()
+                    ? "指定文件夹：未发现可导入内容"
+                    : "指定文件夹：发现 " + dirList.size() + " 项，点分类卡展开");
+            redrawRef[0].run();
+        } else if (cachedCandidates != null && scanComplete) {
             results[0] = cachedCandidates;
             if (expandedType < 0) {
                 expandedType = firstNonEmptyType(cachedCandidates);
