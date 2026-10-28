@@ -107,6 +107,23 @@ public class FmDialogs {
                 trackShow(dialog);
     }
 
+    /** v0.4.203：MT 式新建——先输名称（文件可带后缀，如 a.txt），
+     *  再点「新建文件夹」或「新建文件」确认类型。 */
+    public static void showCreateDialogMt(BaseActivity a, FileManagerViewModel vm) {
+        EditText et = buildInput(a, a.getString(R.string.fm_ui_name_hint_ext), "", true);
+        CustomAlertDialog dialog = new CustomAlertDialog(a)
+                .setTitleText(a.getString(R.string.fm_ui_new))
+                .setCustomView(et)
+                .setPositiveButton(a.getString(R.string.fm_ui_new_folder), v ->
+                        vm.submitCreate(et.getText().toString().trim(), true,
+                                ok -> kotlin.Unit.INSTANCE))
+                .setNeutralButton(a.getString(R.string.fm_ui_new_file), v ->
+                        vm.submitCreate(et.getText().toString().trim(), false,
+                                ok -> kotlin.Unit.INSTANCE))
+                .setNegativeButton(a.getString(R.string.cancel), null);
+        trackShow(dialog);
+    }
+
     // ---------------- 重命名 ----------------
 
     public static void showRenameDialog(BaseActivity a, FileManagerViewModel vm, FmEntry entry) {

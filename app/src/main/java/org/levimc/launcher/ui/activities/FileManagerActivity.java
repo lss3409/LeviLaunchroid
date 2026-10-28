@@ -81,6 +81,7 @@ public class FileManagerActivity extends BaseActivity {
     private RecyclerView recyclerRight;
     private android.widget.LinearLayout pathBarRight;
     private View paneRight;
+    private View paneLeft;
     private View paneDivider;
     private FmEntryAdapter entryAdapterRight;
     private boolean dualMode = false;
@@ -275,6 +276,7 @@ public class FileManagerActivity extends BaseActivity {
         audioSeek = findViewById(R.id.fm_audio_seek);
         // v0.4.203：双窗视图
         paneRight = findViewById(R.id.fm_pane_right);
+        paneLeft = findViewById(R.id.fm_pane_left);
         paneDivider = findViewById(R.id.fm_pane_divider);
         recyclerRight = findViewById(R.id.fm_recycler_right);
         pathBarRight = findViewById(R.id.fm_path_bar_right);
@@ -438,10 +440,9 @@ public class FileManagerActivity extends BaseActivity {
     private void showMoreMenu() {
         final boolean hasClip = lastState != null && lastState.getClipboard() != null;
         final List<String> items = new ArrayList<>();
-        items.add(getString(R.string.fm_ui_new_folder));
-        items.add(getString(R.string.fm_ui_new_file));
+        // v0.4.203：新建合并为 MT 式单项；跳转项已删（用户要求）
+        items.add(getString(R.string.fm_ui_new));
         if (hasClip) items.add(getString(R.string.fm_ui_paste));
-        items.add(getString(R.string.fm_ui_jump));
         items.add(getString(R.string.fm_ui_sort));
         items.add(getString(R.string.fm_ui_hidden) + (lastState != null && lastState.getShowHidden() ? " ✓" : ""));
         items.add(getString(R.string.fm_ui_clear_trash));
@@ -449,16 +450,15 @@ public class FileManagerActivity extends BaseActivity {
                 .setTitleText(getString(R.string.fm_ui_more))
                 .setItems(items.toArray(new String[0]), (d, which) -> {
                     String picked = items.get(which);
-                    if (picked.equals(getString(R.string.fm_ui_new_folder))) {
-                        FmDialogs.showCreateDialog(this, vm, true);
-                    } else if (picked.equals(getString(R.string.fm_ui_new_file))) {
-                        FmDialogs.showCreateDialog(this, vm, false);
+                    if (picked.equals(getString(R.string.fm_ui_new))) {
+                        FmDialogs.showCreateDialogMt(this, vm);
                     } else if (picked.equals(getString(R.string.fm_ui_paste))) {
-                        vm.requestPaste();
-                    } else if (picked.equals(getString(R.string.fm_ui_jump))) {
-                        FmDialogs.showJumpDialog(this, vm,
-                                lastState != null && lastState.getCurrentDir() != null
-                                        ? lastState.getCurrentDir().toString() : "");
+                        // v0.4.203：双窗粘贴走激活窗
+                        if (dualMode && activePane == 1) {
+                            vmRight.requestPaste();
+                        } else {
+                            vm.requestPaste();
+                        }
                     } else if (picked.equals(getString(R.string.fm_ui_sort))) {
                         FmDialogs.showSortDialog(this, vm,
                                 lastState != null ? lastState.getSortConfig()
@@ -797,15 +797,9 @@ public class FileManagerActivity extends BaseActivity {
             }
         });
         findViewById(newId).setOnClickListener(v -> {
-            // 新建：文件夹/文件二选一（作用于激活窗口）
+            // v0.4.203：MT 式新建——先输名称（支持后缀）再选文件夹/文件
             FileManagerViewModel target = (dualMode && activePane == 1) ? vmRight : vm;
-            new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this)
-                    .setTitleText(getString(R.string.fm_ui_new))
-                    .setItems(new String[]{getString(R.string.fm_ui_new_folder),
-                            getString(R.string.fm_ui_new_file)}, (d, which) ->
-                            FmDialogs.showCreateDialog(this, target, which == 0))
-                    .setNegativeButton(getString(R.string.cancel), null)
-                    .show();
+            FmDialogs.showCreateDialogMt(this, target);
         });
         ((TextView) findViewById(dualTextId)).setText(R.string.fm_ui_dual);
         ((TextView) findViewById(upTextId)).setText(R.string.fm_ui_up);
@@ -824,7 +818,32 @@ public class FileManagerActivity extends BaseActivity {
                 vmRight.submitJump(lastState.getCurrentDir().toString());
             }
         }
+        if (!dualMode) {
+            activePane = 0;
+        }
         updateDualButtons();
+        applyPaneFocus();
+    }
+
+    /** v0.4.203：激活窗描边（accent 2dp 实描边；非激活浅灰；单窗无描边）——
+     *  焦点视觉指示，否则不知道当前操作作用于哪个窗口。 */
+    private void applyPaneFocus() {
+        if (!dualMode) {
+            paneLeft.setBackground(null);
+            paneRight.setBackground(null);
+            return;
+        }
+        float d = getResources().getDisplayMetrics().density;
+        int activeColor = accent;
+        int idleColor = 0x33808080;
+        android.graphics.drawable.GradientDrawable gdA = new android.graphics.drawable.GradientDrawable();
+        gdA.setStroke((int) (2 * d), activeColor);
+        gdA.setColor(android.graphics.Color.TRANSPARENT);
+        android.graphics.drawable.GradientDrawable gdI = new android.graphics.drawable.GradientDrawable();
+        gdI.setStroke((int) (2 * d), idleColor);
+        gdI.setColor(android.graphics.Color.TRANSPARENT);
+        paneLeft.setBackground(activePane == 0 ? gdA : gdI);
+        paneRight.setBackground(activePane == 1 ? gdA : gdI);
     }
 
     /** 激活窗格（底栏「上一级/新建」与主路径栏跟随激活窗）。 */
@@ -834,6 +853,7 @@ public class FileManagerActivity extends BaseActivity {
         }
         activePane = pane;
         updateDualButtons();
+        applyPaneFocus();
         refreshMainPathBar();
     }
 
@@ -1358,11 +1378,20 @@ public class FileManagerActivity extends BaseActivity {
             bottomBar.setVisibility(View.GONE);
             if (entryAdapter != null) entryAdapter.setViewType(FmEntryAdapter.VIEW_CARD);
             recycler.setLayoutManager(new GridLayoutManager(this, gridColumns()));
+            // v0.4.203：右窗同款网格（此前恒 LinearLayoutManager=竖条列表）
+            if (entryAdapterRight != null) {
+                entryAdapterRight.setViewType(FmEntryAdapter.VIEW_CARD);
+                recyclerRight.setLayoutManager(new GridLayoutManager(this, gridColumns()));
+            }
         } else {
             navRail.setVisibility(View.GONE);
             bottomBar.setVisibility(multiSelect ? View.GONE : View.VISIBLE);
             if (entryAdapter != null) entryAdapter.setViewType(FmEntryAdapter.VIEW_LIST);
             recycler.setLayoutManager(new LinearLayoutManager(this));
+            if (entryAdapterRight != null) {
+                entryAdapterRight.setViewType(FmEntryAdapter.VIEW_LIST);
+                recyclerRight.setLayoutManager(new LinearLayoutManager(this));
+            }
         }
     }
 

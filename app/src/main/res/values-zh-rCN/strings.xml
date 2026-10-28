@@ -1694,6 +1694,7 @@
 <string name="storage_remnant_title">检测到旧存储残留</string>
     <!-- fm_ui 中文搬入（2026-10-03） -->
 <string name="fm_ui_name_hint">名称</string>
+    <string name="fm_ui_name_hint_ext">名称（文件可带后缀，如 a.txt）</string>
 <string name="fm_ui_new_folder">新建文件夹</string>
     <string name="fm_ui_new">新建</string>
     <string name="fm_ui_dual">双窗</string>
