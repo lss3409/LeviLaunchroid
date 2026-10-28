@@ -325,6 +325,13 @@ public final class OnlineActivity extends BaseActivity
     protected void onDestroy() {
         super.onDestroy();
         clockHandler.removeCallbacksAndMessages(null);
+        // v0.4.202：停卡顿监控 watchdog
+        if (jankWatchdogRunning != null) {
+            jankWatchdogRunning[0] = false;
+        }
+        if (jankWatchdogThread != null) {
+            jankWatchdogThread.interrupt();
+        }
     }
 
     /**
@@ -1540,24 +1547,31 @@ public final class OnlineActivity extends BaseActivity
         }
     }
 
-    /** v0.4.202：主线程卡顿监控——Choreographer 帧回调间隔 >800ms 判定
-     *  掉帧，抓主线程当前堆栈写 OnlineDebugLog（联机页卡顿根因定位）。
-     *  日志有界：每 10 秒最多记一条（v698 教训）。 */
+    /** v0.4.202：主线程卡顿监控——watchdog 线程每 1.2s 向主线程 post
+     *  心跳，主线程 2.5s 未处理=被阻塞，直接从 watchdog 线程抓主线程
+     *  当前堆栈（Thread.getStackTrace 不要求目标线程配合——卡顿期间
+     *  的真凶堆栈，Choreographer 方案恢复后抓不到）。限频 10s 一条。 */
     private void installJankMonitor() {
         try {
-            final Choreographer ch = Choreographer.getInstance();
-            final long[] last = {0L};
-            final long[] lastLogged = {0L};
-            final Choreographer.FrameCallback[] cb = new Choreographer.FrameCallback[1];
-            cb[0] = (frameTimeNanos) -> {
-                long now = System.nanoTime();
-                if (last[0] != 0) {
-                    long gapMs = (now - last[0]) / 1_000_000L;
+            final Handler mainHandler = new Handler(Looper.getMainLooper());
+            final long[] lastTick = {android.os.SystemClock.uptimeMillis()};
+            final Runnable tick = () -> lastTick[0] = android.os.SystemClock.uptimeMillis();
+            final boolean[] running = {true};
+            Thread watchdog = new Thread(() -> {
+                long lastLogged = 0L;
+                while (running[0]) {
+                    mainHandler.post(tick);
+                    try {
+                        Thread.sleep(1200);
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+                    long blocked = android.os.SystemClock.uptimeMillis() - lastTick[0];
                     long wall = System.currentTimeMillis();
-                    if (gapMs > 800 && wall - lastLogged[0] > 10_000L) {
-                        lastLogged[0] = wall;
+                    if (blocked > 2500 && wall - lastLogged > 10_000L) {
+                        lastLogged = wall;
                         StringBuilder sb = new StringBuilder();
-                        sb.append("JANK ").append(gapMs).append("ms\n");
+                        sb.append("MAIN_BLOCKED ").append(blocked).append("ms\n");
                         for (StackTraceElement e : Looper.getMainLooper()
                                 .getThread().getStackTrace()) {
                             sb.append("  at ").append(e).append('\n');
@@ -1565,13 +1579,18 @@ public final class OnlineActivity extends BaseActivity
                         org.levimc.launcher.util.OnlineDebugLog.log(sb.toString());
                     }
                 }
-                last[0] = now;
-                ch.postFrameCallback(cb[0]);
-            };
-            ch.postFrameCallback(cb[0]);
+            }, "jank-watchdog");
+            watchdog.setDaemon(true);
+            watchdog.start();
+            jankWatchdogRunning = running;
+            jankWatchdogThread = watchdog;
         } catch (Throwable ignored) {
         }
     }
+
+    /** v0.4.202：卡顿监控生命周期（onDestroy 停 watchdog）。 */
+    private boolean[] jankWatchdogRunning;
+    private Thread jankWatchdogThread;
 
     private void onLeaveClicked() {
         // v561：清理加入握手超时计时
