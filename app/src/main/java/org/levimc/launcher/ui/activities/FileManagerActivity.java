@@ -69,6 +69,8 @@ public class FileManagerActivity extends BaseActivity {
     private static final int SAF_IMPORT_DIR = 4;
 
     private FileManagerViewModel vm;
+    /** v0.4.203：当前编辑器内容的来源窗（保存/关闭作用于它）。 */
+    private FileManagerViewModel editorVm;
     private FileManagerUiState lastState;
     private SearchUiState lastSearchUi;
     private String lastDialogKey = "";
@@ -145,6 +147,9 @@ public class FileManagerActivity extends BaseActivity {
     private boolean showingTrash;
     private boolean landscape;
     private boolean multiSelect;
+    /** v0.4.203：左右窗各自的多选状态（操作条跟随激活窗）。 */
+    private boolean leftMultiSelect;
+    private boolean rightMultiSelect;
     private int accent;
     private int onSurface;
     private int textSecondary;
@@ -217,6 +222,7 @@ public class FileManagerActivity extends BaseActivity {
         SavedStateHandle handleRight = new SavedStateHandle();
         handleRight.set(FileManagerViewModel.KEY_ROOT_PATH, rootPath);
         vmRight = new FileManagerViewModel(getApplicationContext(), handleRight);
+        editorVm = vm; // v0.4.203：编辑器来源窗默认左窗
 
         setupAdapters();
         setupListeners();
@@ -237,6 +243,10 @@ public class FileManagerActivity extends BaseActivity {
         });
         FmFlowBridgeKt.collectFlow(this, vm.getState(), this::onState);
         FmFlowBridgeKt.collectFlow(this, vmRight.getState(), this::onStateRight); // v0.4.203
+        FmFlowBridgeKt.collectFlow(this, vmRight.getErrorEvents(), msg ->
+                Toast.makeText(this, msg, Toast.LENGTH_SHORT).show());
+        FmFlowBridgeKt.collectFlow(this, vmRight.getEditorUi(), this::onEditorUi);
+        FmFlowBridgeKt.collectFlow(this, vmRight.getSearchUi(), this::onSearchUiRight);
         FmFlowBridgeKt.collectFlow(this, vm.getSearchUi(), this::onSearchUi);
         FmFlowBridgeKt.collectFlow(this, vm.getEditorUi(), this::onEditorUi);
         FmFlowBridgeKt.collectFlow(this, vm.getErrorEvents(), msg ->
@@ -282,34 +292,44 @@ public class FileManagerActivity extends BaseActivity {
         pathBarRight = findViewById(R.id.fm_path_bar_right);
     }
 
-    /** v0.4.203：listener 参数化（左/右窗各用自己的 VM）。 */
-    private FmEntryAdapter.Listener entryListener(FileManagerViewModel vmm) {
+    /** v0.4.203：listener 参数化（左/右窗各用自己的 VM；交互自动聚焦本窗）。 */
+    private FmEntryAdapter.Listener entryListener(FileManagerViewModel vmm, boolean fromRight) {
         return new FmEntryAdapter.Listener() {
             @Override
             public void onEntryClick(FmEntry entry) {
-                openFileEntry(entry);
+                if (dualMode && activePane != (fromRight ? 1 : 0)) {
+                    activatePane(fromRight ? 1 : 0);
+                }
+                openFileEntry(entry, fromRight);
             }
 
             @Override
             public void onEntryLongClick(FmEntry entry) {
+                // 选中文件自动聚焦当前窗
+                if (dualMode && activePane != (fromRight ? 1 : 0)) {
+                    activatePane(fromRight ? 1 : 0);
+                }
                 vmm.toggleSelection(entry);
             }
 
             @Override
             public void onMoreClick(FmEntry entry) {
+                if (dualMode && activePane != (fromRight ? 1 : 0)) {
+                    activatePane(fromRight ? 1 : 0);
+                }
                 FmDialogs.showEntryMenu(FileManagerActivity.this, vmm, entry, () -> {},
-                        () -> openFileEntry(entry));
+                        () -> openFileEntry(entry, fromRight));
             }
         };
     }
 
     private void setupAdapters() {
-        entryAdapter = new FmEntryAdapter(entryListener(vm), java.util.Collections.emptySet(),
+        entryAdapter = new FmEntryAdapter(entryListener(vm, false), java.util.Collections.emptySet(),
                 false, accent, onSurface, textSecondary, pageBg);
         recycler.setAdapter(entryAdapter);
 
         // v0.4.203：右窗独立列表（双窗模式）
-        entryAdapterRight = new FmEntryAdapter(entryListener(vmRight),
+        entryAdapterRight = new FmEntryAdapter(entryListener(vmRight, true),
                 java.util.Collections.emptySet(), false, accent, onSurface, textSecondary, pageBg);
         recyclerRight.setAdapter(entryAdapterRight);
         recyclerRight.setLayoutManager(new LinearLayoutManager(this));
@@ -336,7 +356,7 @@ public class FileManagerActivity extends BaseActivity {
         findViewById(R.id.fm_btn_back).setOnClickListener(v -> {
             if (showingTrash) {
                 showFiles();
-            } else if (!vm.consumeBack()) {
+            } else if (!activeVm().consumeBack()) {
                 // v0.4.89：已到根目录——双击退出（防误触）
                 long now = android.os.SystemClock.uptimeMillis();
                 if (now - lastBackClick < 1500) {
@@ -349,17 +369,21 @@ public class FileManagerActivity extends BaseActivity {
             }
         });
         // v0.4.203：跳转路径按钮已删（用户要求）
-        findViewById(R.id.fm_btn_search).setOnClickListener(v -> vm.showSearchDialog());
-        findViewById(R.id.fm_btn_sort).setOnClickListener(v -> FmDialogs.showSortDialog(this, vm,
-                lastState != null ? lastState.getSortConfig()
-                        : new org.levimc.launcher.filemanager.viewmodel.SortConfig()));
+        findViewById(R.id.fm_btn_search).setOnClickListener(v -> activeVm().showSearchDialog());
+        findViewById(R.id.fm_btn_sort).setOnClickListener(v -> {
+            FileManagerUiState st = (dualMode && activePane == 1) ? lastStateRight : lastState;
+            FmDialogs.showSortDialog(this, activeVm(),
+                    st != null ? st.getSortConfig()
+                            : new org.levimc.launcher.filemanager.viewmodel.SortConfig());
+        });
         findViewById(R.id.fm_btn_multi).setOnClickListener(v -> {
             if (showingTrash) {
                 if (multiSelect) vm.clearTrashSelection();
                 else vm.selectAllTrash();
             } else {
-                if (multiSelect) vm.clearSelection();
-                else vm.selectAll();
+                // v0.4.203：全选/取消作用于激活窗
+                if (multiSelect) activeVm().clearSelection();
+                else activeVm().selectAll();
             }
         });
         findViewById(R.id.fm_btn_more).setOnClickListener(v -> showMoreMenu());
@@ -372,8 +396,8 @@ public class FileManagerActivity extends BaseActivity {
                 vm.requestPaste();
             }
         });
-        findViewById(R.id.fm_btn_clip_cancel).setOnClickListener(v -> vm.clearClipboard());
-        findViewById(R.id.fm_btn_task_cancel).setOnClickListener(v -> vm.cancelCurrentTask());
+        findViewById(R.id.fm_btn_clip_cancel).setOnClickListener(v -> activeVm().clearClipboard());
+        findViewById(R.id.fm_btn_task_cancel).setOnClickListener(v -> activeVm().cancelCurrentTask());
 
         findViewById(R.id.fm_bottom_home).setOnClickListener(v -> showFiles());
         findViewById(R.id.fm_bottom_trash).setOnClickListener(v -> showTrash());
@@ -390,36 +414,48 @@ public class FileManagerActivity extends BaseActivity {
                 R.id.fm_rail_up_text, R.id.fm_rail_sync_text, R.id.fm_rail_new_text);
         updateDualButtons();
 
-        // 右窗点击 = 激活右窗（激活窗高亮 + 底栏操作目标）
-        recyclerRight.setOnTouchListener((v, e) -> {
+        // v0.4.203：点击/滑动/空白区域聚焦——右窗点击激活右窗，左窗同理
+        android.view.View.OnTouchListener focusRight = (v, e) -> {
             if (e.getAction() == android.view.MotionEvent.ACTION_DOWN) {
                 activatePane(1);
             }
             return false;
-        });
-        recycler.setOnTouchListener((v, e) -> {
+        };
+        android.view.View.OnTouchListener focusLeft = (v, e) -> {
             if (e.getAction() == android.view.MotionEvent.ACTION_DOWN) {
                 activatePane(0);
             }
             return false;
-        });
+        };
+        recyclerRight.setOnTouchListener(focusRight);
+        findViewById(R.id.fm_empty_right).setOnTouchListener(focusRight);
+        findViewById(R.id.fm_path_bar_right).setOnTouchListener(focusRight);
+        recycler.setOnTouchListener(focusLeft);
+        emptyView.setOnTouchListener(focusLeft);
+        pathBar.setOnTouchListener(focusLeft);
 
         findViewById(R.id.fm_btn_sel_all).setOnClickListener(v -> {
-            if (showingTrash) vm.selectAllTrash();
-            else vm.selectAll();
+            // v0.4.203：双窗下操作条作用于激活窗
+            if (showingTrash) {
+                vm.selectAllTrash();
+            } else if (multiSelect) {
+                activeVm().clearSelection();
+            } else {
+                activeVm().selectAll();
+            }
         });
         findViewById(R.id.fm_btn_sel_copy).setOnClickListener(v -> {
-            if (!showingTrash) vm.bulkCopy();
+            if (!showingTrash) activeVm().bulkCopy();
         });
         findViewById(R.id.fm_btn_sel_cut).setOnClickListener(v -> {
-            if (!showingTrash) vm.bulkCut();
+            if (!showingTrash) activeVm().bulkCut();
         });
         findViewById(R.id.fm_btn_sel_compress).setOnClickListener(v -> {
             if (showingTrash) {
                 List<TrashItem> items = vm.selectedTrashItems();
                 if (!items.isEmpty()) vm.beginTrashRestore(items);
             } else {
-                vm.bulkCompress();
+                activeVm().bulkCompress();
             }
         });
         findViewById(R.id.fm_btn_sel_delete).setOnClickListener(v -> {
@@ -427,14 +463,20 @@ public class FileManagerActivity extends BaseActivity {
                 List<TrashItem> items = vm.selectedTrashItems();
                 if (!items.isEmpty()) confirmTrashPurge(items);
             } else {
-                int count = lastState != null ? lastState.getSelection().size() : 0;
-                if (count > 0) FmDialogs.showBatchDeleteConfirm(this, vm, count);
+                FileManagerUiState st = (activePane == 1 && dualMode) ? lastStateRight : lastState;
+                int count = st != null ? st.getSelection().size() : 0;
+                if (count > 0) FmDialogs.showBatchDeleteConfirm(this, activeVm(), count);
             }
         });
         findViewById(R.id.fm_btn_sel_exit).setOnClickListener(v -> {
             if (showingTrash) vm.clearTrashSelection();
-            else vm.clearSelection();
+            else activeVm().clearSelection();
         });
+    }
+
+    /** v0.4.203：当前激活窗 VM（双窗且激活右窗时用右窗）。 */
+    private FileManagerViewModel activeVm() {
+        return (dualMode && activePane == 1) ? vmRight : vm;
     }
 
     private void showMoreMenu() {
@@ -510,14 +552,17 @@ public class FileManagerActivity extends BaseActivity {
 
     // ---------------- 文件打开分发（v669：图片预览/音频播放/文本编辑/系统打开） ----------------
 
-    private void openFileEntry(FmEntry entry) {
+    /** v0.4.203：参数化打开入口（右窗条目用 vmRight——此前硬编码 vm，
+     *  右窗点文件夹实际改了左窗目录=「右窗点不动」根因）。 */
+    private void openFileEntry(FmEntry entry, boolean fromRight) {
+        FileManagerViewModel vmm = fromRight ? vmRight : vm;
         String name = entry.getName().toLowerCase(java.util.Locale.ROOT);
         // 打开非音频内容时收起音频面板（防残留）
         if (!isAudio(name)) {
             releaseAudio();
         }
         if (entry.isDirectory()) {
-            vm.enterDirectory(entry);
+            vmm.enterDirectory(entry);
             return;
         }
         java.io.File file = new java.io.File(entry.getPath().toString());
@@ -534,7 +579,8 @@ public class FileManagerActivity extends BaseActivity {
                 }
             }
             if (text) {
-                vm.editorOpen(entry.getPath());
+                editorVm = vmm; // v0.4.203：记录编辑器来源窗（保存/关闭作用于它）
+                vmm.editorOpen(entry.getPath());
             } else {
                 openWithSystem(file, name);
             }
@@ -664,6 +710,10 @@ public class FileManagerActivity extends BaseActivity {
     }
 
     private void showTrash() {
+        // v0.4.203：回收站为全局单窗视图，进入时退出双窗
+        if (dualMode) {
+            toggleDualMode();
+        }
         showingTrash = true;
         vm.loadTrashList();
         recycler.setVisibility(View.GONE);
@@ -825,25 +875,35 @@ public class FileManagerActivity extends BaseActivity {
         applyPaneFocus();
     }
 
-    /** v0.4.203：激活窗描边（accent 2dp 实描边；非激活浅灰；单窗无描边）——
-     *  焦点视觉指示，否则不知道当前操作作用于哪个窗口。 */
+    /** v0.4.203：书页式聚焦（MT 同款）——聚焦窗细描边+阴影浮起（锐利），
+     *  非聚焦窗变暗（6% 黑罩）表示「在下方」；单窗无任何装饰。 */
     private void applyPaneFocus() {
         if (!dualMode) {
             paneLeft.setBackground(null);
+            paneLeft.setElevation(0);
+            paneLeft.setForeground(null);
             paneRight.setBackground(null);
+            paneRight.setElevation(0);
+            paneRight.setForeground(null);
             return;
         }
         float d = getResources().getDisplayMetrics().density;
         int activeColor = accent;
-        int idleColor = 0x33808080;
         android.graphics.drawable.GradientDrawable gdA = new android.graphics.drawable.GradientDrawable();
-        gdA.setStroke((int) (2 * d), activeColor);
-        gdA.setColor(android.graphics.Color.TRANSPARENT);
+        gdA.setStroke((int) d, activeColor); // 1dp 细描边
+        gdA.setColor(pageBg);
         android.graphics.drawable.GradientDrawable gdI = new android.graphics.drawable.GradientDrawable();
-        gdI.setStroke((int) (2 * d), idleColor);
-        gdI.setColor(android.graphics.Color.TRANSPARENT);
-        paneLeft.setBackground(activePane == 0 ? gdA : gdI);
-        paneRight.setBackground(activePane == 1 ? gdA : gdI);
+        gdI.setColor(pageBg);
+        android.graphics.drawable.ColorDrawable dim = new android.graphics.drawable.ColorDrawable(
+                0x0F000000); // 6% 黑罩
+        View focused = activePane == 1 ? paneRight : paneLeft;
+        View unfocused = activePane == 1 ? paneLeft : paneRight;
+        focused.setBackground(gdA);
+        focused.setElevation(6 * d);
+        focused.setForeground(null);
+        unfocused.setBackground(gdI);
+        unfocused.setElevation(0);
+        unfocused.setForeground(dim);
     }
 
     /** 激活窗格（底栏「上一级/新建」与主路径栏跟随激活窗）。 */
@@ -852,9 +912,12 @@ public class FileManagerActivity extends BaseActivity {
             return;
         }
         activePane = pane;
+        // v0.4.203：多选操作条跟随激活窗（左窗多选中切到右窗 → 操作条收起）
+        multiSelect = (pane == 1) ? rightMultiSelect : leftMultiSelect;
         updateDualButtons();
         applyPaneFocus();
         refreshMainPathBar();
+        renderSelectionBar();
     }
 
     /** v0.4.203：主路径栏跟随激活窗（段点击作用于激活窗 VM）。 */
@@ -898,7 +961,7 @@ public class FileManagerActivity extends BaseActivity {
         rebuildPathBarRight(dir);
         if (entryAdapterRight == null
                 || entryAdapterRight.getBoundList() != s.getVisibleEntries()) {
-            entryAdapterRight = new FmEntryAdapter(entryListener(vmRight),
+            entryAdapterRight = new FmEntryAdapter(entryListener(vmRight, true),
                     s.getSelection(), s.getMultiSelect(), accent, onSurface, textSecondary, pageBg);
             entryAdapterRight.setViewType(landscape
                     ? FmEntryAdapter.VIEW_CARD : FmEntryAdapter.VIEW_LIST);
@@ -911,7 +974,11 @@ public class FileManagerActivity extends BaseActivity {
         recyclerRight.setVisibility(empty ? View.GONE : View.VISIBLE);
         TextView emptyRight = findViewById(R.id.fm_empty_right);
         emptyRight.setVisibility(empty ? View.VISIBLE : View.GONE);
+        // v0.4.203：右窗多选状态驱动操作条（此前只认左窗=右窗选中无操作条的根因）
+        rightMultiSelect = s.getMultiSelect();
         if (dualMode && activePane == 1) {
+            multiSelect = rightMultiSelect;
+            renderSelectionBar();
             refreshMainPathBar();
         }
     }
@@ -930,7 +997,7 @@ public class FileManagerActivity extends BaseActivity {
         }
         // 热路径防护：任务进度等高频更新不重建适配器，只按引用比较增量刷新
         if (entryAdapter == null || entryAdapter.getBoundList() != s.getVisibleEntries()) {
-            entryAdapter = new FmEntryAdapter(entryListener(vm), s.getSelection(), s.getMultiSelect(),
+            entryAdapter = new FmEntryAdapter(entryListener(vm, false), s.getSelection(), s.getMultiSelect(),
                     accent, onSurface, textSecondary, pageBg);
             entryAdapter.setViewType(landscape ? FmEntryAdapter.VIEW_CARD : FmEntryAdapter.VIEW_LIST);
             recycler.setAdapter(entryAdapter);
@@ -939,7 +1006,9 @@ public class FileManagerActivity extends BaseActivity {
             entryAdapter.updateSelection(s.getSelection(), s.getMultiSelect());
         }
 
-        multiSelect = s.getMultiSelect();
+        // v0.4.203：多选状态分窗保存；操作条跟随激活窗
+        leftMultiSelect = s.getMultiSelect();
+        multiSelect = (dualMode && activePane == 1) ? rightMultiSelect : leftMultiSelect;
         renderEmptyState();
         renderSelectionBar();
         renderClipboard(s);
@@ -1049,6 +1118,10 @@ public class FileManagerActivity extends BaseActivity {
         lastSearchUi = ui;
     }
 
+    /** v0.4.203：右窗搜索状态（搜索对话框由 vmRight dialog 流驱动渲染）。 */
+    private void onSearchUiRight(SearchUiState ui) {
+    }
+
     // ---------------- 内置编辑器（v668） ----------------
 
     private void setupEditor() {
@@ -1066,7 +1139,7 @@ public class FileManagerActivity extends BaseActivity {
         editorSave.setText(R.string.fm_ui_editor_save);
         editorSave.setTextColor(accent != 0 ? accent : onSurface);
         editorSave.setOnClickListener(v ->
-                vm.editorSave(done -> {
+                editorVm.editorSave(done -> {
                     Toast.makeText(this,
                             done ? R.string.fm_ui_editor_saved : R.string.fm_ui_editor_save_failed,
                             Toast.LENGTH_SHORT).show();
@@ -1202,15 +1275,15 @@ public class FileManagerActivity extends BaseActivity {
                 .setMessage(getString(R.string.fm_ui_editor_unsaved_msg))
                 .setPositiveButton(getString(R.string.fm_ui_editor_save_exit), v -> {
                     exitConfirmShown = false;
-                    vm.editorSave(done -> {
-                        if (done) vm.editorClose();
+                    editorVm.editorSave(done -> {
+                        if (done) editorVm.editorClose();
                         return kotlin.Unit.INSTANCE;
                     });
                 })
                 .setNegativeButton(getString(R.string.fm_ui_editor_discard), v -> {
                     exitConfirmShown = false;
                     vm.editorCancelExitConfirm();
-                    vm.editorClose();
+                    editorVm.editorClose();
                 })
                 .setNeutralButton(getString(R.string.cancel), v -> {
                     exitConfirmShown = false;
@@ -1224,7 +1297,7 @@ public class FileManagerActivity extends BaseActivity {
         if (vm.editorHasDirty()) {
             vm.editorRequestExitConfirm();
         } else {
-            vm.editorClose();
+            editorVm.editorClose();
         }
     }
 
@@ -1432,8 +1505,28 @@ public class FileManagerActivity extends BaseActivity {
             showFiles();
             return;
         }
-        if (vm != null && !vm.consumeBack()) {
+        // v0.4.203：返回键走激活窗
+        if (vm != null && !activeVm().consumeBack()) {
             super.onBackPressed();
+        }
+    }
+
+    /** v0.4.203：双窗模式持久化（进程回收/重建后恢复，否则退回单窗）。 */
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putBoolean("fm_dual_mode", dualMode);
+    }
+
+    @Override
+    protected void onRestoreInstanceState(@NonNull Bundle savedInstanceState) {
+        super.onRestoreInstanceState(savedInstanceState);
+        dualMode = savedInstanceState.getBoolean("fm_dual_mode", false);
+        if (dualMode) {
+            paneRight.setVisibility(View.VISIBLE);
+            paneDivider.setVisibility(View.VISIBLE);
+            updateDualButtons();
+            applyPaneFocus();
         }
     }
 }
