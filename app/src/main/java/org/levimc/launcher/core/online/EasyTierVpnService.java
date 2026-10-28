@@ -55,15 +55,33 @@ public final class EasyTierVpnService extends VpnService {
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && ACTION_STOP.equals(intent.getAction())) {
             Log.i(TAG, "收到停止信号，关闭 TUN");
+            org.levimc.launcher.util.OnlineDebugLog.log("VpnSvc onStartCommand ACTION_STOP");
             running = false;
-            closeTun();
-            stopForeground(STOP_FOREGROUND_REMOVE);
-            stopSelf();
+            // v0.4.202：关闭路径全部移后台——closeTun/stopForeground 都是
+            // binder 调用，风暴时在主线程执行会冻结 UI（JANK 5032ms 实测）
+            final ParcelFileDescriptor f = tun;
+            tun = null;
+            new Thread(() -> {
+                try {
+                    if (f != null) {
+                        f.close();
+                    }
+                } catch (Exception ignored) {
+                }
+                try {
+                    stopForeground(STOP_FOREGROUND_REMOVE);
+                } catch (Throwable ignored) {
+                }
+                stopSelf();
+            }, "vpn-stop").start();
             return START_NOT_STICKY;
         }
         String instance = intent == null ? null : intent.getStringExtra(EXTRA_INSTANCE);
         String ipv4 = intent == null ? null : intent.getStringExtra(EXTRA_IPV4);
         String[] cidrs = intent == null ? null : intent.getStringArrayExtra(EXTRA_CIDRS);
+        // v0.4.202：启动路径埋点（onDestroy 风暴源头定位）
+        org.levimc.launcher.util.OnlineDebugLog.log("VpnSvc onStartCommand START inst="
+                + instance + " ip=" + ipv4);
         if (instance != null && ipv4 != null) {
             lastInstance = instance;
             lastIpv4 = ipv4;
@@ -120,8 +138,12 @@ public final class EasyTierVpnService extends VpnService {
 
     private void runTun(String instance, String ipv4, String[] cidrs) {
         int reestablishCount = 0;
+        long t0 = System.currentTimeMillis();
         try {
             tun = establishTun(ipv4, cidrs);
+            org.levimc.launcher.util.OnlineDebugLog.log("VpnSvc runTun establish "
+                    + (tun == null ? "FAIL" : "OK") + " +"
+                    + (System.currentTimeMillis() - t0) + "ms");
             if (tun == null) {
                 Log.e(TAG, "TUN 建立失败（可能用户拒绝了 VPN 授权）");
                 stopSelf();
@@ -129,6 +151,7 @@ public final class EasyTierVpnService extends VpnService {
             }
             int rc = EasyTierJNI.setTunFd(instance, tun.getFd());
             Log.i(TAG, "setTunFd(" + instance + ") = " + rc + " ip=" + ipv4);
+            org.levimc.launcher.util.OnlineDebugLog.log("VpnSvc setTunFd rc=" + rc);
             if (rc != 0) {
                 Log.e(TAG, "setTunFd 失败: " + EasyTierJNI.getLastError());
                 stopSelf();
@@ -152,6 +175,8 @@ public final class EasyTierVpnService extends VpnService {
                 revoked = false;
                 reestablishCount++;
                 Log.w(TAG, "检测到 VPN 隧道丢失，重建 TUN（第 " + reestablishCount + " 次）");
+                org.levimc.launcher.util.OnlineDebugLog.log("VpnSvc TUN 丢失重建 #"
+                        + reestablishCount + " (revoked=" + revoked + ")");
                 if (reestablishCount > MAX_REESTABLISH) {
                     Log.e(TAG, "TUN 重建连续失败 " + MAX_REESTABLISH + " 次，放弃（可能授权被撤销）");
                     stopSelf();

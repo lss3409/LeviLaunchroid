@@ -301,6 +301,8 @@ public final class EasyTierManager {
                     // 用 ACTION_STOP 信号让服务内主动关闭 tun 终止 VPN。
                     Intent s = new Intent(ctx, EasyTierVpnService.class);
                     s.setAction(EasyTierVpnService.ACTION_STOP);
+                    // v0.4.202：停止信号埋点（VpnService onDestroy 风暴源头定位）
+                    org.levimc.launcher.util.OnlineDebugLog.log("EasyTierMgr stop 发 ACTION_STOP");
                     ctx.startService(s);
                 } catch (Exception e) {
                     Log.w(TAG, "发 VPN 停止信号失败", e);
@@ -338,6 +340,8 @@ public final class EasyTierManager {
             if (cidrs != null && !cidrs.isEmpty()) {
                 i.putExtra(EasyTierVpnService.EXTRA_CIDRS, cidrs.toArray(new String[0]));
             }
+            // v0.4.202：启动 VpnService 埋点（与 onDestroy 配对还原风暴时序）
+            org.levimc.launcher.util.OnlineDebugLog.log("EasyTierMgr startVpn ip=" + ipv4);
             appContext.startService(i);
         } catch (Throwable t) {
             Log.e(TAG, "启动 VpnService 失败", t);
