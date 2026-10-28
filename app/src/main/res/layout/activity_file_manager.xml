@@ -258,7 +258,9 @@
                 </LinearLayout>
             </LinearLayout>
 
+            <!-- v0.4.203：左窗格（单窗模式=全屏，双窗模式=左半边） -->
             <LinearLayout
+                android:id="@+id/fm_pane_left"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
@@ -285,6 +287,58 @@
 
                 <TextView
                     android:id="@+id/fm_empty"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone"
+                    android:gravity="center"
+                    android:textSize="14sp"
+                    android:textColor="@color/text_secondary" />
+            </LinearLayout>
+
+            <!-- 双窗分隔线 -->
+            <View
+                android:id="@+id/fm_pane_divider"
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:visibility="gone"
+                android:background="@color/text_secondary" />
+
+            <!-- v0.4.203：右窗格（双窗模式显示；独立路径栏+列表） -->
+            <LinearLayout
+                android:id="@+id/fm_pane_right"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:visibility="gone"
+                android:orientation="vertical">
+
+                <HorizontalScrollView
+                    android:id="@+id/fm_path_scroll_right"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fillViewport="true"
+                    android:scrollbars="none"
+                    android:paddingTop="4dp">
+
+                    <LinearLayout
+                        android:id="@+id/fm_path_bar_right"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal" />
+                </HorizontalScrollView>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/fm_recycler_right"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="8dp"
+                    android:scrollbars="vertical" />
+
+                <TextView
+                    android:id="@+id/fm_empty_right"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:visibility="gone"
@@ -390,6 +444,104 @@
 
             <TextView
                 android:id="@+id/fm_bottom_trash_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="10sp"
+                android:textColor="@color/text_secondary" />
+        </LinearLayout>
+
+        <!-- v0.4.203：双窗模式底栏（MT 管理器同款）：单/双窗切换、上一级、窗口同步、新建 -->
+        <LinearLayout
+            android:id="@+id/fm_bottom_dual"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="?android:attr/selectableItemBackground">
+
+            <TextView
+                android:id="@+id/fm_bottom_dual_icon"
+                android:layout_width="wrap_content"
+                android:layout_height="24dp"
+                android:gravity="center"
+                android:textSize="13sp"
+                android:textColor="@color/on_surface" />
+
+            <TextView
+                android:id="@+id/fm_bottom_dual_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="10sp"
+                android:textColor="@color/text_secondary" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/fm_bottom_up"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="?android:attr/selectableItemBackground">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_arrow_up"
+                app:tint="@color/on_surface"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/fm_bottom_up_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="10sp"
+                android:textColor="@color/text_secondary" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/fm_bottom_sync"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="?android:attr/selectableItemBackground">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_sync"
+                app:tint="@color/on_surface"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/fm_bottom_sync_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="10sp"
+                android:textColor="@color/text_secondary" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/fm_bottom_new"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="?android:attr/selectableItemBackground">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_add"
+                app:tint="@color/on_surface"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/fm_bottom_new_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textSize="10sp"

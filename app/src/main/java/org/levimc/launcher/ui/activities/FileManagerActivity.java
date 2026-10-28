@@ -75,6 +75,17 @@ public class FileManagerActivity extends BaseActivity {
     private String lastSnackbar = "";
     private int pendingSaf = SAF_NONE;
 
+    // v0.4.203：双窗模式（MT 管理器同款）——右窗独立 VM/列表/路径栏
+    private FileManagerViewModel vmRight;
+    private FileManagerUiState lastStateRight;
+    private RecyclerView recyclerRight;
+    private android.widget.LinearLayout pathBarRight;
+    private View paneRight;
+    private View paneDivider;
+    private FmEntryAdapter entryAdapterRight;
+    private boolean dualMode = false;
+    private int activePane = 0; // 0=左 1=右
+
     private RecyclerView recycler;
     private RecyclerView trashRecycler;
     private android.widget.LinearLayout pathBar;
@@ -201,6 +212,10 @@ public class FileManagerActivity extends BaseActivity {
                 return (T) new FileManagerViewModel(getApplicationContext(), handle);
             }
         }).get(FileManagerViewModel.class);
+        // v0.4.203：右窗独立 VM（双窗模式；独立路径状态/历史栈）
+        SavedStateHandle handleRight = new SavedStateHandle();
+        handleRight.set(FileManagerViewModel.KEY_ROOT_PATH, rootPath);
+        vmRight = new FileManagerViewModel(getApplicationContext(), handleRight);
 
         setupAdapters();
         setupListeners();
@@ -208,6 +223,7 @@ public class FileManagerActivity extends BaseActivity {
         applyLayoutMode();
 
         vm.initialize();
+        vmRight.initialize();
         FmFlowBridgeKt.collectFlow(this, vm.getInitState(), init -> {
             if (init instanceof FmInitState.Failed) {
                 FmDialogs.dismissLast();
@@ -219,6 +235,7 @@ public class FileManagerActivity extends BaseActivity {
             }
         });
         FmFlowBridgeKt.collectFlow(this, vm.getState(), this::onState);
+        FmFlowBridgeKt.collectFlow(this, vmRight.getState(), this::onStateRight); // v0.4.203
         FmFlowBridgeKt.collectFlow(this, vm.getSearchUi(), this::onSearchUi);
         FmFlowBridgeKt.collectFlow(this, vm.getEditorUi(), this::onEditorUi);
         FmFlowBridgeKt.collectFlow(this, vm.getErrorEvents(), msg ->
@@ -256,9 +273,15 @@ public class FileManagerActivity extends BaseActivity {
         audioCurrent = findViewById(R.id.fm_audio_current);
         audioDuration = findViewById(R.id.fm_audio_duration);
         audioSeek = findViewById(R.id.fm_audio_seek);
+        // v0.4.203：双窗视图
+        paneRight = findViewById(R.id.fm_pane_right);
+        paneDivider = findViewById(R.id.fm_pane_divider);
+        recyclerRight = findViewById(R.id.fm_recycler_right);
+        pathBarRight = findViewById(R.id.fm_path_bar_right);
     }
 
-    private FmEntryAdapter.Listener entryListener() {
+    /** v0.4.203：listener 参数化（左/右窗各用自己的 VM）。 */
+    private FmEntryAdapter.Listener entryListener(FileManagerViewModel vmm) {
         return new FmEntryAdapter.Listener() {
             @Override
             public void onEntryClick(FmEntry entry) {
@@ -267,21 +290,27 @@ public class FileManagerActivity extends BaseActivity {
 
             @Override
             public void onEntryLongClick(FmEntry entry) {
-                vm.toggleSelection(entry);
+                vmm.toggleSelection(entry);
             }
 
             @Override
             public void onMoreClick(FmEntry entry) {
-                FmDialogs.showEntryMenu(FileManagerActivity.this, vm, entry, () -> {},
+                FmDialogs.showEntryMenu(FileManagerActivity.this, vmm, entry, () -> {},
                         () -> openFileEntry(entry));
             }
         };
     }
 
     private void setupAdapters() {
-        entryAdapter = new FmEntryAdapter(entryListener(), java.util.Collections.emptySet(),
+        entryAdapter = new FmEntryAdapter(entryListener(vm), java.util.Collections.emptySet(),
                 false, accent, onSurface, textSecondary, pageBg);
         recycler.setAdapter(entryAdapter);
+
+        // v0.4.203：右窗独立列表（双窗模式）
+        entryAdapterRight = new FmEntryAdapter(entryListener(vmRight),
+                java.util.Collections.emptySet(), false, accent, onSurface, textSecondary, pageBg);
+        recyclerRight.setAdapter(entryAdapterRight);
+        recyclerRight.setLayoutManager(new LinearLayoutManager(this));
 
         trashAdapter = new FmTrashAdapter(new FmTrashAdapter.Listener() {
             @Override
@@ -344,6 +373,53 @@ public class FileManagerActivity extends BaseActivity {
         findViewById(R.id.fm_bottom_trash).setOnClickListener(v -> showTrash());
         findViewById(R.id.fm_rail_home).setOnClickListener(v -> showFiles());
         findViewById(R.id.fm_rail_trash).setOnClickListener(v -> showTrash());
+
+        // v0.4.203：双窗底栏（MT 管理器同款）——单/双窗切换、上一级、窗口同步、新建
+        findViewById(R.id.fm_bottom_dual).setOnClickListener(v -> toggleDualMode());
+        findViewById(R.id.fm_bottom_up).setOnClickListener(v -> {
+            if (dualMode && activePane == 1) {
+                vmRight.goParent();
+            } else {
+                vm.goParent();
+            }
+        });
+        findViewById(R.id.fm_bottom_sync).setOnClickListener(v -> {
+            // 窗口同步：右窗跳到左窗当前目录
+            if (lastState != null && lastState.getCurrentDir() != null) {
+                vmRight.submitJump(lastState.getCurrentDir().toString());
+            }
+        });
+        findViewById(R.id.fm_bottom_new).setOnClickListener(v -> {
+            // 新建：文件夹/文件二选一（作用于激活窗口）
+            FileManagerViewModel target = (dualMode && activePane == 1) ? vmRight : vm;
+            new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this)
+                    .setTitleText(getString(R.string.fm_ui_new))
+                    .setItems(new String[]{getString(R.string.fm_ui_new_folder),
+                            getString(R.string.fm_ui_new_file)}, (d, which) ->
+                            FmDialogs.showCreateDialog(this, target, which == 0))
+                    .setNegativeButton(getString(R.string.cancel), null)
+                    .show();
+        });
+        TextView dualText = findViewById(R.id.fm_bottom_dual_text);
+        dualText.setText(R.string.fm_ui_dual);
+        ((TextView) findViewById(R.id.fm_bottom_up_text)).setText(R.string.fm_ui_up);
+        ((TextView) findViewById(R.id.fm_bottom_sync_text)).setText(R.string.fm_ui_sync);
+        ((TextView) findViewById(R.id.fm_bottom_new_text)).setText(R.string.fm_ui_new);
+        updateDualButtons();
+
+        // 右窗点击 = 激活右窗（激活窗高亮 + 底栏操作目标）
+        recyclerRight.setOnTouchListener((v, e) -> {
+            if (e.getAction() == android.view.MotionEvent.ACTION_DOWN) {
+                activatePane(1);
+            }
+            return false;
+        });
+        recycler.setOnTouchListener((v, e) -> {
+            if (e.getAction() == android.view.MotionEvent.ACTION_DOWN) {
+                activatePane(0);
+            }
+            return false;
+        });
 
         findViewById(R.id.fm_btn_sel_all).setOnClickListener(v -> {
             if (showingTrash) vm.selectAllTrash();
@@ -618,10 +694,21 @@ public class FileManagerActivity extends BaseActivity {
     /** v0.4.90：面包屑路径栏（系统文件管理器同款）——根名 + 相对段，
      *  每段点击直接跳到该路径；「⋯」按钮打开跳转菜单显示全部路径。 */
     private void rebuildPathBar(String currentPath) {
-        if (pathBar == null) {
+        rebuildPathBarFor(pathBar, currentPath, vm);
+    }
+
+    /** v0.4.203：右窗路径栏。 */
+    private void rebuildPathBarRight(String currentPath) {
+        rebuildPathBarFor(pathBarRight, currentPath, vmRight);
+    }
+
+    /** v0.4.203：参数化路径栏（左/右窗共用）。 */
+    private void rebuildPathBarFor(android.widget.LinearLayout bar, String currentPath,
+                                   FileManagerViewModel vmm) {
+        if (bar == null) {
             return;
         }
-        pathBar.removeAllViews();
+        bar.removeAllViews();
         float d = getResources().getDisplayMetrics().density;
         java.io.File root = new java.io.File(fmRootPath);
         String rel = "";
@@ -630,7 +717,7 @@ public class FileManagerActivity extends BaseActivity {
             rel = currentPath.substring(fmRootPath.length() + 1);
         }
         // 根名（包文件名）段：点击回根
-        pathBar.addView(pathSegment(root.getName(), fmRootPath, false));
+        bar.addView(pathSegment(root.getName(), fmRootPath, false, vmm));
         // v0.4.147：每段传各自对应的实际路径且只有末段是叶子——此前
         // 所有段都传 currentPath+isLeaf=true（不可点），只有根段能点
         // （「路径只能点父级，assets/minecraft/textures 点不了」根因）
@@ -649,12 +736,13 @@ public class FileManagerActivity extends BaseActivity {
             slash.setTextColor(textSecondary);
             slash.setTextSize(14);
             slash.setPadding((int) (2 * d), 0, (int) (2 * d), 0);
-            pathBar.addView(slash);
-            pathBar.addView(pathSegment(seg, cur, leaf));
+            bar.addView(slash);
+            bar.addView(pathSegment(seg, cur, leaf, vmm));
         }
     }
 
-    private TextView pathSegment(String label, String path, boolean isLeaf) {
+    private TextView pathSegment(String label, String path, boolean isLeaf,
+                                 FileManagerViewModel vmm) {
         TextView tv = new TextView(this);
         tv.setText(label);
         tv.setTextColor(0xFF3B82F6);
@@ -669,12 +757,90 @@ public class FileManagerActivity extends BaseActivity {
         // 叶子段（当前目录）不跳自己；其它段点击跳转
         if (!isLeaf) {
             tv.setOnClickListener(v -> {
-                if (!vm.submitJump(path)) {
+                if (!vmm.submitJump(path)) {
                     Toast.makeText(this, R.string.fm_ui_jump_invalid, Toast.LENGTH_SHORT).show();
                 }
             });
         }
         return tv;
+    }
+
+    // ---------------- v0.4.203 双窗模式 ----------------
+
+    /** 单/双窗切换。 */
+    private void toggleDualMode() {
+        dualMode = !dualMode;
+        paneRight.setVisibility(dualMode ? View.VISIBLE : View.GONE);
+        paneDivider.setVisibility(dualMode ? View.VISIBLE : View.GONE);
+        if (dualMode && lastStateRight == null) {
+            // 首次进入双窗：右窗同步到左窗当前目录（MT 同款初始行为）
+            if (lastState != null && lastState.getCurrentDir() != null) {
+                vmRight.submitJump(lastState.getCurrentDir().toString());
+            }
+        }
+        updateDualButtons();
+    }
+
+    /** 激活窗格（底栏「上一级/新建」与主路径栏跟随激活窗）。 */
+    private void activatePane(int pane) {
+        if (activePane == pane) {
+            return;
+        }
+        activePane = pane;
+        updateDualButtons();
+        refreshMainPathBar();
+    }
+
+    /** v0.4.203：主路径栏跟随激活窗（段点击作用于激活窗 VM）。 */
+    private void refreshMainPathBar() {
+        if (dualMode && activePane == 1 && lastStateRight != null
+                && lastStateRight.getCurrentDir() != null) {
+            rebuildPathBarFor(pathBar, lastStateRight.getCurrentDir().toString(), vmRight);
+        } else if (lastState != null && lastState.getCurrentDir() != null) {
+            rebuildPathBarFor(pathBar, lastState.getCurrentDir().toString(), vm);
+        }
+    }
+
+    /** 底栏按钮文字/高亮（激活窗 + 双窗状态）。 */
+    private void updateDualButtons() {
+        TextView dualIcon = findViewById(R.id.fm_bottom_dual_icon);
+        if (dualIcon != null) {
+            dualIcon.setText(dualMode ? "☰" : "▥");
+            dualIcon.setTextColor(dualMode ? accent : onSurface);
+        }
+        TextView upText = findViewById(R.id.fm_bottom_up_text);
+        if (upText != null) {
+            upText.setTextColor(dualMode && activePane == 1 ? accent : textSecondary);
+        }
+    }
+
+    /** v0.4.203：右窗状态渲染（轻量——列表/空态/路径栏；与左窗同款
+     *  引用比较+增量更新，热路径不重建适配器）。 */
+    private void onStateRight(FileManagerUiState s) {
+        lastStateRight = s;
+        if (s == null) {
+            return;
+        }
+        String dir = s.getCurrentDir() != null ? s.getCurrentDir().toString() : fmRootPath;
+        rebuildPathBarRight(dir);
+        if (entryAdapterRight == null
+                || entryAdapterRight.getBoundList() != s.getVisibleEntries()) {
+            entryAdapterRight = new FmEntryAdapter(entryListener(vmRight),
+                    s.getSelection(), s.getMultiSelect(), accent, onSurface, textSecondary, pageBg);
+            entryAdapterRight.setViewType(landscape
+                    ? FmEntryAdapter.VIEW_CARD : FmEntryAdapter.VIEW_LIST);
+            recyclerRight.setAdapter(entryAdapterRight);
+            entryAdapterRight.submit(s.getVisibleEntries());
+        } else {
+            entryAdapterRight.updateSelection(s.getSelection(), s.getMultiSelect());
+        }
+        boolean empty = s.getVisibleEntries() == null || s.getVisibleEntries().isEmpty();
+        recyclerRight.setVisibility(empty ? View.GONE : View.VISIBLE);
+        TextView emptyRight = findViewById(R.id.fm_empty_right);
+        emptyRight.setVisibility(empty ? View.VISIBLE : View.GONE);
+        if (dualMode && activePane == 1) {
+            refreshMainPathBar();
+        }
     }
 
     // ---------------- 状态渲染 ----------------
@@ -683,11 +849,14 @@ public class FileManagerActivity extends BaseActivity {
         lastState = s;
 
         if (s.getCurrentDir() != null) {
-            rebuildPathBar(s.getCurrentDir().toString());
+            // v0.4.203：激活窗=右窗时主路径栏归右窗管，左窗状态不覆盖
+            if (activePane == 0 || !dualMode) {
+                rebuildPathBar(s.getCurrentDir().toString());
+            }
         }
         // 热路径防护：任务进度等高频更新不重建适配器，只按引用比较增量刷新
         if (entryAdapter == null || entryAdapter.getBoundList() != s.getVisibleEntries()) {
-            entryAdapter = new FmEntryAdapter(entryListener(), s.getSelection(), s.getMultiSelect(),
+            entryAdapter = new FmEntryAdapter(entryListener(vm), s.getSelection(), s.getMultiSelect(),
                     accent, onSurface, textSecondary, pageBg);
             entryAdapter.setViewType(landscape ? FmEntryAdapter.VIEW_CARD : FmEntryAdapter.VIEW_LIST);
             recycler.setAdapter(entryAdapter);

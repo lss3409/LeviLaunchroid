@@ -1695,6 +1695,10 @@
     <!-- fm_ui 中文搬入（2026-10-03） -->
 <string name="fm_ui_name_hint">名称</string>
 <string name="fm_ui_new_folder">新建文件夹</string>
+    <string name="fm_ui_new">新建</string>
+    <string name="fm_ui_dual">双窗</string>
+    <string name="fm_ui_up">上一级</string>
+    <string name="fm_ui_sync">同步</string>
 <string name="fm_ui_new_file">新建文件</string>
 <string name="fm_ui_create">创建</string>
 <string name="fm_ui_rename">重命名</string>

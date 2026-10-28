@@ -1052,6 +1052,13 @@ public class LevelDBReader {
         return readEntriesByPrefixInternal(prefix, true);
     }
 
+    /** v0.4.202：读前缀区域全部条目（二分定位前缀起点、读到前缀结束即
+     *  停——提取结构用：structuretemplate_ 前缀可能有多个且分布跨文件，
+     *  不能用单 key 找到即停语义；同时避免全量扫描）。 */
+    public List<LevelDBEntry> readEntriesByPrefixAll(byte[] prefix) throws IOException {
+        return readEntriesByPrefixInternal(prefix, false);
+    }
+
     private List<LevelDBEntry> readEntriesByPrefixInternal(byte[] prefix, boolean stopAfterFound)
             throws IOException {
         List<LevelDBEntry> out = new ArrayList<>();

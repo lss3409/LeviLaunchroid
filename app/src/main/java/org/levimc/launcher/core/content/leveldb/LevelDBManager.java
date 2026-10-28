@@ -47,20 +47,13 @@ public class LevelDBManager {
                 LevelDBReader reader = new LevelDBReader(dbDir);
                 // 结构提取只读结构条目：此前 readAllEntries 全量读 183MB
                 // 大世界（56.9 万条目）→ 512MB 堆 OOM 崩溃（实测 TK 纯净
-                // 生电提取结构必崩）。readEntries 带过滤只保留
-                // "structuretemplate_" 前缀 key，内存从 183MB 降到 KB 级
+                // 生电提取结构必崩）。v0.4.202：改用前缀定位模式——
+                // readEntries 带过滤虽然内存降到 KB 级，但仍是全量扫所有
+                // sst（每 sst 逐 block 遍历），大世界转圈良久才报「未找到
+                // 结构」；readEntriesByPrefixAll 二分定位前缀起点、读到
+                // 前缀结束即停（chunk 读同款路径），只碰 1-2 个 data block
                 byte[] prefix = "structuretemplate_".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
-                entries = reader.readEntries(key -> {
-                    if (key == null || key.length <= prefix.length) {
-                        return false;
-                    }
-                    for (int i = 0; i < prefix.length; i++) {
-                        if (key[i] != prefix[i]) {
-                            return false;
-                        }
-                    }
-                    return true;
-                });
+                entries = reader.readEntriesByPrefixAll(prefix);
                 reader.close();
 
                 Log.d(TAG, "Loaded " + entries.size() + " entries from database");

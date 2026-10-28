@@ -1862,6 +1862,10 @@ Invite code: %1$s
     <!-- ============ 文件管理器 UI（v666，Zalith 移植） ============ -->
 <string name="fm_ui_name_hint">Name</string>
 <string name="fm_ui_new_folder">New Folder</string>
+    <string name="fm_ui_new">New</string>
+    <string name="fm_ui_dual">Dual</string>
+    <string name="fm_ui_up">Up</string>
+    <string name="fm_ui_sync">Sync</string>
 <string name="fm_ui_new_file">New File</string>
 <string name="fm_ui_create">Create</string>
 <string name="fm_ui_rename">Rename</string>
