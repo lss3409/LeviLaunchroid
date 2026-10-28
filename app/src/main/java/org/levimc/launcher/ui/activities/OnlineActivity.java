@@ -9,6 +9,8 @@ import android.content.Intent;
 import android.net.Uri;
 import android.net.VpnService;
 import android.os.Bundle;
+import android.os.Looper;
+import android.view.Choreographer;
 import android.text.Editable;
 import android.text.Selection;
 import android.text.Spanned;
@@ -148,6 +150,7 @@ public final class OnlineActivity extends BaseActivity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_online);
         setActiveNavTab(R.id.nav_tab_online);
+        installJankMonitor(); // v0.4.202：主线程卡顿监控（联机页卡顿根因定位用）
 
         homeView = findViewById(R.id.online_home_view);
         createView = findViewById(R.id.online_create_view);
@@ -1421,12 +1424,16 @@ public final class OnlineActivity extends BaseActivity
         if (currentCode == null) {
             return;
         }
+        // v0.4.202：耗时埋点——「分享邀请码点半天分享不了」根因定位
+        long t0 = android.os.SystemClock.uptimeMillis();
         // v0.0.22：防重入——弹窗已在显示时忽略重复点击（避免卡顿期间
         // 点击排队恢复后弹窗叠加）
         if (shareDialog != null && shareDialog.isShowing()) {
             return;
         }
         View v = getLayoutInflater().inflate(R.layout.dialog_share_code, null);
+        org.levimc.launcher.util.OnlineDebugLog.log("share: inflate +"
+                + (android.os.SystemClock.uptimeMillis() - t0) + "ms");
         ((TextView) v.findViewById(R.id.share_code_text)).setText("P/" + currentCode);
         // v542：大邀请码与「联机邀请」标签跟随个性化强调色
         ((TextView) v.findViewById(R.id.share_code_text)).setTextColor(accentColor());
@@ -1459,6 +1466,9 @@ public final class OnlineActivity extends BaseActivity
             }
         });
         dialog.show();
+        // v0.4.202：弹窗展示耗时（dialog.show 触发窗口动画与首帧）
+        org.levimc.launcher.util.OnlineDebugLog.log("share: dialog.show +"
+                + (android.os.SystemClock.uptimeMillis() - t0) + "ms");
         // v0.0.21：二维码生成移到后台线程——首次点击卡顿根因
         // （主线程 ZXing 编码 480×480 + 类首次加载）
         // v0.4.36：二维码恢复邀请码文本（LBBL 扫码加入读的就是码）
@@ -1530,17 +1540,47 @@ public final class OnlineActivity extends BaseActivity
         }
     }
 
+    /** v0.4.202：主线程卡顿监控——Choreographer 帧回调间隔 >800ms 判定
+     *  掉帧，抓主线程当前堆栈写 OnlineDebugLog（联机页卡顿根因定位）。
+     *  日志有界：每 10 秒最多记一条（v698 教训）。 */
+    private void installJankMonitor() {
+        try {
+            final Choreographer ch = Choreographer.getInstance();
+            final long[] last = {0L};
+            final long[] lastLogged = {0L};
+            final Choreographer.FrameCallback[] cb = new Choreographer.FrameCallback[1];
+            cb[0] = (frameTimeNanos) -> {
+                long now = System.nanoTime();
+                if (last[0] != 0) {
+                    long gapMs = (now - last[0]) / 1_000_000L;
+                    long wall = System.currentTimeMillis();
+                    if (gapMs > 800 && wall - lastLogged[0] > 10_000L) {
+                        lastLogged[0] = wall;
+                        StringBuilder sb = new StringBuilder();
+                        sb.append("JANK ").append(gapMs).append("ms\n");
+                        for (StackTraceElement e : Looper.getMainLooper()
+                                .getThread().getStackTrace()) {
+                            sb.append("  at ").append(e).append('\n');
+                        }
+                        org.levimc.launcher.util.OnlineDebugLog.log(sb.toString());
+                    }
+                }
+                last[0] = now;
+                ch.postFrameCallback(cb[0]);
+            };
+            ch.postFrameCallback(cb[0]);
+        } catch (Throwable ignored) {
+        }
+    }
+
     private void onLeaveClicked() {
         // v561：清理加入握手超时计时
         roomHandshakeDone = true;
         handshakeHandler.removeCallbacks(handshakeTimeout);
         handshakeHandler.removeCallbacks(fastFailCheck);
-        EasyTierManager.get().stop(this);
-        LanDiscovery.stopHost();
-        RoomCenter.stopHost();
-        RoomCenter.stopClient();
-        LanBridge.stopHost();
-        org.levimc.launcher.core.online.voice.VoiceEngine.get(this).stop();
+        // v0.4.202：状态与 UI 立即切换（点击零等待），停止全家桶挪后台
+        // 串行清理——EasyTier stop/startService、UDP c:bye 等任何一步阻塞
+        // 都不再冻结 UI（「退出房间卡一下」根治）
         RoomCenter.roomCode = null;
         RoomCenter.hostGameOpen = false;
         // v645：主动退出才清除恒久化状态（此后不再自动恢复）
@@ -1549,6 +1589,37 @@ public final class OnlineActivity extends BaseActivity
         isHost = false;
         showHome();
         setHomeState(EasyTierManager.State.IDLE, null);
+        final org.levimc.launcher.core.online.voice.VoiceEngine voice =
+                org.levimc.launcher.core.online.voice.VoiceEngine.get(this);
+        final OnlineActivity act = this;
+        Thread cleanup = new Thread(() -> {
+            try {
+                RoomCenter.stopClient();
+            } catch (Throwable ignored) {
+            }
+            try {
+                LanBridge.stopHost();
+            } catch (Throwable ignored) {
+            }
+            try {
+                LanDiscovery.stopHost();
+            } catch (Throwable ignored) {
+            }
+            try {
+                voice.stop();
+            } catch (Throwable ignored) {
+            }
+            try {
+                EasyTierManager.get().stop(act);
+            } catch (Throwable ignored) {
+            }
+            try {
+                RoomCenter.stopHost();
+            } catch (Throwable ignored) {
+            }
+        }, "leave-cleanup");
+        cleanup.setDaemon(true);
+        cleanup.start();
     }
 
     private void setHomeState(EasyTierManager.State state, String detail) {

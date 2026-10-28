@@ -567,17 +567,12 @@ public final class RoomCenter {
     public static synchronized void stopClient() {
         // v546：退出房间清除禁麦锁（否则残留 mutedByHost 会带到下一个房间）
         org.levimc.launcher.core.online.voice.VoiceEngine.setMutedByHostStatic(false);
-        // v534：退出前即时通知房主（c:bye），房主端立刻刷新玩家列表
-        InetSocketAddress host = lastHostTarget;
-        String cid = currentClientId;
-        if (host != null && cid != null) {
-            try (DatagramSocket s = new DatagramSocket()) {
-                byte[] out = ("c:bye\0{\"clientId\":\"" + cid + "\"}")
-                        .getBytes(java.nio.charset.StandardCharsets.UTF_8);
-                s.send(new DatagramPacket(out, out.length, host.getAddress(), host.getPort()));
-            } catch (Exception ignored) {
-            }
-        }
+        // v534：退出前即时通知房主（c:bye），房主端立刻刷新玩家列表。
+        // v0.4.202：c:bye 挪后台线程——主线程 UDP send 到 VPN 网段
+        // 会触发 ARP 解析等待超时（秒级），是「退出房间卡一下」根因之一；
+        // VPN 网络已停则跳过（房主端 10s 心跳超时自然清人）
+        final InetSocketAddress host = lastHostTarget;
+        final String cid = currentClientId;
         clientRunning = false;
         if (clientThread != null) {
             clientThread.interrupt();
@@ -589,6 +584,24 @@ public final class RoomCenter {
         }
         lastHostTarget = null;
         currentClientId = null;
+        if (host != null && cid != null) {
+            Thread t = new Thread(() -> {
+                try (DatagramSocket s = new DatagramSocket()) {
+                    android.net.Network vpn = EasyTierManager.waitForVpnNetwork(2000);
+                    if (vpn == null) {
+                        return;
+                    }
+                    vpn.bindSocket(s);
+                    byte[] out = ("c:bye\0{\"clientId\":\"" + cid + "\"}")
+                            .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    s.send(new DatagramPacket(out, out.length,
+                            host.getAddress(), host.getPort()));
+                } catch (Exception ignored) {
+                }
+            }, "cbye");
+            t.setDaemon(true);
+            t.start();
+        }
     }
 
     /** v534：最近成员端 clientId（c:bye 用）。 */
