@@ -346,10 +346,7 @@ public class FileManagerActivity extends BaseActivity {
                 }
             }
         });
-        findViewById(R.id.fm_btn_path_more).setOnClickListener(v ->
-                FmDialogs.showJumpDialog(this, vm,
-                        lastState != null && lastState.getCurrentDir() != null
-                                ? lastState.getCurrentDir().toString() : ""));
+        // v0.4.203：跳转路径按钮已删（用户要求）
         findViewById(R.id.fm_btn_search).setOnClickListener(v -> vm.showSearchDialog());
         findViewById(R.id.fm_btn_sort).setOnClickListener(v -> FmDialogs.showSortDialog(this, vm,
                 lastState != null ? lastState.getSortConfig()
@@ -365,7 +362,14 @@ public class FileManagerActivity extends BaseActivity {
         });
         findViewById(R.id.fm_btn_more).setOnClickListener(v -> showMoreMenu());
 
-        findViewById(R.id.fm_btn_clip_paste).setOnClickListener(v -> vm.requestPaste());
+        findViewById(R.id.fm_btn_clip_paste).setOnClickListener(v -> {
+            // v0.4.203：双窗粘贴走激活窗（左窗复制 → 右窗导航 → 粘贴到右窗）
+            if (dualMode && activePane == 1) {
+                vmRight.requestPaste();
+            } else {
+                vm.requestPaste();
+            }
+        });
         findViewById(R.id.fm_btn_clip_cancel).setOnClickListener(v -> vm.clearClipboard());
         findViewById(R.id.fm_btn_task_cancel).setOnClickListener(v -> vm.cancelCurrentTask());
 
@@ -374,37 +378,14 @@ public class FileManagerActivity extends BaseActivity {
         findViewById(R.id.fm_rail_home).setOnClickListener(v -> showFiles());
         findViewById(R.id.fm_rail_trash).setOnClickListener(v -> showTrash());
 
-        // v0.4.203：双窗底栏（MT 管理器同款）——单/双窗切换、上一级、窗口同步、新建
-        findViewById(R.id.fm_bottom_dual).setOnClickListener(v -> toggleDualMode());
-        findViewById(R.id.fm_bottom_up).setOnClickListener(v -> {
-            if (dualMode && activePane == 1) {
-                vmRight.goParent();
-            } else {
-                vm.goParent();
-            }
-        });
-        findViewById(R.id.fm_bottom_sync).setOnClickListener(v -> {
-            // 窗口同步：右窗跳到左窗当前目录
-            if (lastState != null && lastState.getCurrentDir() != null) {
-                vmRight.submitJump(lastState.getCurrentDir().toString());
-            }
-        });
-        findViewById(R.id.fm_bottom_new).setOnClickListener(v -> {
-            // 新建：文件夹/文件二选一（作用于激活窗口）
-            FileManagerViewModel target = (dualMode && activePane == 1) ? vmRight : vm;
-            new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this)
-                    .setTitleText(getString(R.string.fm_ui_new))
-                    .setItems(new String[]{getString(R.string.fm_ui_new_folder),
-                            getString(R.string.fm_ui_new_file)}, (d, which) ->
-                            FmDialogs.showCreateDialog(this, target, which == 0))
-                    .setNegativeButton(getString(R.string.cancel), null)
-                    .show();
-        });
-        TextView dualText = findViewById(R.id.fm_bottom_dual_text);
-        dualText.setText(R.string.fm_ui_dual);
-        ((TextView) findViewById(R.id.fm_bottom_up_text)).setText(R.string.fm_ui_up);
-        ((TextView) findViewById(R.id.fm_bottom_sync_text)).setText(R.string.fm_ui_sync);
-        ((TextView) findViewById(R.id.fm_bottom_new_text)).setText(R.string.fm_ui_new);
+        // v0.4.203：双窗操作（MT 管理器同款）——单/双窗切换、上一级、窗口同步、新建。
+        // 横屏底栏隐藏（applyLayoutMode），按钮两份：底栏（竖屏）+ rail（横屏）
+        bindDualActions(R.id.fm_bottom_dual, R.id.fm_bottom_up, R.id.fm_bottom_sync,
+                R.id.fm_bottom_new, R.id.fm_bottom_dual_icon, R.id.fm_bottom_dual_text,
+                R.id.fm_bottom_up_text, R.id.fm_bottom_sync_text, R.id.fm_bottom_new_text);
+        bindDualActions(R.id.fm_rail_dual, R.id.fm_rail_up, R.id.fm_rail_sync,
+                R.id.fm_rail_new, R.id.fm_rail_dual_icon, R.id.fm_rail_dual_text,
+                R.id.fm_rail_up_text, R.id.fm_rail_sync_text, R.id.fm_rail_new_text);
         updateDualButtons();
 
         // 右窗点击 = 激活右窗（激活窗高亮 + 底栏操作目标）
@@ -767,6 +748,71 @@ public class FileManagerActivity extends BaseActivity {
 
     // ---------------- v0.4.203 双窗模式 ----------------
 
+    /** v0.4.203：跨窗剪贴板同步记录（内容比较防回环）。 */
+    private java.util.List<java.nio.file.Path> lastClipSources;
+    private boolean lastClipCut;
+    private boolean hasLastClip;
+
+    /** v0.4.203：剪贴板变化 → 同步给另一窗（跨窗复制/剪切/粘贴）+
+     *  复制/剪切自动切双窗（原窗在左）。内容比较防 setClipboardExternal
+     *  回环。 */
+    private void syncClipboard(
+            org.levimc.launcher.filemanager.viewmodel.FmClipboard cb, boolean fromRight) {
+        boolean changed = (cb == null) ? hasLastClip
+                : (!hasLastClip || !cb.getSources().equals(lastClipSources)
+                        || cb.isCut() != lastClipCut);
+        if (!changed) {
+            return;
+        }
+        hasLastClip = cb != null;
+        lastClipSources = cb != null ? cb.getSources() : null;
+        lastClipCut = cb != null && cb.isCut();
+        FileManagerViewModel target = fromRight ? vm : vmRight;
+        if (cb != null) {
+            target.setClipboardExternal(cb.getSources(), cb.isCut());
+            if (!dualMode) {
+                toggleDualMode(); // 复制/剪切自动进双窗
+            }
+        } else {
+            target.clearClipboard();
+        }
+    }
+
+    /** v0.4.203：双窗四键绑定（底栏与 rail 共用同一逻辑）。 */
+    private void bindDualActions(int dualId, int upId, int syncId, int newId,
+                                 int dualIconId, int dualTextId, int upTextId,
+                                 int syncTextId, int newTextId) {
+        findViewById(dualId).setOnClickListener(v -> toggleDualMode());
+        findViewById(upId).setOnClickListener(v -> {
+            if (dualMode && activePane == 1) {
+                vmRight.goParent();
+            } else {
+                vm.goParent();
+            }
+        });
+        findViewById(syncId).setOnClickListener(v -> {
+            // 窗口同步：右窗跳到左窗当前目录
+            if (lastState != null && lastState.getCurrentDir() != null) {
+                vmRight.submitJump(lastState.getCurrentDir().toString());
+            }
+        });
+        findViewById(newId).setOnClickListener(v -> {
+            // 新建：文件夹/文件二选一（作用于激活窗口）
+            FileManagerViewModel target = (dualMode && activePane == 1) ? vmRight : vm;
+            new org.levimc.launcher.ui.dialogs.CustomAlertDialog(this)
+                    .setTitleText(getString(R.string.fm_ui_new))
+                    .setItems(new String[]{getString(R.string.fm_ui_new_folder),
+                            getString(R.string.fm_ui_new_file)}, (d, which) ->
+                            FmDialogs.showCreateDialog(this, target, which == 0))
+                    .setNegativeButton(getString(R.string.cancel), null)
+                    .show();
+        });
+        ((TextView) findViewById(dualTextId)).setText(R.string.fm_ui_dual);
+        ((TextView) findViewById(upTextId)).setText(R.string.fm_ui_up);
+        ((TextView) findViewById(syncTextId)).setText(R.string.fm_ui_sync);
+        ((TextView) findViewById(newTextId)).setText(R.string.fm_ui_new);
+    }
+
     /** 单/双窗切换。 */
     private void toggleDualMode() {
         dualMode = !dualMode;
@@ -801,16 +847,22 @@ public class FileManagerActivity extends BaseActivity {
         }
     }
 
-    /** 底栏按钮文字/高亮（激活窗 + 双窗状态）。 */
+    /** 底栏/rail 按钮文字与高亮（双份按钮同步状态）。 */
     private void updateDualButtons() {
-        TextView dualIcon = findViewById(R.id.fm_bottom_dual_icon);
-        if (dualIcon != null) {
-            dualIcon.setText(dualMode ? "☰" : "▥");
-            dualIcon.setTextColor(dualMode ? accent : onSurface);
+        int[] dualIcons = {R.id.fm_bottom_dual_icon, R.id.fm_rail_dual_icon};
+        int[] upTexts = {R.id.fm_bottom_up_text, R.id.fm_rail_up_text};
+        for (int id : dualIcons) {
+            TextView t = findViewById(id);
+            if (t != null) {
+                t.setText(dualMode ? "☰" : "▥");
+                t.setTextColor(dualMode ? accent : onSurface);
+            }
         }
-        TextView upText = findViewById(R.id.fm_bottom_up_text);
-        if (upText != null) {
-            upText.setTextColor(dualMode && activePane == 1 ? accent : textSecondary);
+        for (int id : upTexts) {
+            TextView t = findViewById(id);
+            if (t != null) {
+                t.setTextColor(dualMode && activePane == 1 ? accent : textSecondary);
+            }
         }
     }
 
@@ -821,6 +873,7 @@ public class FileManagerActivity extends BaseActivity {
         if (s == null) {
             return;
         }
+        syncClipboard(s.getClipboard(), true); // 右窗复制/剪切 → 同步左窗
         String dir = s.getCurrentDir() != null ? s.getCurrentDir().toString() : fmRootPath;
         rebuildPathBarRight(dir);
         if (entryAdapterRight == null
@@ -847,6 +900,7 @@ public class FileManagerActivity extends BaseActivity {
 
     private void onState(FileManagerUiState s) {
         lastState = s;
+        syncClipboard(s.getClipboard(), false); // 左窗复制/剪切 → 同步右窗+自动双窗
 
         if (s.getCurrentDir() != null) {
             // v0.4.203：激活窗=右窗时主路径栏归右窗管，左窗状态不覆盖

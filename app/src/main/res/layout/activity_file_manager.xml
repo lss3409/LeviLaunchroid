@@ -43,15 +43,6 @@
         </HorizontalScrollView>
 
         <ImageView
-            android:id="@+id/fm_btn_path_more"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:contentDescription="@string/fm_ui_jump"
-            android:padding="7dp"
-            android:src="@drawable/ic_more_vert"
-            android:tint="@color/text_secondary" />
-
-        <ImageView
             android:id="@+id/fm_btn_search"
             android:layout_width="44dp"
             android:layout_height="44dp"
@@ -251,6 +242,100 @@
 
                     <TextView
                         android:id="@+id/fm_rail_trash_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="10sp"
+                        android:textColor="@color/text_secondary" />
+                </LinearLayout>
+
+                <!-- v0.4.203：横屏双窗操作（底栏在横屏隐藏，双窗四键放 rail） -->
+                <LinearLayout
+                    android:id="@+id/fm_rail_dual"
+                    android:layout_width="match_parent"
+                    android:layout_height="64dp"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:background="?android:attr/selectableItemBackground">
+
+                    <TextView
+                        android:id="@+id/fm_rail_dual_icon"
+                        android:layout_width="wrap_content"
+                        android:layout_height="24dp"
+                        android:gravity="center"
+                        android:textSize="13sp"
+                        android:textColor="@color/on_surface" />
+
+                    <TextView
+                        android:id="@+id/fm_rail_dual_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="10sp"
+                        android:textColor="@color/text_secondary" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/fm_rail_up"
+                    android:layout_width="match_parent"
+                    android:layout_height="64dp"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:background="?android:attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_arrow_up"
+                        app:tint="@color/on_surface"
+                        android:contentDescription="@null" />
+
+                    <TextView
+                        android:id="@+id/fm_rail_up_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="10sp"
+                        android:textColor="@color/text_secondary" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/fm_rail_sync"
+                    android:layout_width="match_parent"
+                    android:layout_height="64dp"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:background="?android:attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_sync"
+                        app:tint="@color/on_surface"
+                        android:contentDescription="@null" />
+
+                    <TextView
+                        android:id="@+id/fm_rail_sync_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="10sp"
+                        android:textColor="@color/text_secondary" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/fm_rail_new"
+                    android:layout_width="match_parent"
+                    android:layout_height="64dp"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:background="?android:attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_add"
+                        app:tint="@color/on_surface"
+                        android:contentDescription="@null" />
+
+                    <TextView
+                        android:id="@+id/fm_rail_new_text"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:textSize="10sp"

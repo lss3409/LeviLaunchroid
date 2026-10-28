@@ -385,6 +385,12 @@ public class SettingsActivity extends BaseActivity {
                     : ContextCompat.getColor(this, R.color.primary);
             sliderCursorSpeed.setThumbTintList(ColorStateList.valueOf(accentSpeed));
             sliderCursorSpeed.setTrackActiveTintList(ColorStateList.valueOf(accentSpeed));
+            // v0.4.203：补全染色——未激活轨道 accent 30%、按压光晕 accent 20%
+            // （此前只有 thumb/active 染色，非默认强调色下滑块仍有默认绿色残影）
+            sliderCursorSpeed.setTrackInactiveTintList(ColorStateList.valueOf(
+                    (accentSpeed & 0x00FFFFFF) | 0x4D000000));
+            sliderCursorSpeed.setHaloTintList(ColorStateList.valueOf(
+                    (accentSpeed & 0x00FFFFFF) | 0x33000000));
             float saved = getSharedPreferences("settings", MODE_PRIVATE)
                     .getFloat("gamepad_cursor_speed", 1f);
             sliderCursorSpeed.setValue(saved);

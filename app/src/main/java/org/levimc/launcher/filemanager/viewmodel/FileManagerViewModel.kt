@@ -234,6 +234,14 @@ class FileManagerViewModel constructor(
     }
     /** 清除剪贴板（v666 UI 横幅取消按钮）。 */
     fun clearClipboard() = store.setClipboard(null)
+    /** v0.4.203：双窗跨窗剪贴板同步（另一窗复制/剪切后注入本窗）。 */
+    fun setClipboardExternal(sources: List<Path>, isCut: Boolean) {
+        if (sources.isEmpty()) {
+            store.setClipboard(null)
+        } else {
+            store.setClipboard(FmClipboard(sources, isCut))
+        }
+    }
     fun requestPaste() = pasteCtr.requestPaste()
     fun resolvePasteConflict(resolution: ConflictResolution) = pasteCtr.resolvePasteConflict(resolution)
 
