@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.net.VpnService;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.Looper;
 import android.view.Choreographer;
 import android.text.Editable;
