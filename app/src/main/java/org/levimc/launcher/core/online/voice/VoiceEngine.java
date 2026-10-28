@@ -250,7 +250,9 @@ public final class VoiceEngine implements RoomCenter.Listener {
 
     // ---------------- 生命周期 ----------------
 
-    /** 启动引擎（房间连接后调用）：收包/播放/说话人监测常驻；采集只在开麦态激活。 */
+    /** 启动引擎（房间连接后调用）：收包/播放/说话人监测常驻；采集只在开麦态激活。
+     *  v0.4.202：socket 准备（VPN 等待+绑定）移后台线程——waitForVpnNetwork
+     *  是 sleep 轮询，主线程执行冻结 UI（与 RoomCenter.startHost 同根因）。 */
     public synchronized void start() {
         if (running) {
             return;
@@ -258,34 +260,45 @@ public final class VoiceEngine implements RoomCenter.Listener {
         running = true;
         suspended = false;
         permGranted = hasMicPermission(app);
-        try {
-            if (socket == null || socket.isClosed()) {
-                socket = new DatagramSocket(null);
-                socket.setReuseAddress(true);
-                // v566：语音走虚拟网（成员间直连虚拟 IP），显式绑 VPN 网络
-                // 防"socket 早于 TUN 建立"绑旧网络竞态
-                android.net.Network vpnNet = EasyTierManager.waitForVpnNetwork(5_000);
-                if (vpnNet != null) {
-                    try {
-                        vpnNet.bindSocket(socket);
-                    } catch (Exception be) {
-                        Log.w(TAG, "语音 socket 绑定 VPN 网络失败", be);
-                    }
-                }
-                socket.bind(new InetSocketAddress("0.0.0.0", MIC_PORT));
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "语音端口绑定失败", e);
-        }
         String vip = EasyTierManager.get().getVirtualIp();
         if (vip != null && !vip.isEmpty()) {
             int slash = vip.indexOf('/');
             selfIp = slash > 0 ? vip.substring(0, slash) : vip;
         }
         RoomCenter.addListener(this);
-        recvThread = new Thread(this::recvLoop, "voice-recv");
-        recvThread.setDaemon(true);
-        recvThread.start();
+        // 后台准备 socket：等 VPN 网络 → 绑定 → 就绪后启动收包线程
+        // （recvLoop 遇 socket null 直接退出，必须等就绪再启动）
+        Thread prep = new Thread(() -> {
+            try {
+                DatagramSocket s = new DatagramSocket(null);
+                s.setReuseAddress(true);
+                // v566：语音走虚拟网（成员间直连虚拟 IP），显式绑 VPN 网络
+                // 防"socket 早于 TUN 建立"绑旧网络竞态
+                android.net.Network vpnNet = EasyTierManager.waitForVpnNetwork(5_000);
+                if (vpnNet != null) {
+                    try {
+                        vpnNet.bindSocket(s);
+                    } catch (Exception be) {
+                        Log.w(TAG, "语音 socket 绑定 VPN 网络失败", be);
+                    }
+                }
+                s.bind(new InetSocketAddress("0.0.0.0", MIC_PORT));
+                synchronized (VoiceEngine.this) {
+                    if (!running) {
+                        s.close();
+                        return;
+                    }
+                    socket = s;
+                    recvThread = new Thread(this::recvLoop, "voice-recv");
+                    recvThread.setDaemon(true);
+                    recvThread.start();
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "语音端口绑定失败", e);
+            }
+        }, "voice-sock-prep");
+        prep.setDaemon(true);
+        prep.start();
         playThread = new Thread(this::playLoop, "voice-play");
         playThread.setDaemon(true);
         playThread.start();

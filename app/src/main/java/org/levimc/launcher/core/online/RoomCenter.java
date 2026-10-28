@@ -162,31 +162,43 @@ public final class RoomCenter {
             addListener(l);
         }
         hostRunning = true;
-        try {
-            hostSocket = new DatagramSocket(null);
-            hostSocket.setReuseAddress(true);
-            // v566：房主中心显式绑 VPN 网络（防"socket 创建早于 TUN 建立"
-            // 绑旧网络竞态；CONNECTED 回调前 VPN 网络已注册，此处瞬时返回，
-            // 5s 兜底防主线程长阻塞）
-            android.net.Network vpnNet = EasyTierManager.waitForVpnNetwork(5_000);
-            if (vpnNet != null) {
-                try {
-                    vpnNet.bindSocket(hostSocket);
-                } catch (Exception be) {
-                    Log.w(TAG, "房主 socket 绑定 VPN 网络失败", be);
+        // v0.4.202：socket 准备（VPN 网络等待+绑定）移后台线程——
+        // waitForVpnNetwork 是 200ms sleep 轮询，主线程执行冻结 UI 3-5s
+        // （MAIN_BLOCKED 实测：分享点不开/退出卡/弹窗关不掉的根因）
+        Thread prep = new Thread(() -> {
+            try {
+                DatagramSocket s = new DatagramSocket(null);
+                s.setReuseAddress(true);
+                // v566：房主中心显式绑 VPN 网络（防"socket 创建早于 TUN
+                // 建立"绑旧网络竞态；CONNECTED 回调时 VPN 网络通常已注册）
+                android.net.Network vpnNet = EasyTierManager.waitForVpnNetwork(5_000);
+                if (vpnNet != null) {
+                    try {
+                        vpnNet.bindSocket(s);
+                    } catch (Exception be) {
+                        Log.w(TAG, "房主 socket 绑定 VPN 网络失败", be);
+                    }
                 }
+                s.bind(new InetSocketAddress("0.0.0.0", PORT));
+                s.setSoTimeout(2000);
+                synchronized (RoomCenter.class) {
+                    if (!hostRunning) {
+                        s.close();
+                        return;
+                    }
+                    hostSocket = s;
+                }
+                hostThread = new Thread(RoomCenter::hostLoop, "room-center");
+                hostThread.setDaemon(true);
+                hostThread.start();
+                Log.i(TAG, "房间中心已启动（房主）: " + name);
+            } catch (IOException e) {
+                Log.e(TAG, "房间中心启动失败", e);
+                hostRunning = false;
             }
-            hostSocket.bind(new InetSocketAddress("0.0.0.0", PORT));
-            hostSocket.setSoTimeout(2000);
-        } catch (IOException e) {
-            Log.e(TAG, "房间中心启动失败", e);
-            hostRunning = false;
-            return;
-        }
-        hostThread = new Thread(RoomCenter::hostLoop, "room-center");
-        hostThread.setDaemon(true);
-        hostThread.start();
-        Log.i(TAG, "房间中心已启动（房主）: " + name);
+        }, "room-center-init");
+        prep.setDaemon(true);
+        prep.start();
     }
 
     public static synchronized void stopHost() {
