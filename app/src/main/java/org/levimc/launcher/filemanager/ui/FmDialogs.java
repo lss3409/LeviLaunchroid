@@ -2,12 +2,17 @@ package org.levimc.launcher.filemanager.ui;
 
 import android.content.Intent;
 import android.graphics.Color;
+import android.net.Uri;
 import android.text.InputType;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.PopupWindow;
+import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import org.levimc.launcher.R;
 import org.levimc.launcher.filemanager.config.FmConfig;
@@ -317,54 +322,157 @@ public class FmDialogs {
                 trackShow(dialog);
     }
 
-    // ---------------- 条目操作菜单 ----------------
-
-    public static void showEntryMenu(BaseActivity a, FileManagerViewModel vm, FmEntry entry,
-                                     Runnable refresh, Runnable onOpen) {
-        List<String> items = new java.util.ArrayList<>();
-        List<Runnable> actions = new java.util.ArrayList<>();
-        // 打开（文件夹直接进入；文件「打开方式」弹二级选择：启动器内预览 / 系统打开方式）
-        if (entry.isDirectory()) {
-            items.add(a.getString(R.string.fm_ui_open));
-            actions.add(onOpen != null ? onOpen : () -> vm.enterDirectory(entry));
-        } else {
-            items.add(a.getString(R.string.fm_ui_open_with));
-            actions.add(() -> showOpenWithChoices(a, entry, onOpen));
-        }
-        items.add(a.getString(R.string.fm_ui_copy));
+    /** v0.4.203：长按条目气泡菜单（MT 同款，导入菜单删除气泡样式）——
+     *  复制/移动/重命名/压缩/删除/属性/分享/打开方式（按类型裁剪）。
+     *  替代旧三点菜单 showEntryMenu（已删）。 */
+    public static void showEntryBubble(BaseActivity a, FileManagerViewModel vm, FmEntry entry,
+                                       View anchor) {
+        float density = a.getResources().getDisplayMetrics().density;
+        int pad = (int) (14 * density);
+        java.util.List<String> labels = new java.util.ArrayList<>();
+        java.util.List<Runnable> actions = new java.util.ArrayList<>();
+        labels.add(a.getString(R.string.fm_ui_copy));
         actions.add(() -> vm.copyEntry(entry));
-        items.add(a.getString(R.string.fm_ui_cut));
+        labels.add(a.getString(R.string.fm_ui_cut));
         actions.add(() -> vm.cutEntry(entry));
-        items.add(a.getString(R.string.fm_ui_rename));
+        labels.add(a.getString(R.string.fm_ui_rename));
         actions.add(() -> showRenameDialog(a, vm, entry));
-        if (entry.getArchiveType() != null) {
-            items.add(a.getString(R.string.fm_ui_extract));
-            actions.add(() -> vm.showExtract(entry));
-        } else {
-            items.add(a.getString(R.string.fm_ui_compress));
-            actions.add(() -> vm.compressEntry(entry));
-        }
-        items.add(a.getString(R.string.fm_ui_properties));
-        actions.add(() -> showPropertiesDialog(a, entry));
-        items.add(a.getString(R.string.fm_ui_share));
-        actions.add(() -> org.levimc.launcher.filemanager.logic.FmCompatKt.shareFile(a, new File(entry.getPath().toString())));
-        // MT 管理器深度编辑（v670 恢复旧版跳转；未安装 MT 时提示）
-        if (!entry.isDirectory()) {
-            items.add(a.getString(R.string.mt_manager));
-            actions.add(() -> openInMt(a, entry));
-        }
-        items.add(a.getString(R.string.fm_ui_delete));
+        labels.add(a.getString(R.string.fm_ui_compress));
+        actions.add(() -> vm.compressEntry(entry));
+        labels.add(a.getString(R.string.fm_ui_delete));
         actions.add(() -> showDeleteConfirm(a, vm, entry));
-
-        CustomAlertDialog dialog = new CustomAlertDialog(a)
-                .setTitleText(entry.getName())
-                .setItems(items.toArray(new String[0]), (d, which) -> actions.get(which).run())
-                .setNegativeButton(a.getString(R.string.cancel), null)
-                ;
-                trackShow(dialog);
+        labels.add(a.getString(R.string.fm_ui_properties));
+        actions.add(() -> showPropertiesDialog(a, entry));
+        labels.add(a.getString(R.string.fm_ui_share));
+        actions.add(() -> shareEntry(a, entry));
+        if (!entry.isDirectory()) {
+            labels.add(a.getString(R.string.fm_ui_open_with));
+            actions.add(() -> showOpenWithChoices(a, entry, () -> {}));
+        }
+        // 气泡容器：surface 圆角 + 阴影（与导入菜单删除确认气泡同款）
+        LinearLayout bubble = new LinearLayout(a);
+        bubble.setOrientation(LinearLayout.VERTICAL);
+        bubble.setPadding(pad, (int) (10 * density), pad, (int) (10 * density));
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor(a.getColor(R.color.surface));
+        bg.setCornerRadius(12 * density);
+        bg.setStroke(1, a.getColor(R.color.surface));
+        bubble.setBackground(bg);
+        bubble.setElevation(8 * density);
+        int textMain = a.getColor(R.color.on_surface);
+        int accent = new org.levimc.launcher.util.PersonalizationManager(a).getAccentColor();
+        final PopupWindow popup = new PopupWindow(bubble,
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        popup.setOutsideTouchable(true);
+        popup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(
+                android.graphics.Color.TRANSPARENT));
+        popup.setElevation(8 * density);
+        for (int i = 0; i < labels.size(); i++) {
+            final int idx = i;
+            TextView item = new TextView(a);
+            item.setText(labels.get(i));
+            item.setTextColor(textMain);
+            item.setTextSize(13);
+            item.setPadding((int) (8 * density), (int) (7 * density),
+                    (int) (8 * density), (int) (7 * density));
+            item.setOnClickListener(v -> {
+                popup.dismiss();
+                actions.get(idx).run();
+            });
+            bubble.addView(item);
+        }
+        popup.showAsDropDown(anchor, 0, (int) (2 * density));
     }
 
-    /** v0.3.0：「打开方式」二级选择——启动器内预览 / 系统打开方式选择器。 */
+    /** v0.4.203：分享条目（FileProvider 授权，避免 file:// 崩溃）。 */
+    public static void shareEntry(BaseActivity a, FmEntry entry) {
+        try {
+            java.io.File f = new java.io.File(entry.getPath().toString());
+            Uri uri = androidx.core.content.FileProvider.getUriForFile(
+                    a, a.getPackageName() + ".fileprovider", f);
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType(guessMime(entry.getName()));
+            send.putExtra(Intent.EXTRA_STREAM, uri);
+            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            a.startActivity(Intent.createChooser(send, null));
+        } catch (Exception e) {
+            Toast.makeText(a, a.getString(R.string.fm_ui_share_failed),
+                    Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /** v0.4.203：压缩包二级浏览（单击 zip 静默进——MT 拆包查看同款逻辑）。
+     *  仅 ZIP（7z/tar 走解压流程）；条目平铺显示完整路径，点文件解压到
+     *  cache 临时目录后按类型预览/系统打开。 */
+    public static void showArchiveBrowse(BaseActivity a, java.io.File archive) {
+        final java.util.List<String[]> items = new java.util.ArrayList<>(); // [name, path]
+        try (java.util.zip.ZipFile zf = new java.util.zip.ZipFile(archive)) {
+            java.util.Enumeration<? extends java.util.zip.ZipEntry> en = zf.entries();
+            while (en.hasMoreElements()) {
+                java.util.zip.ZipEntry ze = en.nextElement();
+                if (!ze.isDirectory()) {
+                    items.add(new String[]{ze.getName(), ze.getName()});
+                }
+            }
+        } catch (Exception e) {
+            Toast.makeText(a, a.getString(R.string.fm_ui_archive_open_failed),
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (items.isEmpty()) {
+            Toast.makeText(a, a.getString(R.string.fm_ui_archive_empty),
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+        LinearLayout list = new LinearLayout(a);
+        list.setOrientation(LinearLayout.VERTICAL);
+        float density = a.getResources().getDisplayMetrics().density;
+        int textMain = a.getColor(R.color.on_surface);
+        int textSecondary = a.getColor(R.color.text_secondary);
+        for (String[] it : items) {
+            TextView row = new TextView(a);
+            row.setText(it[0]);
+            row.setTextColor(textMain);
+            row.setTextSize(13);
+            row.setMaxLines(1);
+            row.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+            row.setPadding((int) (6 * density), (int) (8 * density),
+                    (int) (6 * density), (int) (8 * density));
+            row.setOnClickListener(v -> {
+                try (java.util.zip.ZipFile zf = new java.util.zip.ZipFile(archive)) {
+                    java.util.zip.ZipEntry ze = zf.getEntry(it[1]);
+                    if (ze == null) {
+                        return;
+                    }
+                    java.io.File tmp = new java.io.File(a.getCacheDir(), "archive_view");
+                    tmp.mkdirs();
+                    java.io.File out = new java.io.File(tmp,
+                            it[1].substring(it[1].lastIndexOf('/') + 1));
+                    try (java.io.InputStream in = zf.getInputStream(ze);
+                         java.io.FileOutputStream fos = new java.io.FileOutputStream(out)) {
+                        byte[] buf = new byte[8192];
+                        int n;
+                        while ((n = in.read(buf)) > 0) {
+                            fos.write(buf, 0, n);
+                        }
+                    }
+                    org.levimc.launcher.filemanager.logic.FmCompatKt.openWithSystem(a, out);
+                } catch (Exception ignored) {
+                    Toast.makeText(a, a.getString(R.string.fm_ui_archive_open_failed),
+                            Toast.LENGTH_SHORT).show();
+                }
+            });
+            list.addView(row);
+        }
+        ScrollView scroll = new ScrollView(a);
+        scroll.addView(list);
+        CustomAlertDialog dialog = new CustomAlertDialog(a)
+                .setTitleText(archive.getName())
+                .setCustomView(scroll)
+                .setNegativeButton(a.getString(R.string.cancel), null);
+        trackShow(dialog);
+    }
+
     private static void showOpenWithChoices(BaseActivity a, FmEntry entry, Runnable onOpen) {
         String[] ways = new String[]{
                 a.getString(R.string.fm_ui_open_internal),

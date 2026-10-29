@@ -34,8 +34,10 @@ public class FmEntryAdapter extends RecyclerView.Adapter<FmEntryAdapter.Holder> 
 
     public interface Listener {
         void onEntryClick(FmEntry entry);
+        /** 多选模式勾选（原长按语义）。 */
         void onEntryLongClick(FmEntry entry);
-        void onMoreClick(FmEntry entry);
+        /** v0.4.203：非多选长按气泡菜单（anchor=条目视图）。 */
+        void onEntryLongMenu(FmEntry entry, View anchor);
     }
 
     private final Listener listener;
@@ -157,13 +159,15 @@ public class FmEntryAdapter extends RecyclerView.Adapter<FmEntryAdapter.Holder> 
                 listener.onEntryClick(e);
             }
         });
+        // v0.4.203：长按=气泡菜单（非多选）/勾选（多选）；三点按钮已删
         h.itemView.setOnLongClickListener(v -> {
-            listener.onEntryLongClick(e);
+            if (multiSelect) {
+                listener.onEntryLongClick(e);
+            } else {
+                listener.onEntryLongMenu(e, h.itemView);
+            }
             return true;
         });
-        if (h.more != null) {
-            h.more.setOnClickListener(v -> listener.onMoreClick(e));
-        }
     }
 
     private static String key(FmEntry e) {
@@ -325,7 +329,6 @@ public class FmEntryAdapter extends RecyclerView.Adapter<FmEntryAdapter.Holder> 
         final TextView name;
         final TextView sub;
         final ImageView check;
-        final ImageView more;
 
         Holder(@NonNull View itemView) {
             super(itemView);
@@ -333,7 +336,6 @@ public class FmEntryAdapter extends RecyclerView.Adapter<FmEntryAdapter.Holder> 
             name = itemView.findViewById(R.id.fm_name);
             sub = itemView.findViewById(R.id.fm_sub);
             check = itemView.findViewById(R.id.fm_check);
-            more = itemView.findViewById(R.id.fm_more);
         }
     }
 }

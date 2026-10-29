@@ -51,14 +51,5 @@
         android:visibility="gone"
         android:contentDescription="@null" />
 
-    <ImageView
-        android:id="@+id/fm_more"
-        android:layout_width="28dp"
-        android:layout_height="28dp"
-        android:layout_gravity="top|end"
-        android:layout_margin="6dp"
-        android:padding="2dp"
-        android:src="@drawable/ic_more_vert"
-        android:contentDescription="@null" />
 
 </FrameLayout>

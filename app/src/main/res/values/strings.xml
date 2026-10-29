@@ -1893,10 +1893,14 @@ Invite code: %1$s
 <string name="fm_ui_open_with">Open With</string>
 <string name="fm_ui_open_failed">No app can open this file</string>
 <string name="fm_ui_copy">Copy</string>
+    <string name="fm_ui_sel_all">Select All</string>
+    <string name="fm_ui_share">Share</string>
+    <string name="fm_ui_share_failed">Share failed</string>
+    <string name="fm_ui_archive_open_failed">Failed to open archive</string>
+    <string name="fm_ui_archive_empty">Archive is empty</string>
 <string name="fm_ui_cut">Cut</string>
 <string name="fm_ui_compress">Compress</string>
 <string name="fm_ui_extract">Extract</string>
-<string name="fm_ui_share">Share</string>
 <string name="fm_ui_delete">Delete</string>
 <string name="fm_ui_search">Search</string>
 <string name="fm_ui_search_hint">Enter keywords</string>

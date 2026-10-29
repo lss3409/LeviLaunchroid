@@ -1726,10 +1726,14 @@
 <string name="fm_ui_open_with">打开方式</string>
 <string name="fm_ui_open_failed">没有可打开此文件的应用</string>
 <string name="fm_ui_copy">复制</string>
+    <string name="fm_ui_sel_all">全选</string>
+    <string name="fm_ui_share">分享</string>
+    <string name="fm_ui_share_failed">分享失败</string>
+    <string name="fm_ui_archive_open_failed">打开压缩包失败</string>
+    <string name="fm_ui_archive_empty">压缩包为空</string>
 <string name="fm_ui_cut">剪切</string>
 <string name="fm_ui_compress">压缩</string>
 <string name="fm_ui_extract">解压</string>
-<string name="fm_ui_share">分享</string>
 <string name="fm_ui_delete">删除</string>
 <string name="fm_ui_search">搜索</string>
 <string name="fm_ui_search_hint">输入关键词</string>

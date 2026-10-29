@@ -242,6 +242,19 @@ class FileManagerViewModel constructor(
             store.setClipboard(FmClipboard(sources, isCut))
         }
     }
+
+    /** v0.4.203：路径栏/空白长按——复制/移动当前目录（MT 同款）。 */
+    fun copyCurrentDir() {
+        store.stateValue().currentDir?.let {
+            store.setClipboard(FmClipboard(listOf(it), false))
+        }
+    }
+
+    fun cutCurrentDir() {
+        store.stateValue().currentDir?.let {
+            store.setClipboard(FmClipboard(listOf(it), true))
+        }
+    }
     fun requestPaste() = pasteCtr.requestPaste()
     fun resolvePasteConflict(resolution: ConflictResolution) = pasteCtr.resolvePasteConflict(resolution)
 

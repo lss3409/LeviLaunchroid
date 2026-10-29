@@ -634,74 +634,75 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- 多选操作条 -->
+    <!-- 多选操作条（v0.4.203 MT 化：文字按钮替换 Zalith 贴图） -->
     <LinearLayout
         android:id="@+id/fm_selection_bar"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="52dp"
         android:orientation="horizontal"
         android:visibility="gone"
-        android:gravity="center_vertical">
+        android:gravity="center_vertical"
+        android:paddingHorizontal="4dp">
 
-        <ImageView
+        <TextView
             android:id="@+id/fm_btn_sel_all"
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="match_parent"
             android:layout_weight="1"
-            android:padding="12dp"
-            android:src="@drawable/ic_check"
-            app:tint="@color/on_surface"
-            android:contentDescription="@null" />
+            android:gravity="center"
+            android:text="@string/fm_ui_sel_all"
+            android:textSize="14sp"
+            android:textColor="@color/on_surface" />
 
-        <ImageView
+        <TextView
             android:id="@+id/fm_btn_sel_copy"
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="match_parent"
             android:layout_weight="1"
-            android:padding="12dp"
-            android:src="@drawable/ic_online_copy"
-            app:tint="@color/on_surface"
-            android:contentDescription="@null" />
+            android:gravity="center"
+            android:text="@string/fm_ui_copy"
+            android:textSize="14sp"
+            android:textColor="@color/on_surface" />
 
-        <ImageView
+        <TextView
             android:id="@+id/fm_btn_sel_cut"
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="match_parent"
             android:layout_weight="1"
-            android:padding="12dp"
-            android:src="@drawable/ic_edit"
-            app:tint="@color/on_surface"
-            android:contentDescription="@null" />
+            android:gravity="center"
+            android:text="@string/fm_ui_cut"
+            android:textSize="14sp"
+            android:textColor="@color/on_surface" />
 
-        <ImageView
+        <TextView
             android:id="@+id/fm_btn_sel_compress"
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="match_parent"
             android:layout_weight="1"
-            android:padding="12dp"
-            android:src="@drawable/ic_export"
-            app:tint="@color/on_surface"
-            android:contentDescription="@null" />
+            android:gravity="center"
+            android:text="@string/fm_ui_compress"
+            android:textSize="14sp"
+            android:textColor="@color/on_surface" />
 
-        <ImageView
+        <TextView
             android:id="@+id/fm_btn_sel_delete"
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="match_parent"
             android:layout_weight="1"
-            android:padding="12dp"
-            android:src="@drawable/ic_delete"
-            app:tint="@color/on_surface"
-            android:contentDescription="@null" />
+            android:gravity="center"
+            android:text="@string/fm_ui_delete"
+            android:textSize="14sp"
+            android:textColor="@color/error" />
 
-        <ImageView
+        <TextView
             android:id="@+id/fm_btn_sel_exit"
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="match_parent"
             android:layout_weight="1"
-            android:padding="12dp"
-            android:src="@drawable/ic_close"
-            app:tint="@color/on_surface"
-            android:contentDescription="@null" />
+            android:gravity="center"
+            android:text="@string/fm_ui_exit_multi"
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary" />
     </LinearLayout>
 
     <!-- 内置文本编辑器页（v668，默认隐藏） -->
