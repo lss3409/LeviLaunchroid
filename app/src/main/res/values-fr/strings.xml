@@ -1352,6 +1352,10 @@ La migration doit être terminée avant de continuer avec LeviLauncher.</string>
 <string name="hardcore_no_backups">Aucune sauvegarde pour ce monde</string>
 <string name="hardcore_last_backup">Dernière sauvegarde : %1$s</string>
 <string name="hardcore_never_backup">Jamais sauvegardé</string>
+<string name="hardcore_merge_backups">Fusionner les sauvegardes du même monde</string>
+<string name="hardcore_merge_desc">Fusionne les anciens dossiers de sauvegarde (nom_graine) dans le dossier id_ du même monde. Le nouveau nom l\'emporte ; les anciennes sauvegardes en conflit sont conservées avec un suffixe horodaté. Les anciens dossiers vidés sont supprimés.</string>
+<string name="hardcore_merge_done">%1$d sauvegardes fusionnées</string>
+<string name="hardcore_merge_none">Rien à fusionner</string>
 <string name="hardcore_no_change_skip">Monde inchangé depuis la dernière sauvegarde, ignoré</string>
 <string name="hardcore_settings_applied">Paramètres appliqués</string>
 <string name="news_title">Actualités du lanceur</string>

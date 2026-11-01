@@ -1381,6 +1381,10 @@ Quá trình chuyển đổi phải hoàn tất trước khi LeviLauncher có th�
 <string name="hardcore_no_backups">Không có bản sao lưu cho thế giới này</string>
 <string name="hardcore_last_backup">Sao lưu gần nhất: %1$s</string>
 <string name="hardcore_never_backup">Chưa từng sao lưu</string>
+<string name="hardcore_merge_backups">Gộp bản sao lưu cùng thế giới</string>
+<string name="hardcore_merge_desc">Gộp thư mục sao lưu tên cũ (tên_seed) vào thư mục id_ mới của cùng thế giới. Tên mới được ưu tiên; bản sao lưu cũ trùng tên được giữ với hậu tố thời gian. Thư mục cũ trống sẽ bị xóa.</string>
+<string name="hardcore_merge_done">Đã gộp %1$d bản sao lưu</string>
+<string name="hardcore_merge_none">Không có gì để gộp</string>
 <string name="hardcore_no_change_skip">Thế giới không thay đổi kể từ lần sao lưu trước, đã bỏ qua</string>
 <string name="hardcore_settings_applied">Đã áp dụng cài đặt</string>
 <string name="news_title">Tin tức trình khởi chạy</string>

@@ -1674,6 +1674,10 @@
 <string name="hardcore_manage_desc">检测到极限模式的世界，可按设定间隔自动备份到专属目录。</string>
 <string name="hardcore_manage_title">极限存档定时备份</string>
 <string name="hardcore_never_backup">尚未备份</string>
+<string name="hardcore_merge_backups">合并同存档备份</string>
+<string name="hardcore_merge_desc">将旧命名的备份文件夹（世界名_种子）并入同一存档的新命名 id_ 文件夹：以新命名为准，同名冲突的旧备份追加时间戳保留，移空的旧文件夹删除。</string>
+<string name="hardcore_merge_done">已合并 %1$d 项备份</string>
+<string name="hardcore_merge_none">没有可合并的备份</string>
 <string name="hardcore_no_backups">该世界暂无备份</string>
 <string name="hardcore_no_change_skip">世界自上次备份后无变化，跳过重复备份</string>
 <string name="hardcore_no_worlds">未检测到极限模式的世界</string>

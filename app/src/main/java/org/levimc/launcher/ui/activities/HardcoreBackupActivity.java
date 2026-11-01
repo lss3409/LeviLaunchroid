@@ -283,17 +283,56 @@ public class HardcoreBackupActivity extends BaseActivity {
     }
 
     private void setupWorldsSection() {
+        // v0.4.209：标题行=标题 + 右侧「合并同存档备份」文字按钮
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        titleRow.setPadding(0, dp(8), 0, dp(4));
+        contentRoot.addView(titleRow);
+
         TextView sectionTitle = new TextView(this);
         sectionTitle.setText(R.string.worlds_category);
         sectionTitle.setTextColor(accent());
         sectionTitle.setTextSize(16);
         sectionTitle.setTypeface(null, android.graphics.Typeface.BOLD);
-        sectionTitle.setPadding(0, dp(8), 0, dp(4));
-        contentRoot.addView(sectionTitle);
+        titleRow.addView(sectionTitle, new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        // v0.4.209：合并按钮（旧命名备份目录并入新命名 id_ 目录，手动触发）
+        Button mergeBtn = new Button(this);
+        mergeBtn.setText(R.string.hardcore_merge_backups);
+        mergeBtn.setTextSize(12);
+        styleButton(mergeBtn, Color.TRANSPARENT, accent());
+        titleRow.addView(mergeBtn, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, dp(38)));
+        mergeBtn.setOnClickListener(v -> confirmMergeBackups());
 
         worldsContainer = new LinearLayout(this);
         worldsContainer.setOrientation(LinearLayout.VERTICAL);
         contentRoot.addView(worldsContainer);
+    }
+
+    /** v0.4.209：合并确认弹窗 → 后台执行合并 → Toast 结果。 */
+    private void confirmMergeBackups() {
+        new CustomAlertDialog(this)
+                .setTitleText(getString(R.string.hardcore_merge_backups))
+                .setTitleColor(accent())
+                .setMessage(getString(R.string.hardcore_merge_desc))
+                .setPositiveButton(getString(R.string.confirm), v -> {
+                    new Thread(() -> {
+                        int n = backupManager.mergeLegacyBackupDirs();
+                        runOnUiThread(() -> {
+                            Toast.makeText(this, n > 0
+                                            ? getString(R.string.hardcore_merge_done, n)
+                                            : getString(R.string.hardcore_merge_none),
+                                    Toast.LENGTH_LONG).show();
+                            // 合并后目录结构可能变化，刷新世界卡片（备份列表）
+                            renderWorlds();
+                        });
+                    }, "hb-merge").start();
+                })
+                .setNegativeButton(getString(R.string.cancel), null)
+                .show();
     }
 
     private void loadHardcoreWorlds() {

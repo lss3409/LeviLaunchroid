@@ -1447,6 +1447,10 @@ Invite code: %1$s
 <string name="hardcore_no_backups">No backups for this world</string>
 <string name="hardcore_last_backup">Last backup: %1$s</string>
 <string name="hardcore_never_backup">Never backed up</string>
+<string name="hardcore_merge_backups">Merge same-world backups</string>
+<string name="hardcore_merge_desc">Merge old-named backup folders (world name_seed) into the new id_ folder of the same world. New naming wins; conflicting old backups are kept with a timestamp suffix. Emptied old folders are removed.</string>
+<string name="hardcore_merge_done">Merged %1$d backup item(s)</string>
+<string name="hardcore_merge_none">Nothing to merge</string>
 <string name="hardcore_no_change_skip">World unchanged since last backup, skipped</string>
 <string name="hardcore_settings_applied">Settings applied</string>
 <string name="news_title">Launcher news</string>

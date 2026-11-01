@@ -1352,6 +1352,10 @@ A migração deve ser concluída antes que o LeviLauncher continue.</string>
 <string name="hardcore_no_backups">Nenhum backup deste mundo</string>
 <string name="hardcore_last_backup">Último backup: %1$s</string>
 <string name="hardcore_never_backup">Nunca foi feito backup</string>
+<string name="hardcore_merge_backups">Mesclar backups do mesmo mundo</string>
+<string name="hardcore_merge_desc">Mescla as pastas de backup com nome antigo (nome_semente) na pasta id_ do mesmo mundo. O nome novo vence; backups antigos em conflito são mantidos com sufixo de data. Pastas antigas esvaziadas são removidas.</string>
+<string name="hardcore_merge_done">%1$d backups mesclados</string>
+<string name="hardcore_merge_none">Nada para mesclar</string>
 <string name="hardcore_no_change_skip">Mundo sem alterações desde o último backup, ignorado</string>
 <string name="hardcore_settings_applied">Configurações aplicadas</string>
 <string name="news_title">Notícias do iniciador</string>

@@ -113,6 +113,12 @@ public class WorldItem extends ContentItem {
         return leviWorldId;
     }
 
+    /** v0.4.209：外部注入标识（HardcoreWorldIdStore JSON 解析/补打结果）。
+     *  老存档 level.dat 无 leviWorldId 时由 JSON 存储提供。 */
+    public void setLeviWorldId(String id) {
+        leviWorldId = id;
+    }
+
     /** v416：level.dat 的 LastPlayed（游戏进入世界时间戳；0 = 无字段）。 */
     public long getLevelLastPlayed() {
         return levelLastPlayed;

@@ -103,13 +103,45 @@ public final class HardcoreBackupManager {
         return wm.getWorlds();
     }
 
-    /** 扫描极限世界列表。 */
+    /** 扫描极限世界列表。
+     *  v0.4.209：JSON 标识解析/补打（老存档自动获得 leviWorldId）+同存档
+     *  多副本选主（未死亡优先，其次 LastPlayed 最新；副本不重复显示）。 */
     public static List<WorldItem> scanHardcoreWorlds(Context context) {
-        List<WorldItem> result = new ArrayList<>();
+        HardcoreWorldIdStore idStore = new HardcoreWorldIdStore(context);
+        List<WorldItem> all = new ArrayList<>();
         for (WorldItem w : scanWorlds(context)) {
-            if (w.isHardcore()) result.add(w);
+            if (!w.isHardcore()) continue;
+            String jsonId = idStore.resolveId(w.getWorldId(), w.getWorldName(), w.getSeed());
+            if (w.getLeviWorldId() == null || w.getLeviWorldId().isEmpty()) {
+                w.setLeviWorldId(jsonId);
+            }
+            all.add(w);
         }
-        return result;
+        // 同存档多副本选主：同一标识只保留一个（未死亡 > LastPlayed 新）
+        java.util.Map<String, WorldItem> byId = new java.util.LinkedHashMap<>();
+        for (WorldItem w : all) {
+            String id = w.getLeviWorldId();
+            if (id == null || id.isEmpty()) {
+                id = "dir_" + w.getWorldId(); // 无标识兜底：目录名分组
+            }
+            WorldItem cur = byId.get(id);
+            if (cur == null || betterMaster(w, cur)) {
+                byId.put(id, w);
+            }
+        }
+        if (byId.size() < all.size()) {
+            OnlineDebugLog.log("hb-scan 副本选主：" + all.size() + " 个极限世界 "
+                    + byId.size() + " 个标识（副本已过滤）");
+        }
+        return new ArrayList<>(byId.values());
+    }
+
+    /** 副本选主比较：w 是否比 cur 更适合当主存档（未死亡优先，其次 LastPlayed 更新）。 */
+    private static boolean betterMaster(WorldItem w, WorldItem cur) {
+        if (w.isPlayerDead() != cur.isPlayerDead()) {
+            return !w.isPlayerDead();
+        }
+        return w.getLevelLastPlayed() > cur.getLevelLastPlayed();
     }
 
     /** 直接扫描指定世界目录下的极限世界（供游戏进程使用，不依赖 VersionManager）。 */
@@ -493,6 +525,77 @@ public final class HardcoreBackupManager {
     /** 备份目录名：世界名_seed种子。 */
     public static String backupDirName(String worldName, long seed) {
         return sanitize(worldName) + "_seed" + seed;
+    }
+
+    /** v0.4.209：合并同存档备份目录。
+     *  旧命名目录（世界名_seed）并入新命名目录（id_xxx，JSON 反查）：
+     *  · id_ 目录已存在 → 旧目录里 .mcworld 移动过去（同名冲突加 _m时间戳）；
+     *  · id_ 目录不存在 → 旧目录整体重命名为 id_ 目录；
+     *  · 移空的旧目录删除。
+     *  返回处理的目录数（-1 = 没有可合并的）。 */
+    public int mergeLegacyBackupDirs() {
+        int merged = 0;
+        try {
+            File versionDir = new File(LauncherStorage.getHardcoreBackupsDir(context), getVersionLabel());
+            if (!versionDir.isDirectory()) return 0;
+            File[] dirs = versionDir.listFiles(File::isDirectory);
+            if (dirs == null) return 0;
+            HardcoreWorldIdStore idStore = new HardcoreWorldIdStore(context);
+            SimpleDateFormat tsFmt = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
+            for (File dir : dirs) {
+                String name = dir.getName();
+                if (name.startsWith("id_")) continue; // 已是新命名
+                // 旧目录名格式：世界名_seed种子——反解出种子找 JSON 条目
+                int seedIdx = name.lastIndexOf("_seed");
+                if (seedIdx <= 0) continue;
+                String legacyWorldName;
+                long seed;
+                try {
+                    legacyWorldName = name.substring(0, seedIdx);
+                    seed = Long.parseLong(name.substring(seedIdx + "_seed".length()));
+                } catch (Exception e) {
+                    continue; // 目录名不含合法种子，跳过
+                }
+                HardcoreWorldIdStore.Entry e = idStore.findByNameAndSeed(legacyWorldName, seed);
+                if (e == null) {
+                    OnlineDebugLog.log("hb-merge 跳过（JSON 无此存档）dir=" + name);
+                    continue; // 无法判定同存档，不动
+                }
+                File idDir = new File(versionDir, HardcoreWorldIdStore.idDirName(e.id));
+                if (!idDir.exists()) {
+                    // 新命名目录还不存在：整体重命名
+                    if (dir.renameTo(idDir)) {
+                        merged++;
+                        OnlineDebugLog.log("hb-merge 目录重命名 " + name + " -> " + idDir.getName());
+                    }
+                    continue;
+                }
+                // 移动 .mcworld 文件过去
+                File[] files = dir.listFiles(f -> f.isFile() && f.getName().endsWith(".mcworld"));
+                if (files != null) {
+                    for (File f : files) {
+                        File target = new File(idDir, f.getName());
+                        if (target.exists()) {
+                            // 同名冲突：旧备份变时间戳后缀
+                            String base = f.getName().substring(0, f.getName().length() - ".mcworld".length());
+                            target = new File(idDir, base + "_m" + tsFmt.format(new Date()) + ".mcworld");
+                        }
+                        if (f.renameTo(target)) {
+                            merged++;
+                            OnlineDebugLog.log("hb-merge 移动 " + f.getName() + " -> " + target.getName());
+                        }
+                    }
+                }
+                // 移空后删旧目录（残留非 mcworld 文件则保留目录）
+                File[] remaining = dir.listFiles();
+                if (remaining != null && remaining.length == 0) {
+                    dir.delete();
+                }
+            }
+        } catch (Exception ex) {
+            Log.w(TAG, "mergeLegacyBackupDirs failed", ex);
+        }
+        return merged;
     }
 
     /**

@@ -1379,6 +1379,10 @@ LeviLauncher जारी रखने से पहले माइग्रे
 <string name="hardcore_no_backups">इस दुनिया का कोई बैकअप नहीं</string>
 <string name="hardcore_last_backup">अंतिम बैकअप: %1$s</string>
 <string name="hardcore_never_backup">कभी बैकअप नहीं हुआ</string>
+<string name="hardcore_merge_backups">एक ही दुनिया के बैकअप मर्ज करें</string>
+<string name="hardcore_merge_desc">पुराने नाम वाले बैकअप फ़ोल्डर (नाम_सीड) को उसी दुनिया के नए id_ फ़ोल्डर में मर्ज करें। नया नाम जीतता है; टकराव वाले पुराने बैकअप समय-टिकट के साथ रखे जाते हैं। खाली पुराने फ़ोल्डर हटा दिए जाते हैं।</string>
+<string name="hardcore_merge_done">%1$d बैकअप मर्ज किए गए</string>
+<string name="hardcore_merge_none">मर्ज करने के लिए कुछ नहीं</string>
 <string name="hardcore_no_change_skip">पिछले बैकअप के बाद से दुनिया में कोई बदलाव नहीं, छोड़ा गया</string>
 <string name="hardcore_settings_applied">सेटिंग्स लागू हो गईं</string>
 <string name="news_title">लॉन्चर समाचार</string>

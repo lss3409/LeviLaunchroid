@@ -1349,6 +1349,10 @@ LeviLauncher を続行するには移行を完了する必要があります。<
 <string name="hardcore_no_backups">このワールドのバックアップはありません</string>
 <string name="hardcore_last_backup">最終バックアップ：%1$s</string>
 <string name="hardcore_never_backup">バックアップなし</string>
+<string name="hardcore_merge_backups">同じワールドのバックアップを統合</string>
+<string name="hardcore_merge_desc">旧命名のバックアップフォルダ（ワールド名_シード）を同じワールドの新しい id_ フォルダに統合します。新しい命名を優先し、同名衝突の旧バックアップはタイムスタンプ付きで保持、空になった旧フォルダは削除します。</string>
+<string name="hardcore_merge_done">%1$d 件のバックアップを統合しました</string>
+<string name="hardcore_merge_none">統合できるバックアップはありません</string>
 <string name="hardcore_no_change_skip">前回のバックアップから変更がないためスキップしました</string>
 <string name="hardcore_settings_applied">設定を適用しました</string>
 <string name="news_title">ランチャーニュース</string>

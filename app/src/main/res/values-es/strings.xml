@@ -1352,6 +1352,10 @@ La migración debe completarse antes de continuar con LeviLauncher.</string>
 <string name="hardcore_no_backups">No hay copias de este mundo</string>
 <string name="hardcore_last_backup">Última copia: %1$s</string>
 <string name="hardcore_never_backup">Nunca se ha hecho copia</string>
+<string name="hardcore_merge_backups">Fusionar copias del mismo mundo</string>
+<string name="hardcore_merge_desc">Fusiona las carpetas con nombre antiguo (nombre_semilla) en la carpeta id_ del mismo mundo. Gana el nuevo nombre; las copias antiguas en conflicto se conservan con sufijo de fecha. Las carpetas antiguas vacías se eliminan.</string>
+<string name="hardcore_merge_done">%1$d copias fusionadas</string>
+<string name="hardcore_merge_none">Nada que fusionar</string>
 <string name="hardcore_no_change_skip">El mundo no ha cambiado desde la última copia, se omitió</string>
 <string name="hardcore_settings_applied">Ajustes aplicados</string>
 <string name="news_title">Noticias del lanzador</string>

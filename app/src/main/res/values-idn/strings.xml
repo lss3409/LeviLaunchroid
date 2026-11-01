@@ -1375,6 +1375,10 @@ Migrasi harus selesai sebelum LeviLauncher dapat melanjutkan.</string>
 <string name="hardcore_no_backups">Tidak ada cadangan untuk dunia ini</string>
 <string name="hardcore_last_backup">Cadangan terakhir: %1$s</string>
 <string name="hardcore_never_backup">Belum pernah dicadangkan</string>
+<string name="hardcore_merge_backups">Gabungkan cadangan dunia yang sama</string>
+<string name="hardcore_merge_desc">Gabungkan folder cadangan bernama lama (nama_seed) ke folder id_ baru dari dunia yang sama. Penamaan baru yang menang; cadangan lama yang bentrok disimpan dengan akhiran waktu. Folder lama yang kosong dihapus.</string>
+<string name="hardcore_merge_done">%1$d cadangan digabungkan</string>
+<string name="hardcore_merge_none">Tidak ada yang bisa digabungkan</string>
 <string name="hardcore_no_change_skip">Dunia tidak berubah sejak cadangan terakhir, dilewati</string>
 <string name="hardcore_settings_applied">Pengaturan diterapkan</string>
 <string name="news_title">Berita peluncur</string>

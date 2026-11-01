@@ -1382,6 +1382,10 @@
 <string name="hardcore_no_backups">Нет резервных копий этого мира</string>
 <string name="hardcore_last_backup">Последняя копия: %1$s</string>
 <string name="hardcore_never_backup">Резервных копий не было</string>
+<string name="hardcore_merge_backups">Объединить копии одного мира</string>
+<string name="hardcore_merge_desc">Объединить папки со старым именем (имя_сид) в новую папку id_ того же мира. Новое имя приоритетно; конфликтующие старые копии сохраняются с суффиксом времени. Опустевшие старые папки удаляются.</string>
+<string name="hardcore_merge_done">Объединено: %1$d</string>
+<string name="hardcore_merge_none">Нечего объединять</string>
 <string name="hardcore_no_change_skip">Мир не менялся с прошлой копии, пропущен</string>
 <string name="hardcore_settings_applied">Настройки применены</string>
 <string name="news_title">Новости лаунчера</string>

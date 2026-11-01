@@ -1378,6 +1378,10 @@ LeviLauncher\'ın devam edebilmesi için taşımanın tamamlanması gerekiyor.</
 <string name="hardcore_no_backups">Bu dünya için yedek yok</string>
 <string name="hardcore_last_backup">Son yedek: %1$s</string>
 <string name="hardcore_never_backup">Hiç yedeklenmedi</string>
+<string name="hardcore_merge_backups">Aynı dünyanın yedeklerini birleştir</string>
+<string name="hardcore_merge_desc">Eski adlı yedek klasörleri (ad_tohum) aynı dünyanın yeni id_ klasörüne birleştirir. Yeni adlandırma kazanır; çakışan eski yedekler zaman damgası eklenerek korunur. Boşalan eski klasörler silinir.</string>
+<string name="hardcore_merge_done">%1$d yedek birleştirildi</string>
+<string name="hardcore_merge_none">Birleştirilecek bir şey yok</string>
 <string name="hardcore_no_change_skip">Dünya son yedekten bu yana değişmemiş, atlandı</string>
 <string name="hardcore_settings_applied">Ayarlar uygulandı</string>
 <string name="news_title">Başlatıcı haberleri</string>
