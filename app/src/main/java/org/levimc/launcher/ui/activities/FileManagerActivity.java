@@ -318,12 +318,11 @@ public class FileManagerActivity extends BaseActivity {
 
             @Override
             public void onEntryLongMenu(FmEntry entry, View anchor) {
-                // v0.4.204：长按气泡菜单——双窗时复制/移动带方向箭头直发对面窗
+                // v0.4.205：长按气泡菜单（复制/移动登记剪贴板，粘贴走顶部横幅）
                 if (dualMode && activePane != (fromRight ? 1 : 0)) {
                     activatePane(fromRight ? 1 : 0);
                 }
-                FmDialogs.showEntryBubble(FileManagerActivity.this, vmm, entry, anchor,
-                        dualMode ? (fromRight ? vm : vmRight) : null, !fromRight);
+                FmDialogs.showEntryBubble(FileManagerActivity.this, vmm, entry, anchor);
             }
         };
     }
@@ -440,19 +439,7 @@ public class FileManagerActivity extends BaseActivity {
         recycler.setOnTouchListener(focusLeft);
         emptyView.setOnTouchListener(focusLeft);
         pathBar.setOnTouchListener(focusLeft);
-        // v0.4.204：路径栏/列表空白/空态长按 → 粘贴/复制/移动气泡（MT 同款）。
-        // 此前漏挂 RecyclerView——非空目录的空白区域就是列表区域，长按没反应
-        android.view.View.OnLongClickListener dirClip = v -> {
-            showDirClipBubble(v, (dualMode && activePane == 1) ? vmRight : vm);
-            return true;
-        };
-        pathBar.setOnLongClickListener(dirClip);
-        pathBarRight.setOnLongClickListener(dirClip);
-        emptyView.setOnLongClickListener(dirClip);
-        findViewById(R.id.fm_empty_right).setOnLongClickListener(dirClip);
-        recycler.setOnLongClickListener(dirClip);
-        recyclerRight.setOnLongClickListener(dirClip);
-        trashRecycler.setOnLongClickListener(dirClip);
+        // v0.4.205：空白长按气泡已删（用户拍板：粘贴统一走顶部剪贴板横幅）
 
         findViewById(R.id.fm_btn_sel_all).setOnClickListener(v -> {
             // v0.4.203：双窗下操作条作用于激活窗
@@ -529,63 +516,6 @@ public class FileManagerActivity extends BaseActivity {
     /** v0.4.204：路径栏/空白长按气泡（MT 同款）——有剪贴板时首项「粘贴」
      *  （先复制/剪切后到任意路径长按空白即粘贴），另有复制/移动当前目录；
      *  动态定位防超出屏幕。 */
-    private void showDirClipBubble(View anchor, FileManagerViewModel target) {
-        float d = getResources().getDisplayMetrics().density;
-        int pad = (int) (14 * d);
-        // 剪贴板状态（跨窗同步后任取：目标窗的 state）
-        FileManagerUiState st = (target == vmRight) ? lastStateRight : lastState;
-        final boolean hasClip = st != null && st.getClipboard() != null;
-        java.util.List<String> labels = new java.util.ArrayList<>();
-        java.util.List<Runnable> acts = new java.util.ArrayList<>();
-        if (hasClip) {
-            labels.add(getString(R.string.fm_ui_paste));
-            acts.add(target::requestPaste);
-        }
-        labels.add(getString(R.string.fm_ui_copy));
-        acts.add(target::copyCurrentDir);
-        labels.add(getString(R.string.fm_ui_cut));
-        acts.add(target::cutCurrentDir);
-        LinearLayout bubble = new LinearLayout(this);
-        bubble.setOrientation(LinearLayout.VERTICAL);
-        bubble.setPadding(pad, (int) (10 * d), pad, (int) (10 * d));
-        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-        bg.setColor(getColor(R.color.surface));
-        bg.setCornerRadius(12 * d);
-        bg.setStroke(1, getColor(R.color.surface));
-        bubble.setBackground(bg);
-        bubble.setElevation(8 * d);
-        final PopupWindow popup = new PopupWindow(bubble,
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true);
-        popup.setOutsideTouchable(true);
-        popup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(
-                android.graphics.Color.TRANSPARENT));
-        popup.setElevation(8 * d);
-        for (int i = 0; i < labels.size(); i++) {
-            final int idx = i;
-            TextView item = new TextView(this);
-            item.setText(labels.get(i));
-            item.setTextColor(onSurface);
-            item.setTextSize(13);
-            item.setPadding((int) (8 * d), (int) (7 * d), (int) (8 * d), (int) (7 * d));
-            item.setOnClickListener(v -> {
-                popup.dismiss();
-                acts.get(idx).run();
-            });
-            bubble.addView(item);
-        }
-        // v0.4.204：动态定位——下方空间不足自动向上弹
-        int[] loc = new int[2];
-        anchor.getLocationOnScreen(loc);
-        bubble.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
-        int h = bubble.getMeasuredHeight();
-        int screenH = getResources().getDisplayMetrics().heightPixels;
-        int spaceBelow = screenH - loc[1] - anchor.getHeight();
-        if (spaceBelow < h && loc[1] > h) {
-            popup.showAsDropDown(anchor, 0, -(anchor.getHeight() + h));
-        } else {
-            popup.showAsDropDown(anchor, 0, (int) (2 * d));
-        }
-    }
 
     private void showMoreMenu() {
         final boolean hasClip = lastState != null && lastState.getClipboard() != null;

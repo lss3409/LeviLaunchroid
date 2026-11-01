@@ -221,6 +221,7 @@ Migration must complete before LBBL can continue.</string>
 <string name="extended_root_path_title">Launcher data path</string>
     <string name="extended_root_path_desc">Backups, HTML exports, structure files and map cache live here</string>
     <string name="extended_root_path_current">Current: %s</string>
+    <string name="extended_root_path_applied">Launcher data path applied</string>
     <string name="custom_storage_path_title">Custom Storage Path</string>
 <string name="custom_storage_path_desc">Set a custom root directory for Minecraft data. Leave empty to use the default path.</string>
 <string name="custom_storage_path_apply">Apply</string>

@@ -183,6 +183,7 @@
 <string name="extended_root_path_title">启动器数据路径</string>
     <string name="extended_root_path_desc">备份、HTML 导出、结构文件与地图缓存放这里</string>
     <string name="extended_root_path_current">当前：%s</string>
+    <string name="extended_root_path_applied">启动器数据路径已应用</string>
     <string name="custom_storage_path_title">自定义存储路径</string>
 <string name="custom_storage_path_desc">设置 Minecraft 数据的自定义根目录。留空则使用默认路径。</string>
 <string name="custom_storage_path_apply">应用</string>

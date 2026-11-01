@@ -475,9 +475,11 @@ public class HardcoreBackupActivity extends BaseActivity {
         scroll.addView(list, new ScrollView.LayoutParams(
                 ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
 
-        // 自适应高度：按条目数量伸缩，最多占屏幕 55%，超过可滚动
+        // 自适应高度：按条目数量伸缩，最多占屏幕 55%，超过可滚动。
+        // v0.4.205：条目估算高度 74→90dp——实际行高约 80dp，按 74 估算
+        // 时列表总高小于实际内容，「时间最早（最低）一项显示不全」根因
         int maxHeight = (int) (getResources().getDisplayMetrics().heightPixels * 0.55f);
-        int listHeight = Math.min(maxHeight, backups.size() * dp(74) + dp(4));
+        int listHeight = Math.min(maxHeight, backups.size() * dp(90) + dp(8));
         container.addView(scroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, listHeight));
 

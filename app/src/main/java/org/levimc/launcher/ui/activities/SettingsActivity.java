@@ -1265,6 +1265,9 @@ public class SettingsActivity extends BaseActivity {
         extendedRootPathInput.setHint(LauncherStorage.getExtendedRootPath(this));
         // setText("") 与现文本一致时 Watcher 不触发——显式重算按钮
         updateExtendedApplyButtonState();
+        // v0.4.205：成功提示（此前两个入口都无任何反馈）
+        Toast.makeText(this, R.string.extended_root_path_applied,
+                Toast.LENGTH_SHORT).show();
         // 地图烘焙缓存位置变化：旧缓存读不到会自动重烘（缓存可再生）
     }
 
@@ -1328,6 +1331,10 @@ public class SettingsActivity extends BaseActivity {
             refreshCustomStoragePathUi();
             refreshVersionsAfterStorageChange();
             updateSelectApplyButtonState();
+            // v0.4.205：成功提示统一（SAF 选择与手动应用都弹，此前
+            // SAF 直用无任何反馈="调出文件管理器后没提示"根因）
+            Toast.makeText(this, R.string.custom_storage_path_applied,
+                    Toast.LENGTH_SHORT).show();
         };
         if (skipConfirm) {
             doApply.run();

@@ -331,38 +331,16 @@ public class FmDialogs {
      *  · 「选择」=单选该条目（进多选模式）；
      *  · 气泡动态定位：下方空间不足自动向上弹；内容超高 45% 屏高进 ScrollView。 */
     public static void showEntryBubble(BaseActivity a, FileManagerViewModel vm, FmEntry entry,
-                                       View anchor, FileManagerViewModel peerVm,
-                                       boolean arrowRight) {
-        final boolean dual = peerVm != null;
+                                       View anchor) {
         float density = a.getResources().getDisplayMetrics().density;
         int pad = (int) (14 * density);
         java.util.List<String> labels = new java.util.ArrayList<>();
         java.util.List<Runnable> actions = new java.util.ArrayList<>();
-        // 复制/移动（双窗直发对面窗，MT 箭头语义）
-        labels.add(dual
-                ? (arrowRight ? a.getString(R.string.fm_ui_copy) + " →"
-                        : "← " + a.getString(R.string.fm_ui_copy))
-                : a.getString(R.string.fm_ui_copy));
-        actions.add(() -> {
-            vm.copyEntry(entry);
-            if (dual) {
-                peerVm.setClipboardExternal(
-                        java.util.Collections.singletonList(entry.getPath()), false);
-                peerVm.requestPaste();
-            }
-        });
-        labels.add(dual
-                ? (arrowRight ? a.getString(R.string.fm_ui_cut) + " →"
-                        : "← " + a.getString(R.string.fm_ui_cut))
-                : a.getString(R.string.fm_ui_cut));
-        actions.add(() -> {
-            vm.cutEntry(entry);
-            if (dual) {
-                peerVm.setClipboardExternal(
-                        java.util.Collections.singletonList(entry.getPath()), true);
-                peerVm.requestPaste();
-            }
-        });
+        // v0.4.205：复制/移动只登记剪贴板——粘贴统一走顶部横幅（用户拍板）
+        labels.add(a.getString(R.string.fm_ui_copy));
+        actions.add(() -> vm.copyEntry(entry));
+        labels.add(a.getString(R.string.fm_ui_cut));
+        actions.add(() -> vm.cutEntry(entry));
         // 选择（单选进多选）
         labels.add(a.getString(R.string.fm_ui_select));
         actions.add(() -> vm.toggleSelection(entry));
