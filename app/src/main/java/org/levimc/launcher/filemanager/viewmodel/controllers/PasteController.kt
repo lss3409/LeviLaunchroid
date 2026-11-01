@@ -94,6 +94,10 @@ class PasteController(
             val request = runCatching {
                 logic.buildPasteRequest(sources, target, mode)
             }.getOrElse {
+                // v0.4.207：静默只对「同名冲突」静默（自动保留两者）——
+                // 非法操作（如复制文件夹到其自身内部）必须给用户提示
+                store.emitSnackbar(FmSnackbar(
+                        it.message ?: store.stringResolver(R.string.fm_error_paste_invalid)))
                 browse.refreshCurrentDir()
                 return@launch
             }

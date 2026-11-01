@@ -48,6 +48,8 @@ public class FmEntryAdapter extends RecyclerView.Adapter<FmEntryAdapter.Holder> 
     private List<FmEntry> boundList;
     private Set<String> selection;
     private boolean multiSelect;
+    /** v0.4.207：新增文件高亮集合（双窗直发/粘贴产生的文件名字染蓝）。 */
+    private Set<String> highlighted = java.util.Collections.emptySet();
     private final int accent;
     private final int textPrimary;
     private final int textSecondary;
@@ -89,6 +91,12 @@ public class FmEntryAdapter extends RecyclerView.Adapter<FmEntryAdapter.Holder> 
         notifyDataSetChanged();
     }
 
+    /** v0.4.207：设置新增文件高亮集合（直发/粘贴产生的文件名字染蓝）。 */
+    public void setHighlightedPaths(Set<String> paths) {
+        highlighted = paths != null ? paths : java.util.Collections.emptySet();
+        notifyDataSetChanged();
+    }
+
     /** 当前绑定的数据列表（供调用方做引用比较）。 */
     public List<FmEntry> getBoundList() {
         return boundList;
@@ -112,7 +120,8 @@ public class FmEntryAdapter extends RecyclerView.Adapter<FmEntryAdapter.Holder> 
         h.entry = e;
 
         h.name.setText(e.getName());
-        h.name.setTextColor(textPrimary);
+        // v0.4.207：新增文件名字染蓝（直发/粘贴视觉提示）
+        h.name.setTextColor(highlighted.contains(key(e)) ? 0xFF3B82F6 : textPrimary);
 
         // 图标（图片条目显示彩色缩略图：必须清 tint，否则 SRC_IN 滤镜染成单色）
         int iconRes;
