@@ -107,7 +107,14 @@ public final class UpdateChecker {
         pool.execute(() -> {
             try {
                 Update u = check(app);
-                main.post(() -> cb.onResult(u == null ? RESULT_UP_TO_DATE : RESULT_UPDATE, u));
+                int status = u == null ? RESULT_UP_TO_DATE : RESULT_UPDATE;
+                // v0.4.205：红点标志持久化（底栏设置 tab + 基础设置检查更新卡
+                // 小红点；检测到新版点亮，检查为最新时熄灭）
+                if (status != RESULT_FAILED) {
+                    app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                            .putBoolean("update_dot", status == RESULT_UPDATE).apply();
+                }
+                main.post(() -> cb.onResult(status, u));
             } catch (Throwable t) {
                 Log.w(TAG, "检查更新失败: " + t.getClass().getSimpleName());
                 main.post(() -> cb.onResult(RESULT_FAILED, null));

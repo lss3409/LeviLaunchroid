@@ -3458,6 +3458,23 @@ public class WorldMapRenderer {
         if (map == null || dbDir == null || !dbDir.isDirectory()) {
             return null;
         }
+        // v0.4.205：矿石标点需存档开启作弊（level.dat CheatsEnabled）
+        // ——未开启作弊的生存档不显示矿石分布（用户要求）
+        File levelDat = new File(dbDir.getParentFile(), "level.dat");
+        if (levelDat.isFile()) {
+            try {
+                org.levimc.launcher.core.content.nbt.NbtTag root =
+                        new org.levimc.launcher.core.content.nbt.BedrockNbtReader()
+                                .readFile(levelDat);
+                org.levimc.launcher.core.content.nbt.NbtTag cheats =
+                        root.getCompound().get("CheatsEnabled");
+                if (cheats == null || cheats.getByte() == 0) {
+                    return null;
+                }
+            } catch (Throwable ignored) {
+                // 读不到/解析失败放行（兼容异常文件）
+            }
+        }
         // v440：大世界不补扫——readAllEntries 全量读 183MB db 是
         // 内存/IO/CPU 洪峰（与视口渲染抢线程，卫星图加载变慢的
         // 根因）；大世界矿石由烘焙 worker 收集落盘

@@ -194,6 +194,10 @@ public class SettingsActivity extends BaseActivity {
                 btn.setOnClickListener(v -> {
                     Toast.makeText(this, R.string.check_update_checking,
                             Toast.LENGTH_SHORT).show();
+                    // v0.4.205：手动检查=用户已消费红点，熄灭基础 tab 红点
+                    getSharedPreferences("levimc_update_check", MODE_PRIVATE)
+                            .edit().putBoolean("update_dot", false).apply();
+                    refreshUpdateDot();
                     org.levimc.launcher.core.updates.UpdateChecker.checkAsync(
                             this, true, (status, u) -> {
                                 // v0.0.12：检查慢时用户可能已退出设置页，
@@ -246,6 +250,57 @@ public class SettingsActivity extends BaseActivity {
         tabPersonalize.setOnClickListener(v -> { selectedTabIndex = 1; selectTab(tabPersonalize); });
         tabAbout.setOnClickListener(v -> { selectedTabIndex = 2; selectTab(tabAbout); });
         tabMigration.setOnClickListener(v -> { selectedTabIndex = 3; selectTab(tabMigration); });
+        refreshUpdateDot(); // v0.4.205：基础设置 tab 更新小红点
+    }
+
+    /** v0.4.205：基础设置 tab 更新小红点（与底栏设置 tab 同源 prefs）。 */
+    private android.view.View tabDotView;
+
+    private void refreshUpdateDot() {
+        try {
+            if (tabBasic == null) {
+                return;
+            }
+            boolean dot = getSharedPreferences("levimc_update_check", MODE_PRIVATE)
+                    .getBoolean("update_dot", false);
+            if (tabDotView != null) {
+                android.view.ViewGroup p = (android.view.ViewGroup) tabDotView.getParent();
+                if (p != null) {
+                    p.removeView(tabDotView);
+                }
+                tabDotView = null;
+            }
+            if (!dot) {
+                return;
+            }
+            android.view.ViewGroup parent = (android.view.ViewGroup) tabBasic.getParent();
+            if (!(parent instanceof android.widget.FrameLayout)
+                    || !"dotwrap".equals(tabBasic.getTag())) {
+                int idx = parent.indexOfChild(tabBasic);
+                android.view.ViewGroup.LayoutParams oldLp = tabBasic.getLayoutParams();
+                parent.removeView(tabBasic);
+                android.widget.FrameLayout wrap = new android.widget.FrameLayout(this);
+                wrap.setLayoutParams(oldLp);
+                tabBasic.setTag("dotwrap");
+                tabBasic.setLayoutParams(new android.widget.FrameLayout.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+                wrap.addView(tabBasic);
+                parent.addView(wrap, idx);
+                parent = wrap;
+            }
+            float d = getResources().getDisplayMetrics().density;
+            android.view.View dotView = new android.view.View(this);
+            dotView.setBackground(getDrawable(R.drawable.bg_update_dot));
+            android.widget.FrameLayout.LayoutParams dlp =
+                    new android.widget.FrameLayout.LayoutParams((int) (8 * d), (int) (8 * d),
+                            android.view.Gravity.TOP | android.view.Gravity.END);
+            dlp.topMargin = (int) (6 * d);
+            dlp.rightMargin = (int) (2 * d);
+            parent.addView(dotView, dlp);
+            tabDotView = dotView;
+        } catch (Throwable ignored) {
+        }
     }
 
     private void selectTab(TextView selectedTab) {

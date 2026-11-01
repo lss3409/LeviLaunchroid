@@ -188,6 +188,9 @@ public class ContentManagementActivity extends BaseActivity {
                     if (checkedId >= 0 && checkedId < allVersions.size()) {
                         versionManager.selectVersion(allVersions.get(checkedId));
                         loadCurrentVersion();
+                        // v0.4.205：实例切换后刷新各分类数量（此前 LiveData
+                        // 不随目录切换自动重载=主页数量不同步根因）
+                        contentManager.refreshContent();
                     }
                 })
                 .setNegativeButton(getString(R.string.cancel), null)

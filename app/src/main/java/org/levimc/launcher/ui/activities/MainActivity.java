@@ -400,11 +400,68 @@ import okhttp3.OkHttpClient;
 
         // v711：自动检查更新（每天一次限频；有新版本弹更新弹窗）
         org.levimc.launcher.core.updates.UpdateChecker.checkAsync(this, false, (status, u) -> {
+            refreshUpdateDot(); // v0.4.205：检查完成后刷新底栏设置 tab 红点
             if (status == org.levimc.launcher.core.updates.UpdateChecker.RESULT_UPDATE
                     && u != null && !isFinishing() && !isDestroyed()) {
                 org.levimc.launcher.core.updates.UpdateChecker.showUpdateDialog(this, u);
             }
         });
+    }
+
+    /** v0.4.205：底栏「设置」tab 更新小红点（微信未读式；检测到新版点亮）。 */
+    public static final String PREFS_UPDATE_DOT = "levimc_update_check";
+    private android.view.View lastUpdateDot;
+
+    private void refreshUpdateDot() {
+        try {
+            TextView tab = findViewById(R.id.nav_tab_settings);
+            if (tab == null) {
+                return;
+            }
+            boolean dot = getSharedPreferences(PREFS_UPDATE_DOT, MODE_PRIVATE)
+                    .getBoolean("update_dot", false);
+            // 移除旧红点
+            if (lastUpdateDot != null) {
+                android.view.ViewGroup p = (android.view.ViewGroup) lastUpdateDot.getParent();
+                if (p != null) {
+                    p.removeView(lastUpdateDot);
+                }
+                lastUpdateDot = null;
+            }
+            if (!dot) {
+                return;
+            }
+            // 首次点亮：tab 包进 FrameLayout（保留原 LayoutParams），红点叠右上角
+            android.view.ViewGroup parent = (android.view.ViewGroup) tab.getParent();
+            if (parent instanceof android.widget.FrameLayout
+                    && "dotwrap".equals(tab.getTag())) {
+                parent = parent; // 已包裹
+            } else {
+                int idx = parent.indexOfChild(tab);
+                android.view.ViewGroup.LayoutParams oldLp = tab.getLayoutParams();
+                parent.removeView(tab);
+                android.widget.FrameLayout wrap = new android.widget.FrameLayout(this);
+                wrap.setLayoutParams(oldLp);
+                tab.setTag("dotwrap");
+                tab.setLayoutParams(new android.widget.FrameLayout.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+                wrap.addView(tab);
+                parent.addView(wrap, idx);
+                parent = wrap;
+            }
+            float d = getResources().getDisplayMetrics().density;
+            android.view.View dotView = new android.view.View(this);
+            dotView.setBackground(getDrawable(R.drawable.bg_update_dot));
+            android.widget.FrameLayout.LayoutParams dlp =
+                    new android.widget.FrameLayout.LayoutParams((int) (8 * d), (int) (8 * d),
+                            android.view.Gravity.TOP | android.view.Gravity.END);
+            dlp.topMargin = (int) (6 * d);
+            dlp.rightMargin = (int) (2 * d);
+            parent.addView(dotView, dlp);
+            lastUpdateDot = dotView;
+        } catch (Throwable ignored) {
+        }
     }
 
     private volatile boolean deepLinkFiring = false;
@@ -1048,6 +1105,7 @@ import okhttp3.OkHttpClient;
     protected void onResume() {
         super.onResume();
         sForeground = true;
+        refreshUpdateDot(); // v0.4.205：回前台刷新更新红点
         // v618：邀请深链补发——游戏 finish 后回启动器走 onResume（双后台
         // 已删，MainActivity 不重建），v601 只挂 onCreate 导致深链丢失
         firePendingDeepLink();
