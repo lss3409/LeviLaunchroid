@@ -71,6 +71,18 @@ public class WorldMapView extends View {
 
     /** 当前维度（overworld/nether/end），用于标点过滤与 1:8 换算 */
     private String dimension = "overworld";
+    /** v0.4.210：新区块哈希存储（世界目录名作用域；null=未启用） */
+    private org.levimc.launcher.util.ChunkHashStore chunkHashStore;
+    /** 本会话已判定过的 chunk（防每帧重算哈希） */
+    private final java.util.Set<Long> newChunkChecked = new java.util.HashSet<>();
+    /** 本会话渲染过的 chunk → tile 哈希（提交写盘用） */
+    private final java.util.Map<Long, String> sessionChunkHashes = new java.util.HashMap<>();
+    /** 每帧新区块判定预算（首帧大区域也有限流） */
+    private int newChunkBudget = 0;
+    /** 浅绿蒙版画笔（新区块首次显示） */
+    private final Paint newChunkPaint = new Paint();
+    /** 新区块是否已提示过（切维度后仍绿的 chunk 不重复标） */
+    private boolean newChunkOverlayEnabled = true;
     /** 标点与连线（渲染层数据，来自 BlueprintDb） */
     private List<BlueprintDb.Point> points = new ArrayList<>();
     private List<BlueprintDb.Link> links = new ArrayList<>();
@@ -630,8 +642,91 @@ public class WorldMapView extends View {
 
     /** 设置当前维度（影响标点过滤与跨维度连线换算）。 */
     public void setDimension(String dimension) {
+        if (chunkHashStore != null && !dimension.equals(this.dimension)) {
+            commitSessionHashes(); // 切维度前提交上一维度的已见 chunk
+        }
         this.dimension = dimension;
         invalidate();
+    }
+
+    /** v0.4.210：设置新区块哈希作用域（世界目录名；null 关闭蒙版）。
+     *  由 NbtViewerActivity 加载世界时调用。 */
+    public void setChunkHashScope(String worldDirName) {
+        commitSessionHashes(); // 换世界前提交上一世界的已见 chunk
+        newChunkChecked.clear();
+        if (worldDirName == null || worldDirName.isEmpty()) {
+            chunkHashStore = null;
+            return;
+        }
+        chunkHashStore = new org.levimc.launcher.util.ChunkHashStore(
+                getContext(), worldDirName);
+    }
+
+    /** v0.4.210：绘制 tile 后判定新区块并刷浅绿蒙版。
+     *  判定依据：坐标无记录（新生成）或 tile 哈希变化（更新的地图）。
+     *  tile 哈希 = 16×16 渲染结果 SHA-256 前 4 字节（渲染管线零改动）。 */
+    private void markNewChunkIfNeeded(android.graphics.Canvas canvas, long ck,
+                                      android.graphics.RectF dst) {
+        if (!newChunkOverlayEnabled || chunkHashStore == null
+                || newChunkBudget <= 0 || newChunkChecked.contains(ck)) {
+            return;
+        }
+        newChunkBudget--;
+        if (newChunkPaint.getColor() == 0) {
+            newChunkPaint.setColor(0x508BC34A); // 浅绿（半透明）
+        }
+        newChunkChecked.add(ck);
+        Bitmap tile = chunkTiles.get(ck);
+        if (tile == null || tile.isRecycled()) return;
+        int cx = (int) (ck >> 32);
+        int cz = (int) (ck & 0xFFFFFFFFL);
+        String hash = tileHash(tile);
+        String prev = chunkHashStore.getHash(dimension, cx, cz);
+        if (prev == null || !prev.equals(hash)) {
+            // 新区块/更新区块：首次显示刷浅绿蒙版
+            canvas.drawRect(dst, newChunkPaint);
+            org.levimc.launcher.util.OnlineDebugLog.log("map-newchunk " + dimension
+                    + " (" + cx + "," + cz + ") prev=" + prev + " now=" + hash);
+        }
+        sessionChunkHashes.put(ck, hash);
+    }
+
+    /** 16×16 tile 位图哈希（256 ints → SHA-256 前 4 字节 hex）。 */
+    private String tileHash(Bitmap tile) {
+        try {
+            int[] px = new int[16 * 16];
+            tile.getPixels(px, 0, 16, 0, 0, 16, 16);
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] raw = new byte[16 * 16 * 4];
+            for (int i = 0; i < px.length; i++) {
+                raw[i * 4] = (byte) (px[i] >> 24);
+                raw[i * 4 + 1] = (byte) (px[i] >> 16);
+                raw[i * 4 + 2] = (byte) (px[i] >> 8);
+                raw[i * 4 + 3] = (byte) px[i];
+            }
+            byte[] h = md.digest(raw);
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < 4; i++) sb.append(String.format("%02x", h[i]));
+            return sb.toString();
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+
+    /** v0.4.210：本会话已见 chunk 哈希写入存储（下次打开不再标绿）。 */
+    public void commitSessionHashes() {
+        if (chunkHashStore == null || sessionChunkHashes.isEmpty()) return;
+        int n = 0;
+        for (java.util.Map.Entry<Long, String> e : sessionChunkHashes.entrySet()) {
+            long ck = e.getKey();
+            chunkHashStore.putHash(dimension, (int) (ck >> 32),
+                    (int) (ck & 0xFFFFFFFFL), e.getValue());
+            n++;
+        }
+        sessionChunkHashes.clear();
+        chunkHashStore.save();
+        org.levimc.launcher.util.OnlineDebugLog.log("map-newchunk 提交 " + n
+                + " 个 chunk 哈希（" + dimension + "）");
     }
 
     /** 区块网格开关。 */
@@ -1062,6 +1157,7 @@ public class WorldMapView extends View {
     protected void onDetachedFromWindow() {
         android.view.Choreographer.getInstance()
                 .removeFrameCallback(hudRefreshCallback);
+        commitSessionHashes(); // v0.4.210：退出地图提交已见 chunk 哈希
         super.onDetachedFromWindow();
     }
 
@@ -1434,6 +1530,7 @@ public class WorldMapView extends View {
     protected void onDraw(android.graphics.Canvas canvas) {
         super.onDraw(canvas);
         measureFps();
+        newChunkBudget = 500; // v0.4.210：每帧新区块判定上限
         // v0.4.112：HUD 局部刷新帧——canvas 被 clip 到 HUD 区域时
         // 只画 HUD（静止时帧率持续跳动，地图主体零重绘）
         if (hudRect.width() > 0) {
@@ -1734,6 +1831,8 @@ public class WorldMapView extends View {
                 tileDst.set(worldToScreenX(cx * 16f), top,
                         worldToScreenX(cx * 16f + 16f), top + 16f * ppb);
                 canvas.drawBitmap(tile, null, tileDst, tilePaint);
+                // v0.4.210：新区块浅绿蒙版（坐标无记录/哈希变化）
+                markNewChunkIfNeeded(canvas, ck, tileDst);
             }
         }
     }

@@ -308,6 +308,8 @@ public class NbtViewerActivity extends BaseActivity {
 
         blueprintDb = new BlueprintDb(this);
         blueprintWorldId = worldDir.getName();
+        // v0.4.210：新区块哈希作用域（浅绿蒙版判定存储按世界目录名隔离）
+        binding.worldMapImage.setChunkHashScope(blueprintWorldId);
         loadBlueprintData();
         setupMapTools(worldDir, worldName);
         setupPrdOverlays();
