@@ -103,10 +103,10 @@ public class FileManagerActivity extends BaseActivity {
     private android.widget.LinearLayout pathBar;
     private String fmRootPath;
     private TextView emptyView;
-    private TextView txtClip;
+
     private TextView taskText;
     private ProgressBar taskProgress;
-    private View clipBar;
+
     private View taskBanner;
     private View navRail;
     private View bottomBar;
@@ -158,6 +158,10 @@ public class FileManagerActivity extends BaseActivity {
     private boolean multiSelect;
     /** v0.4.203：左右窗各自的多选状态（操作条跟随激活窗）。 */
     private boolean leftMultiSelect;
+    /** v0.4.208：任务横幅可见性切换诊断（频闪排查）。 */
+    private boolean lastTaskVisible;
+    private int taskToggleCount;
+    private long lastTaskLog;
     private boolean rightMultiSelect;
     private int accent;
     private int onSurface;
@@ -268,10 +272,10 @@ public class FileManagerActivity extends BaseActivity {
         trashRecycler = findViewById(R.id.fm_trash_recycler);
         pathBar = findViewById(R.id.fm_path_bar);
         emptyView = findViewById(R.id.fm_empty);
-        txtClip = findViewById(R.id.fm_txt_clip);
+
         taskText = findViewById(R.id.fm_task_text);
         taskProgress = findViewById(R.id.fm_task_progress);
-        clipBar = findViewById(R.id.fm_clip_bar);
+
         taskBanner = findViewById(R.id.fm_task_banner);
         navRail = findViewById(R.id.fm_nav_rail);
         bottomBar = findViewById(R.id.fm_bottom_bar);
@@ -316,15 +320,6 @@ public class FileManagerActivity extends BaseActivity {
             @Override
             public void onEntryLongClick(FmEntry entry) {
                 // 多选模式勾选；自动聚焦当前窗
-                if (dualMode && activePane != (fromRight ? 1 : 0)) {
-                    activatePane(fromRight ? 1 : 0);
-                }
-                vmm.toggleSelection(entry);
-            }
-
-            @Override
-            public void onEntrySwipeSelect(FmEntry entry) {
-                // v0.4.207：左滑单选——选中该条目进多选模式，可继续选其他
                 if (dualMode && activePane != (fromRight ? 1 : 0)) {
                     activatePane(fromRight ? 1 : 0);
                 }
@@ -433,8 +428,7 @@ public class FileManagerActivity extends BaseActivity {
         });
         findViewById(R.id.fm_btn_more).setOnClickListener(v -> showMoreMenu());
 
-        findViewById(R.id.fm_btn_clip_paste).setOnClickListener(v -> pasteToActive());
-        findViewById(R.id.fm_btn_clip_cancel).setOnClickListener(v -> activeVm().clearClipboard());
+        // v0.4.208：剪贴板横幅已删（粘贴入口=长按气泡/更多菜单）
         findViewById(R.id.fm_btn_task_cancel).setOnClickListener(v -> activeVm().cancelCurrentTask());
 
         findViewById(R.id.fm_bottom_home).setOnClickListener(v -> showFiles());
@@ -474,12 +468,19 @@ public class FileManagerActivity extends BaseActivity {
         // v0.4.205：空白长按气泡已删（用户拍板：粘贴统一走顶部剪贴板横幅）
 
         findViewById(R.id.fm_btn_sel_all).setOnClickListener(v -> {
-            // v0.4.203：双窗下操作条作用于激活窗
+            // v0.4.208：操作条「单选」——清空选择只选第一个文件
+            // （顶栏全选按钮仍为全选语义；左滑单选已删）
             if (showingTrash) {
                 selVm().clearSelection();
-            } else {
-                selVm().selectAll();
+                return;
             }
+            FileManagerUiState st = (selVm() == vmRight) ? lastStateRight : lastState;
+            if (st == null || st.getVisibleEntries().isEmpty()) {
+                selVm().clearSelection();
+                return;
+            }
+            selVm().clearSelection();
+            selVm().toggleSelection(st.getVisibleEntries().get(0));
         });
         findViewById(R.id.fm_btn_sel_copy).setOnClickListener(v -> {
             if (!showingTrash) selVm().bulkCopy();
@@ -528,27 +529,6 @@ public class FileManagerActivity extends BaseActivity {
     /** v0.4.203：当前激活窗 VM（双窗且激活右窗时用右窗）。 */
     private FileManagerViewModel activeVm() {
         return (dualMode && activePane == 1) ? vmRight : vm;
-    }
-
-    /** v0.4.207：横幅粘贴到激活窗（重写）——双窗跨窗用静默粘贴
-     *  （剪贴板在源窗、目标=激活窗当前目录；冲突自动保留两者不弹窗）；
-     *  单窗保持原 requestPaste（冲突弹窗可处理）。 */
-    private void pasteToActive() {
-        if (!dualMode) {
-            vm.requestPaste();
-            return;
-        }
-        FileManagerUiState src = (activePane == 1) ? lastState : lastStateRight;
-        FileManagerViewModel target = activeVm();
-        if (src != null && src.getClipboard() != null) {
-            target.pasteSilent(src.getClipboard().getSources(),
-                    src.getClipboard().isCut());
-            // 粘贴成功后清双方剪贴板（静默粘贴不自动清，手动清防横幅残留）
-            vm.clearClipboard();
-            vmRight.clearClipboard();
-        } else {
-            target.requestPaste();
-        }
     }
 
     /** v0.4.203：多选操作目标——激活窗有选中优先，否则取有选中的另一窗
@@ -1164,7 +1144,7 @@ public class FileManagerActivity extends BaseActivity {
         multiSelect = leftMultiSelect || rightMultiSelect; // v0.4.203：共用底栏——任一窗有选中即显示操作条
         renderEmptyState();
         renderSelectionBar();
-        renderClipboard(s);
+
         renderTask(s);
         renderTrash(s);
         renderSnackbar(s);
@@ -1200,20 +1180,23 @@ public class FileManagerActivity extends BaseActivity {
         findViewById(R.id.fm_btn_sel_props).setVisibility(showingTrash ? View.GONE : View.VISIBLE);
     }
 
-    private void renderClipboard(FileManagerUiState s) {
-        if (s.getClipboard() != null) {
-            clipBar.setVisibility(View.VISIBLE);
-            int n = s.getClipboard().getSources().size();
-            txtClip.setText(getString(s.getClipboard().isCut() ? R.string.fm_ui_clip_cut : R.string.fm_ui_clip_copy, n));
-        } else {
-            clipBar.setVisibility(View.GONE);
-        }
-    }
-
     private void renderTask(FileManagerUiState s) {
         TaskState ts = s.getTaskState();
         TaskProgress tp = s.getTaskProgress();
-        if (ts instanceof TaskState.Busy) {
+        boolean visible = ts instanceof TaskState.Busy;
+        // v0.4.208：任务横幅频闪诊断日志（可见性切换 3 秒一条，有界）
+        if (visible != lastTaskVisible) {
+            lastTaskVisible = visible;
+            taskToggleCount++;
+            long now = System.currentTimeMillis();
+            if (now - lastTaskLog > 3000) {
+                lastTaskLog = now;
+                org.levimc.launcher.util.OnlineDebugLog.log("fm-task 切换 #"
+                        + taskToggleCount + " -> " + (visible ? "BUSY" : "IDLE")
+                        + " task=" + (ts == null ? "null" : ts.getClass().getSimpleName()));
+            }
+        }
+        if (visible) {
             taskBanner.setVisibility(View.VISIBLE);
             StringBuilder sb = new StringBuilder(getString(R.string.fm_ui_task));
             if (tp != null) {
@@ -1452,7 +1435,7 @@ public class FileManagerActivity extends BaseActivity {
 
     private void showEditor() {
         topBar.setVisibility(View.GONE);
-        clipBar.setVisibility(View.GONE);
+
         contentFrame.setVisibility(View.GONE);
         bottomBar.setVisibility(View.GONE);
         selectionBar.setVisibility(View.GONE);
@@ -1477,7 +1460,7 @@ public class FileManagerActivity extends BaseActivity {
         highlightHandler.removeCallbacks(highlightTask);
         topBar.setVisibility(View.VISIBLE);
         contentFrame.setVisibility(View.VISIBLE);
-        renderClipboard(lastState);
+
         renderSelectionBar();
     }
 

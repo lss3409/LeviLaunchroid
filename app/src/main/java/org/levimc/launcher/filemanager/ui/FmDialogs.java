@@ -339,6 +339,9 @@ public class FmDialogs {
     public static void showEntryBubble(BaseActivity a, FileManagerViewModel vm, FmEntry entry,
                                        View anchor, FileManagerViewModel peerVm,
                                        boolean arrowRight, Runnable onPeerAction) {
+        // v0.4.208：入口诊断日志（长按无反应排查）
+        org.levimc.launcher.util.OnlineDebugLog.log("fm-bubble 长按菜单 entry="
+                + (entry != null ? entry.getName() : "null") + " dual=" + (peerVm != null));
         final boolean dual = peerVm != null;
         float density = a.getResources().getDisplayMetrics().density;
         int pad = (int) (14 * density);

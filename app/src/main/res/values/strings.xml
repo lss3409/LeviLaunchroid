@@ -1895,6 +1895,7 @@ Invite code: %1$s
 <string name="fm_ui_open_failed">No app can open this file</string>
 <string name="fm_ui_copy">Copy</string>
     <string name="fm_ui_sel_all">Select All</string>
+    <string name="fm_ui_sel_single">Select One</string>
     <string name="fm_ui_select">Select</string>
     <string name="fm_ui_props_single_only">Select a single file to view properties</string>
     <string name="fm_ui_share">Share</string>
