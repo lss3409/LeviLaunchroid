@@ -34,6 +34,10 @@ public final class HardcoreWorldIdStore {
         public String worldName;
         public long seed;
         public String dirName;
+        /** v0.4.209：db 出生点 chunk 指纹（首次登记时写入，之后不更新——
+         *  同源副本首次扫描时出生点内容一致=并入；各自游玩后出生点变化
+         *  也不破坏已建立的关联）。 */
+        public String fingerprint;
     }
 
     private final File file;
@@ -66,6 +70,8 @@ public final class HardcoreWorldIdStore {
                     e.worldName = o.optString("worldName");
                     e.seed = o.optLong("seed");
                     e.dirName = o.optString("dirName");
+                    e.fingerprint = o.optString("fingerprint");
+                    if (e.fingerprint.isEmpty()) e.fingerprint = null;
                     if (!e.id.isEmpty()) entries.add(e);
                 } catch (Exception ignored) {
                 }
@@ -85,6 +91,7 @@ public final class HardcoreWorldIdStore {
                 o.put("worldName", e.worldName != null ? e.worldName : "");
                 o.put("seed", e.seed);
                 o.put("dirName", e.dirName != null ? e.dirName : "");
+                o.put("fingerprint", e.fingerprint != null ? e.fingerprint : "");
                 arr.put(o);
             }
             root.put("entries", arr);
@@ -122,13 +129,23 @@ public final class HardcoreWorldIdStore {
     }
 
     /**
-     * 解析/补打标识：目录名命中 → 同名同种子并入 → 补打新 id。
-     * 命中后更新 dirName（存档移动/改名跟随）。
+     * 解析/补打标识：目录名命中 → 同名同种子 + 指纹校验并入 → 补打新 id。
+     * 指纹校验（v0.4.209）：候选与新世界都有指纹且不同 = 不是同存档（误判保护，
+     * 给新 id）；任一指纹缺失回退旧逻辑（同名同种子并入）。
+     * 指纹首次登记时写入，之后不更新——同源副本各自游玩导致出生点变化也不
+     * 破坏已建立的关联。
      */
-    public synchronized String resolveId(String dirName, String worldName, long seed) {
+    public synchronized String resolveId(String dirName, String worldName, long seed,
+                                         String fingerprint) {
         Entry e = findByDirName(dirName);
         if (e == null) {
             e = findByNameAndSeed(worldName, seed);
+            if (e != null && e.fingerprint != null && fingerprint != null
+                    && !e.fingerprint.equals(fingerprint)) {
+                OnlineDebugLog.log("hb-id 指纹不符拒并入 name=" + worldName
+                        + " seed=" + seed + " 候选=" + e.fingerprint + " 新=" + fingerprint);
+                e = null;
+            }
         }
         if (e == null) {
             e = new Entry();
@@ -136,11 +153,14 @@ public final class HardcoreWorldIdStore {
             e.worldName = worldName;
             e.seed = seed;
             e.dirName = dirName;
+            e.fingerprint = fingerprint;
             entries.add(e);
             OnlineDebugLog.log("hb-id 补打新标识 id=" + e.id + " name=" + worldName
-                    + " seed=" + seed + " dir=" + dirName);
+                    + " seed=" + seed + " dir=" + dirName
+                    + " fp=" + (fingerprint != null ? fingerprint : "null"));
         } else {
             e.dirName = dirName;
+            if (e.fingerprint == null) e.fingerprint = fingerprint; // 老条目只补一次
             if (e.worldName == null || e.worldName.isEmpty()) e.worldName = worldName;
             if (e.seed == 0) e.seed = seed;
         }

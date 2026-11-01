@@ -98,6 +98,42 @@ public class FileManagerActivity extends BaseActivity {
     /** v0.4.208：diff 归属窗——集合只对直发目标窗有意义（另一窗的条目
      *  几乎必然不在集合里→added 恒真→互相 refreshCurrentDir 死循环=频闪根因）。 */
     private boolean peerBeforeTargetIsRight;
+    /** v0.4.209：空白长按计时（RecyclerView 空白处自实现长按检测）。 */
+    private final java.util.Map<View, Runnable> pendingBlankLong = new java.util.HashMap<>();
+    private final java.util.Map<View, float[]> blankDownXY = new java.util.HashMap<>();
+
+    /** v0.4.209：启动空白长按计时——DOWN 位置若无子 View，超时弹路径气泡。 */
+    private void armBlankLongPress(View v, FileManagerViewModel vmm, float x, float y) {
+        cancelBlankLongPress(v);
+        blankDownXY.put(v, new float[]{x, y});
+        Runnable r = () -> {
+            pendingBlankLong.remove(v);
+            blankDownXY.remove(v);
+            android.view.View child = v instanceof RecyclerView
+                    ? ((RecyclerView) v).findChildViewUnder(x, y) : null;
+            if (child == null) {
+                org.levimc.launcher.util.OnlineDebugLog.log("fm-bubble 空白长按 view=" + v.getClass().getSimpleName());
+                FmDialogs.showPathBubble(FileManagerActivity.this, vmm, v);
+            }
+        };
+        pendingBlankLong.put(v, r);
+        v.postDelayed(r, android.view.ViewConfiguration.getLongPressTimeout());
+    }
+
+    private void cancelBlankLongPress(View v) {
+        Runnable r = pendingBlankLong.remove(v);
+        blankDownXY.remove(v);
+        if (r != null) {
+            v.removeCallbacks(r);
+        }
+    }
+
+    /** v0.4.209：MOVE 位移是否超过 touch slop（超了取消长按，防滚动误触）。 */
+    private boolean movedBeyondSlop(View v, float x, float y, int slop) {
+        float[] down = blankDownXY.get(v);
+        if (down == null) return false;
+        return Math.abs(x - down[0]) > slop || Math.abs(y - down[1]) > slop;
+    }
     private String lastLeftDir = "";
     private String lastRightDir = "";
 
@@ -450,16 +486,46 @@ public class FileManagerActivity extends BaseActivity {
                 R.id.fm_rail_up_text, R.id.fm_rail_sync_text, R.id.fm_rail_new_text);
         updateDualButtons();
 
-        // v0.4.203：点击/滑动/空白区域聚焦——右窗点击激活右窗，左窗同理
+        // v0.4.203：点击/滑动/空白区域聚焦——右窗点击激活右窗，左窗同理。
+        // v0.4.209：RecyclerView 空白长按自实现——RecyclerView 覆写
+        // onTouchEvent 不走 View 长按检测，setOnLongClickListener 空白处
+        // 不触发（用户实测点空白无气泡的根因）。touch 监听里 DOWN 启动
+        // 长按计时，MOVE 超 touchSlop 取消，触发时条目下方无子 View 才弹
+        // 路径气泡；条目上的长按由条目自己消费，不冲突
+        final int touchSlop = android.view.ViewConfiguration.get(this).getScaledTouchSlop();
         android.view.View.OnTouchListener focusRight = (v, e) -> {
-            if (e.getAction() == android.view.MotionEvent.ACTION_DOWN) {
-                activatePane(1);
+            switch (e.getActionMasked()) {
+                case android.view.MotionEvent.ACTION_DOWN:
+                    activatePane(1);
+                    armBlankLongPress(v, vmRight, e.getX(), e.getY());
+                    break;
+                case android.view.MotionEvent.ACTION_MOVE:
+                    if (movedBeyondSlop(v, e.getX(), e.getY(), touchSlop)) {
+                        cancelBlankLongPress(v);
+                    }
+                    break;
+                case android.view.MotionEvent.ACTION_UP:
+                case android.view.MotionEvent.ACTION_CANCEL:
+                    cancelBlankLongPress(v);
+                    break;
             }
             return false;
         };
         android.view.View.OnTouchListener focusLeft = (v, e) -> {
-            if (e.getAction() == android.view.MotionEvent.ACTION_DOWN) {
-                activatePane(0);
+            switch (e.getActionMasked()) {
+                case android.view.MotionEvent.ACTION_DOWN:
+                    activatePane(0);
+                    armBlankLongPress(v, vm, e.getX(), e.getY());
+                    break;
+                case android.view.MotionEvent.ACTION_MOVE:
+                    if (movedBeyondSlop(v, e.getX(), e.getY(), touchSlop)) {
+                        cancelBlankLongPress(v);
+                    }
+                    break;
+                case android.view.MotionEvent.ACTION_UP:
+                case android.view.MotionEvent.ACTION_CANCEL:
+                    cancelBlankLongPress(v);
+                    break;
             }
             return false;
         };
@@ -469,9 +535,10 @@ public class FileManagerActivity extends BaseActivity {
         recycler.setOnTouchListener(focusLeft);
         emptyView.setOnTouchListener(focusLeft);
         pathBar.setOnTouchListener(focusLeft);
-        // v0.4.208：路径栏/空白区域长按气泡（复制/剪切当前目录/粘贴；
-        // 横幅已删，长按气泡恢复为粘贴入口）。recycler 空白处触发——
-        // 条目长按消费不冒泡，不与条目气泡冲突
+        // v0.4.208：路径栏/空态占位长按气泡（复制/剪切当前目录/粘贴；
+        // 横幅已删，长按气泡恢复为粘贴入口）。列表空白处走 touch 自实现
+        // 长按（上方 focusLeft/focusRight）——RecyclerView 的
+        // setOnLongClickListener 空白处不触发（v0.4.209 实测根因）
         android.view.View.OnLongClickListener pathLongLeft = v -> {
             activatePane(0);
             FmDialogs.showPathBubble(FileManagerActivity.this, vm, v);
@@ -483,10 +550,8 @@ public class FileManagerActivity extends BaseActivity {
             return true;
         };
         pathBar.setOnLongClickListener(pathLongLeft);
-        recycler.setOnLongClickListener(pathLongLeft);
         emptyView.setOnLongClickListener(pathLongLeft);
         findViewById(R.id.fm_path_bar_right).setOnLongClickListener(pathLongRight);
-        recyclerRight.setOnLongClickListener(pathLongRight);
         findViewById(R.id.fm_empty_right).setOnLongClickListener(pathLongRight);
 
         findViewById(R.id.fm_btn_sel_all).setOnClickListener(v -> {

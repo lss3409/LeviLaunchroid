@@ -104,20 +104,22 @@ public final class HardcoreBackupManager {
     }
 
     /** 扫描极限世界列表。
-     *  v0.4.209：JSON 标识解析/补打（老存档自动获得 leviWorldId）+同存档
-     *  多副本选主（未死亡优先，其次 LastPlayed 最新；副本不重复显示）。 */
+     *  v0.4.209：JSON 标识解析/补打（db 出生点 chunk 指纹校验避免误判；
+     *  老存档自动获得 leviWorldId）+同存档多副本选主（游戏天数最大为主，
+     *  未死亡优先，其次 LastPlayed 最新；副本不重复显示）。 */
     public static List<WorldItem> scanHardcoreWorlds(Context context) {
         HardcoreWorldIdStore idStore = new HardcoreWorldIdStore(context);
         List<WorldItem> all = new ArrayList<>();
         for (WorldItem w : scanWorlds(context)) {
             if (!w.isHardcore()) continue;
-            String jsonId = idStore.resolveId(w.getWorldId(), w.getWorldName(), w.getSeed());
+            String fp = w.ensureChunkFingerprint();
+            String jsonId = idStore.resolveId(w.getWorldId(), w.getWorldName(), w.getSeed(), fp);
             if (w.getLeviWorldId() == null || w.getLeviWorldId().isEmpty()) {
                 w.setLeviWorldId(jsonId);
             }
             all.add(w);
         }
-        // 同存档多副本选主：同一标识只保留一个（未死亡 > LastPlayed 新）
+        // 同存档多副本选主：同一标识只保留一个（游戏天数大 > 未死亡 > LastPlayed 新）
         java.util.Map<String, WorldItem> byId = new java.util.LinkedHashMap<>();
         for (WorldItem w : all) {
             String id = w.getLeviWorldId();
@@ -136,8 +138,13 @@ public final class HardcoreBackupManager {
         return new ArrayList<>(byId.values());
     }
 
-    /** 副本选主比较：w 是否比 cur 更适合当主存档（未死亡优先，其次 LastPlayed 更新）。 */
+    /** 副本选主比较：w 是否比 cur 更适合当主存档（游戏天数大 > 未死亡 > LastPlayed 新）。 */
     private static boolean betterMaster(WorldItem w, WorldItem cur) {
+        long wd = w.getDaysPlayed();
+        long cd = cur.getDaysPlayed();
+        if (wd != cd) {
+            return wd > cd; // 用户拍板：游戏天数最大的为主存档，其余为副本
+        }
         if (w.isPlayerDead() != cur.isPlayerDead()) {
             return !w.isPlayerDead();
         }

@@ -23,6 +23,11 @@ public class WorldItem extends ContentItem {
     private String leviWorldId;
     /** v416：level.dat LastPlayed（游戏进入世界时间戳）。 */
     private long levelLastPlayed;
+    /** v0.4.209：level.dat DaysPlayed（游戏天数，副本选主依据；0=无字段）。 */
+    private long daysPlayed;
+    /** v0.4.209：db 出生点 chunk (0,0) 值 SHA-256 前 8 字节 hex（同存档指纹，
+     *  避免同名同种子误判；读不到为 null）。 */
+    private String chunkFingerprint;
     /** v0.0.11：存 int 游戏类型（-1 未知），显示时按语言转文本。 */
     private int gameType = -1;
     private long lastPlayed;
@@ -122,6 +127,16 @@ public class WorldItem extends ContentItem {
     /** v416：level.dat 的 LastPlayed（游戏进入世界时间戳；0 = 无字段）。 */
     public long getLevelLastPlayed() {
         return levelLastPlayed;
+    }
+
+    /** v0.4.209：level.dat DaysPlayed（游戏天数；0 = 无字段/读不到）。 */
+    public long getDaysPlayed() {
+        return daysPlayed;
+    }
+
+    /** v0.4.209：db 出生点 chunk 指纹（同存档判定；读不到为 null）。 */
+    public String getChunkFingerprint() {
+        return chunkFingerprint;
     }
 
     public long getSeed() {
@@ -231,6 +246,43 @@ public class WorldItem extends ContentItem {
         return isHardcore;
     }
 
+    /** v0.4.209：懒算 db 出生点 chunk (0,0) 指纹——chunk key 前 4 字节 x=0
+     *  前缀定位（非全表扫描），结果里取 z=0 的 key 值做 SHA-256 前 8 字节
+     *  hex。同源副本出生点内容一致=同存档；读不到（老格式/空 db）返回 null。
+     *  只在极限存档扫描时调用（内容管理全量扫描不付此成本）。 */
+    public String ensureChunkFingerprint() {
+        if (chunkFingerprint != null || file == null) return chunkFingerprint;
+        File dbDir = new File(file, "db");
+        if (!dbDir.isDirectory()) return null;
+        try {
+            LevelDBReader dbReader = new LevelDBReader(dbDir);
+            List<LevelDBEntry> x0 = dbReader.readEntriesByPrefix(new byte[4]); // x=0 区
+            for (LevelDBEntry e : x0) {
+                byte[] k = e.getKey().getRawKey();
+                if (k == null || (k.length != 9 && k.length != 10)) continue;
+                boolean z0 = true;
+                for (int i = 4; i < 8; i++) {
+                    if (k[i] != 0) {
+                        z0 = false;
+                        break;
+                    }
+                }
+                if (!z0) continue;
+                java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+                byte[] hash = md.digest(e.getValue());
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < 8; i++) sb.append(String.format("%02x", hash[i]));
+                chunkFingerprint = sb.toString();
+                break;
+            }
+            dbReader.close();
+        } catch (Throwable t) {
+            // 指纹读不到不致命：同存档判定回退旧逻辑
+            Log.w(TAG, "Failed to read chunk fingerprint for " + file.getName(), t);
+        }
+        return chunkFingerprint;
+    }
+
     /** 世界唯一标识：目录名（随机生成，导入/创建时稳定），用于极限存档备份的识别。 */
     public String getWorldId() {
         return file != null ? file.getName() : name;
@@ -293,6 +345,12 @@ public class WorldItem extends ContentItem {
                 NbtTag lpTag = compound.get("LastPlayed");
                 if (lpTag != null) {
                     levelLastPlayed = lpTag.getLong();
+                }
+
+                // v0.4.209：DaysPlayed（游戏天数，副本选主依据）
+                NbtTag daysTag = compound.get("DaysPlayed");
+                if (daysTag != null) {
+                    daysPlayed = daysTag.getLong();
                 }
 
                 NbtTag hardcoreTag = compound.get("IsHardcore");
