@@ -522,10 +522,25 @@ public class FileManagerActivity extends BaseActivity {
         return rightMultiSelect ? vmRight : vm;
     }
 
-    /** v0.4.203：路径栏/空白长按 → 复制/移动当前目录气泡（MT 同款）。 */
+    /** v0.4.204：路径栏/空白长按气泡（MT 同款）——有剪贴板时首项「粘贴」
+     *  （先复制/剪切后到任意路径长按空白即粘贴），另有复制/移动当前目录；
+     *  动态定位防超出屏幕。 */
     private void showDirClipBubble(View anchor, FileManagerViewModel target) {
         float d = getResources().getDisplayMetrics().density;
         int pad = (int) (14 * d);
+        // 剪贴板状态（跨窗同步后任取：目标窗的 state）
+        FileManagerUiState st = (target == vmRight) ? lastStateRight : lastState;
+        final boolean hasClip = st != null && st.getClipboard() != null;
+        java.util.List<String> labels = new java.util.ArrayList<>();
+        java.util.List<Runnable> acts = new java.util.ArrayList<>();
+        if (hasClip) {
+            labels.add(getString(R.string.fm_ui_paste));
+            acts.add(target::requestPaste);
+        }
+        labels.add(getString(R.string.fm_ui_copy));
+        acts.add(target::copyCurrentDir);
+        labels.add(getString(R.string.fm_ui_cut));
+        acts.add(target::cutCurrentDir);
         LinearLayout bubble = new LinearLayout(this);
         bubble.setOrientation(LinearLayout.VERTICAL);
         bubble.setPadding(pad, (int) (10 * d), pad, (int) (10 * d));
@@ -541,22 +556,31 @@ public class FileManagerActivity extends BaseActivity {
         popup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(
                 android.graphics.Color.TRANSPARENT));
         popup.setElevation(8 * d);
-        String[] labels = {getString(R.string.fm_ui_copy), getString(R.string.fm_ui_cut)};
-        Runnable[] acts = {target::copyCurrentDir, target::cutCurrentDir};
-        for (int i = 0; i < labels.length; i++) {
+        for (int i = 0; i < labels.size(); i++) {
             final int idx = i;
             TextView item = new TextView(this);
-            item.setText(labels[i]);
+            item.setText(labels.get(i));
             item.setTextColor(onSurface);
             item.setTextSize(13);
             item.setPadding((int) (8 * d), (int) (7 * d), (int) (8 * d), (int) (7 * d));
             item.setOnClickListener(v -> {
                 popup.dismiss();
-                acts[idx].run();
+                acts.get(idx).run();
             });
             bubble.addView(item);
         }
-        popup.showAsDropDown(anchor, 0, (int) (2 * d));
+        // v0.4.204：动态定位——下方空间不足自动向上弹
+        int[] loc = new int[2];
+        anchor.getLocationOnScreen(loc);
+        bubble.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        int h = bubble.getMeasuredHeight();
+        int screenH = getResources().getDisplayMetrics().heightPixels;
+        int spaceBelow = screenH - loc[1] - anchor.getHeight();
+        if (spaceBelow < h && loc[1] > h) {
+            popup.showAsDropDown(anchor, 0, -(anchor.getHeight() + h));
+        } else {
+            popup.showAsDropDown(anchor, 0, (int) (2 * d));
+        }
     }
 
     private void showMoreMenu() {
