@@ -37,6 +37,11 @@ import java.io.File
 // v534：黑屏自愈阈值 5 分钟→90 秒（开了前台服务保活时渲染面丢失黑屏高发，
 // 更频繁），后台超 60s 回前台就走静默重启（游戏自动存档回启动器），
 // 宁可重启也不要黑屏卡死；联想 ZUI 机制宽松（90s 时也只黑过 1 次）
+// v598 删除自动重启（误杀联机挂机）；v0.4.211 改为应用内提示条
+// （挂机超 2 分钟回前台弹「黑屏可一键重启」横幅，8 秒自动消失）
+
+/** v0.4.211：后台挂机超过此时长回前台弹黑屏提示条（用户实测 2-3 分钟黑屏）。 */
+private const val BLACKSCREEN_HINT_MS = 120_000L
 
 class MinecraftActivity : MainActivity(), PojavControlsHost {
 
@@ -51,6 +56,10 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
 
     private val hardcoreBackupHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var hardcoreBackupRunning = false
+    /** v0.4.211：后台挂机计时（黑屏提示条用）。 */
+    private var lastPauseElapsed = 0L
+    /** v0.4.211：黑屏提示条（应用内横幅，非系统对话框）。 */
+    private var blackscreenHintBar: View? = null
     /** v544：本次会话起点（累计游玩时长统计）。 */
     private var sessionStartElapsed = 0L
     private val hardcoreBackupRunnable = object : Runnable {
@@ -262,6 +271,17 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         if (!isFinishing) {
             normalExitPrepared = false
             normalExitRestartScheduled = false
+        }
+        // v0.4.211：后台长挂机回前台弹应用内提示条（黑屏可一键重启，
+        // 画面正常提示条自动消失——不误杀联机挂机，v598 教训）
+        if (lastPauseElapsed > 0) {
+            val pausedMs = android.os.SystemClock.elapsedRealtime() - lastPauseElapsed
+            if (pausedMs > BLACKSCREEN_HINT_MS) {
+                org.levimc.launcher.util.OnlineDebugLog.log(
+                    "mc-black 后台挂机 " + pausedMs / 1000 + "s 回前台，弹黑屏提示条")
+                showBlackscreenHint()
+            }
+            lastPauseElapsed = 0L
         }
         MinecraftActivityState.onResumed(this)
 
@@ -525,6 +545,8 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun onPause() {
+        lastPauseElapsed = android.os.SystemClock.elapsedRealtime()
+        dismissBlackscreenHint()
         // v527：退后台停语音采集（不再收麦），回前台自动恢复
         try {
             org.levimc.launcher.core.online.voice.VoiceEngine.get(this).suspend()
@@ -785,6 +807,77 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
                 ?.takeIf { it.isAttachedToWindow && it.visibility == View.VISIBLE }
                 ?.requestFocus()
             previousInputFocus = null
+        }
+    }
+
+    /** v0.4.211：后台长挂机回前台的应用内提示条——画面黑屏可一键重启
+     *  （走正常退出流程+游戏自动存档兜底）；画面正常提示条 8 秒自动消失。
+     *  不弹系统对话框（onResume 铁律）、不自动杀进程（v598 误杀联机教训）。 */
+    private fun showBlackscreenHint() {
+        dismissBlackscreenHint()
+        runOnUiThread {
+            if (isFinishing) return@runOnUiThread
+            val accent = org.levimc.launcher.util.PersonalizationManager(this)
+                .getAccentColor().let { if (it != 0) it else 0xFF43A047.toInt() }
+            val density = resources.displayMetrics.density
+            val bar = FrameLayout(this)
+            bar.setPadding((16 * density).toInt(), (10 * density).toInt(),
+                (16 * density).toInt(), (10 * density).toInt())
+            bar.setBackgroundColor(0xE6232326.toInt())
+            bar.elevation = 12 * density
+
+            val text = TextView(this)
+            text.setText(R.string.mc_blackscreen_hint)
+            text.setTextColor(0xFFFFFFFF.toInt())
+            text.textSize = 13f
+            val textLp = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT)
+            textLp.gravity = android.view.Gravity.CENTER_VERTICAL
+            textLp.marginEnd = (96 * density).toInt() // 右侧给「重启游戏」按钮留位
+            bar.addView(text, textLp)
+
+            val btn = TextView(this)
+            btn.setText(R.string.mc_blackscreen_restart)
+            btn.setTextColor(accent)
+            btn.textSize = 13f
+            btn.setTypeface(null, android.graphics.Typeface.BOLD)
+            btn.setPadding((12 * density).toInt(), (8 * density).toInt(),
+                (12 * density).toInt(), (8 * density).toInt())
+            btn.isClickable = true
+            btn.setOnClickListener {
+                org.levimc.launcher.util.OnlineDebugLog.log("mc-black 用户点击重启游戏")
+                dismissBlackscreenHint()
+                finish()
+            }
+            val btnLp = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT)
+            btnLp.gravity = android.view.Gravity.CENTER_VERTICAL or android.view.Gravity.END
+            bar.addView(btn, btnLp)
+
+            findViewById<ViewGroup>(android.R.id.content).addView(
+                bar,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    android.view.Gravity.TOP)
+            )
+            blackscreenHintBar = bar
+            // 8 秒自动消失（画面正常时无需任何操作）
+            android.os.Handler(android.os.Looper.getMainLooper())
+                .postDelayed({ dismissBlackscreenHint() }, 8000)
+        }
+    }
+
+    private fun dismissBlackscreenHint() {
+        val bar = blackscreenHintBar ?: return
+        blackscreenHintBar = null
+        runOnUiThread {
+            try {
+                (bar.parent as? ViewGroup)?.removeView(bar)
+            } catch (t: Throwable) {
+            }
         }
     }
 }

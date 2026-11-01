@@ -838,6 +838,7 @@
 <string name="inbuilt_mod_camera_desc">切换相机视角</string>
 <string name="inbuilt_mod_hud">隐藏界面</string>
 <string name="inbuilt_mod_hud_desc">隐藏快捷栏和 UI</string>
+<string name="mod_config_hide_launcher_hud">同时隐藏启动器 HUD 与悬浮球按钮</string>
 <string name="inbuilt_mod_autosprint">自动疾跑</string>
 <string name="inbuilt_mod_autosprint_desc">切换疾跑开启/关闭</string>
 <string name="inbuilt_mod_chick_pet">小鸡宠物</string>
@@ -1429,6 +1430,8 @@
 <string name="batch_delete_packs_title">删除选中的资源包？</string>
 <string name="hardcore_backup_completed_toast">极限存档已备份：%1$s</string>
 <string name="hardcore_backup_notif_channel">极限存档备份</string>
+<string name="mc_blackscreen_hint">游戏在后台挂机了一段时间，如果画面黑屏请重启游戏</string>
+<string name="mc_blackscreen_restart">重启游戏</string>
 <string name="hardcore_backup_notif_title">正在备份极限存档：%1$s</string>
 <string name="hardcore_backup_notif_done">备份完成，位置：%1$s</string>
 <string name="hardcore_backup_notif_failed">备份失败：%1$s</string>

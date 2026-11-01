@@ -968,6 +968,7 @@ Migration must complete before LBBL can continue.</string>
 <string name="inbuilt_mod_camera_desc">Toggle camera view</string>
 <string name="inbuilt_mod_hud">Hide HUD</string>
 <string name="inbuilt_mod_hud_desc">Hide hotbar and UI</string>
+<string name="mod_config_hide_launcher_hud">Also hide launcher HUD and overlay buttons</string>
 <string name="inbuilt_mod_autosprint">Auto Sprint</string>
 <string name="inbuilt_mod_autosprint_desc">Toggle sprint on/off</string>
 <string name="inbuilt_mod_chick_pet">Chick Pet</string>
@@ -1426,6 +1427,8 @@ Invite code: %1$s
 <string name="hardcore_backup_enabled">Enable scheduled backup</string>
 <string name="hardcore_backup_completed_toast">Hardcore save backed up: %1$s</string>
 <string name="hardcore_backup_notif_channel">Hardcore save backups</string>
+<string name="mc_blackscreen_hint">The game was in background for a while. If the screen is black, restart the game.</string>
+<string name="mc_blackscreen_restart">Restart game</string>
 <string name="hardcore_backup_notif_title">Backing up hardcore save: %1$s</string>
 <string name="hardcore_backup_notif_done">Backup done, location: %1$s</string>
 <string name="hardcore_backup_notif_failed">Backup failed: %1$s</string>

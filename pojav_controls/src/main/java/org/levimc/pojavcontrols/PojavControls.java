@@ -12,6 +12,18 @@ public final class PojavControls {
 
     private static WeakReference<Activity> attachedActivity = new WeakReference<>(null);
     private static PojavControlOverlay overlay;
+    /** v0.4.211（官方 5bf4c980 跟进）：F1 隐藏游戏 HUD 时联动隐藏按键覆盖层。 */
+    private static boolean hudVisible = true;
+
+    public static synchronized void setHudVisible(boolean visible) {
+        hudVisible = visible;
+        if (overlay != null) {
+            if (!visible) overlay.releaseAll();
+            if (editor == null || !editor.isAttachedToWindow()) {
+                overlay.setVisibility(visible ? View.VISIBLE : View.GONE);
+            }
+        }
+    }
     private static WeakReference<Activity> editorActivity = new WeakReference<>(null);
     private static PojavControlsEditorView editor;
 
@@ -95,7 +107,7 @@ public final class PojavControls {
         editorActivity.clear();
         if (overlay != null) {
             overlay.reloadProfile();
-            overlay.setVisibility(View.VISIBLE);
+            overlay.setVisibility(hudVisible ? View.VISIBLE : View.GONE);
             overlay.bringToFront();
         }
     }

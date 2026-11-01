@@ -20,6 +20,7 @@ public final class InbuiltModuleProvider {
     private static final String CFG_OVERLAY_OPACITY = "overlay_opacity";
     private static final String CFG_OVERLAY_LOCK = "overlay_lock";
     private static final String CFG_OVERLAY_SHOW_EVERYWHERE = "overlay_show_everywhere";
+    private static final String CFG_HIDE_LAUNCHER_HUD = "hide_launcher_hud";
     private static final String CFG_AUTO_SPRINT_KEYBIND = "auto_sprint_keybind";
     private static final String CFG_CURSOR_SENSITIVITY = "cursor_sensitivity";
     private static final String CFG_ZOOM_LEVEL = "zoom_level";
@@ -132,6 +133,15 @@ public final class InbuiltModuleProvider {
                     String.valueOf(manager.isOverlayShowEverywhere(modId))));
         }
 
+        // v0.4.211（官方 5bf4c980 跟进）：F1 隐藏 HUD 联动隐藏启动器悬浮球
+        if (ModIds.TOGGLE_HUD.equals(modId)) {
+            configs.add(config(CFG_HIDE_LAUNCHER_HUD,
+                    context.getString(R.string.mod_config_hide_launcher_hud),
+                    UnifiedMod.ConfigType.TOGGLE,
+                    "true", "", "",
+                    String.valueOf(manager.isLauncherHudHideEnabled())));
+        }
+
         if (ModIds.AUTO_SPRINT.equals(modId)) {
             configs.add(config(CFG_AUTO_SPRINT_KEYBIND,
                     context.getString(R.string.mod_config_auto_sprint_keybind),
@@ -222,6 +232,10 @@ public final class InbuiltModuleProvider {
                 break;
             case CFG_OVERLAY_SHOW_EVERYWHERE:
                 manager.setOverlayShowEverywhere(mod.getId(), parseBoolean(value));
+                break;
+            case CFG_HIDE_LAUNCHER_HUD:
+                // v0.4.211（官方 5bf4c980）：开关切换后 tick 轮询自动应用
+                manager.setLauncherHudHideEnabled(parseBoolean(value));
                 break;
             case CFG_AUTO_SPRINT_KEYBIND:
                 manager.setAutoSprintKeybind(parseInt(value, manager.getAutoSprintKeybind()));

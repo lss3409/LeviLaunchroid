@@ -43,6 +43,15 @@ public class InbuiltOverlayManager {
     private static final int SPACING = 70;
     private static final int START_X = 50;
     private long lastVisibilityStateHash = Long.MIN_VALUE;
+    /** v0.4.211（官方 5bf4c980 跟进）：F1 隐藏 HUD 时联动隐藏启动器悬浮球。 */
+    private volatile boolean launcherHudHidden = false;
+
+    public void setLauncherHudHidden(boolean hidden) {
+        if (launcherHudHidden == hidden) return;
+        launcherHudHidden = hidden;
+        // tick 轮询 stateHash 检测变化后统一刷新可见性
+        lastVisibilityStateHash = Long.MIN_VALUE;
+    }
 
     public InbuiltOverlayManager(Activity activity) {
         this.activity = activity;
@@ -418,6 +427,14 @@ public class InbuiltOverlayManager {
         externalButtonOverlayMap.clear();
         modActiveStates.clear();
         modPositionMap.clear();
+        // v0.4.211（官方 5bf4c980）：重置联动隐藏状态
+        launcherHudHidden = false;
+        PojavControls.setHudVisible(true);
+        org.levimc.launcher.ui.dialogs.LogcatOverlayManager logcatManager =
+                org.levimc.launcher.ui.dialogs.LogcatOverlayManager.getInstance();
+        if (logcatManager != null) {
+            logcatManager.setGameHudHidden(false);
+        }
         if (chickPetOverlay != null) {
             chickPetOverlay.hide();
             chickPetOverlay = null;
@@ -489,6 +506,10 @@ public class InbuiltOverlayManager {
     }
 
     public boolean handleScrollEvent(float scrollDelta) {
+        // v0.4.211（官方 5bf4c980）：启动器 HUD 联动隐藏时事件不分发
+        if (launcherHudHidden && InbuiltModManager.getInstance(activity).isLauncherHudHideEnabled()) {
+            return false;
+        }
         for (ExternalButtonOverlay overlay : externalButtonOverlayMap.values()) {
             if (overlay.onScroll(scrollDelta)) {
                 return true;
@@ -502,6 +523,9 @@ public class InbuiltOverlayManager {
     }
 
     public boolean handleTouchEvent(MotionEvent event) {
+        if (launcherHudHidden && InbuiltModManager.getInstance(activity).isLauncherHudHideEnabled()) {
+            return false;
+        }
         if (cpsDisplayOverlay != null) {
             return cpsDisplayOverlay.handleTouchEvent(event);
         }
@@ -509,6 +533,9 @@ public class InbuiltOverlayManager {
     }
 
     public boolean handleMouseEvent(MotionEvent event) {
+        if (launcherHudHidden && InbuiltModManager.getInstance(activity).isLauncherHudHideEnabled()) {
+            return false;
+        }
         if (cpsDisplayOverlay != null) {
             return cpsDisplayOverlay.handleMouseEvent(event);
         }
@@ -702,7 +729,11 @@ public class InbuiltOverlayManager {
         boolean isShowingMenu = org.levimc.launcher.preloader.PreloaderInput.isShowingMenu();
         boolean showGameOverlays = forceGlobalModMenu || (isHudScreenOpen && !isShowingMenu);
         boolean inbuiltVisible = hudEditorMode || showGameOverlays;
+        // v0.4.211（官方 5bf4c980）：F1 隐藏 HUD 联动隐藏启动器悬浮球/覆盖按钮
+        // （ToggleHud 按钮本身除外——保留恢复入口）
+        boolean hideLauncherOverlays = launcherHudHidden && manager.isLauncherHudHideEnabled();
         long stateHash = manager.getOverlayVisibilityRevision();
+        stateHash = 31L * stateHash + (hideLauncherOverlays ? 1L : 0L);
         stateHash = 31L * stateHash + (isPauseOnly ? 1L : 0L);
         stateHash = 31L * stateHash + (forceGlobalModMenu ? 1L : 0L);
         stateHash = 31L * stateHash + (isPauseOpen ? 1L : 0L);
@@ -721,8 +752,17 @@ public class InbuiltOverlayManager {
         lastVisibilityStateHash = stateHash;
 
         activity.runOnUiThread(() -> {
+            // v0.4.211（官方 5bf4c980）：联动隐藏按键覆盖层与 logcat 悬浮层
+            PojavControls.setHudVisible(!hideLauncherOverlays);
+            org.levimc.launcher.ui.dialogs.LogcatOverlayManager logcatManager =
+                    org.levimc.launcher.ui.dialogs.LogcatOverlayManager.getInstance();
+            if (logcatManager != null) {
+                logcatManager.setGameHudHidden(hideLauncherOverlays);
+            }
+
             if (modMenuButton != null) {
-                int visibility = !isPauseOnly || forceGlobalModMenu || isPauseOpen
+                int visibility = !hideLauncherOverlays
+                        && (!isPauseOnly || forceGlobalModMenu || isPauseOpen)
                         ? android.view.View.VISIBLE
                         : android.view.View.GONE;
                 modMenuButton.setVisibility(visibility);
@@ -732,7 +772,8 @@ public class InbuiltOverlayManager {
             }
 
             if (hudOverlay != null) {
-                int visibility = hudOverlay.isHudEditorMode() || showGameOverlays
+                int visibility = !hideLauncherOverlays
+                        && (hudOverlay.isHudEditorMode() || showGameOverlays)
                         ? android.view.View.VISIBLE
                         : android.view.View.GONE;
                 if (hudOverlay.getVisibility() != visibility) {
@@ -742,9 +783,13 @@ public class InbuiltOverlayManager {
 
             for (BaseOverlayButton overlay : overlays) {
                 if (overlay.overlayView != null) {
-                    int visibility = inbuiltVisible || manager.isOverlayShowEverywhere(overlay.getOverlayConfigKey())
-                            ? android.view.View.VISIBLE
-                            : android.view.View.GONE;
+                    // ToggleHud 按钮保留（F1 恢复入口），其余联动隐藏
+                    int visibility = overlay instanceof ToggleHudOverlay
+                            ? (inbuiltVisible || manager.isOverlayShowEverywhere(overlay.getOverlayConfigKey())
+                                    ? android.view.View.VISIBLE : android.view.View.GONE)
+                            : (!hideLauncherOverlays
+                                    && (inbuiltVisible || manager.isOverlayShowEverywhere(overlay.getOverlayConfigKey()))
+                                    ? android.view.View.VISIBLE : android.view.View.GONE);
                     if (overlay.overlayView.getVisibility() != visibility) {
                         overlay.overlayView.setVisibility(visibility);
                     }

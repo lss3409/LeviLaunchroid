@@ -257,9 +257,12 @@ public final class UpdateChecker {
         android.widget.LinearLayout root = new android.widget.LinearLayout(activity);
         root.setOrientation(android.widget.LinearLayout.VERTICAL);
         root.setPadding(20 * dp, 8 * dp, 20 * dp, 0);
-        // v0.4.146：更新日志滚动区引用（下载时隐藏切换为进度区）
-        final android.widget.ScrollView[] logScrollHolder =
-                new android.widget.ScrollView[1];
+        // v0.4.146：更新日志滚动区引用（下载时隐藏切换为进度区）。
+        // v0.4.211：改存 logBox——日志区不再包内层 ScrollView（固定
+        // 0.36 屏高内层滚动+外层 custom_scroll_view 双层滚动冲突=底部
+        // 文字显示不全根因），直接交给外层滚动
+        final android.widget.LinearLayout[] logBoxHolder =
+                new android.widget.LinearLayout[1];
 
         // 顶部：应用图标 + 标题/描述（readest 同款结构）
         android.widget.LinearLayout header = new android.widget.LinearLayout(activity);
@@ -334,17 +337,23 @@ public final class UpdateChecker {
                     continue;
                 }
                 if (first) {
-                    // 首行「v0.4.143 更新日志」→ 版本号粗体标题（accent）
+                    // 首行「v0.4.143 更新日志」→ 版本号粗体标题（accent）。
+                    // v0.4.211：只有首个 token 匹配版本号格式才当标题——
+                    // 二刺螈文案首行「Ciallo～(∠・ω< )⌒★ 冒险家们久等啦！」
+                    // 被 split 切开只显示前半=「Ciallo 后面显示不全」根因
                     String verTitle = t.split("\\s+")[0];
-                    android.widget.TextView ver = new android.widget.TextView(activity);
-                    ver.setText(verTitle);
-                    ver.setTextSize(15);
-                    ver.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-                    ver.setTextColor(accent);
-                    logBox.addView(ver);
-                    first = false;
-                    continue;
+                    if (verTitle.matches("v?\\d[\\d.]*")) {
+                        android.widget.TextView ver = new android.widget.TextView(activity);
+                        ver.setText(verTitle);
+                        ver.setTextSize(15);
+                        ver.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+                        ver.setTextColor(accent);
+                        logBox.addView(ver);
+                        first = false;
+                        continue;
+                    }
                 }
+                first = false;
                 if (t.startsWith("•")) {
                     t = t.substring(1).trim();
                 }
@@ -359,14 +368,12 @@ public final class UpdateChecker {
                 ilp.topMargin = 5 * dp;
                 logBox.addView(item, ilp);
             }
-            android.widget.ScrollView sv = new android.widget.ScrollView(activity);
-            sv.addView(logBox);
-            android.widget.LinearLayout.LayoutParams svlp = new android.widget.LinearLayout.LayoutParams(
+            // v0.4.211：日志区直接进外层滚动（不再包固定 0.36 屏高的
+            // 内层 ScrollView——双层滚动冲突=底部显示不全根因）
+            root.addView(logBox, new android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                    (int) (activity.getResources().getDisplayMetrics().heightPixels * 0.36f));
-            svlp.topMargin = 6 * dp;
-            root.addView(sv, svlp);
-            logScrollHolder[0] = sv;
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT));
+            logBoxHolder[0] = logBox;
         }
 
         // v0.4.146：内嵌下载进度（readest 同款——不新开弹窗，点击
@@ -410,8 +417,8 @@ public final class UpdateChecker {
                 downloadStarted[0] = true;
                 dialog.setPositiveButtonText(
                         activity.getString(R.string.update_hide_btn));
-                if (logScrollHolder[0] != null) {
-                    logScrollHolder[0].setVisibility(View.GONE);
+                if (logBoxHolder[0] != null) {
+                    logBoxHolder[0].setVisibility(View.GONE);
                 }
                 progressBox.setVisibility(View.VISIBLE);
                 startDownload(activity, u, dialog, wave, pct);
