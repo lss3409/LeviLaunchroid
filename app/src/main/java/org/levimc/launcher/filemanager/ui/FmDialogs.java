@@ -325,16 +325,47 @@ public class FmDialogs {
     /** v0.4.203：长按条目气泡菜单（MT 同款，导入菜单删除气泡样式）——
      *  复制/移动/重命名/压缩/删除/属性/分享/打开方式（按类型裁剪）。
      *  替代旧三点菜单 showEntryMenu（已删）。 */
+    /** v0.4.204：长按条目气泡菜单（MT 同款）。
+     *  · 双窗（peerVm 非空）复制/移动带方向箭头「复制 →/← 复制」——点击
+     *    直接复制/移动到对面窗当前目录（先注入剪贴板再粘贴，跳过状态流往返）；
+     *  · 「选择」=单选该条目（进多选模式）；
+     *  · 气泡动态定位：下方空间不足自动向上弹；内容超高 45% 屏高进 ScrollView。 */
     public static void showEntryBubble(BaseActivity a, FileManagerViewModel vm, FmEntry entry,
-                                       View anchor) {
+                                       View anchor, FileManagerViewModel peerVm,
+                                       boolean arrowRight) {
+        final boolean dual = peerVm != null;
         float density = a.getResources().getDisplayMetrics().density;
         int pad = (int) (14 * density);
         java.util.List<String> labels = new java.util.ArrayList<>();
         java.util.List<Runnable> actions = new java.util.ArrayList<>();
-        labels.add(a.getString(R.string.fm_ui_copy));
-        actions.add(() -> vm.copyEntry(entry));
-        labels.add(a.getString(R.string.fm_ui_cut));
-        actions.add(() -> vm.cutEntry(entry));
+        // 复制/移动（双窗直发对面窗，MT 箭头语义）
+        labels.add(dual
+                ? (arrowRight ? a.getString(R.string.fm_ui_copy) + " →"
+                        : "← " + a.getString(R.string.fm_ui_copy))
+                : a.getString(R.string.fm_ui_copy));
+        actions.add(() -> {
+            vm.copyEntry(entry);
+            if (dual) {
+                peerVm.setClipboardExternal(
+                        java.util.Collections.singletonList(entry.getPath()), false);
+                peerVm.requestPaste();
+            }
+        });
+        labels.add(dual
+                ? (arrowRight ? a.getString(R.string.fm_ui_cut) + " →"
+                        : "← " + a.getString(R.string.fm_ui_cut))
+                : a.getString(R.string.fm_ui_cut));
+        actions.add(() -> {
+            vm.cutEntry(entry);
+            if (dual) {
+                peerVm.setClipboardExternal(
+                        java.util.Collections.singletonList(entry.getPath()), true);
+                peerVm.requestPaste();
+            }
+        });
+        // 选择（单选进多选）
+        labels.add(a.getString(R.string.fm_ui_select));
+        actions.add(() -> vm.toggleSelection(entry));
         labels.add(a.getString(R.string.fm_ui_rename));
         actions.add(() -> showRenameDialog(a, vm, entry));
         labels.add(a.getString(R.string.fm_ui_compress));
@@ -360,13 +391,7 @@ public class FmDialogs {
         bubble.setBackground(bg);
         bubble.setElevation(8 * density);
         int textMain = a.getColor(R.color.on_surface);
-        int accent = new org.levimc.launcher.util.PersonalizationManager(a).getAccentColor();
-        final PopupWindow popup = new PopupWindow(bubble,
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true);
-        popup.setOutsideTouchable(true);
-        popup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(
-                android.graphics.Color.TRANSPARENT));
-        popup.setElevation(8 * density);
+        final PopupWindow[] popupRef = new PopupWindow[1];
         for (int i = 0; i < labels.size(); i++) {
             final int idx = i;
             TextView item = new TextView(a);
@@ -376,12 +401,49 @@ public class FmDialogs {
             item.setPadding((int) (8 * density), (int) (7 * density),
                     (int) (8 * density), (int) (7 * density));
             item.setOnClickListener(v -> {
-                popup.dismiss();
+                popupDismiss(popupRef[0]);
                 actions.get(idx).run();
             });
             bubble.addView(item);
         }
-        popup.showAsDropDown(anchor, 0, (int) (2 * density));
+        // v0.4.204：限高——超过 45% 屏高进滚动（防菜单项多时超出屏幕）
+        View content = bubble;
+        int maxH = (int) (a.getResources().getDisplayMetrics().heightPixels * 0.45f);
+        bubble.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        if (bubble.getMeasuredHeight() > maxH) {
+            ScrollView scroll = new ScrollView(a);
+            scroll.addView(bubble);
+            content = scroll;
+        }
+        final PopupWindow popup = new PopupWindow(content,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Math.min(bubble.getMeasuredHeight(), maxH) + (int) (4 * density), true);
+        popupRef[0] = popup;
+        popup.setOutsideTouchable(true);
+        popup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(
+                android.graphics.Color.TRANSPARENT));
+        popup.setElevation(8 * density);
+        // v0.4.204：动态定位——下方空间不足向上弹（不写死，实测测量）
+        int[] loc = new int[2];
+        anchor.getLocationOnScreen(loc);
+        int screenH = a.getResources().getDisplayMetrics().heightPixels;
+        int bubbleH = Math.min(bubble.getMeasuredHeight(), maxH) + (int) (4 * density);
+        int spaceBelow = screenH - loc[1] - anchor.getHeight();
+        if (spaceBelow < bubbleH && loc[1] > bubbleH) {
+            popup.showAsDropDown(anchor, 0, -(anchor.getHeight() + bubbleH));
+        } else {
+            popup.showAsDropDown(anchor, 0, (int) (2 * density));
+        }
+    }
+
+    /** popup 引用可能未初始化（item 点击早于 popup 赋值？防御空指针）。 */
+    private static void popupDismiss(PopupWindow p) {
+        if (p != null) {
+            try {
+                p.dismiss();
+            } catch (Exception ignored) {
+            }
+        }
     }
 
     /** v0.4.203：分享条目（FileProvider 授权，避免 file:// 崩溃）。 */

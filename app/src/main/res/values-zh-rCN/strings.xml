@@ -1694,7 +1694,7 @@
 <string name="storage_remnant_title">检测到旧存储残留</string>
     <!-- fm_ui 中文搬入（2026-10-03） -->
 <string name="fm_ui_name_hint">名称</string>
-    <string name="fm_ui_name_hint_ext">名称（文件可带后缀，如 a.txt）</string>
+    <string name="fm_ui_name_hint_ext">名称</string>
 <string name="fm_ui_new_folder">新建文件夹</string>
     <string name="fm_ui_new">新建</string>
     <string name="fm_ui_dual">双窗</string>
@@ -1727,6 +1727,8 @@
 <string name="fm_ui_open_failed">没有可打开此文件的应用</string>
 <string name="fm_ui_copy">复制</string>
     <string name="fm_ui_sel_all">全选</string>
+    <string name="fm_ui_select">选择</string>
+    <string name="fm_ui_props_single_only">仅支持选中单个文件查看属性</string>
     <string name="fm_ui_share">分享</string>
     <string name="fm_ui_share_failed">分享失败</string>
     <string name="fm_ui_archive_open_failed">打开压缩包失败</string>

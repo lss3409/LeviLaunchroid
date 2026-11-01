@@ -318,11 +318,12 @@ public class FileManagerActivity extends BaseActivity {
 
             @Override
             public void onEntryLongMenu(FmEntry entry, View anchor) {
-                // v0.4.203：长按气泡菜单（复制/移动/删除/重命名/压缩/属性/分享/打开方式）
+                // v0.4.204：长按气泡菜单——双窗时复制/移动带方向箭头直发对面窗
                 if (dualMode && activePane != (fromRight ? 1 : 0)) {
                     activatePane(fromRight ? 1 : 0);
                 }
-                FmDialogs.showEntryBubble(FileManagerActivity.this, vmm, entry, anchor);
+                FmDialogs.showEntryBubble(FileManagerActivity.this, vmm, entry, anchor,
+                        dualMode ? (fromRight ? vm : vmRight) : null, !fromRight);
             }
         };
     }
@@ -385,8 +386,10 @@ public class FileManagerActivity extends BaseActivity {
                 if (multiSelect) vm.clearTrashSelection();
                 else vm.selectAllTrash();
             } else {
-                // v0.4.203：全选/取消作用于激活窗
-                if (multiSelect) activeVm().clearSelection();
+                // v0.4.204：按激活窗的多选状态切换——左窗全选后切到右窗
+                // 点全选不再误清左窗（此前用共用 multiSelect 判断的根因）
+                boolean m = (dualMode && activePane == 1) ? rightMultiSelect : leftMultiSelect;
+                if (m) activeVm().clearSelection();
                 else activeVm().selectAll();
             }
         });
@@ -450,8 +453,6 @@ public class FileManagerActivity extends BaseActivity {
         findViewById(R.id.fm_btn_sel_all).setOnClickListener(v -> {
             // v0.4.203：双窗下操作条作用于激活窗
             if (showingTrash) {
-                vm.selectAllTrash();
-            } else if (multiSelect) {
                 selVm().clearSelection();
             } else {
                 selVm().selectAll();
@@ -465,16 +466,12 @@ public class FileManagerActivity extends BaseActivity {
         });
         findViewById(R.id.fm_btn_sel_compress).setOnClickListener(v -> {
             if (showingTrash) {
-                List<TrashItem> items = vm.selectedTrashItems();
-                if (!items.isEmpty()) vm.beginTrashRestore(items);
             } else {
                 selVm().bulkCompress();
             }
         });
         findViewById(R.id.fm_btn_sel_delete).setOnClickListener(v -> {
             if (showingTrash) {
-                List<TrashItem> items = vm.selectedTrashItems();
-                if (!items.isEmpty()) confirmTrashPurge(items);
             } else {
                 FileManagerUiState st = (activePane == 1 && dualMode) ? lastStateRight : lastState;
                 int count = st != null ? st.getSelection().size() : 0;
@@ -484,6 +481,24 @@ public class FileManagerActivity extends BaseActivity {
         findViewById(R.id.fm_btn_sel_exit).setOnClickListener(v -> {
             if (showingTrash) vm.clearTrashSelection();
             else selVm().clearSelection();
+        });
+        // v0.4.204：多选底栏「属性」——选中单个时查看属性
+        findViewById(R.id.fm_btn_sel_props).setOnClickListener(v -> {
+            if (showingTrash) {
+                return;
+            }
+            FileManagerUiState st = (selVm() == vmRight) ? lastStateRight : lastState;
+            if (st != null && st.getSelection().size() == 1) {
+                String key = st.getSelection().iterator().next();
+                for (FmEntry e : st.getVisibleEntries()) {
+                    if (e.getPath().toString().equals(key)) {
+                        FmDialogs.showPropertiesDialog(this, e);
+                        return;
+                    }
+                }
+            }
+            Toast.makeText(this, R.string.fm_ui_props_single_only,
+                    Toast.LENGTH_SHORT).show();
         });
     }
 
@@ -558,7 +573,7 @@ public class FileManagerActivity extends BaseActivity {
                 .setItems(items.toArray(new String[0]), (d, which) -> {
                     String picked = items.get(which);
                     if (picked.equals(getString(R.string.fm_ui_new))) {
-                        FmDialogs.showCreateDialogMt(this, vm);
+                        FmDialogs.showCreateDialogMt(this, activeVm()); // v0.4.204 激活窗
                     } else if (picked.equals(getString(R.string.fm_ui_paste))) {
                         // v0.4.203：双窗粘贴走激活窗
                         if (dualMode && activePane == 1) {
@@ -1027,6 +1042,7 @@ public class FileManagerActivity extends BaseActivity {
             return;
         }
         syncClipboard(s.getClipboard(), true); // 右窗复制/剪切 → 同步左窗
+        renderDialog(s, vmRight); // v0.4.204：右窗对话框（搜索/压缩/冲突等）
         String dir = s.getCurrentDir() != null ? s.getCurrentDir().toString() : fmRootPath;
         rebuildPathBarRight(dir);
         if (entryAdapterRight == null
@@ -1085,7 +1101,7 @@ public class FileManagerActivity extends BaseActivity {
         renderTask(s);
         renderTrash(s);
         renderSnackbar(s);
-        renderDialog(s);
+        renderDialog(s, vm);
     }
 
     private TrashItem findTrashItem(String uuid) {
@@ -1114,6 +1130,7 @@ public class FileManagerActivity extends BaseActivity {
         }
         findViewById(R.id.fm_btn_sel_copy).setVisibility(showingTrash ? View.GONE : View.VISIBLE);
         findViewById(R.id.fm_btn_sel_cut).setVisibility(showingTrash ? View.GONE : View.VISIBLE);
+        findViewById(R.id.fm_btn_sel_props).setVisibility(showingTrash ? View.GONE : View.VISIBLE);
     }
 
     private void renderClipboard(FileManagerUiState s) {
@@ -1158,16 +1175,11 @@ public class FileManagerActivity extends BaseActivity {
             TrashListView list = ((TrashViewState.Opened) tv).getTrashListView();
             trashAdapter.submit(list.getItems());
             if (showingTrash) {
-                if (list.getItems().isEmpty() && !list.getLoading()) {
-                    emptyView.setText(R.string.fm_ui_trash_empty);
-                    emptyView.setVisibility(View.VISIBLE);
-                } else {
-                    emptyView.setVisibility(View.GONE);
-                }
+                emptyView.setVisibility(View.VISIBLE);
+            } else {
+                emptyView.setVisibility(View.GONE);
             }
         } else if (showingTrash) {
-            trashAdapter.submit(new ArrayList<>());
-            emptyView.setText(R.string.fm_ui_loading);
             emptyView.setVisibility(View.VISIBLE);
         }
     }
@@ -1446,7 +1458,7 @@ public class FileManagerActivity extends BaseActivity {
         return key.toString();
     }
 
-    private void renderDialog(FileManagerUiState s) {
+    private void renderDialog(FileManagerUiState s, FileManagerViewModel vmm) {
         DialogIntent intent = s.getDialogIntent();
         String key = dialogKey(intent);
         if (key.equals(lastDialogKey)) return;
@@ -1572,8 +1584,6 @@ public class FileManagerActivity extends BaseActivity {
             return;
         }
         if (showingTrash) {
-            showFiles();
-            return;
         }
         // v0.4.203：返回键走激活窗
         if (vm != null && !activeVm().consumeBack()) {
