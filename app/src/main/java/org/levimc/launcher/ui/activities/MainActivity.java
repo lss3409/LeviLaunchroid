@@ -1325,6 +1325,9 @@ import okhttp3.OkHttpClient;
                 new java.io.File(baseDir, "skin_packs"),
                 new java.io.File(baseDir, "Screenshots"),
                 new java.io.File(baseDir, "minecraftpe"));
+        // v0.4.207：切实例后立即重扫——此前只换目录不扫描，主页数量
+        // 停留旧值，点开内容管理页才更新（用户实测）
+        contentManager.refreshContent();
     }
 
     private void openContentList(int contentType) {

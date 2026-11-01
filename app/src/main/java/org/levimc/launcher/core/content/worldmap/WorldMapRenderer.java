@@ -1662,9 +1662,25 @@ public class WorldMapRenderer {
         for (Map<Integer, SubChunk> m : subChunks.values()) {
             subCount += m.size();
         }
-        // v0.4.207：矿石标点功能暂禁用（用户拍板「先阉了，后续再加」）——
-        // 收集/赋值跳过，渲染侧拿不到任何矿石数据
+        // v413：小世界路径也收集矿石标点
+        // v432：先并入第二遍流式扫描的窗口外矿石层标记（不重叠）
+        java.util.List<OreMarker> oreMarkers = new java.util.ArrayList<>();
+        if (streamOres != null) {
+            oreMarkers.addAll(streamOres);
+        }
+        for (Map.Entry<Long, Map<Integer, SubChunk>> e : subChunks.entrySet()) {
+            collectChunkOres(e.getValue(), unpackX(e.getKey()), unpackZ(e.getKey()),
+                    dimension, oreMarkers);
+        }
+        Log.i(TAG, "卫星模式完成: " + width + "x" + height
+                + " blocks, chunk 范围=(" + minX + "," + minZ + ")-(" + maxX + "," + maxZ + ")"
+                + ", biome 数据=" + biomeMaps.size() + " chunk / " + biomeNonZero + " 非透明像素"
+                + ", 解码 subchunk=" + subCount + " (含表面层=" + subChunks.size() + " chunk)"
+                + ", 矿石标点=" + oreMarkers.size());
         WorldMap wm = new WorldMap(minBlockX, minBlockZ, width, height, colors, biomeColors);
+        if (!oreMarkers.isEmpty()) {
+            wm.oreMarkers = oreMarkers;
+        }
         return wm;
     }
 
@@ -3439,33 +3455,10 @@ public class WorldMapRenderer {
     public static java.util.List<OreMarker> ensureOreMarkers(WorldMap map,
                                                              File dbDir,
                                                              int dimension) {
-        // v0.4.207：矿石标点功能暂禁用（用户拍板「先阉了，后续再加」）
-        return null;
-    }
-
-    /** v0.4.207：ensureOreMarkers 禁用后保留主体（后续恢复功能时还原）。 */
-    private static java.util.List<OreMarker> ensureOreMarkersDisabled(WorldMap map,
-                                                             File dbDir,
-                                                             int dimension) {
+        // v0.4.207：矿石标点恢复正常显示（v0.4.205 作弊校验与 v0.4.207
+        // 禁用均按用户要求撤销）
         if (map == null || dbDir == null || !dbDir.isDirectory()) {
             return null;
-        }
-        // v0.4.205：矿石标点需存档开启作弊（level.dat CheatsEnabled）
-        // ——未开启作弊的生存档不显示矿石分布（用户要求）
-        File levelDat = new File(dbDir.getParentFile(), "level.dat");
-        if (levelDat.isFile()) {
-            try {
-                org.levimc.launcher.core.content.nbt.NbtTag root =
-                        new org.levimc.launcher.core.content.nbt.BedrockNbtReader()
-                                .readFile(levelDat);
-                org.levimc.launcher.core.content.nbt.NbtTag cheats =
-                        root.getCompound().get("CheatsEnabled");
-                if (cheats == null || cheats.getByte() == 0) {
-                    return null;
-                }
-            } catch (Throwable ignored) {
-                // 读不到/解析失败放行（兼容异常文件）
-            }
         }
         // v440：大世界不补扫——readAllEntries 全量读 183MB db 是
         // 内存/IO/CPU 洪峰（与视口渲染抢线程，卫星图加载变慢的
