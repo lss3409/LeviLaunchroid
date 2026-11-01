@@ -440,7 +440,8 @@ public class FileManagerActivity extends BaseActivity {
         recycler.setOnTouchListener(focusLeft);
         emptyView.setOnTouchListener(focusLeft);
         pathBar.setOnTouchListener(focusLeft);
-        // v0.4.203：路径栏/空白长按 → 复制/移动当前目录（MT 同款）
+        // v0.4.204：路径栏/列表空白/空态长按 → 粘贴/复制/移动气泡（MT 同款）。
+        // 此前漏挂 RecyclerView——非空目录的空白区域就是列表区域，长按没反应
         android.view.View.OnLongClickListener dirClip = v -> {
             showDirClipBubble(v, (dualMode && activePane == 1) ? vmRight : vm);
             return true;
@@ -449,6 +450,9 @@ public class FileManagerActivity extends BaseActivity {
         pathBarRight.setOnLongClickListener(dirClip);
         emptyView.setOnLongClickListener(dirClip);
         findViewById(R.id.fm_empty_right).setOnLongClickListener(dirClip);
+        recycler.setOnLongClickListener(dirClip);
+        recyclerRight.setOnLongClickListener(dirClip);
+        trashRecycler.setOnLongClickListener(dirClip);
 
         findViewById(R.id.fm_btn_sel_all).setOnClickListener(v -> {
             // v0.4.203：双窗下操作条作用于激活窗
