@@ -97,6 +97,8 @@ public class FileManagerActivity extends BaseActivity {
     private java.util.Set<String> peerBeforePaths;
     private String lastLeftDir = "";
     private String lastRightDir = "";
+    /** v0.4.207：双窗同步联动模式（sync 按钮开关；两窗路径恒一致）。 */
+    private boolean syncMode = false;
 
     private RecyclerView recycler;
     private RecyclerView trashRecycler;
@@ -937,10 +939,13 @@ public class FileManagerActivity extends BaseActivity {
             }
         });
         findViewById(syncId).setOnClickListener(v -> {
-            // 窗口同步：右窗跳到左窗当前目录
-            if (lastState != null && lastState.getCurrentDir() != null) {
+            // v0.4.207：同步模式开关——开启后两窗路径联动（任一窗导航
+            // 另一窗自动跟随，两窗恒同路径）；再点退出联动
+            syncMode = !syncMode;
+            if (syncMode && lastState != null && lastState.getCurrentDir() != null) {
                 vmRight.submitJump(lastState.getCurrentDir().toString());
             }
+            updateDualButtons();
         });
         findViewById(newId).setOnClickListener(v -> {
             // v0.4.203：MT 式新建——先输名称（支持后缀）再选文件夹/文件
@@ -1030,6 +1035,7 @@ public class FileManagerActivity extends BaseActivity {
     private void updateDualButtons() {
         int[] dualIcons = {R.id.fm_bottom_dual_icon, R.id.fm_rail_dual_icon};
         int[] upTexts = {R.id.fm_bottom_up_text, R.id.fm_rail_up_text};
+        int[] syncTexts = {R.id.fm_bottom_sync_text, R.id.fm_rail_sync_text};
         for (int id : dualIcons) {
             TextView t = findViewById(id);
             if (t != null) {
@@ -1041,6 +1047,13 @@ public class FileManagerActivity extends BaseActivity {
             TextView t = findViewById(id);
             if (t != null) {
                 t.setTextColor(dualMode && activePane == 1 ? accent : textSecondary);
+            }
+        }
+        // v0.4.207：同步联动开启时 sync 文字染 accent
+        for (int id : syncTexts) {
+            TextView t = findViewById(id);
+            if (t != null) {
+                t.setTextColor(syncMode ? accent : textSecondary);
             }
         }
     }
@@ -1055,10 +1068,14 @@ public class FileManagerActivity extends BaseActivity {
         syncClipboard(s.getClipboard(), true); // 右窗复制/剪切 → 同步左窗
         renderDialog(s, vmRight); // v0.4.204：右窗对话框（搜索/压缩/冲突等）
         String dir = s.getCurrentDir() != null ? s.getCurrentDir().toString() : fmRootPath;
-        // v0.4.207：目录切换清空新增高亮；直发完成后 diff 新增文件染蓝
+        // v0.4.207：目录切换清空新增高亮与 before 集合；直发完成后
+        // diff 新增文件染蓝（before 集合持续保留——粘贴任务完成前的
+        // 状态刷新会先触发 diff 空结果，一次性消费会导致真正的新文件
+        // 出现时已无集合可 diff=蓝字不显示的根因）
         if (!dir.equals(lastRightDir)) {
             lastRightDir = dir;
             rightHighlighted.clear();
+            peerBeforePaths = null;
         }
         if (peerBeforePaths != null) {
             for (FmEntry pe : s.getVisibleEntries()) {
@@ -1066,10 +1083,14 @@ public class FileManagerActivity extends BaseActivity {
                     rightHighlighted.add(pe.getPath().toString());
                 }
             }
-            peerBeforePaths = null;
         }
         if (entryAdapterRight != null && !rightHighlighted.isEmpty()) {
             entryAdapterRight.setHighlightedPaths(rightHighlighted);
+        }
+        // v0.4.207：同步联动——右窗路径变化且与左窗不同则左窗跟随
+        // （内容比较防回环）
+        if (syncMode && !dir.equals(lastLeftDir)) {
+            vm.submitJump(dir);
         }
         rebuildPathBarRight(dir);
         if (entryAdapterRight == null
@@ -1102,12 +1123,15 @@ public class FileManagerActivity extends BaseActivity {
     private void onState(FileManagerUiState s) {
         lastState = s;
         syncClipboard(s.getClipboard(), false); // 左窗复制/剪切 → 同步右窗+自动双窗
-        // v0.4.207：目录切换清空高亮；右窗直发到左窗后 diff 新增染蓝
+        // v0.4.207：目录切换清空高亮与 before 集合；右窗直发到左窗后
+        // diff 新增染蓝（before 集合持续保留，粘贴完成前的状态刷新
+        // 会先触发空 diff——一次性消费=蓝字不显示的根因）
         if (s.getCurrentDir() != null) {
             String dir = s.getCurrentDir().toString();
             if (!dir.equals(lastLeftDir)) {
                 lastLeftDir = dir;
                 leftHighlighted.clear();
+                peerBeforePaths = null;
             }
         }
         if (peerBeforePaths != null) {
@@ -1116,10 +1140,14 @@ public class FileManagerActivity extends BaseActivity {
                     leftHighlighted.add(pe.getPath().toString());
                 }
             }
-            peerBeforePaths = null;
             if (entryAdapter != null && !leftHighlighted.isEmpty()) {
                 entryAdapter.setHighlightedPaths(leftHighlighted);
             }
+        }
+        // v0.4.207：同步联动——左窗路径变化且与右窗不同则右窗跟随
+        if (syncMode && s.getCurrentDir() != null
+                && !s.getCurrentDir().toString().equals(lastRightDir)) {
+            vmRight.submitJump(s.getCurrentDir().toString());
         }
 
         if (s.getCurrentDir() != null) {
