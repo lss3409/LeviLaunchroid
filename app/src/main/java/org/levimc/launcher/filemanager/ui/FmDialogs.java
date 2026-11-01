@@ -464,10 +464,14 @@ public class FmDialogs {
     }
 
     /** v0.4.208：路径栏/空白区域长按气泡（MT 同款）——复制/剪切当前目录、
-     *  有剪贴板时加「粘贴」（横幅删除后的粘贴入口，用户拍板恢复）。 */
-    public static void showPathBubble(BaseActivity a, FileManagerViewModel vm, View anchor) {
+     *  有剪贴板时加「粘贴」（横幅删除后的粘贴入口，用户拍板恢复）。
+     *  v0.4.209：localX/localY >= 0 时按手指位置定位（列表空白长按，
+     *  气泡出现在手指旁而非视图左上角）；< 0 走 anchor 下拉（路径栏长按）。 */
+    public static void showPathBubble(BaseActivity a, FileManagerViewModel vm, View anchor,
+                                      float localX, float localY) {
         org.levimc.launcher.util.OnlineDebugLog.log("fm-bubble 路径长按 dir="
-                + (vm == null ? "null" : String.valueOf(vm.currentDirOrNull())));
+                + (vm == null ? "null" : String.valueOf(vm.currentDirOrNull()))
+                + " at=" + (int) localX + "," + (int) localY);
         float density = a.getResources().getDisplayMetrics().density;
         int pad = (int) (14 * density);
         java.util.List<String> labels = new java.util.ArrayList<>();
@@ -529,7 +533,20 @@ public class FmDialogs {
         bubble.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         int bubbleH = bubble.getMeasuredHeight();
         int spaceBelow = screenH - loc[1] - anchor.getHeight();
-        if (spaceBelow < bubbleH && loc[1] > bubbleH) {
+        if (localX >= 0 && localY >= 0) {
+            // v0.4.209：手指位置定位——屏幕坐标 = anchor 屏幕坐标 + 手指局部坐标；
+            // 下方空间不足弹上方（用户实测左上角锚定=定位错误根因）
+            int sx = loc[0] + (int) localX;
+            int sy = loc[1] + (int) localY;
+            int showY;
+            if (sy + bubbleH + (int) (8 * density) > screenH) {
+                showY = sy - bubbleH - (int) (8 * density); // 上方
+            } else {
+                showY = sy + (int) (8 * density); // 手指下方
+            }
+            int showX = Math.min(sx, loc[0] + anchor.getWidth() - bubble.getMeasuredWidth() / 2);
+            popup.showAtLocation(anchor, android.view.Gravity.NO_GRAVITY, showX, showY);
+        } else if (spaceBelow < bubbleH && loc[1] > bubbleH) {
             popup.showAsDropDown(anchor, 0, -(anchor.getHeight() + bubbleH));
         } else {
             popup.showAsDropDown(anchor, 0, (int) (2 * density));

@@ -113,7 +113,7 @@ public class FileManagerActivity extends BaseActivity {
                     ? ((RecyclerView) v).findChildViewUnder(x, y) : null;
             if (child == null) {
                 org.levimc.launcher.util.OnlineDebugLog.log("fm-bubble 空白长按 view=" + v.getClass().getSimpleName());
-                FmDialogs.showPathBubble(FileManagerActivity.this, vmm, v);
+                FmDialogs.showPathBubble(FileManagerActivity.this, vmm, v, x, y);
             }
         };
         pendingBlankLong.put(v, r);
@@ -459,11 +459,22 @@ public class FileManagerActivity extends BaseActivity {
                 if (multiSelect) vm.clearTrashSelection();
                 else vm.selectAllTrash();
             } else {
-                // v0.4.204：按激活窗的多选状态切换——左窗全选后切到右窗
-                // 点全选不再误清左窗（此前用共用 multiSelect 判断的根因）
+                // v0.4.209：左下角全选按钮——未多选点击=全选；已多选点击=
+                // 全选（操作条单选后补全选入口）；已全选点击=清空退出多选。
+                // 按激活窗状态判断（此前用共用 multiSelect 判断会误清另一窗）
                 boolean m = (dualMode && activePane == 1) ? rightMultiSelect : leftMultiSelect;
-                if (m) activeVm().clearSelection();
-                else activeVm().selectAll();
+                if (!m) {
+                    activeVm().selectAll();
+                } else {
+                    FileManagerUiState st = (activeVm() == vmRight) ? lastStateRight : lastState;
+                    int total = st != null ? st.getVisibleEntries().size() : 0;
+                    int sel = st != null ? st.getSelection().size() : 0;
+                    if (total > 0 && sel >= total) {
+                        activeVm().clearSelection(); // 已全选：再点=取消全选
+                    } else {
+                        activeVm().selectAll(); // 单选/部分选：点=全选
+                    }
+                }
             }
         });
         findViewById(R.id.fm_btn_more).setOnClickListener(v -> showMoreMenu());
@@ -541,12 +552,12 @@ public class FileManagerActivity extends BaseActivity {
         // setOnLongClickListener 空白处不触发（v0.4.209 实测根因）
         android.view.View.OnLongClickListener pathLongLeft = v -> {
             activatePane(0);
-            FmDialogs.showPathBubble(FileManagerActivity.this, vm, v);
+            FmDialogs.showPathBubble(FileManagerActivity.this, vm, v, -1, -1);
             return true;
         };
         android.view.View.OnLongClickListener pathLongRight = v -> {
             activatePane(1);
-            FmDialogs.showPathBubble(FileManagerActivity.this, vmRight, v);
+            FmDialogs.showPathBubble(FileManagerActivity.this, vmRight, v, -1, -1);
             return true;
         };
         pathBar.setOnLongClickListener(pathLongLeft);
