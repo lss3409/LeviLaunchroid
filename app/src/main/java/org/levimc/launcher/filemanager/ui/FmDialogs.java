@@ -349,6 +349,10 @@ public class FmDialogs {
                         : "← " + a.getString(R.string.fm_ui_copy))
                 : a.getString(R.string.fm_ui_copy));
         actions.add(() -> {
+            // v0.4.207：新操作前关闭残留对话框——上次粘贴的「已存在」
+            // 冲突框未处理时挂旧文案（用户实测：复制 B 成功但 A 的冲突
+            // 提示还显示着）
+            dismissLast();
             vm.copyEntry(entry);
             if (dual) {
                 peerVm.setClipboardExternal(
@@ -364,6 +368,7 @@ public class FmDialogs {
                         : "← " + a.getString(R.string.fm_ui_cut))
                 : a.getString(R.string.fm_ui_cut));
         actions.add(() -> {
+            dismissLast();
             vm.cutEntry(entry);
             if (dual) {
                 peerVm.setClipboardExternal(

@@ -1550,6 +1550,9 @@ import okhttp3.OkHttpClient;
             versionManager.selectVersion(version);
             viewModel.setCurrentVersion(version);
             setTextMinecraftVersion();
+            // v0.4.207：切实例后刷新内容数量——此前回调缺此调用，
+            // 主页世界/资源包/行为包数量停留旧值（用户实测根因）
+            refreshContentCounts();
             popup.dismiss();
         });
 
