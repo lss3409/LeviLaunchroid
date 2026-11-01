@@ -38,6 +38,8 @@ public class FmEntryAdapter extends RecyclerView.Adapter<FmEntryAdapter.Holder> 
         void onEntryLongClick(FmEntry entry);
         /** v0.4.203：非多选长按气泡菜单（anchor=条目视图）。 */
         void onEntryLongMenu(FmEntry entry, View anchor);
+        /** v0.4.207：左滑单选——选中该条目并进多选模式（可继续选其他）。 */
+        void onEntrySwipeSelect(FmEntry entry);
     }
 
     private final Listener listener;
@@ -167,6 +169,31 @@ public class FmEntryAdapter extends RecyclerView.Adapter<FmEntryAdapter.Holder> 
                 listener.onEntryLongMenu(e, h.itemView);
             }
             return true;
+        });
+        // v0.4.207：左滑单选（水平左滑 >60dp 且明显大于纵向位移）——
+        // 非多选模式下选中该条目并进多选模式（可继续点选其他文件）
+        final float[] downX = new float[1];
+        final float[] downY = new float[1];
+        h.itemView.setOnTouchListener((v, ev) -> {
+            switch (ev.getActionMasked()) {
+                case android.view.MotionEvent.ACTION_DOWN:
+                    downX[0] = ev.getX();
+                    downY[0] = ev.getY();
+                    return false;
+                case android.view.MotionEvent.ACTION_UP: {
+                    float dx = ev.getX() - downX[0];
+                    float dy = ev.getY() - downY[0];
+                    float threshold = 60 * v.getResources().getDisplayMetrics().density;
+                    if (!multiSelect && dx < -threshold
+                            && Math.abs(dx) > Math.abs(dy) * 2) {
+                        listener.onEntrySwipeSelect(e);
+                        return true;
+                    }
+                    return false;
+                }
+                default:
+                    return false;
+            }
         });
     }
 

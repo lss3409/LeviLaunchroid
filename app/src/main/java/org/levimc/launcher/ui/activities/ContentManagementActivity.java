@@ -188,8 +188,9 @@ public class ContentManagementActivity extends BaseActivity {
                     if (checkedId >= 0 && checkedId < allVersions.size()) {
                         versionManager.selectVersion(allVersions.get(checkedId));
                         loadCurrentVersion();
-                        // v0.4.205：实例切换后刷新各分类数量（此前 LiveData
-                        // 不随目录切换自动重载=主页数量不同步根因）
+                        // v0.4.207：立即占位反馈 + 刷新各分类数量
+                        // （LiveData 不随目录切换自动重载=数量不同步根因）
+                        setCountsPending();
                         contentManager.refreshContent();
                     }
                 })
@@ -483,7 +484,19 @@ public class ContentManagementActivity extends BaseActivity {
     }
 
     private void setCount(TextView textView, int labelRes, int count) {
-        textView.setText(getString(labelRes) + " (" + count + ")");
+        // v0.4.207：count<0 = 扫描中占位「…」
+        textView.setText(getString(labelRes) + (count < 0 ? " (…)" : " (" + count + ")"));
+    }
+
+    /** v0.4.207：切实例后立即占位（扫描完成前显示「…」，反馈即时——
+     *  此前数量停留旧值 1-2 秒才跳变="延迟高"体感根因）。 */
+    private void setCountsPending() {
+        setCount(binding.worldsCount, R.string.worlds_category, -1);
+        setCount(binding.skinPacksCount, R.string.skin_packs_category, -1);
+        setCount(binding.screenshotsCount, R.string.screenshots_category, -1);
+        setCount(binding.resourcePacksCount, R.string.resource_packs_category, -1);
+        setCount(binding.behaviorPacksCount, R.string.behavior_packs_category, -1);
+        setCount(binding.serversCount, R.string.servers_category, -1);
     }
 
     private void openContentList(int contentType) {

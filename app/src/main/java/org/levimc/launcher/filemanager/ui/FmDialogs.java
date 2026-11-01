@@ -330,17 +330,50 @@ public class FmDialogs {
      *    直接复制/移动到对面窗当前目录（先注入剪贴板再粘贴，跳过状态流往返）；
      *  · 「选择」=单选该条目（进多选模式）；
      *  · 气泡动态定位：下方空间不足自动向上弹；内容超高 45% 屏高进 ScrollView。 */
+    /** v0.4.207：长按条目气泡菜单（MT 同款）。
+     *  · 双窗（peerVm 非空）复制/移动带方向箭头「复制 →/← 复制」——点击
+     *    直接复制/移动到对面窗当前目录（注入剪贴板后粘贴，跳过状态流
+     *    往返），不弹任何提示，完成后由调用方做目标窗动画；
+     *  · 单窗复制/移动只登记剪贴板（横幅粘贴）；
+     *  · 「选择」=单选该条目（进多选模式）。 */
     public static void showEntryBubble(BaseActivity a, FileManagerViewModel vm, FmEntry entry,
-                                       View anchor) {
+                                       View anchor, FileManagerViewModel peerVm,
+                                       boolean arrowRight, Runnable onPeerAction) {
+        final boolean dual = peerVm != null;
         float density = a.getResources().getDisplayMetrics().density;
         int pad = (int) (14 * density);
         java.util.List<String> labels = new java.util.ArrayList<>();
         java.util.List<Runnable> actions = new java.util.ArrayList<>();
-        // v0.4.205：复制/移动只登记剪贴板——粘贴统一走顶部横幅（用户拍板）
-        labels.add(a.getString(R.string.fm_ui_copy));
-        actions.add(() -> vm.copyEntry(entry));
-        labels.add(a.getString(R.string.fm_ui_cut));
-        actions.add(() -> vm.cutEntry(entry));
+        labels.add(dual
+                ? (arrowRight ? a.getString(R.string.fm_ui_copy) + " →"
+                        : "← " + a.getString(R.string.fm_ui_copy))
+                : a.getString(R.string.fm_ui_copy));
+        actions.add(() -> {
+            vm.copyEntry(entry);
+            if (dual) {
+                peerVm.setClipboardExternal(
+                        java.util.Collections.singletonList(entry.getPath()), false);
+                peerVm.requestPaste();
+                if (onPeerAction != null) {
+                    onPeerAction.run();
+                }
+            }
+        });
+        labels.add(dual
+                ? (arrowRight ? a.getString(R.string.fm_ui_cut) + " →"
+                        : "← " + a.getString(R.string.fm_ui_cut))
+                : a.getString(R.string.fm_ui_cut));
+        actions.add(() -> {
+            vm.cutEntry(entry);
+            if (dual) {
+                peerVm.setClipboardExternal(
+                        java.util.Collections.singletonList(entry.getPath()), true);
+                peerVm.requestPaste();
+                if (onPeerAction != null) {
+                    onPeerAction.run();
+                }
+            }
+        });
         // 选择（单选进多选）
         labels.add(a.getString(R.string.fm_ui_select));
         actions.add(() -> vm.toggleSelection(entry));

@@ -317,12 +317,35 @@ public class FileManagerActivity extends BaseActivity {
             }
 
             @Override
-            public void onEntryLongMenu(FmEntry entry, View anchor) {
-                // v0.4.205：长按气泡菜单（复制/移动登记剪贴板，粘贴走顶部横幅）
+            public void onEntrySwipeSelect(FmEntry entry) {
+                // v0.4.207：左滑单选——选中该条目进多选模式，可继续选其他
                 if (dualMode && activePane != (fromRight ? 1 : 0)) {
                     activatePane(fromRight ? 1 : 0);
                 }
-                FmDialogs.showEntryBubble(FileManagerActivity.this, vmm, entry, anchor);
+                vmm.toggleSelection(entry);
+            }
+
+            @Override
+            public void onEntryLongMenu(FmEntry entry, View anchor) {
+                // v0.4.207：长按气泡菜单——双窗时复制/移动带方向箭头直发
+                // 对面窗（不弹提示，目标窗闪烁动画反馈）
+                if (dualMode && activePane != (fromRight ? 1 : 0)) {
+                    activatePane(fromRight ? 1 : 0);
+                }
+                FmDialogs.showEntryBubble(FileManagerActivity.this, vmm, entry, anchor,
+                        dualMode ? (fromRight ? vm : vmRight) : null, !fromRight,
+                        () -> runOnUiThread(() -> {
+                            // 直发完成动画：目标窗 alpha 脉冲（内容一闪表示
+                            // 文件已到达对面窗）
+                            View target = fromRight ? paneLeft : paneRight;
+                            if (target == null || target.getVisibility() != View.VISIBLE) {
+                                return;
+                            }
+                            target.animate().alpha(0.4f).setDuration(140)
+                                    .withEndAction(() -> target.animate().alpha(1f)
+                                            .setDuration(300).start())
+                                    .start();
+                        }));
             }
         };
     }
@@ -394,14 +417,7 @@ public class FileManagerActivity extends BaseActivity {
         });
         findViewById(R.id.fm_btn_more).setOnClickListener(v -> showMoreMenu());
 
-        findViewById(R.id.fm_btn_clip_paste).setOnClickListener(v -> {
-            // v0.4.203：双窗粘贴走激活窗（左窗复制 → 右窗导航 → 粘贴到右窗）
-            if (dualMode && activePane == 1) {
-                vmRight.requestPaste();
-            } else {
-                vm.requestPaste();
-            }
-        });
+        findViewById(R.id.fm_btn_clip_paste).setOnClickListener(v -> pasteToActive());
         findViewById(R.id.fm_btn_clip_cancel).setOnClickListener(v -> activeVm().clearClipboard());
         findViewById(R.id.fm_btn_task_cancel).setOnClickListener(v -> activeVm().cancelCurrentTask());
 
@@ -496,6 +512,24 @@ public class FileManagerActivity extends BaseActivity {
     /** v0.4.203：当前激活窗 VM（双窗且激活右窗时用右窗）。 */
     private FileManagerViewModel activeVm() {
         return (dualMode && activePane == 1) ? vmRight : vm;
+    }
+
+    /** v0.4.207：横幅粘贴到激活窗——跨窗时主动注入剪贴板再粘贴。
+     *  此前只调 requestPaste：跨窗同步靠 state 流往返，点击时刻目标窗
+     *  剪贴板常为空（requestPaste 静默返回）="切窗点粘贴没反应"根因；
+     *  同窗粘贴同名冲突属正常（粘贴到源目录）。 */
+    private void pasteToActive() {
+        if (!dualMode) {
+            vm.requestPaste();
+            return;
+        }
+        FileManagerUiState src = (activePane == 1) ? lastState : lastStateRight;
+        FileManagerViewModel target = activeVm();
+        if (src != null && src.getClipboard() != null) {
+            target.setClipboardExternal(src.getClipboard().getSources(),
+                    src.getClipboard().isCut());
+        }
+        target.requestPaste();
     }
 
     /** v0.4.203：多选操作目标——激活窗有选中优先，否则取有选中的另一窗
