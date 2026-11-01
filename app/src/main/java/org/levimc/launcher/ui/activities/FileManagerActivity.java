@@ -514,10 +514,9 @@ public class FileManagerActivity extends BaseActivity {
         return (dualMode && activePane == 1) ? vmRight : vm;
     }
 
-    /** v0.4.207：横幅粘贴到激活窗——跨窗时主动注入剪贴板再粘贴。
-     *  此前只调 requestPaste：跨窗同步靠 state 流往返，点击时刻目标窗
-     *  剪贴板常为空（requestPaste 静默返回）="切窗点粘贴没反应"根因；
-     *  同窗粘贴同名冲突属正常（粘贴到源目录）。 */
+    /** v0.4.207：横幅粘贴到激活窗（重写）——双窗跨窗用静默粘贴
+     *  （剪贴板在源窗、目标=激活窗当前目录；冲突自动保留两者不弹窗）；
+     *  单窗保持原 requestPaste（冲突弹窗可处理）。 */
     private void pasteToActive() {
         if (!dualMode) {
             vm.requestPaste();
@@ -526,10 +525,14 @@ public class FileManagerActivity extends BaseActivity {
         FileManagerUiState src = (activePane == 1) ? lastState : lastStateRight;
         FileManagerViewModel target = activeVm();
         if (src != null && src.getClipboard() != null) {
-            target.setClipboardExternal(src.getClipboard().getSources(),
+            target.pasteSilent(src.getClipboard().getSources(),
                     src.getClipboard().isCut());
+            // 粘贴成功后清双方剪贴板（静默粘贴不自动清，手动清防横幅残留）
+            vm.clearClipboard();
+            vmRight.clearClipboard();
+        } else {
+            target.requestPaste();
         }
-        target.requestPaste();
     }
 
     /** v0.4.203：多选操作目标——激活窗有选中优先，否则取有选中的另一窗

@@ -349,18 +349,17 @@ public class FmDialogs {
                         : "← " + a.getString(R.string.fm_ui_copy))
                 : a.getString(R.string.fm_ui_copy));
         actions.add(() -> {
-            // v0.4.207：新操作前关闭残留对话框——上次粘贴的「已存在」
-            // 冲突框未处理时挂旧文案（用户实测：复制 B 成功但 A 的冲突
-            // 提示还显示着）
             dismissLast();
-            vm.copyEntry(entry);
             if (dual) {
-                peerVm.setClipboardExternal(
+                // v0.4.207：直发重写——静默粘贴到对面窗当前目录（冲突
+                // 自动保留两者、永不弹窗），不登记剪贴板不显示横幅
+                peerVm.pasteSilent(
                         java.util.Collections.singletonList(entry.getPath()), false);
-                peerVm.requestPaste();
                 if (onPeerAction != null) {
                     onPeerAction.run();
                 }
+            } else {
+                vm.copyEntry(entry);
             }
         });
         labels.add(dual
@@ -369,14 +368,14 @@ public class FmDialogs {
                 : a.getString(R.string.fm_ui_cut));
         actions.add(() -> {
             dismissLast();
-            vm.cutEntry(entry);
             if (dual) {
-                peerVm.setClipboardExternal(
+                peerVm.pasteSilent(
                         java.util.Collections.singletonList(entry.getPath()), true);
-                peerVm.requestPaste();
                 if (onPeerAction != null) {
                     onPeerAction.run();
                 }
+            } else {
+                vm.cutEntry(entry);
             }
         });
         // 选择（单选进多选）

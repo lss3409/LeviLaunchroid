@@ -234,6 +234,11 @@ class FileManagerViewModel constructor(
     }
     /** 清除剪贴板（v666 UI 横幅取消按钮）。 */
     fun clearClipboard() = store.setClipboard(null)
+    /** v0.4.207：静默粘贴（冲突自动保留两者，不弹窗）——双窗直发与
+     *  横幅跨窗粘贴用；同时清残留冲突对话框。 */
+    fun pasteSilent(sources: List<Path>, isCut: Boolean) =
+        pasteCtr.pasteSilent(sources, isCut)
+
     /** v0.4.203：双窗跨窗剪贴板同步（另一窗复制/剪切后注入本窗）。 */
     fun setClipboardExternal(sources: List<Path>, isCut: Boolean) {
         if (sources.isEmpty()) {

@@ -83,6 +83,36 @@ class PasteController(
         }
     }
 
+    /** v0.4.207：静默粘贴（双窗直发/横幅跨窗粘贴）——冲突自动「保留两者」，
+     *  不弹任何对话框/提示，粘贴完成仅刷新目标目录；开头清掉可能残留的
+     *  旧冲突对话框（此前换目录复制成功但旧「已存在」框还挂着的根因）。 */
+    fun pasteSilent(sources: List<Path>, isCut: Boolean) {
+        store.dismissDialog()
+        val target = store.history.currentPath
+        val mode = if (isCut) PasteMode.MOVE else PasteMode.COPY
+        coroutineScope.launch(Dispatchers.IO) {
+            val request = runCatching {
+                logic.buildPasteRequest(sources, target, mode)
+            }.getOrElse {
+                browse.refreshCurrentDir()
+                return@launch
+            }
+            when (request) {
+                is PasteRequest.Ready -> {
+                    executePasteInternal(request.sources, request.targetDir, request.mode,
+                        resolutions = request.sources.map { ConflictResolution.KEEP_BOTH }
+                    ) { }
+                }
+                is PasteRequest.ResolveRequest -> {
+                    // 静默模式：所有冲突自动保留两者（追加后缀），不弹窗
+                    executePasteInternal(request.sources, request.targetDir, request.mode,
+                        resolutions = request.sources.map { ConflictResolution.KEEP_BOTH }
+                    ) { }
+                }
+            }
+        }
+    }
+
     /** 粘贴冲突决策 */
     fun resolvePasteConflict(resolution: ConflictResolution) {
         val cur = store.stateValue().dialogIntent as? DialogIntent.PasteConflict ?: return
