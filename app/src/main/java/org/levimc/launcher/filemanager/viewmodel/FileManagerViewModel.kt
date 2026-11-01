@@ -182,6 +182,8 @@ class FileManagerViewModel constructor(
         browseCtr.refreshDir()
     }
     fun navigateTo(path: Path) = browseCtr.navigateTo(path)
+    /** v0.4.207：刷新当前目录（直发移动后源窗同步刷新用）。 */
+    fun refreshCurrentDir() = browseCtr.refreshCurrentDir()
     fun enterDirectory(entry: FmEntry) = browseCtr.enterDirectory(entry)
     fun back(): Boolean = browseCtr.back()
     fun forward(): Boolean = browseCtr.forward()

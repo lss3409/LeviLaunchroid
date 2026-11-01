@@ -97,8 +97,6 @@ public class FileManagerActivity extends BaseActivity {
     private java.util.Set<String> peerBeforePaths;
     private String lastLeftDir = "";
     private String lastRightDir = "";
-    /** v0.4.207：双窗同步联动模式（sync 按钮开关；两窗路径恒一致）。 */
-    private boolean syncMode = false;
 
     private RecyclerView recycler;
     private RecyclerView trashRecycler;
@@ -939,13 +937,11 @@ public class FileManagerActivity extends BaseActivity {
             }
         });
         findViewById(syncId).setOnClickListener(v -> {
-            // v0.4.207：同步模式开关——开启后两窗路径联动（任一窗导航
-            // 另一窗自动跟随，两窗恒同路径）；再点退出联动
-            syncMode = !syncMode;
-            if (syncMode && lastState != null && lastState.getCurrentDir() != null) {
+            // v0.4.207：一次性同步——右窗跳到左窗当前目录（联动模式已
+            // 按用户要求撤销：双窗的意义就是独立导航）
+            if (lastState != null && lastState.getCurrentDir() != null) {
                 vmRight.submitJump(lastState.getCurrentDir().toString());
             }
-            updateDualButtons();
         });
         findViewById(newId).setOnClickListener(v -> {
             // v0.4.203：MT 式新建——先输名称（支持后缀）再选文件夹/文件
@@ -1035,7 +1031,6 @@ public class FileManagerActivity extends BaseActivity {
     private void updateDualButtons() {
         int[] dualIcons = {R.id.fm_bottom_dual_icon, R.id.fm_rail_dual_icon};
         int[] upTexts = {R.id.fm_bottom_up_text, R.id.fm_rail_up_text};
-        int[] syncTexts = {R.id.fm_bottom_sync_text, R.id.fm_rail_sync_text};
         for (int id : dualIcons) {
             TextView t = findViewById(id);
             if (t != null) {
@@ -1047,13 +1042,6 @@ public class FileManagerActivity extends BaseActivity {
             TextView t = findViewById(id);
             if (t != null) {
                 t.setTextColor(dualMode && activePane == 1 ? accent : textSecondary);
-            }
-        }
-        // v0.4.207：同步联动开启时 sync 文字染 accent
-        for (int id : syncTexts) {
-            TextView t = findViewById(id);
-            if (t != null) {
-                t.setTextColor(syncMode ? accent : textSecondary);
             }
         }
     }
@@ -1078,19 +1066,21 @@ public class FileManagerActivity extends BaseActivity {
             peerBeforePaths = null;
         }
         if (peerBeforePaths != null) {
+            boolean added = false;
             for (FmEntry pe : s.getVisibleEntries()) {
                 if (!peerBeforePaths.contains(pe.getPath().toString())) {
                     rightHighlighted.add(pe.getPath().toString());
+                    added = true;
                 }
+            }
+            if (added) {
+                // v0.4.207：粘贴完成——源窗（左）同步刷新：移动后源文件
+                // 应立即消失（此前要退出重进才刷新=用户实测根因）
+                vm.refreshCurrentDir();
             }
         }
         if (entryAdapterRight != null && !rightHighlighted.isEmpty()) {
             entryAdapterRight.setHighlightedPaths(rightHighlighted);
-        }
-        // v0.4.207：同步联动——右窗路径变化且与左窗不同则左窗跟随
-        // （内容比较防回环）
-        if (syncMode && !dir.equals(lastLeftDir)) {
-            vm.submitJump(dir);
         }
         rebuildPathBarRight(dir);
         if (entryAdapterRight == null
@@ -1135,19 +1125,20 @@ public class FileManagerActivity extends BaseActivity {
             }
         }
         if (peerBeforePaths != null) {
+            boolean added = false;
             for (FmEntry pe : s.getVisibleEntries()) {
                 if (!peerBeforePaths.contains(pe.getPath().toString())) {
                     leftHighlighted.add(pe.getPath().toString());
+                    added = true;
                 }
             }
             if (entryAdapter != null && !leftHighlighted.isEmpty()) {
                 entryAdapter.setHighlightedPaths(leftHighlighted);
             }
-        }
-        // v0.4.207：同步联动——左窗路径变化且与右窗不同则右窗跟随
-        if (syncMode && s.getCurrentDir() != null
-                && !s.getCurrentDir().toString().equals(lastRightDir)) {
-            vmRight.submitJump(s.getCurrentDir().toString());
+            if (added) {
+                // v0.4.207：粘贴完成——源窗（右）同步刷新（移动后源文件消失）
+                vmRight.refreshCurrentDir();
+            }
         }
 
         if (s.getCurrentDir() != null) {
