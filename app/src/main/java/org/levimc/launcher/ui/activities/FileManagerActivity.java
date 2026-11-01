@@ -469,7 +469,25 @@ public class FileManagerActivity extends BaseActivity {
         recycler.setOnTouchListener(focusLeft);
         emptyView.setOnTouchListener(focusLeft);
         pathBar.setOnTouchListener(focusLeft);
-        // v0.4.205：空白长按气泡已删（用户拍板：粘贴统一走顶部剪贴板横幅）
+        // v0.4.208：路径栏/空白区域长按气泡（复制/剪切当前目录/粘贴；
+        // 横幅已删，长按气泡恢复为粘贴入口）。recycler 空白处触发——
+        // 条目长按消费不冒泡，不与条目气泡冲突
+        android.view.View.OnLongClickListener pathLongLeft = v -> {
+            activatePane(0);
+            FmDialogs.showPathBubble(FileManagerActivity.this, vm, v);
+            return true;
+        };
+        android.view.View.OnLongClickListener pathLongRight = v -> {
+            activatePane(1);
+            FmDialogs.showPathBubble(FileManagerActivity.this, vmRight, v);
+            return true;
+        };
+        pathBar.setOnLongClickListener(pathLongLeft);
+        recycler.setOnLongClickListener(pathLongLeft);
+        emptyView.setOnLongClickListener(pathLongLeft);
+        findViewById(R.id.fm_path_bar_right).setOnLongClickListener(pathLongRight);
+        recyclerRight.setOnLongClickListener(pathLongRight);
+        findViewById(R.id.fm_empty_right).setOnLongClickListener(pathLongRight);
 
         findViewById(R.id.fm_btn_sel_all).setOnClickListener(v -> {
             // v0.4.208：操作条「单选」——清空选择只选第一个文件

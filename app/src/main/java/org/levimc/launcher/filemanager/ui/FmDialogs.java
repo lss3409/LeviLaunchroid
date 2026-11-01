@@ -381,6 +381,15 @@ public class FmDialogs {
                 vm.cutEntry(entry);
             }
         });
+        // v0.4.208：粘贴项——剪贴板有内容时显示（横幅删除后的粘贴入口；
+        // 双窗剪贴板同步，粘贴作用于当前长按条目的窗）
+        if (vm.hasClipboard()) {
+            labels.add(a.getString(R.string.fm_ui_paste));
+            actions.add(() -> {
+                dismissLast();
+                vm.requestPaste();
+            });
+        }
         // 选择（单选进多选）
         labels.add(a.getString(R.string.fm_ui_select));
         actions.add(() -> vm.toggleSelection(entry));
@@ -446,6 +455,79 @@ public class FmDialogs {
         anchor.getLocationOnScreen(loc);
         int screenH = a.getResources().getDisplayMetrics().heightPixels;
         int bubbleH = Math.min(bubble.getMeasuredHeight(), maxH) + (int) (4 * density);
+        int spaceBelow = screenH - loc[1] - anchor.getHeight();
+        if (spaceBelow < bubbleH && loc[1] > bubbleH) {
+            popup.showAsDropDown(anchor, 0, -(anchor.getHeight() + bubbleH));
+        } else {
+            popup.showAsDropDown(anchor, 0, (int) (2 * density));
+        }
+    }
+
+    /** v0.4.208：路径栏/空白区域长按气泡（MT 同款）——复制/剪切当前目录、
+     *  有剪贴板时加「粘贴」（横幅删除后的粘贴入口，用户拍板恢复）。 */
+    public static void showPathBubble(BaseActivity a, FileManagerViewModel vm, View anchor) {
+        org.levimc.launcher.util.OnlineDebugLog.log("fm-bubble 路径长按 dir="
+                + (vm == null ? "null" : String.valueOf(vm.currentDirOrNull())));
+        float density = a.getResources().getDisplayMetrics().density;
+        int pad = (int) (14 * density);
+        java.util.List<String> labels = new java.util.ArrayList<>();
+        java.util.List<Runnable> actions = new java.util.ArrayList<>();
+        labels.add(a.getString(R.string.fm_ui_copy));
+        actions.add(() -> {
+            dismissLast();
+            vm.copyCurrentDir();
+        });
+        labels.add(a.getString(R.string.fm_ui_cut));
+        actions.add(() -> {
+            dismissLast();
+            vm.cutCurrentDir();
+        });
+        if (vm.hasClipboard()) {
+            labels.add(a.getString(R.string.fm_ui_paste));
+            actions.add(() -> {
+                dismissLast();
+                vm.requestPaste();
+            });
+        }
+        // 气泡容器：与条目长按气泡同款（surface 圆角 + 阴影）
+        LinearLayout bubble = new LinearLayout(a);
+        bubble.setOrientation(LinearLayout.VERTICAL);
+        bubble.setPadding(pad, (int) (10 * density), pad, (int) (10 * density));
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor(a.getColor(R.color.surface));
+        bg.setCornerRadius(12 * density);
+        bg.setStroke(1, a.getColor(R.color.surface));
+        bubble.setBackground(bg);
+        bubble.setElevation(8 * density);
+        int textMain = a.getColor(R.color.on_surface);
+        final PopupWindow[] popupRef = new PopupWindow[1];
+        for (int i = 0; i < labels.size(); i++) {
+            final int idx = i;
+            TextView item = new TextView(a);
+            item.setText(labels.get(i));
+            item.setTextColor(textMain);
+            item.setTextSize(13);
+            item.setPadding((int) (8 * density), (int) (7 * density),
+                    (int) (8 * density), (int) (7 * density));
+            item.setOnClickListener(v -> {
+                popupDismiss(popupRef[0]);
+                actions.get(idx).run();
+            });
+            bubble.addView(item);
+        }
+        final PopupWindow popup = new PopupWindow(bubble,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        popupRef[0] = popup;
+        popup.setOutsideTouchable(true);
+        popup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(
+                android.graphics.Color.TRANSPARENT));
+        popup.setElevation(8 * density);
+        int[] loc = new int[2];
+        anchor.getLocationOnScreen(loc);
+        int screenH = a.getResources().getDisplayMetrics().heightPixels;
+        bubble.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        int bubbleH = bubble.getMeasuredHeight();
         int spaceBelow = screenH - loc[1] - anchor.getHeight();
         if (spaceBelow < bubbleH && loc[1] > bubbleH) {
             popup.showAsDropDown(anchor, 0, -(anchor.getHeight() + bubbleH));

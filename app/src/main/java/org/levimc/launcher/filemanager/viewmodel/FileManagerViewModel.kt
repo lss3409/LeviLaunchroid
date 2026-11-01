@@ -236,6 +236,10 @@ class FileManagerViewModel constructor(
     }
     /** 清除剪贴板（v666 UI 横幅取消按钮）。 */
     fun clearClipboard() = store.setClipboard(null)
+    /** v0.4.208：查询剪贴板是否有内容（长按气泡「粘贴」项显示条件）。 */
+    fun hasClipboard(): Boolean = store.stateValue().clipboard != null
+    /** v0.4.208：当前目录（诊断日志用）。 */
+    fun currentDirOrNull(): Path? = store.stateValue().currentDir
     /** v0.4.207：静默粘贴（冲突自动保留两者，不弹窗）——双窗直发与
      *  横幅跨窗粘贴用；同时清残留冲突对话框。 */
     fun pasteSilent(sources: List<Path>, isCut: Boolean) =
