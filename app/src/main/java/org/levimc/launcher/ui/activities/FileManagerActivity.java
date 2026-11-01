@@ -95,6 +95,9 @@ public class FileManagerActivity extends BaseActivity {
     private final java.util.Set<String> leftHighlighted = new java.util.HashSet<>();
     private final java.util.Set<String> rightHighlighted = new java.util.HashSet<>();
     private java.util.Set<String> peerBeforePaths;
+    /** v0.4.208：diff 归属窗——集合只对直发目标窗有意义（另一窗的条目
+     *  几乎必然不在集合里→added 恒真→互相 refreshCurrentDir 死循环=频闪根因）。 */
+    private boolean peerBeforeTargetIsRight;
     private String lastLeftDir = "";
     private String lastRightDir = "";
 
@@ -341,6 +344,7 @@ public class FileManagerActivity extends BaseActivity {
                         for (FmEntry pe : peerState.getVisibleEntries()) {
                             peerBeforePaths.add(pe.getPath().toString());
                         }
+                        peerBeforeTargetIsRight = !fromRight; // 直发目标=对面窗（fromRight 条目→左窗）
                     }
                 }
                 FmDialogs.showEntryBubble(FileManagerActivity.this, vmm, entry, anchor,
@@ -1045,11 +1049,12 @@ public class FileManagerActivity extends BaseActivity {
             rightHighlighted.clear();
             peerBeforePaths = null;
         }
-        if (peerBeforePaths != null) {
+        if (peerBeforePaths != null && peerBeforeTargetIsRight) {
             boolean added = false;
             for (FmEntry pe : s.getVisibleEntries()) {
                 if (!peerBeforePaths.contains(pe.getPath().toString())) {
                     rightHighlighted.add(pe.getPath().toString());
+                    peerBeforePaths.add(pe.getPath().toString()); // v0.4.208：并入集合防重复发现
                     added = true;
                 }
             }
@@ -1104,11 +1109,12 @@ public class FileManagerActivity extends BaseActivity {
                 peerBeforePaths = null;
             }
         }
-        if (peerBeforePaths != null) {
+        if (peerBeforePaths != null && !peerBeforeTargetIsRight) {
             boolean added = false;
             for (FmEntry pe : s.getVisibleEntries()) {
                 if (!peerBeforePaths.contains(pe.getPath().toString())) {
                     leftHighlighted.add(pe.getPath().toString());
+                    peerBeforePaths.add(pe.getPath().toString()); // v0.4.208：并入集合防重复发现
                     added = true;
                 }
             }
