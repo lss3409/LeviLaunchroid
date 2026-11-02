@@ -137,6 +137,37 @@ public class MsftAccountStore {
         }
     }
 
+    /** v0.4.212（官方 e9777f9e 跟进）：当前活跃账号（无则 null）。 */
+    public static synchronized MsftAccount getActive(Context ctx) {
+        for (MsftAccount account : list(ctx)) {
+            if (account.active) return account;
+        }
+        return null;
+    }
+
+    /** v0.4.212（官方 e9777f9e 跟进）：更新账号凭据（刷新链回写）。 */
+    public static synchronized MsftAccount updateAuth(Context ctx, String id, String serializedAuthManager) {
+        List<MsftAccount> accounts = list(ctx);
+        for (MsftAccount account : accounts) {
+            if (id.equals(account.id)) {
+                account.serializedAuthManager = serializedAuthManager;
+                account.lastUpdated = System.currentTimeMillis();
+                save(ctx, accounts);
+                return account;
+            }
+        }
+        throw new IllegalStateException("The Microsoft account was removed. Select an account and try again.");
+    }
+
+    /** v0.4.212（官方 e9777f9e 跟进）：刷新完成后导出活跃账号（失败抛异常）。 */
+    public static synchronized void exportActiveAccount(Context ctx, String id) {
+        MsftAccount active = getActive(ctx);
+        if (active == null || !id.equals(active.id)) {
+            throw new IllegalStateException("The active Microsoft account changed. Launch Minecraft again.");
+        }
+        org.levimc.launcher.core.auth.storage.XalExporter.exportActiveAccountOrThrow(ctx);
+    }
+
     public static synchronized void setActive(Context ctx, String id) {
         List<MsftAccount> list = list(ctx);
         for (MsftAccount a : list) {

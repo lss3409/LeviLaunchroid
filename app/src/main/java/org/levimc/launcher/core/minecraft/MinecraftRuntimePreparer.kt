@@ -13,6 +13,8 @@ import org.levimc.launcher.preloader.PreloaderSignatureRulesManager
 import org.levimc.launcher.util.LauncherStorage
 import org.levimc.launcher.core.auth.MsftAuthManager
 import org.levimc.launcher.core.auth.storage.XalExporter
+import org.levimc.launcher.settings.FeatureSettings
+import org.levimc.launcher.R
 import org.levimc.launcher.util.GlobalConfigManager
 import org.levimc.launcher.util.PreloadManager
 import java.io.File
@@ -50,6 +52,23 @@ object MinecraftRuntimePreparer {
             ?: throw IllegalArgumentException("No Minecraft version specified")
         listener.onLog("Using ${version.directoryName} (${version.versionCode})")
         trace.mark("Minecraft version resolved", "${version.directoryName} ${version.versionCode}")
+
+        // v0.4.212（官方 e9777f9e 跟进）：启动前刷新微软/Xbox 凭据——
+        // 新 gxcore/XAL 层需要最新 refresh_token，缺失=游戏内「无法登录
+        // Microsoft 账号」（用户实测）。失败中断启动并给出明确错误
+        if (FeatureSettings.getInstance().isLauncherManagedMcLoginEnabled()) {
+            listener.onProgress(8, context.getString(R.string.ms_login_auth_xbox_device))
+            listener.onLog("Preparing Microsoft account")
+            try {
+                MsftAuthManager.prepareActiveAccount(context.applicationContext)
+                trace.mark("Microsoft credentials prepared")
+            } catch (error: Exception) {
+                throw IllegalStateException(
+                    context.getString(R.string.ms_login_failed_detail, error.message ?: "unknown"),
+                    error
+                )
+            }
+        }
 
         listener.onProgress(12, "Preparing game files")
         val gameManager = GamePackageManager.getInstance(context.applicationContext, version, trace, null)

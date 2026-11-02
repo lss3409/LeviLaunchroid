@@ -15,6 +15,7 @@ import org.levimc.launcher.util.JsonIOUtils;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -331,5 +332,55 @@ public class XalExporter {
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSSS'Z'", Locale.US);
         sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
         return sdf.format(new Date(millis));
+    }
+
+    // ---------------- v0.4.212（官方 e9777f9e 跟进）：凭据刷新链 ----------------
+
+    private static final String TITLE_ID = "1739947436";
+
+    /** 导出活跃账号（refreshSavedAccount 完成后调用，失败抛异常）。 */
+    public static void exportActiveAccountOrThrow(Context ctx) {
+        MsftAccountStore.MsftAccount active = MsftAccountStore.getActive(ctx);
+        if (active == null || active.serializedAuthManager == null) {
+            clearXalData(ctx.getApplicationContext().getFilesDir(), ctx);
+            return;
+        }
+        JsonObject authJson = JsonParser.parseString(active.serializedAuthManager).getAsJsonObject();
+        // 本地 export 签名带目标目录（启动/登录流程分离定制），导出到 filesDir
+        export(ctx, ctx.getApplicationContext().getFilesDir(), authJson,
+                active.msUserId, active.xboxGamertag, active.xuid);
+    }
+
+    /** 从游戏 XAL 缓存读取原生刷新出的 refresh_token 合并进 authJson。
+     *  （新 gxcore/XAL 层在游戏侧刷新凭据后写回缓存文件，启动器下次启动
+     *  从这里取回最新 token——缺失会导致游戏内「无法登录 Microsoft 账号」） */
+    public static boolean importRefreshToken(Context ctx, MsftAccountStore.MsftAccount account, JsonObject authJson) {
+        if (account.msUserId == null || account.msUserId.isEmpty() || !authJson.has("msaToken")) return false;
+        String b64User = encodeUserId(account.msUserId);
+        File userDir = new File(ctx.getApplicationContext().getFilesDir(), "xal/" + b64User);
+        File cache = new File(userDir, "Xal." + TITLE_ID + ".Production.Msa." + b64User + ".json");
+        if (!cache.exists() || cache.lastModified() < account.lastUpdated) return false;
+        try (InputStreamReader reader = new InputStreamReader(new android.util.AtomicFile(cache).openRead(), StandardCharsets.UTF_8)) {
+            JsonObject nativeMsa = JsonParser.parseReader(reader).getAsJsonObject();
+            if (!account.msUserId.equals(stringValue(nativeMsa, "user_id"))) return false;
+            String refreshToken = stringValue(nativeMsa, "refresh_token");
+            JsonObject msa = authJson.getAsJsonObject("msaToken");
+            if (refreshToken.isEmpty() || refreshToken.equals(stringValue(msa, "refreshToken"))) return false;
+            msa.addProperty("refreshToken", refreshToken);
+            msa.addProperty("expireTimeMs", 0L);
+            return true;
+        } catch (Exception e) {
+            Log.w(TAG, "Could not read Minecraft's refreshed credentials", e);
+            return false;
+        }
+    }
+
+    private static String stringValue(JsonObject json, String key) {
+        return json.has(key) && !json.get(key).isJsonNull() ? json.get(key).getAsString() : "";
+    }
+
+    private static String encodeUserId(String userId) {
+        return Base64.encodeToString(userId.getBytes(StandardCharsets.UTF_8),
+                Base64.URL_SAFE | Base64.NO_PADDING | Base64.NO_WRAP);
     }
 }
