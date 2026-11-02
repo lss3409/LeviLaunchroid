@@ -10,7 +10,9 @@ import androidx.core.content.edit
 import android.widget.Toast
 import android.view.Gravity
 import org.levimc.launcher.R
+import androidx.annotation.Keep
 
+@Keep
 object NativeBridgeHelper {
     @Volatile
     private var gxcoreLoaded = false
@@ -72,6 +74,19 @@ object NativeBridgeHelper {
     @JvmStatic
     fun getPrefs(name: String): SharedPreferences {
         return getAppContext().getSharedPreferences(name, Context.MODE_PRIVATE)
+    }
+
+    /** v0.4.212（官方 0c0275c8 跟进）：加载 MC 运行时依赖图——新 gxcore
+     *  在启动时通过 JNI 查找此方法，缺失会 NoSuchMethodError abort
+     *  （tombstone 实锤）。 */
+    @JvmStatic
+    fun loadMinecraftRuntime(libraryPath: String) {
+        if (!ensureGxCoreLoaded()) {
+            throw UnsatisfiedLinkError("Failed to load gxcore for the Minecraft runtime")
+        }
+        nativeLoadMinecraftRuntime(libraryPath)?.let { error ->
+            throw UnsatisfiedLinkError(error)
+        }
     }
 
     @JvmStatic
@@ -151,4 +166,7 @@ object NativeBridgeHelper {
 
     @JvmStatic
     private external fun nativeBootstrapGxCore()
+
+    @JvmStatic
+    private external fun nativeLoadMinecraftRuntime(libraryPath: String): String?
 }
