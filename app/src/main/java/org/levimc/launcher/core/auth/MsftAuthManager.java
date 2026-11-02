@@ -226,7 +226,9 @@ public final class MsftAuthManager {
 
     private static final long TOKEN_EXPIRY_MARGIN_MS = 5 * 60 * 1000L;
 
-    /** 启动游戏前刷新活跃账号凭据并导出（官方同名，MinecraftRuntimePreparer 调用）。 */
+    /** 启动游戏前刷新活跃账号凭据并导出（官方同名，MinecraftRuntimePreparer 调用）。
+     *  v0.4.212 本地化：重试 2 次快速失败（官方 4 次+退避≈26s，国内网络
+     *  下拖慢启动；失败由调用方静默继续）。 */
     public static synchronized MsftAccountStore.MsftAccount prepareActiveAccount(Context context) throws Exception {
         MsftAccountStore.MsftAccount active = MsftAccountStore.getActive(context);
         if (active == null) {
@@ -236,7 +238,7 @@ public final class MsftAuthManager {
                 () -> refreshSavedAccount(context, active.id, false),
                 null,
                 null,
-                ACCOUNT_NETWORK_RETRY_COUNT
+                2
         );
     }
 

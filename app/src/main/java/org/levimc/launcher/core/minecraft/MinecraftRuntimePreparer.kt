@@ -53,20 +53,21 @@ object MinecraftRuntimePreparer {
         listener.onLog("Using ${version.directoryName} (${version.versionCode})")
         trace.mark("Minecraft version resolved", "${version.directoryName} ${version.versionCode}")
 
-        // v0.4.212（官方 e9777f9e 跟进）：启动前刷新微软/Xbox 凭据——
-        // 新 gxcore/XAL 层需要最新 refresh_token，缺失=游戏内「无法登录
-        // Microsoft 账号」（用户实测）。失败中断启动并给出明确错误
+        // v0.4.212（官方 e9777f9e 跟进，策略本地化）：启动前刷新微软/Xbox
+        // 凭据——新 gxcore/XAL 层需要最新 refresh_token。**官方失败即中断，
+        // 但国内网络连微软 API 不稳（实测 26.5s connection closed 直接
+        // 卡死启动）——本地改为刷新失败静默继续**：旧凭据照常导出，
+        // 游戏内登录状态由游戏自身处理，绝不阻塞启动
         if (FeatureSettings.getInstance().isLauncherManagedMcLoginEnabled()) {
-            listener.onProgress(8, context.getString(R.string.ms_login_auth_xbox_device))
             listener.onLog("Preparing Microsoft account")
             try {
                 MsftAuthManager.prepareActiveAccount(context.applicationContext)
                 trace.mark("Microsoft credentials prepared")
             } catch (error: Exception) {
-                throw IllegalStateException(
-                    context.getString(R.string.ms_login_failed_detail, error.message ?: "unknown"),
-                    error
-                )
+                android.util.Log.w("MinecraftRuntimePreparer",
+                        "credential refresh failed, continuing with saved credentials: "
+                                + (error.message ?: error.javaClass.simpleName))
+                trace.mark("Microsoft credentials refresh failed", error.message ?: "unknown")
             }
         }
 
