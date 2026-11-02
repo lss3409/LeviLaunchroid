@@ -1091,9 +1091,16 @@ public class FileManagerActivity extends BaseActivity {
         multiSelect = leftMultiSelect || rightMultiSelect;
         updateDualButtons();
         applyPaneFocus();
-        refreshMainPathBar();
+        // v0.4.212：路径栏重建延后到触摸链完成——DOWN 时同步重建
+        // （removeAllViews+addView）会替换按下处的视图导致 click 事件流
+        // 断裂=点击无响应；重建开销阻塞主线程=延迟反馈（用户实测）
+        pathBar.removeCallbacks(mainPathBarRefresh);
+        pathBar.post(mainPathBarRefresh = () -> refreshMainPathBar());
         renderSelectionBar();
     }
+
+    /** v0.4.212：延后的主路径栏刷新（防 DOWN 时视图替换断 click 流）。 */
+    private Runnable mainPathBarRefresh;
 
     /** v0.4.203：主路径栏跟随激活窗（段点击作用于激活窗 VM）。 */
     private void refreshMainPathBar() {

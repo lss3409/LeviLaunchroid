@@ -167,7 +167,8 @@
                 <LinearLayout
                     android:id="@+id/fm_rail_home"
                     android:layout_width="match_parent"
-                    android:layout_height="72dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
                     android:orientation="vertical"
                     android:gravity="center"
                     android:background="?android:attr/selectableItemBackground">
@@ -190,7 +191,8 @@
                 <LinearLayout
                     android:id="@+id/fm_rail_trash"
                     android:layout_width="match_parent"
-                    android:layout_height="72dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
                     android:orientation="vertical"
                     android:gravity="center"
                     android:background="?android:attr/selectableItemBackground">
@@ -214,7 +216,8 @@
                 <LinearLayout
                     android:id="@+id/fm_rail_dual"
                     android:layout_width="match_parent"
-                    android:layout_height="64dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
                     android:orientation="vertical"
                     android:gravity="center"
                     android:background="?android:attr/selectableItemBackground">
@@ -238,7 +241,8 @@
                 <LinearLayout
                     android:id="@+id/fm_rail_up"
                     android:layout_width="match_parent"
-                    android:layout_height="64dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
                     android:orientation="vertical"
                     android:gravity="center"
                     android:background="?android:attr/selectableItemBackground">
@@ -261,7 +265,8 @@
                 <LinearLayout
                     android:id="@+id/fm_rail_sync"
                     android:layout_width="match_parent"
-                    android:layout_height="64dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
                     android:orientation="vertical"
                     android:gravity="center"
                     android:background="?android:attr/selectableItemBackground">
@@ -284,7 +289,8 @@
                 <LinearLayout
                     android:id="@+id/fm_rail_new"
                     android:layout_width="match_parent"
-                    android:layout_height="64dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
                     android:orientation="vertical"
                     android:gravity="center"
                     android:background="?android:attr/selectableItemBackground">

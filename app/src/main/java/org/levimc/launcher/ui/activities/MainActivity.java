@@ -420,6 +420,11 @@ import okhttp3.OkHttpClient;
             }
             boolean dot = getSharedPreferences(PREFS_UPDATE_DOT, MODE_PRIVATE)
                     .getBoolean("update_dot", false);
+            // v0.4.212：底栏红点=用户已点进设置页即消费（update_dot_seen 在
+            // SettingsActivity 打开时置 true；检查更新按钮红点不看 seen）
+            boolean seen = getSharedPreferences(PREFS_UPDATE_DOT, MODE_PRIVATE)
+                    .getBoolean("update_dot_seen", false);
+            dot = dot && !seen;
             // 移除旧红点
             if (lastUpdateDot != null) {
                 android.view.ViewGroup p = (android.view.ViewGroup) lastUpdateDot.getParent();

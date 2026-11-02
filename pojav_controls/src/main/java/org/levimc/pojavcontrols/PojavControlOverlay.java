@@ -227,6 +227,8 @@ final class PojavControlOverlay extends ViewGroup {
         private float cameraDownY;
         private long cameraDownAt;
         private boolean cameraMoved;
+        /** v0.4.212（官方 97cb7d3d 跟进）：本次手势开始时菜单是否打开。 */
+        private boolean menuGesture;
 
         RuntimeSurface(Context context) {
             super(context);
@@ -238,9 +240,7 @@ final class PojavControlOverlay extends ViewGroup {
             int action = event.getActionMasked();
             int actionIndex = event.getActionIndex();
             if (!virtualMouse) {
-                host.pojavSendTouch(event);
-                if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) release();
-                return true;
+                return handleGameplayTouch(event);
             }
             if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) {
                 if (cameraPointer == -1) {
@@ -284,9 +284,67 @@ final class PojavControlOverlay extends ViewGroup {
             return true;
         }
 
+        /** v0.4.212（官方 97cb7d3d 跟进）：26.60 键盘/触摸修复——非虚拟
+         *  鼠标模式下，手势开始时菜单打开→触摸直发游戏；菜单关闭→触摸
+         *  转为视角拖动（pojavSendLookDelta）。此前无条件直发 touch 是
+         *  26.60 高版本虚拟键盘无法正常输入的根因（手机实测复现）。 */
+        private boolean handleGameplayTouch(MotionEvent event) {
+            int action = event.getActionMasked();
+            int actionIndex = event.getActionIndex();
+            if (action == MotionEvent.ACTION_DOWN) {
+                release();
+                menuGesture = host.pojavIsMenuOpen();
+            }
+            if (menuGesture) {
+                host.pojavSendTouch(event);
+                if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) release();
+                return true;
+            }
+            if (host.pojavIsMenuOpen()) {
+                release();
+                return true;
+            }
+            if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) {
+                if (cameraPointer == -1) {
+                    cameraPointer = event.getPointerId(actionIndex);
+                    cameraX = event.getX(actionIndex);
+                    cameraY = event.getY(actionIndex);
+                }
+                return true;
+            }
+            if (action == MotionEvent.ACTION_MOVE && cameraPointer != -1) {
+                int index = event.findPointerIndex(cameraPointer);
+                if (index >= 0) {
+                    float x = event.getX(index);
+                    float y = event.getY(index);
+                    float sensitivity = cameraSensitivity();
+                    host.pojavSendLookDelta((x - cameraX) * sensitivity,
+                            (y - cameraY) * sensitivity);
+                    cameraX = x;
+                    cameraY = y;
+                }
+                return true;
+            }
+            if (action == MotionEvent.ACTION_POINTER_UP &&
+                    event.getPointerId(actionIndex) == cameraPointer) {
+                cameraPointer = -1;
+                for (int i = 0; i < event.getPointerCount(); i++) {
+                    if (i == actionIndex) continue;
+                    cameraPointer = event.getPointerId(i);
+                    cameraX = event.getX(i);
+                    cameraY = event.getY(i);
+                    break;
+                }
+                return true;
+            }
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) release();
+            return true;
+        }
+
         void release() {
             cameraPointer = -1;
             cameraMoved = false;
+            menuGesture = false;
         }
     }
 

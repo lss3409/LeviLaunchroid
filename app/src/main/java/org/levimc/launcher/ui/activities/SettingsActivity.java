@@ -200,6 +200,9 @@ public class SettingsActivity extends BaseActivity {
                     refreshUpdateDot();
                     org.levimc.launcher.core.updates.UpdateChecker.checkAsync(
                             this, true, (status, u) -> {
+                                // v0.4.212：检查完成 UpdateChecker 已重写红点
+                                // 标志——刷新按钮红点（有新版→亮，最新→灭）
+                                refreshUpdateDot();
                                 // v0.0.12：检查慢时用户可能已退出设置页，
                                 // Activity 销毁后弹窗会 BadTokenException 崩溃（vivo 实测）
                                 if (isFinishing() || isDestroyed()) {
@@ -250,55 +253,128 @@ public class SettingsActivity extends BaseActivity {
         tabPersonalize.setOnClickListener(v -> { selectedTabIndex = 1; selectTab(tabPersonalize); });
         tabAbout.setOnClickListener(v -> { selectedTabIndex = 2; selectTab(tabAbout); });
         tabMigration.setOnClickListener(v -> { selectedTabIndex = 3; selectTab(tabMigration); });
+        // v0.4.212：打开设置页即消费底栏/tab 红点（检查更新按钮红点保留，
+        // 点检查更新才消费——分层展示）
+        android.content.SharedPreferences p = getSharedPreferences(
+                "levimc_update_check", MODE_PRIVATE);
+        if (p.getBoolean("update_dot", false) && !p.getBoolean("update_dot_seen", false)) {
+            p.edit().putBoolean("update_dot_seen", true).apply();
+        }
         refreshUpdateDot(); // v0.4.205：基础设置 tab 更新小红点
     }
 
-    /** v0.4.205：基础设置 tab 更新小红点（与底栏设置 tab 同源 prefs）。 */
+    /** v0.4.212：手柄光标灵敏度滑块 accent 全染色（thumb/active/未激活轨道
+     *  30%/光晕 20%——v0.4.17+v0.4.203 逻辑抽方法，强调色变更后重染复用）。 */
+    private void applyCursorSliderAccent() {
+        com.google.android.material.slider.Slider s = findViewById(R.id.slider_cursor_speed);
+        if (s == null) {
+            return;
+        }
+        PersonalizationManager pm = new PersonalizationManager(this);
+        int accent = pm.hasCustomAccent() ? pm.getAccentColor()
+                : ContextCompat.getColor(this, R.color.primary);
+        s.setThumbTintList(ColorStateList.valueOf(accent));
+        s.setTrackActiveTintList(ColorStateList.valueOf(accent));
+        s.setTrackInactiveTintList(ColorStateList.valueOf(
+                (accent & 0x00FFFFFF) | 0x4D000000));
+        s.setHaloTintList(ColorStateList.valueOf(
+                (accent & 0x00FFFFFF) | 0x33000000));
+    }
+
+    /** v0.4.205：基础设置 tab 更新小红点（与底栏设置 tab 同源 prefs）。
+     *  v0.4.212：①tab 红点=update_dot && !seen（进设置页即消费——用户实测
+     *  「切换 tab 不消失」根因）；②检查更新按钮红点=update_dot（点检查才
+     *  消费，检查完成 UpdateChecker 会重写标志）。 */
     private android.view.View tabDotView;
+    private android.view.View btnDotView;
 
     private void refreshUpdateDot() {
         try {
             if (tabBasic == null) {
                 return;
             }
-            boolean dot = getSharedPreferences("levimc_update_check", MODE_PRIVATE)
-                    .getBoolean("update_dot", false);
+            android.content.SharedPreferences p = getSharedPreferences(
+                    "levimc_update_check", MODE_PRIVATE);
+            boolean dot = p.getBoolean("update_dot", false);
+            boolean seen = p.getBoolean("update_dot_seen", false);
+
+            // ---- tab 红点：dot && !seen（打开设置页即消费） ----
             if (tabDotView != null) {
-                android.view.ViewGroup p = (android.view.ViewGroup) tabDotView.getParent();
-                if (p != null) {
-                    p.removeView(tabDotView);
+                android.view.ViewGroup pp = (android.view.ViewGroup) tabDotView.getParent();
+                if (pp != null) {
+                    pp.removeView(tabDotView);
                 }
                 tabDotView = null;
             }
-            if (!dot) {
-                return;
+            if (dot && !seen) {
+                android.view.ViewGroup parent = (android.view.ViewGroup) tabBasic.getParent();
+                if (!(parent instanceof android.widget.FrameLayout)
+                        || !"dotwrap".equals(tabBasic.getTag())) {
+                    int idx = parent.indexOfChild(tabBasic);
+                    android.view.ViewGroup.LayoutParams oldLp = tabBasic.getLayoutParams();
+                    parent.removeView(tabBasic);
+                    android.widget.FrameLayout wrap = new android.widget.FrameLayout(this);
+                    wrap.setLayoutParams(oldLp);
+                    tabBasic.setTag("dotwrap");
+                    tabBasic.setLayoutParams(new android.widget.FrameLayout.LayoutParams(
+                            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+                    wrap.addView(tabBasic);
+                    parent.addView(wrap, idx);
+                    parent = wrap;
+                }
+                float d = getResources().getDisplayMetrics().density;
+                android.view.View dotView = new android.view.View(this);
+                dotView.setBackground(getDrawable(R.drawable.bg_update_dot));
+                android.widget.FrameLayout.LayoutParams dlp =
+                        new android.widget.FrameLayout.LayoutParams((int) (8 * d), (int) (8 * d),
+                                android.view.Gravity.TOP | android.view.Gravity.END);
+                dlp.topMargin = (int) (6 * d);
+                dlp.rightMargin = (int) (2 * d);
+                parent.addView(dotView, dlp);
+                tabDotView = dotView;
             }
-            android.view.ViewGroup parent = (android.view.ViewGroup) tabBasic.getParent();
-            if (!(parent instanceof android.widget.FrameLayout)
-                    || !"dotwrap".equals(tabBasic.getTag())) {
-                int idx = parent.indexOfChild(tabBasic);
-                android.view.ViewGroup.LayoutParams oldLp = tabBasic.getLayoutParams();
-                parent.removeView(tabBasic);
-                android.widget.FrameLayout wrap = new android.widget.FrameLayout(this);
-                wrap.setLayoutParams(oldLp);
-                tabBasic.setTag("dotwrap");
-                tabBasic.setLayoutParams(new android.widget.FrameLayout.LayoutParams(
-                        android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
-                        android.view.ViewGroup.LayoutParams.MATCH_PARENT));
-                wrap.addView(tabBasic);
-                parent.addView(wrap, idx);
-                parent = wrap;
+
+            // ---- v0.4.212：检查更新按钮红点（点检查更新才消费） ----
+            if (btnDotView != null) {
+                android.view.ViewGroup pp = (android.view.ViewGroup) btnDotView.getParent();
+                if (pp != null) {
+                    pp.removeView(btnDotView);
+                }
+                btnDotView = null;
             }
-            float d = getResources().getDisplayMetrics().density;
-            android.view.View dotView = new android.view.View(this);
-            dotView.setBackground(getDrawable(R.drawable.bg_update_dot));
-            android.widget.FrameLayout.LayoutParams dlp =
-                    new android.widget.FrameLayout.LayoutParams((int) (8 * d), (int) (8 * d),
-                            android.view.Gravity.TOP | android.view.Gravity.END);
-            dlp.topMargin = (int) (6 * d);
-            dlp.rightMargin = (int) (2 * d);
-            parent.addView(dotView, dlp);
-            tabDotView = dotView;
+            if (dot) {
+                android.view.View btn = findViewById(R.id.check_update_button);
+                android.view.ViewGroup parent = btn != null
+                        ? (android.view.ViewGroup) btn.getParent() : null;
+                if (parent != null && (!(parent instanceof android.widget.FrameLayout)
+                        || !"btndotwrap".equals(btn.getTag()))) {
+                    int idx = parent.indexOfChild(btn);
+                    android.view.ViewGroup.LayoutParams oldLp = btn.getLayoutParams();
+                    parent.removeView(btn);
+                    android.widget.FrameLayout wrap = new android.widget.FrameLayout(this);
+                    wrap.setLayoutParams(oldLp);
+                    btn.setTag("btndotwrap");
+                    btn.setLayoutParams(new android.widget.FrameLayout.LayoutParams(
+                            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                            android.view.ViewGroup.LayoutParams.WRAP_CONTENT));
+                    wrap.addView(btn);
+                    parent.addView(wrap, idx);
+                    parent = wrap;
+                }
+                if (parent instanceof android.widget.FrameLayout) {
+                    float d = getResources().getDisplayMetrics().density;
+                    android.view.View dotView = new android.view.View(this);
+                    dotView.setBackground(getDrawable(R.drawable.bg_update_dot));
+                    android.widget.FrameLayout.LayoutParams dlp =
+                            new android.widget.FrameLayout.LayoutParams((int) (8 * d), (int) (8 * d),
+                                    android.view.Gravity.TOP | android.view.Gravity.END);
+                    dlp.topMargin = (int) (2 * d);
+                    dlp.rightMargin = (int) (-2 * d);
+                    parent.addView(dotView, dlp);
+                    btnDotView = dotView;
+                }
+            }
         } catch (Throwable ignored) {
         }
     }
@@ -434,18 +510,7 @@ public class SettingsActivity extends BaseActivity {
                 findViewById(R.id.slider_cursor_speed);
         TextView cursorSpeedValue = findViewById(R.id.cursor_speed_value);
         if (sliderCursorSpeed != null) {
-            // v0.4.17：滑块跟随个性化强调色（与开关/按钮一致）
-            PersonalizationManager pmSpeed = new PersonalizationManager(this);
-            int accentSpeed = pmSpeed.hasCustomAccent() ? pmSpeed.getAccentColor()
-                    : ContextCompat.getColor(this, R.color.primary);
-            sliderCursorSpeed.setThumbTintList(ColorStateList.valueOf(accentSpeed));
-            sliderCursorSpeed.setTrackActiveTintList(ColorStateList.valueOf(accentSpeed));
-            // v0.4.203：补全染色——未激活轨道 accent 30%、按压光晕 accent 20%
-            // （此前只有 thumb/active 染色，非默认强调色下滑块仍有默认绿色残影）
-            sliderCursorSpeed.setTrackInactiveTintList(ColorStateList.valueOf(
-                    (accentSpeed & 0x00FFFFFF) | 0x4D000000));
-            sliderCursorSpeed.setHaloTintList(ColorStateList.valueOf(
-                    (accentSpeed & 0x00FFFFFF) | 0x33000000));
+            applyCursorSliderAccent(); // v0.4.212：染色抽方法（强调色变更后重染复用）
             float saved = getSharedPreferences("settings", MODE_PRIVATE)
                     .getFloat("gamepad_cursor_speed", 1f);
             sliderCursorSpeed.setValue(saved);
@@ -871,10 +936,18 @@ public class SettingsActivity extends BaseActivity {
         setupColorPicker();
         PersonalizationManager pm = new PersonalizationManager(this);
         int accent = pm.getAccentColor();
-        
+
         pm.applyToActivity(this);
 
         refreshThemeSelectionUI();
+        // v0.4.212：强调色变更后重染已染色 UI——applyToActivity 对非
+        // primary 原色的按钮不接管（旧 accent tint 的检查更新按钮不变色
+        // 根因），滑块同理——这里显式重染
+        applyCursorSliderAccent();
+        android.view.View updateBtn = findViewById(R.id.check_update_button);
+        if (updateBtn != null) {
+            org.levimc.launcher.util.AccentStyler.stylePrimary(this, updateBtn);
+        }
         
         TextView[] tabs = getSettingsTabs();
         selectTab(tabs[selectedTabIndex]);
