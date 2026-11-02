@@ -465,13 +465,26 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             return super.dispatchTouchEvent(event)
         }
 
-        val actionIndex = event.actionIndex
-        if (org.levimc.launcher.preloader.PreloaderInput.onTouch(
-                event.actionMasked,
-                event.getPointerId(actionIndex),
-                event.getX(actionIndex),
-                event.getY(actionIndex)
-            )) {
+        // v0.4.212（官方 1372b49f 跟进）：MOVE/CANCEL 遍历全部触点传给
+        // PreloaderInput（多指触摸处理），DOWN/UP 仍按 actionIndex 单指
+        val action = event.actionMasked
+        val consumed = if (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_CANCEL) {
+            var anyConsumed = false
+            for (index in 0 until event.pointerCount) {
+                if (org.levimc.launcher.preloader.PreloaderInput.onTouch(
+                        action, event.getPointerId(index),
+                        event.getX(index), event.getY(index))) {
+                    anyConsumed = true
+                }
+            }
+            anyConsumed
+        } else {
+            val index = event.actionIndex
+            org.levimc.launcher.preloader.PreloaderInput.onTouch(
+                action, event.getPointerId(index),
+                event.getX(index), event.getY(index))
+        }
+        if (consumed) {
             return true
         }
 
@@ -532,6 +545,9 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun pojavSendTouch(event: MotionEvent): Boolean {
+        // v0.4.212（官方 f81ef34f 跟进）：运行时防护——游戏未启动/退出
+        // 过程中的触摸事件直接丢弃（此前转发进销毁中的视图树）
+        if (!gameRuntimeStarted || isFinishing || isDestroyed) return false
         return super.onTouchEvent(event)
     }
 

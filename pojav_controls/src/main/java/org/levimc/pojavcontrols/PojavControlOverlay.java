@@ -95,6 +95,14 @@ final class PojavControlOverlay extends ViewGroup {
         releaseVirtualTouch();
     }
 
+    /** v0.4.212（官方 f81ef34f 跟进）：窗口失焦释放全部按压状态——
+     *  切后台/弹系统窗时按住不放的按键不再卡在 DOWN 状态。 */
+    @Override
+    public void onWindowFocusChanged(boolean hasWindowFocus) {
+        super.onWindowFocusChanged(hasWindowFocus);
+        if (!hasWindowFocus) releaseAll();
+    }
+
     void dispose() {
         releaseAll();
         if (receiverRegistered) {
@@ -219,7 +227,43 @@ final class PojavControlOverlay extends ViewGroup {
         for (RuntimeButton button : buttons) button.setVirtualMouseState(virtualMouse);
     }
 
+    /** v0.4.212（官方 f81ef34f 跟进）：触摸转发器——保持最后事件，
+     *  release 时补发 CANCEL 防游戏侧按压状态卡死。 */
+    private static final class ForwardedTouch {
+        private final PojavControlsHost host;
+        private MotionEvent lastEvent;
+
+        ForwardedTouch(PojavControlsHost host) {
+            this.host = host;
+        }
+
+        void send(MotionEvent event) {
+            if (lastEvent != null) {
+                lastEvent.recycle();
+                lastEvent = null;
+            }
+            int action = event.getActionMasked();
+            if (action != MotionEvent.ACTION_UP && action != MotionEvent.ACTION_CANCEL) {
+                lastEvent = MotionEvent.obtainNoHistory(event);
+            }
+            host.pojavSendTouch(event);
+        }
+
+        void release() {
+            MotionEvent event = lastEvent;
+            lastEvent = null;
+            if (event == null) return;
+            try {
+                event.setAction(MotionEvent.ACTION_CANCEL);
+                host.pojavSendTouch(event);
+            } finally {
+                event.recycle();
+            }
+        }
+    }
+
     private final class RuntimeSurface extends View {
+        private final ForwardedTouch forwardedTouch = new ForwardedTouch(host);
         private int cameraPointer = -1;
         private float cameraX;
         private float cameraY;
@@ -296,7 +340,7 @@ final class PojavControlOverlay extends ViewGroup {
                 menuGesture = host.pojavIsMenuOpen();
             }
             if (menuGesture) {
-                host.pojavSendTouch(event);
+                forwardedTouch.send(event);
                 if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) release();
                 return true;
             }
@@ -342,6 +386,7 @@ final class PojavControlOverlay extends ViewGroup {
         }
 
         void release() {
+            forwardedTouch.release();
             cameraPointer = -1;
             cameraMoved = false;
             menuGesture = false;
@@ -437,6 +482,7 @@ final class PojavControlOverlay extends ViewGroup {
             DrawerPlacement placement = drawerPlacements.get(button);
             if (placement != null) visible &= placement.runtime.open;
             button.setVisibility(visible ? VISIBLE : GONE);
+            if (!visible) button.release();
         }
         for (RuntimeJoystick joystick : joysticks) {
             boolean visible = controlsVisible && joystick.isVisibleForMode(menu);
@@ -563,6 +609,7 @@ final class PojavControlOverlay extends ViewGroup {
         final ControlData data;
         private final PojavControlsHost host;
         private final SpecialActionHandler specialHandler;
+        private final ForwardedTouch forwardedTouch;
         private boolean pressed;
         private boolean toggled;
         private boolean outside;
@@ -578,6 +625,7 @@ final class PojavControlOverlay extends ViewGroup {
             this.data = data;
             this.host = host;
             this.specialHandler = specialHandler;
+            forwardedTouch = new ForwardedTouch(host);
             setText(data.name);
             setGravity(Gravity.CENTER);
             setTextColor(Color.WHITE);
@@ -652,6 +700,7 @@ final class PojavControlOverlay extends ViewGroup {
         }
 
         void release() {
+            forwardedTouch.release();
             if (pressed) send(false);
             pressed = false;
             toggled = false;
@@ -676,9 +725,12 @@ final class PojavControlOverlay extends ViewGroup {
 
         private void sendTouchToGame(MotionEvent event) {
             MotionEvent copy = MotionEvent.obtain(event);
-            copy.offsetLocation(getLeft(), getTop());
-            host.pojavSendTouch(copy);
-            copy.recycle();
+            try {
+                copy.offsetLocation(getLeft(), getTop());
+                forwardedTouch.send(copy);
+            } finally {
+                copy.recycle();
+            }
         }
 
         private void press(boolean down) {

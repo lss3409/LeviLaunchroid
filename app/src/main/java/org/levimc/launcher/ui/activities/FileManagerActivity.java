@@ -1063,23 +1063,32 @@ public class FileManagerActivity extends BaseActivity {
             return;
         }
         float d = getResources().getDisplayMetrics().density;
-        int activeColor = accent;
-        android.graphics.drawable.GradientDrawable gdA = new android.graphics.drawable.GradientDrawable();
-        gdA.setStroke((int) d, activeColor); // 1dp 细描边
-        gdA.setColor(pageBg);
-        android.graphics.drawable.GradientDrawable gdI = new android.graphics.drawable.GradientDrawable();
-        gdI.setColor(pageBg);
-        android.graphics.drawable.ColorDrawable dim = new android.graphics.drawable.ColorDrawable(
-                0x0F000000); // 6% 黑罩
+        // v0.4.212：drawable 缓存复用（此前每次点击新建 3 个 drawable +
+        // 全量 set 阻塞 DOWN 事件链=描边延迟反应根因）
+        if (paneFocusDrawable == null || paneFocusAccent != accent) {
+            paneFocusAccent = accent;
+            paneFocusDrawable = new android.graphics.drawable.GradientDrawable();
+            paneFocusDrawable.setStroke((int) d, accent); // 1dp 细描边
+            paneFocusDrawable.setColor(pageBg);
+            paneUnfocusDrawable = new android.graphics.drawable.GradientDrawable();
+            paneUnfocusDrawable.setColor(pageBg);
+            paneDimDrawable = new android.graphics.drawable.ColorDrawable(0x0F000000);
+        }
         View focused = activePane == 1 ? paneRight : paneLeft;
         View unfocused = activePane == 1 ? paneLeft : paneRight;
-        focused.setBackground(gdA);
+        focused.setBackground(paneFocusDrawable);
         focused.setElevation(6 * d);
         focused.setForeground(null);
-        unfocused.setBackground(gdI);
+        unfocused.setBackground(paneUnfocusDrawable);
         unfocused.setElevation(0);
-        unfocused.setForeground(dim);
+        unfocused.setForeground(paneDimDrawable);
     }
+
+    /** v0.4.212：书页焦点 drawable 缓存（accent 变化时重建）。 */
+    private android.graphics.drawable.GradientDrawable paneFocusDrawable;
+    private android.graphics.drawable.GradientDrawable paneUnfocusDrawable;
+    private android.graphics.drawable.ColorDrawable paneDimDrawable;
+    private int paneFocusAccent = 0;
 
     /** 激活窗格（底栏「上一级/新建」与主路径栏跟随激活窗）。 */
     private void activatePane(int pane) {
@@ -1089,14 +1098,16 @@ public class FileManagerActivity extends BaseActivity {
         activePane = pane;
         // v0.4.203：多选操作条跟随激活窗（左窗多选中切到右窗 → 操作条收起）
         multiSelect = leftMultiSelect || rightMultiSelect;
-        updateDualButtons();
+        // v0.4.212：DOWN 事件链里只做必须立即的焦点描边，其余（按钮文字/
+        // 操作条/路径栏重建）统一延后——此前全套同步执行阻塞事件链=
+        // 描边延迟+点击无响应根因（用户两轮实测）
         applyPaneFocus();
-        // v0.4.212：路径栏重建延后到触摸链完成——DOWN 时同步重建
-        // （removeAllViews+addView）会替换按下处的视图导致 click 事件流
-        // 断裂=点击无响应；重建开销阻塞主线程=延迟反馈（用户实测）
         pathBar.removeCallbacks(mainPathBarRefresh);
-        pathBar.post(mainPathBarRefresh = () -> refreshMainPathBar());
-        renderSelectionBar();
+        pathBar.post(mainPathBarRefresh = () -> {
+            updateDualButtons();
+            refreshMainPathBar();
+            renderSelectionBar();
+        });
     }
 
     /** v0.4.212：延后的主路径栏刷新（防 DOWN 时视图替换断 click 流）。 */

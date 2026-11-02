@@ -259,7 +259,15 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
 
     native long nativeInitializeXboxLive(long xalInitArgs, long xblInitArgs);
 
-    public native boolean nativeKeyHandler(final int keycode, final int action);
+    // v0.4.212（官方 303f00a2 跟进）：26.60 键盘修复——native 现在按
+    // 输入源区分按键（输入法 commit 的字符 vs 物理键盘），两参包装保持
+    // 旧 JNI 注册兼容（@Keep 防混淆裁剪）
+    @androidx.annotation.Keep
+    public boolean nativeKeyHandler(final int keycode, final int action) {
+        return nativeKeyHandler(keycode, action, InputDevice.SOURCE_KEYBOARD);
+    }
+
+    public native boolean nativeKeyHandler(final int keycode, final int action, final int source);
 
     native void nativeOnDestroy();
 
@@ -619,7 +627,8 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
 
     @Override
     public boolean dispatchKeyEvent(@NonNull KeyEvent event) {
-        if (nativeKeyHandler(event.getKeyCode(), event.getAction())) {
+        // v0.4.212（官方 303f00a2 跟进）：带输入源调用
+        if (nativeKeyHandler(event.getKeyCode(), event.getAction(), event.getSource())) {
             return true;
         }
         return super.dispatchKeyEvent(event);
