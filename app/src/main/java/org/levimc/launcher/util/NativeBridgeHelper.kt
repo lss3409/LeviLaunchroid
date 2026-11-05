@@ -72,6 +72,19 @@ object NativeBridgeHelper {
     }
 
     @JvmStatic
+<<<<<<< HEAD
+=======
+    fun loadMinecraftRuntime(libraryPath: String) {
+        if (!ensureGxCoreLoaded()) {
+            throw UnsatisfiedLinkError("Failed to load gxcore for the Minecraft runtime")
+        }
+        nativeLoadMinecraftRuntime(libraryPath)?.let { error ->
+            throw UnsatisfiedLinkError(error)
+        }
+    }
+
+    @JvmStatic
+>>>>>>> v1.6.0
     fun getPrefs(name: String): SharedPreferences {
         return getAppContext().getSharedPreferences(name, Context.MODE_PRIVATE)
     }

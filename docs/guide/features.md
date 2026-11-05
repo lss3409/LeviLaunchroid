@@ -1,6 +1,10 @@
 # Features
 
+<<<<<<< HEAD
 LeviLauncher is centered on day-to-day Minecraft Bedrock launcher workflows. Native mod APIs exist, but they are an extension point for developers rather than the default user path.
+=======
+LeviLauncher for Android is centered on day-to-day Minecraft Bedrock Edition launcher workflows. Native mod APIs exist, but they are an extension point for developers rather than the default user path.
+>>>>>>> v1.6.0
 
 ## Version and Instance Management
 
@@ -14,14 +18,24 @@ Backups are intended for recovery and migration. Keep important backups outside 
 
 ## Xbox Accounts
 
+<<<<<<< HEAD
 LeviLauncher can manage multiple Xbox accounts inside the launcher. Select the account you want before launching Minecraft so the game starts with the expected identity.
+=======
+LeviLauncher for Android can manage multiple Xbox accounts inside the launcher. Select the account you want before launching Minecraft so the game starts with the expected identity.
+>>>>>>> v1.6.0
 
 ## Quick Launch
 
 Quick Launch uses Minecraft URI actions to jump directly into common flows. Depending on the action, you can open a game screen, connect to a server, add a server, join a Realm, load a local world, or execute a command.
 
+<<<<<<< HEAD
 ## Native Modules
 
 Native SO modules are supported for users who intentionally install them and for developers building extensions. These modules run native code, so only install packages you trust.
+=======
+## Native Mods
+
+Native mods are supported for users who intentionally install them and for developers building extensions. These mods run native code, so only install packages you trust.
+>>>>>>> v1.6.0
 
 Developer documentation lives under [Developer](/guide/developer), with the Preloader API reference available from that section.

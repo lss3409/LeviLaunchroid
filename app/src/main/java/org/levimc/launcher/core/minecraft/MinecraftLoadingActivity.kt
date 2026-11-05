@@ -25,6 +25,10 @@ import org.levimc.launcher.R
 import org.levimc.launcher.ui.activities.BaseActivity
 import org.levimc.launcher.ui.dialogs.CustomAlertDialog
 import org.levimc.launcher.util.PersonalizationManager
+<<<<<<< HEAD
+=======
+import org.levimc.launcher.util.LauncherBackgroundController
+>>>>>>> v1.6.0
 import java.text.SimpleDateFormat
 import java.util.ArrayDeque
 import java.util.Date
@@ -42,7 +46,10 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
     private lateinit var logView: TextView
     private lateinit var logScroll: ScrollView
     private lateinit var returnButton: Button
+<<<<<<< HEAD
     private lateinit var shareLogButton: Button
+=======
+>>>>>>> v1.6.0
     private lateinit var trace: LaunchTrace
 
     @Volatile
@@ -55,6 +62,10 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
     private val visibleLogMessages = ArrayDeque<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+<<<<<<< HEAD
+=======
+        LauncherBackgroundController.suspendForMinecraft()
+>>>>>>> v1.6.0
         super.onCreate(savedInstanceState)
         trace = LaunchTrace.ensure(intent)
         trace.mark("MinecraftLoadingActivity onCreate")
@@ -72,11 +83,14 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
         logView = findViewById(R.id.minecraftLaunchLog)
         logScroll = findViewById(R.id.minecraftLaunchLogScroll)
         returnButton = findViewById(R.id.minecraftLaunchReturn)
+<<<<<<< HEAD
         shareLogButton = findViewById(R.id.minecraftLaunchShare)
 
         shareLogButton.setOnClickListener {
             shareLaunchLog()
         }
+=======
+>>>>>>> v1.6.0
 
         returnButton.setOnClickListener {
             appendLog("Returning to launcher")
@@ -146,6 +160,10 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
     private fun startPreparing() {
         executor.execute {
             try {
+<<<<<<< HEAD
+=======
+                LauncherBackgroundController.awaitShutdown()
+>>>>>>> v1.6.0
                 val gameIntent = Intent(intent).apply {
                     setClass(this@MinecraftLoadingActivity, MinecraftActivity::class.java)
                 }
@@ -210,6 +228,7 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
         appendLog("Launch failed")
         appendLog(message)
         returnButton.visibility = View.VISIBLE
+<<<<<<< HEAD
         shareLogButton.visibility = View.VISIBLE
     }
 
@@ -232,6 +251,8 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
         } catch (e: Exception) {
             android.widget.Toast.makeText(this, R.string.share_launch_log_empty, android.widget.Toast.LENGTH_SHORT).show()
         }
+=======
+>>>>>>> v1.6.0
     }
 
     private fun animateProgressTo(targetProgress: Int) {
@@ -344,7 +365,11 @@ class MinecraftLoadingActivity : BaseActivity(), MinecraftRuntimePreparer.Progre
         returningToLauncher = true
 
         MinecraftLaunchSession.clear()
+<<<<<<< HEAD
         MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this, org.levimc.launcher.ui.activities.MainActivity.sForeground)
+=======
+        MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this)
+>>>>>>> v1.6.0
         finish()
     }
 

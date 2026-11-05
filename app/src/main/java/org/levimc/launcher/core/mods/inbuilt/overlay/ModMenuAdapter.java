@@ -29,11 +29,20 @@ public class ModMenuAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
     private static final int VIEW_TYPE_GROUP = 0;
     private static final int VIEW_TYPE_MOD = 1;
+<<<<<<< HEAD
+=======
+    private static final int VIEW_TYPE_MOD_COMPACT = 2;
+>>>>>>> v1.6.0
 
     private final List<MenuItem> items = new ArrayList<>();
     private final Map<String, Boolean> toggleStates = new HashMap<>();
     private final Map<String, Boolean> favoriteStates = new HashMap<>();
     private OnModActionListener listener;
+    private boolean compactMode;
+
+    public ModMenuAdapter() {
+        setHasStableIds(true);
+    }
 
     public ModMenuAdapter() {
         setHasStableIds(true);
@@ -49,6 +58,7 @@ public class ModMenuAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         this.listener = listener;
     }
 
+<<<<<<< HEAD
     public void updateMods(List<UnifiedMod> mods, Set<String> favoriteKeys) {
         List<MenuItem> nextItems = new ArrayList<>();
         Map<String, Boolean> nextToggleStates = new HashMap<>();
@@ -114,6 +124,87 @@ public class ModMenuAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         diff.dispatchUpdatesTo(this);
     }
 
+=======
+    public void setCompactMode(boolean compactMode) {
+        if (this.compactMode == compactMode) return;
+        this.compactMode = compactMode;
+        items.clear();
+        toggleStates.clear();
+        favoriteStates.clear();
+        notifyDataSetChanged();
+    }
+
+    public void updateMods(List<UnifiedMod> mods, Set<String> favoriteKeys) {
+        List<MenuItem> nextItems = new ArrayList<>();
+        Map<String, Boolean> nextToggleStates = new HashMap<>();
+        Map<String, Boolean> nextFavoriteStates = new HashMap<>();
+        String lastGroupId = null;
+        for (UnifiedMod mod : mods) {
+            boolean firstInGroup = !Objects.equals(mod.getGroupId(), lastGroupId);
+            if (!compactMode && firstInGroup) {
+                nextItems.add(MenuItem.group(mod.getGroupId(), mod.getGroupName()));
+            }
+            boolean showGroupLabel = compactMode
+                && firstInGroup
+                && mod.getSource() == UnifiedMod.Source.EXTERNAL;
+            nextItems.add(MenuItem.mod(mod, showGroupLabel));
+            lastGroupId = mod.getGroupId();
+            nextToggleStates.put(mod.getStableKey(), mod.isEnabled());
+            nextFavoriteStates.put(mod.getStableKey(),
+                favoriteKeys != null && favoriteKeys.contains(mod.getStableKey()));
+        }
+
+        List<MenuItem> oldItems = new ArrayList<>(items);
+        Map<String, Boolean> oldToggleStates = new HashMap<>(toggleStates);
+        Map<String, Boolean> oldFavoriteStates = new HashMap<>(favoriteStates);
+        DiffUtil.DiffResult diff = DiffUtil.calculateDiff(new DiffUtil.Callback() {
+            @Override
+            public int getOldListSize() {
+                return oldItems.size();
+            }
+
+            @Override
+            public int getNewListSize() {
+                return nextItems.size();
+            }
+
+            @Override
+            public boolean areItemsTheSame(int oldItemPosition, int newItemPosition) {
+                return oldItems.get(oldItemPosition).stableKey()
+                    .equals(nextItems.get(newItemPosition).stableKey());
+            }
+
+            @Override
+            public boolean areContentsTheSame(int oldItemPosition, int newItemPosition) {
+                MenuItem oldItem = oldItems.get(oldItemPosition);
+                MenuItem newItem = nextItems.get(newItemPosition);
+                if (oldItem.isGroup() || newItem.isGroup()) {
+                    return oldItem.isGroup() == newItem.isGroup()
+                        && Objects.equals(oldItem.groupName, newItem.groupName);
+                }
+                String oldKey = oldItem.mod.getStableKey();
+                String newKey = newItem.mod.getStableKey();
+                return Objects.equals(oldItem.mod.getName(), newItem.mod.getName())
+                    && Objects.equals(oldItem.mod.getDescription(), newItem.mod.getDescription())
+                    && oldItem.mod.hasConfig() == newItem.mod.hasConfig()
+                    && oldItem.showGroupLabel == newItem.showGroupLabel
+                    && oldToggleStates.getOrDefault(oldKey, false)
+                        .equals(nextToggleStates.getOrDefault(newKey, false))
+                    && oldFavoriteStates.getOrDefault(oldKey, false)
+                        .equals(nextFavoriteStates.getOrDefault(newKey, false));
+            }
+        }, false);
+
+        items.clear();
+        items.addAll(nextItems);
+        toggleStates.clear();
+        toggleStates.putAll(nextToggleStates);
+        favoriteStates.clear();
+        favoriteStates.putAll(nextFavoriteStates);
+        diff.dispatchUpdatesTo(this);
+    }
+
+>>>>>>> v1.6.0
     public boolean isGroupHeader(int position) {
         return position >= 0 && position < items.size() && items.get(position).isGroup();
     }
@@ -139,8 +230,15 @@ public class ModMenuAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             return new GroupViewHolder(title);
         }
 
+<<<<<<< HEAD
         View v = LayoutInflater.from(parent.getContext())
             .inflate(R.layout.item_mod_menu_card, parent, false);
+=======
+        int layout = viewType == VIEW_TYPE_MOD_COMPACT
+            ? R.layout.item_mod_menu_compact
+            : R.layout.item_mod_menu_card;
+        View v = LayoutInflater.from(parent.getContext()).inflate(layout, parent, false);
+>>>>>>> v1.6.0
         return new ModViewHolder(v);
     }
 
@@ -156,6 +254,15 @@ public class ModMenuAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         UnifiedMod mod = item.mod;
 
         modHolder.name.setText(mod.getName());
+<<<<<<< HEAD
+=======
+        if (modHolder.groupText != null) {
+            modHolder.groupText.setVisibility(item.showGroupLabel ? View.VISIBLE : View.GONE);
+            if (item.showGroupLabel) {
+                modHolder.groupText.setText(mod.getGroupName());
+            }
+        }
+>>>>>>> v1.6.0
 
         if (mod.getSource() == UnifiedMod.Source.INBUILT) {
             modHolder.icon.setImageResource(ModIconHelper.getModIcon(mod.getId()));
@@ -209,7 +316,12 @@ public class ModMenuAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
     @Override
     public int getItemViewType(int position) {
+<<<<<<< HEAD
         return items.get(position).isGroup() ? VIEW_TYPE_GROUP : VIEW_TYPE_MOD;
+=======
+        if (items.get(position).isGroup()) return VIEW_TYPE_GROUP;
+        return compactMode ? VIEW_TYPE_MOD_COMPACT : VIEW_TYPE_MOD;
+>>>>>>> v1.6.0
     }
 
     private void updateFavoriteView(ModViewHolder holder, boolean favorite) {
@@ -279,6 +391,7 @@ public class ModMenuAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         final String groupId;
         final String groupName;
         final UnifiedMod mod;
+<<<<<<< HEAD
 
         private MenuItem(String groupId, String groupName, UnifiedMod mod) {
             this.groupId = groupId;
@@ -292,6 +405,23 @@ public class ModMenuAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
         static MenuItem mod(UnifiedMod mod) {
             return new MenuItem(null, null, mod);
+=======
+        final boolean showGroupLabel;
+
+        private MenuItem(String groupId, String groupName, UnifiedMod mod, boolean showGroupLabel) {
+            this.groupId = groupId;
+            this.groupName = groupName;
+            this.mod = mod;
+            this.showGroupLabel = showGroupLabel;
+        }
+
+        static MenuItem group(String groupId, String groupName) {
+            return new MenuItem(groupId, groupName, null, false);
+        }
+
+        static MenuItem mod(UnifiedMod mod, boolean showGroupLabel) {
+            return new MenuItem(null, null, mod, showGroupLabel);
+>>>>>>> v1.6.0
         }
 
         boolean isGroup() {
@@ -316,6 +446,10 @@ public class ModMenuAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         ImageView icon;
         TextView name;
         TextView statusText;
+<<<<<<< HEAD
+=======
+        TextView groupText;
+>>>>>>> v1.6.0
         ImageButton favoriteBtn;
         ImageButton configBtn;
 
@@ -324,6 +458,10 @@ public class ModMenuAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             icon = itemView.findViewById(R.id.mod_card_icon);
             name = itemView.findViewById(R.id.mod_card_name);
             statusText = itemView.findViewById(R.id.mod_card_status);
+<<<<<<< HEAD
+=======
+            groupText = itemView.findViewById(R.id.mod_card_group);
+>>>>>>> v1.6.0
             favoriteBtn = itemView.findViewById(R.id.mod_card_favorite);
             configBtn = itemView.findViewById(R.id.mod_card_config);
         }

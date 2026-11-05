@@ -44,12 +44,15 @@ public class CustomAlertDialog extends Dialog {
     private boolean mUseBorderedBackground;
     private boolean mDismissing;
     private Runnable mDismissAnimationEndListener;
+<<<<<<< HEAD
     /** v539：点外部关闭开关（onCreate 里硬编码 false 会覆盖外部设置，改用字段）。 */
     /** v0.0.20：外点关闭默认开启（恢复 Dialog 原生默认行为）。 */
     private boolean mCanceledOnTouchOutside = true;
     /** v548：弹窗最大宽度（dp），内容少的弹窗可调小让背景"刚刚好"。
      *  v557：默认 360dp（横版比例——用户反馈 340 太窄导致内容竖堆）。 */
     private int mMaxWidthDp = 360;
+=======
+>>>>>>> v1.6.0
 
     public CustomAlertDialog(Context context) {
         // v549：固定 LeviDialogTheme——游戏进程（MinecraftActivity 非 AppCompat）
@@ -136,6 +139,7 @@ public class CustomAlertDialog extends Dialog {
         return this;
     }
 
+<<<<<<< HEAD
     /** v539：记录字段，onCreate 里重新应用（否则 show 前设置会被覆盖）。 */
     @Override
     public void setCanceledOnTouchOutside(boolean cancel) {
@@ -149,6 +153,8 @@ public class CustomAlertDialog extends Dialog {
         return this;
     }
 
+=======
+>>>>>>> v1.6.0
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -352,7 +358,10 @@ public class CustomAlertDialog extends Dialog {
             if (accent != 0) {
                 btnPositive.setBackgroundTintList(android.content.res.ColorStateList.valueOf(accent));
                 btnPositive.setTextColor(Color.WHITE);
+<<<<<<< HEAD
                 btnNegative.setTextColor(accent);
+=======
+>>>>>>> v1.6.0
             }
         } catch (Exception ignored) {}
     }
@@ -375,6 +384,7 @@ public class CustomAlertDialog extends Dialog {
             );
             window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
         }
+<<<<<<< HEAD
         // v0.4.11：手柄支持——弹窗窗口也挂焦点描边监听（Dialog 的
         // 焦点变化不经过 Activity 的 decor 树）+ 注册活动弹窗供
         // LT/RT 滚动键查找弹窗内滚动容器 + 焦点落到正按钮
@@ -398,6 +408,8 @@ public class CustomAlertDialog extends Dialog {
                 }
             }
         }
+=======
+>>>>>>> v1.6.0
     }
 
     @Override

@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners;
+<<<<<<< HEAD
 import com.google.android.material.switchmaterial.SwitchMaterial;
 
 import org.levimc.launcher.R;
@@ -19,6 +20,12 @@ import org.levimc.launcher.core.content.ResourcePackItem;
 import org.levimc.launcher.util.McFormatUtils;
 import org.levimc.launcher.util.PersonalizationManager;
 import org.levimc.launcher.util.PreloadManager;
+=======
+
+import org.levimc.launcher.R;
+import org.levimc.launcher.core.content.ResourcePackItem;
+import org.levimc.launcher.util.PersonalizationManager;
+>>>>>>> v1.6.0
 import org.levimc.launcher.ui.views.ContentActionPopup;
 
 import java.io.File;
@@ -36,16 +43,22 @@ public class ResourcePacksAdapter extends RecyclerView.Adapter<ResourcePacksAdap
     private OnResourcePackActionListener onResourcePackActionListener;
     private OnSelectionChangedListener onSelectionChangedListener;
     private boolean selectionMode;
+<<<<<<< HEAD
     private boolean showPreloadSwitch = false;
+=======
+>>>>>>> v1.6.0
 
     public interface OnResourcePackActionListener {
         void onResourcePackDelete(ResourcePackItem pack);
         void onResourcePackTransfer(ResourcePackItem pack);
         void onResourcePackExport(ResourcePackItem pack);
+<<<<<<< HEAD
         void onResourcePackLocate(ResourcePackItem pack);
         void onResourcePackPreloadChanged(ResourcePackItem pack, boolean preloaded);
         /** v0.1.0：激活包到指定存档（写入 world_*_packs.json）。 */
         void onResourcePackActivate(ResourcePackItem pack);
+=======
+>>>>>>> v1.6.0
     }
 
     public interface OnSelectionChangedListener {
@@ -60,10 +73,13 @@ public class ResourcePacksAdapter extends RecyclerView.Adapter<ResourcePacksAdap
         this.onSelectionChangedListener = listener;
     }
 
+<<<<<<< HEAD
     public void setShowPreloadSwitch(boolean show) {
         this.showPreloadSwitch = show;
     }
 
+=======
+>>>>>>> v1.6.0
     public void updateResourcePacks(List<ResourcePackItem> packs) {
         resourcePacks.clear();
         if (packs != null) resourcePacks.addAll(packs);
@@ -120,6 +136,7 @@ public class ResourcePacksAdapter extends RecyclerView.Adapter<ResourcePacksAdap
         notifySelectionChanged();
     }
 
+<<<<<<< HEAD
     public boolean areAllVisibleSelected() {
         if (resourcePacks.isEmpty()) return false;
         for (ResourcePackItem pack : resourcePacks) {
@@ -128,6 +145,8 @@ public class ResourcePacksAdapter extends RecyclerView.Adapter<ResourcePacksAdap
         return true;
     }
 
+=======
+>>>>>>> v1.6.0
     public void retainSelections(List<ResourcePackItem> source) {
         Set<String> valid = new HashSet<>();
         if (source != null) {
@@ -151,6 +170,7 @@ public class ResourcePacksAdapter extends RecyclerView.Adapter<ResourcePacksAdap
         ResourcePackItem pack = resourcePacks.get(position);
         boolean selected = selectedPaths.contains(pathOf(pack));
         String version = pack.getVersion() == null || pack.getVersion().isEmpty() ? "?" : pack.getVersion();
+<<<<<<< HEAD
 
         holder.packName.setText(McFormatUtils.format(pack.getPackName()));
         holder.packMeta.setText(holder.itemView.getContext().getString(R.string.pack_meta, version, pack.getFormattedSize()));
@@ -173,6 +193,26 @@ public class ResourcePacksAdapter extends RecyclerView.Adapter<ResourcePacksAdap
                 .error(fallback)
                 .into(holder.packIcon);
 
+=======
+
+        holder.packName.setText(pack.getPackName());
+        holder.packMeta.setText(holder.itemView.getContext().getString(R.string.pack_meta, version, pack.getFormattedSize()));
+        holder.packDescription.setText(pack.getDescription());
+        holder.itemView.setActivated(selected);
+        holder.exportButton.setVisibility(selectionMode ? View.GONE : View.VISIBLE);
+        holder.overflowButton.setVisibility(selectionMode ? View.GONE : View.VISIBLE);
+        holder.selectionIndicator.setVisibility(selectionMode ? View.VISIBLE : View.GONE);
+        holder.selectionIndicator.setAlpha(selected ? 1f : 0.28f);
+
+        int fallback = fallbackIcon(pack);
+        File icon = pack.getIconFile();
+        Glide.with(holder.packIcon)
+                .load(icon != null ? icon : fallback)
+                .transform(new RoundedCorners(dp(holder.itemView, 8)))
+                .error(fallback)
+                .into(holder.packIcon);
+
+>>>>>>> v1.6.0
         holder.itemView.setOnClickListener(v -> {
             if (selectionMode) toggleSelection(pack);
         });
@@ -186,6 +226,7 @@ public class ResourcePacksAdapter extends RecyclerView.Adapter<ResourcePacksAdap
         });
         holder.overflowButton.setOnClickListener(v -> showOverflow(holder.overflowButton, pack));
 
+<<<<<<< HEAD
         // 预加载开关（仅共享文件夹模式显示）
         if (showPreloadSwitch && pack.getUuid() != null && !pack.getUuid().isEmpty()) {
             holder.preloadLabel.setVisibility(View.VISIBLE);
@@ -205,26 +246,36 @@ public class ResourcePacksAdapter extends RecyclerView.Adapter<ResourcePacksAdap
             holder.preloadSwitch.setVisibility(View.GONE);
         }
 
+=======
+>>>>>>> v1.6.0
         PersonalizationManager pm = new PersonalizationManager(holder.itemView.getContext());
         pm.applyGlassToView(holder.itemView);
         pm.applyAccentToView(holder.itemView, holder.itemView.getContext());
     }
 
     private void showOverflow(View anchor, ResourcePackItem pack) {
+<<<<<<< HEAD
         java.util.List<ContentActionPopup.Action> actions = new java.util.ArrayList<>(Arrays.asList(
+=======
+        ContentActionPopup.show(anchor, pack.getPackName(), Arrays.asList(
+>>>>>>> v1.6.0
                 new ContentActionPopup.Action(R.drawable.ic_export, R.string.export, false, () -> {
                     if (onResourcePackActionListener != null) onResourcePackActionListener.onResourcePackExport(pack);
                 }),
                 new ContentActionPopup.Action(R.drawable.ic_transfer, R.string.transfer, false, () -> {
                     if (onResourcePackActionListener != null) onResourcePackActionListener.onResourcePackTransfer(pack);
                 }),
+<<<<<<< HEAD
                 new ContentActionPopup.Action(R.drawable.ic_folder, R.string.locate, false, () -> {
                     if (onResourcePackActionListener != null) onResourcePackActionListener.onResourcePackLocate(pack);
                 }),
+=======
+>>>>>>> v1.6.0
                 new ContentActionPopup.Action(R.drawable.ic_delete, R.string.delete, true, () -> {
                     if (onResourcePackActionListener != null) onResourcePackActionListener.onResourcePackDelete(pack);
                 })
         ));
+<<<<<<< HEAD
         // v0.1.0：激活到存档（仅带 uuid 的包可用）
         if (pack.getUuid() != null && !pack.getUuid().isEmpty()
                 && !pack.isSkinPack()) {
@@ -244,6 +295,8 @@ public class ResourcePacksAdapter extends RecyclerView.Adapter<ResourcePacksAdap
             }));
         }
         ContentActionPopup.show(anchor, pack.getPackName(), actions);
+=======
+>>>>>>> v1.6.0
     }
 
     private int fallbackIcon(ResourcePackItem pack) {
@@ -287,12 +340,18 @@ public class ResourcePacksAdapter extends RecyclerView.Adapter<ResourcePacksAdap
         final TextView packName;
         final TextView packDescription;
         final TextView packMeta;
+<<<<<<< HEAD
         final TextView packUuid;
         final ImageButton exportButton;
         final ImageButton overflowButton;
         final ImageView selectionIndicator;
         final TextView preloadLabel;
         final SwitchMaterial preloadSwitch;
+=======
+        final ImageButton exportButton;
+        final ImageButton overflowButton;
+        final ImageView selectionIndicator;
+>>>>>>> v1.6.0
 
         ResourcePackViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -300,12 +359,18 @@ public class ResourcePacksAdapter extends RecyclerView.Adapter<ResourcePacksAdap
             packName = itemView.findViewById(R.id.pack_name);
             packDescription = itemView.findViewById(R.id.pack_description);
             packMeta = itemView.findViewById(R.id.pack_meta);
+<<<<<<< HEAD
             packUuid = itemView.findViewById(R.id.pack_uuid);
             exportButton = itemView.findViewById(R.id.pack_export_button);
             overflowButton = itemView.findViewById(R.id.pack_overflow_button);
             selectionIndicator = itemView.findViewById(R.id.pack_selection_indicator);
             preloadLabel = itemView.findViewById(R.id.preload_label);
             preloadSwitch = itemView.findViewById(R.id.preload_switch);
+=======
+            exportButton = itemView.findViewById(R.id.pack_export_button);
+            overflowButton = itemView.findViewById(R.id.pack_overflow_button);
+            selectionIndicator = itemView.findViewById(R.id.pack_selection_indicator);
+>>>>>>> v1.6.0
         }
     }
 }

@@ -16,7 +16,12 @@ import android.widget.FrameLayout;
 import android.widget.ImageButton;
 
 import org.levimc.launcher.R;
+import org.levimc.launcher.core.mods.inbuilt.ExternalModBridge;
 import org.levimc.launcher.core.mods.inbuilt.manager.InbuiltModManager;
+<<<<<<< HEAD
+=======
+import org.levimc.launcher.preloader.PreloaderInput;
+>>>>>>> v1.6.0
 
 public class ModMenuButton {
 
@@ -97,8 +102,6 @@ public class ModMenuButton {
         }
     };
     
-    private ModMenuOverlay menuOverlay;
-    
     public ModMenuButton(Activity activity) {
         this.activity = activity;
         this.windowManager = (WindowManager) activity.getSystemService(Context.WINDOW_SERVICE);
@@ -177,12 +180,17 @@ public class ModMenuButton {
             }
 
             btn.setOnTouchListener(this::handleTouch);
+            buttonView.setVisibility(View.GONE);
             windowManager.addView(buttonView, wmParams);
             isShowing = true;
             applyOpacity();
+<<<<<<< HEAD
             if (restoredAtEdge) {
                 buttonView.post(this::hideToEdge);
             }
+=======
+            applyRuntimeVisibility();
+>>>>>>> v1.6.0
         } catch (Exception e) {
             showFallback(startX, startY);
         }
@@ -205,10 +213,12 @@ public class ModMenuButton {
         params.topMargin = startY;
         
         btn.setOnTouchListener(this::handleTouchFallback);
+        buttonView.setVisibility(View.GONE);
         rootView.addView(buttonView, params);
         isShowing = true;
         wmParams = null;
         applyOpacity();
+        applyRuntimeVisibility();
     }
 
     private void applyOpacity() {
@@ -224,6 +234,19 @@ public class ModMenuButton {
 
     private void applyButtonOpacity() {
         applyOpacity();
+    }
+
+    private void applyRuntimeVisibility() {
+        if (buttonView == null) return;
+        InbuiltModManager manager = InbuiltModManager.getInstance(activity);
+        boolean visible = !ExternalModBridge.isFloatingModMenuButtonHidden() &&
+                (!manager.isPauseMenuOnly() ||
+                        (PreloaderInput.isPauseMenuOpen() && PreloaderInput.isShowingMenu()));
+        buttonView.setVisibility(visible ? View.VISIBLE : View.GONE);
+        InbuiltOverlayManager overlayManager = InbuiltOverlayManager.getInstance();
+        if (overlayManager != null) {
+            overlayManager.refreshRuntimeVisibility();
+        }
     }
 
     private boolean handleTouch(View v, MotionEvent event) {
@@ -540,9 +563,15 @@ public class ModMenuButton {
     }
 
     private void onButtonClick() {
+<<<<<<< HEAD
         // 悬浮球：打开模组菜单
         if (menuOverlay == null) {
             menuOverlay = new ModMenuOverlay(activity);
+=======
+        InbuiltOverlayManager overlayManager = InbuiltOverlayManager.getInstance();
+        if (overlayManager != null) {
+            overlayManager.toggleModMenuFromButton();
+>>>>>>> v1.6.0
         }
         // v477：菜单关闭后重启贴边隐藏链（3s 淡出 + 15s 深度隐藏）——
         // 此前 hideToEdge 只在吸附落定时触发，点开菜单再退出后球
@@ -569,10 +598,6 @@ public class ModMenuButton {
     }
     
     public void hide() {
-        if (menuOverlay != null) {
-            menuOverlay.hide();
-            menuOverlay = null;
-        }
         if (!isShowing || buttonView == null) return;
         handler.removeCallbacks(fadeOutRunnable);
         handler.removeCallbacks(deepHideRunnable);
@@ -603,6 +628,7 @@ public class ModMenuButton {
         return isShowing;
     }
 
+<<<<<<< HEAD
     public boolean isMenuShowing() {
         return menuOverlay != null && menuOverlay.isShowing();
     }
@@ -611,5 +637,9 @@ public class ModMenuButton {
         if (menuOverlay != null && menuOverlay.isShowing()) {
             menuOverlay.hide();
         }
+=======
+    public void refreshOpacity() {
+        applyButtonOpacity();
+>>>>>>> v1.6.0
     }
 }

@@ -124,7 +124,11 @@
                 android:layout_width="wrap_content"
                 android:layout_height="40dp"
                 android:layout_marginStart="10dp"
+<<<<<<< HEAD
                 android:backgroundTint="@color/error"
+=======
+                android:backgroundTint="@color/primary"
+>>>>>>> v1.6.0
                 android:fontFamily="@font/misans"
                 android:minWidth="0dp"
                 android:minHeight="0dp"

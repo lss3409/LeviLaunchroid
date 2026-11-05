@@ -1,6 +1,10 @@
 # Privacy Policy
 
+<<<<<<< HEAD
 This privacy policy applies to the LeviLauncher app for mobile devices, together with any related services operated by LiteLDev (collectively, the "Application"). LiteLDev is hereby referred to as the "Service Provider".
+=======
+This privacy policy applies to the LeviLauncher for Android app for mobile devices (shown as "LeviLauncher" on the device), together with any related services operated by LeviMC (collectively, the "Application"). LeviMC is hereby referred to as the "Service Provider".
+>>>>>>> v1.6.0
 
 ## Information Collection and Use
 
@@ -43,7 +47,11 @@ Data protection laws in other countries may differ from those in your jurisdicti
 
 Please note that the Application utilizes third-party services that have their own Privacy Policy about handling data. Below are the links to the Privacy Policy of the third-party service providers used by the Application:
 
+<<<<<<< HEAD
 * [Google Play Services](https://www.google.com/policies/privacy/)
+=======
+* [Google Play Services](https://policies.google.com/privacy)
+>>>>>>> v1.6.0
 * [AdMob](https://policies.google.com/technologies/partner-sites)
 * [Google Analytics for Firebase](https://firebase.google.com/support/privacy)
 * [Firebase Crashlytics](https://firebase.google.com/support/privacy/)

@@ -118,9 +118,20 @@ public class HudOverlay extends View {
                                 FrameLayout.LayoutParams.MATCH_PARENT,
                                 FrameLayout.LayoutParams.MATCH_PARENT
                         );
+<<<<<<< HEAD
                         rootView.addView(HudOverlay.this, params);
                         isShowing = true;
                         cachedDrawRevision = Long.MIN_VALUE;
+=======
+                        HudOverlay.this.setVisibility(GONE);
+                        rootView.addView(HudOverlay.this, params);
+                        isShowing = true;
+                        cachedDrawRevision = Long.MIN_VALUE;
+                        InbuiltOverlayManager manager = InbuiltOverlayManager.getInstance();
+                        if (manager != null) {
+                            manager.refreshRuntimeVisibility();
+                        }
+>>>>>>> v1.6.0
                         postFrameCallback();
                     }
                 } catch (Exception e) {
@@ -146,15 +157,31 @@ public class HudOverlay extends View {
     }
 
     private boolean isHudEditorMode = false;
+<<<<<<< HEAD
     
     private String draggingModule = null;
+=======
+
+    private String draggingModule = null;
+    private ExternalModBridge.HudEditorElement draggingHudElement = null;
+>>>>>>> v1.6.0
     private float dragOffsetX = 0f;
     private float dragOffsetY = 0f;
     private float draggingWidth = 1f;
     private float draggingHeight = 1f;
+<<<<<<< HEAD
 
     private java.util.Map<String, Boolean> hiddenInHudCache = new java.util.HashMap<>();
     private boolean hiddenInHudCacheLoaded = false;
+=======
+    private float snapGuideX = Float.NaN;
+    private float snapGuideY = Float.NaN;
+
+    private final java.util.Map<String, Boolean> hiddenInHudCache = new java.util.HashMap<>();
+    private boolean hiddenInHudCacheLoaded = false;
+    private ExternalModBridge.HudEditorElement[] cachedHudElements = new ExternalModBridge.HudEditorElement[0];
+    private long cachedHudElementsRevision = Long.MIN_VALUE;
+>>>>>>> v1.6.0
 
     private void loadHiddenInHudCache() {
         if (hiddenInHudCacheLoaded) return;
@@ -196,6 +223,12 @@ public class HudOverlay extends View {
         isHudEditorMode = active;
         hiddenInHudCache.clear();
         hiddenInHudCacheLoaded = false;
+<<<<<<< HEAD
+=======
+        cachedHudElements = new ExternalModBridge.HudEditorElement[0];
+        cachedHudElementsRevision = Long.MIN_VALUE;
+        clearDragging();
+>>>>>>> v1.6.0
         invalidate();
     }
 
@@ -203,6 +236,15 @@ public class HudOverlay extends View {
         return isHudEditorMode;
     }
 
+<<<<<<< HEAD
+=======
+    @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        ExternalModBridge.setHudSurfaceSize(w, h);
+    }
+
+>>>>>>> v1.6.0
     private DrawCommand[] currentDrawCommands() {
         long revision = ExternalModBridge.getDrawCommandsRevision();
         if (revision < 0L || revision != cachedDrawRevision) {
@@ -212,11 +254,41 @@ public class HudOverlay extends View {
         return cachedDrawCommands;
     }
 
+<<<<<<< HEAD
+=======
+    private ExternalModBridge.HudEditorElement[] currentHudEditorElements() {
+        long revision = ExternalModBridge.getDrawCommandsRevision();
+        if (revision < 0L || revision != cachedHudElementsRevision) {
+            cachedHudElements = ExternalModBridge.getHudEditorElements();
+            cachedHudElementsRevision = revision;
+        }
+        return cachedHudElements;
+    }
+
+    private boolean hasExplicitHudElements(String moduleId) {
+        if (moduleId == null) return false;
+        for (ExternalModBridge.HudEditorElement element : currentHudEditorElements()) {
+            if (element != null && moduleId.equals(element.moduleId)) return true;
+        }
+        return false;
+    }
+
+    private ModuleBounds getHudElementBounds(ExternalModBridge.HudEditorElement element) {
+        if (element == null) return null;
+        float left = resolveX(element.x);
+        float top = resolveY(element.y);
+        float right = left + Math.max(1f, element.width);
+        float bottom = top + Math.max(1f, element.height);
+        return new ModuleBounds(left, top, right, bottom);
+    }
+
+>>>>>>> v1.6.0
     @Override
     public boolean onTouchEvent(android.view.MotionEvent event) {
         if (!isHudEditorMode) return false;
 
         switch (event.getActionMasked()) {
+<<<<<<< HEAD
             case android.view.MotionEvent.ACTION_DOWN:
                 DrawCommand[] cmds = currentDrawCommands();
                 if (cmds != null) {
@@ -245,31 +317,112 @@ public class HudOverlay extends View {
                                 dragOffsetY = touchY - moduleBounds.top;
                                 return true;
                             }
+=======
+            case android.view.MotionEvent.ACTION_DOWN: {
+                float touchX = event.getX();
+                float touchY = event.getY();
+                ExternalModBridge.HudEditorElement[] elements = currentHudEditorElements();
+                for (int i = elements.length - 1; i >= 0; i--) {
+                    ExternalModBridge.HudEditorElement element = elements[i];
+                    if (element == null || element.moduleId == null || isHiddenInHudEditor(element.moduleId)) continue;
+                    ModuleBounds bounds = getHudElementBounds(element);
+                    if (bounds != null && bounds.contains(touchX, touchY)) {
+                        draggingModule = element.moduleId;
+                        draggingHudElement = element;
+                        draggingWidth = Math.max(1f, bounds.width());
+                        draggingHeight = Math.max(1f, bounds.height());
+                        dragOffsetX = touchX - bounds.left;
+                        dragOffsetY = touchY - bounds.top;
+                        return true;
+                    }
+                }
+
+                DrawCommand[] cmds = currentDrawCommands();
+                if (cmds != null) {
+                    for (int i = cmds.length - 1; i >= 0; i--) {
+                        DrawCommand cmd = cmds[i];
+                        if (cmd.moduleId == null || isHiddenInHudEditor(cmd.moduleId)
+                                || hasExplicitHudElements(cmd.moduleId) || !isDraggableCommand(cmd)) continue;
+                        ModuleBounds hitBounds = getCommandBounds(cmd);
+                        if (hitBounds != null && hitBounds.contains(touchX, touchY)) {
+                            draggingModule = cmd.moduleId;
+                            ModuleBounds moduleBounds = getModuleBounds(cmds, draggingModule);
+                            if (moduleBounds == null) {
+                                clearDragging();
+                                return true;
+                            }
+                            draggingWidth = Math.max(1f, moduleBounds.width());
+                            draggingHeight = Math.max(1f, moduleBounds.height());
+                            dragOffsetX = touchX - moduleBounds.left;
+                            dragOffsetY = touchY - moduleBounds.top;
+                            return true;
+>>>>>>> v1.6.0
                         }
                     }
                 }
                 break;
+<<<<<<< HEAD
+=======
+            }
+>>>>>>> v1.6.0
             case android.view.MotionEvent.ACTION_MOVE:
                 if (draggingModule != null) {
                     float newX = clamp(event.getX() - dragOffsetX, 0f, Math.max(0f, getWidth() - draggingWidth));
                     float newY = clamp(event.getY() - dragOffsetY, 0f, Math.max(0f, getHeight() - draggingHeight));
+<<<<<<< HEAD
                     ExternalModBridge.setExternalModConfig(draggingModule, "hudPosX", String.valueOf((int)newX));
                     ExternalModBridge.setExternalModConfig(draggingModule, "hudPosY", String.valueOf((int)newY));
+=======
+                    if (draggingHudElement != null) {
+                        SnapPosition snapped = snapHudElement(draggingHudElement, newX, newY);
+                        newX = clamp(snapped.x, 0f, Math.max(0f, getWidth() - draggingWidth));
+                        newY = clamp(snapped.y, 0f, Math.max(0f, getHeight() - draggingHeight));
+                        draggingHudElement.x = newX;
+                        draggingHudElement.y = newY;
+                        ExternalModBridge.setExternalModConfig(draggingModule, draggingHudElement.positionKeyX, String.valueOf(newX));
+                        ExternalModBridge.setExternalModConfig(draggingModule, draggingHudElement.positionKeyY, String.valueOf(newY));
+                        invalidate();
+                    } else {
+                        snapGuideX = Float.NaN;
+                        snapGuideY = Float.NaN;
+                        ExternalModBridge.setExternalModConfig(draggingModule, "hudPosX", String.valueOf(Math.round(newX)));
+                        ExternalModBridge.setExternalModConfig(draggingModule, "hudPosY", String.valueOf(Math.round(newY)));
+                    }
+>>>>>>> v1.6.0
                     return true;
                 }
                 break;
             case android.view.MotionEvent.ACTION_UP:
             case android.view.MotionEvent.ACTION_CANCEL:
+<<<<<<< HEAD
                 draggingModule = null;
                 dragOffsetX = 0f;
                 dragOffsetY = 0f;
                 draggingWidth = 1f;
                 draggingHeight = 1f;
+=======
+                clearDragging();
+                invalidate();
+>>>>>>> v1.6.0
                 return true;
         }
         return true;
     }
 
+<<<<<<< HEAD
+=======
+    private void clearDragging() {
+        draggingModule = null;
+        draggingHudElement = null;
+        dragOffsetX = 0f;
+        dragOffsetY = 0f;
+        draggingWidth = 1f;
+        draggingHeight = 1f;
+        snapGuideX = Float.NaN;
+        snapGuideY = Float.NaN;
+    }
+
+>>>>>>> v1.6.0
     private boolean isDraggableCommand(DrawCommand cmd) {
         return cmd.type != DrawCommand.TYPE_LINE
                 && cmd.type != DrawCommand.TYPE_CIRCLE_FILLED
@@ -279,6 +432,7 @@ public class HudOverlay extends View {
     private ModuleBounds getModuleBounds(DrawCommand[] cmds, String moduleId) {
         ModuleBounds bounds = null;
         for (DrawCommand cmd : cmds) {
+<<<<<<< HEAD
             if (!moduleId.equals(cmd.moduleId) || !isDraggableCommand(cmd)) {
                 continue;
             }
@@ -291,10 +445,147 @@ public class HudOverlay extends View {
             } else {
                 bounds.include(commandBounds);
             }
+=======
+            if (!moduleId.equals(cmd.moduleId) || !isDraggableCommand(cmd)) continue;
+            ModuleBounds commandBounds = getCommandBounds(cmd);
+            if (commandBounds == null) continue;
+            if (bounds == null) bounds = commandBounds;
+            else bounds.include(commandBounds);
+>>>>>>> v1.6.0
         }
         return bounds;
     }
 
+<<<<<<< HEAD
+=======
+    private SnapPosition snapHudElement(ExternalModBridge.HudEditorElement moving, float x, float y) {
+        float bestX = x;
+        float bestY = y;
+        float threshold = Math.max(0f, moving.snapThreshold);
+        float bestXDistance = threshold + 0.001f;
+        float bestYDistance = threshold + 0.001f;
+        snapGuideX = Float.NaN;
+        snapGuideY = Float.NaN;
+
+        if ((moving.snapFlags & ExternalModBridge.HudEditorElement.SNAP_GRID) != 0 && moving.gridSize > 0f) {
+            bestX = Math.round(bestX / moving.gridSize) * moving.gridSize;
+            bestY = Math.round(bestY / moving.gridSize) * moving.gridSize;
+        }
+
+        if ((moving.snapFlags & ExternalModBridge.HudEditorElement.SNAP_SCREEN_CENTER) != 0) {
+            float centerX = (getWidth() - draggingWidth) * 0.5f;
+            float centerY = (getHeight() - draggingHeight) * 0.5f;
+            float dx = Math.abs(centerX - bestX);
+            float dy = Math.abs(centerY - bestY);
+            if (dx < bestXDistance) {
+                bestXDistance = dx;
+                bestX = centerX;
+                snapGuideX = getWidth() * 0.5f;
+            }
+            if (dy < bestYDistance) {
+                bestYDistance = dy;
+                bestY = centerY;
+                snapGuideY = getHeight() * 0.5f;
+            }
+        }
+
+        if ((moving.snapFlags & ExternalModBridge.HudEditorElement.SNAP_ELEMENTS) == 0) {
+            return new SnapPosition(bestX, bestY);
+        }
+
+        for (ExternalModBridge.HudEditorElement target : currentHudEditorElements()) {
+            if (target == null || target == moving || target.moduleId == null || target.elementId == null) continue;
+            if (moving.moduleId != null && moving.moduleId.equals(target.moduleId)
+                    && moving.elementId != null && moving.elementId.equals(target.elementId)) continue;
+            if (isHiddenInHudEditor(target.moduleId)) continue;
+            if (moving.snapGroup != null && !moving.snapGroup.isEmpty()
+                    && !moving.snapGroup.equals(target.snapGroup)) continue;
+            ModuleBounds targetBounds = getHudElementBounds(target);
+            if (targetBounds == null) continue;
+            float gap = Math.max(moving.gridGap, target.gridGap);
+
+            float[] xCandidates = {
+                    targetBounds.left,
+                    targetBounds.right - draggingWidth,
+                    targetBounds.centerX() - draggingWidth * 0.5f,
+                    targetBounds.right + gap,
+                    targetBounds.left - gap - draggingWidth
+            };
+            for (float candidate : xCandidates) {
+                float distance = Math.abs(candidate - bestX);
+                if (distance < bestXDistance) {
+                    bestXDistance = distance;
+                    bestX = candidate;
+                    snapGuideX = candidate + draggingWidth * 0.5f;
+                }
+            }
+
+            float[] yCandidates = {
+                    targetBounds.top,
+                    targetBounds.bottom - draggingHeight,
+                    targetBounds.centerY() - draggingHeight * 0.5f,
+                    targetBounds.bottom + gap,
+                    targetBounds.top - gap - draggingHeight
+            };
+            for (float candidate : yCandidates) {
+                float distance = Math.abs(candidate - bestY);
+                if (distance < bestYDistance) {
+                    bestYDistance = distance;
+                    bestY = candidate;
+                    snapGuideY = candidate + draggingHeight * 0.5f;
+                }
+            }
+        }
+
+        if (moving.snapGroup == null || moving.snapGroup.isEmpty()) {
+            DrawCommand[] cmds = currentDrawCommands();
+            java.util.HashSet<String> visited = new java.util.HashSet<>();
+            for (DrawCommand cmd : cmds) {
+                if (cmd == null || cmd.moduleId == null || cmd.moduleId.equals(moving.moduleId)
+                        || hasExplicitHudElements(cmd.moduleId) || isHiddenInHudEditor(cmd.moduleId)
+                        || !visited.add(cmd.moduleId)) continue;
+                ModuleBounds targetBounds = getModuleBounds(cmds, cmd.moduleId);
+                if (targetBounds == null) continue;
+                float gap = Math.max(0f, moving.gridGap);
+                float[] xCandidates = {targetBounds.left, targetBounds.right - draggingWidth,
+                        targetBounds.centerX() - draggingWidth * 0.5f,
+                        targetBounds.right + gap, targetBounds.left - gap - draggingWidth};
+                for (float candidate : xCandidates) {
+                    float distance = Math.abs(candidate - bestX);
+                    if (distance < bestXDistance) {
+                        bestXDistance = distance;
+                        bestX = candidate;
+                        snapGuideX = candidate + draggingWidth * 0.5f;
+                    }
+                }
+                float[] yCandidates = {targetBounds.top, targetBounds.bottom - draggingHeight,
+                        targetBounds.centerY() - draggingHeight * 0.5f,
+                        targetBounds.bottom + gap, targetBounds.top - gap - draggingHeight};
+                for (float candidate : yCandidates) {
+                    float distance = Math.abs(candidate - bestY);
+                    if (distance < bestYDistance) {
+                        bestYDistance = distance;
+                        bestY = candidate;
+                        snapGuideY = candidate + draggingHeight * 0.5f;
+                    }
+                }
+            }
+        }
+
+        return new SnapPosition(bestX, bestY);
+    }
+
+    private static final class SnapPosition {
+        final float x;
+        final float y;
+
+        SnapPosition(float x, float y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+>>>>>>> v1.6.0
     private ModuleBounds getCommandBounds(DrawCommand cmd) {
         float drawX = resolveX(cmd.x);
         float drawY = resolveY(cmd.y);
@@ -389,12 +680,29 @@ public class HudOverlay extends View {
         float height() {
             return bottom - top;
         }
+<<<<<<< HEAD
+=======
+
+        float centerX() {
+            return (left + right) * 0.5f;
+        }
+
+        float centerY() {
+            return (top + bottom) * 0.5f;
+        }
+>>>>>>> v1.6.0
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         if (!isShowing) return;
+<<<<<<< HEAD
+=======
+        if (getWidth() > 0 && getHeight() > 0) {
+            ExternalModBridge.setHudSurfaceSize(getWidth(), getHeight());
+        }
+>>>>>>> v1.6.0
 
         if (isHudEditorMode) {
             canvas.drawColor(0x88000000);
@@ -521,7 +829,11 @@ public class HudOverlay extends View {
                 }
 
                 if (isHudEditorMode && cmd.moduleId != null) {
+<<<<<<< HEAD
                     if (!isDraggableCommand(cmd)) {
+=======
+                    if (hasExplicitHudElements(cmd.moduleId) || !isDraggableCommand(cmd)) {
+>>>>>>> v1.6.0
                         continue;
                     }
                     ModuleBounds bounds = getCommandBounds(cmd);
@@ -535,5 +847,36 @@ public class HudOverlay extends View {
                 }
             }
         }
+<<<<<<< HEAD
+=======
+
+        if (isHudEditorMode) {
+            if (draggingHudElement != null
+                    && (draggingHudElement.snapFlags & ExternalModBridge.HudEditorElement.SNAP_GRID) != 0
+                    && draggingHudElement.gridSize > 0f) {
+                float step = draggingHudElement.gridSize;
+                while (step < 16f) step *= 2f;
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(1f);
+                paint.setColor(0x334AE0A0);
+                for (float x = 0f; x <= getWidth(); x += step) canvas.drawLine(x, 0f, x, getHeight(), paint);
+                for (float y = 0f; y <= getHeight(); y += step) canvas.drawLine(0f, y, getWidth(), y, paint);
+            }
+
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(2f);
+            paint.setColor(0xFF4AE0A0);
+            for (ExternalModBridge.HudEditorElement element : currentHudEditorElements()) {
+                if (element == null || isHiddenInHudEditor(element.moduleId)) continue;
+                ModuleBounds bounds = getHudElementBounds(element);
+                if (bounds != null) canvas.drawRect(bounds.left - 2f, bounds.top - 2f, bounds.right + 2f, bounds.bottom + 2f, paint);
+            }
+
+            paint.setColor(0xAAFFFFFF);
+            paint.setStrokeWidth(1.5f);
+            if (!Float.isNaN(snapGuideX)) canvas.drawLine(snapGuideX, 0f, snapGuideX, getHeight(), paint);
+            if (!Float.isNaN(snapGuideY)) canvas.drawLine(0f, snapGuideY, getWidth(), snapGuideY, paint);
+        }
+>>>>>>> v1.6.0
     }
 }

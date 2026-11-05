@@ -9,6 +9,10 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
+<<<<<<< HEAD
+=======
+import android.graphics.ImageDecoder;
+>>>>>>> v1.6.0
 import android.graphics.RenderEffect;
 import android.graphics.Shader;
 import android.graphics.drawable.ColorDrawable;
@@ -21,6 +25,10 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageView;
+<<<<<<< HEAD
+=======
+import android.widget.FrameLayout;
+>>>>>>> v1.6.0
 import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.ProgressBar;
@@ -34,6 +42,7 @@ import org.levimc.launcher.R;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+<<<<<<< HEAD
 
 public class PersonalizationManager {
     /**
@@ -50,6 +59,20 @@ public class PersonalizationManager {
     private static final String KEY_BG_IMAGE_BRIGHTNESS = "bg_image_brightness";
     private static final String KEY_UI_SCALE = "ui_scale";
     private static final String KEY_FONT_SCALE = "font_scale";
+=======
+import java.io.IOException;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+
+public class PersonalizationManager {
+    private static final String PREFS_NAME = "personalization_prefs";
+    private static final String KEY_ACCENT_COLOR = "accent_color";
+    private static final String KEY_BG_IMAGE_PATH = "bg_image_path";
+    private static final String KEY_BG_MEDIA_TYPE = "bg_media_type";
+    private static final String KEY_BG_POSTER_PATH = "bg_poster_path";
+    private static final String KEY_BG_IMAGE_BLUR = "bg_image_blur";
+    private static final String KEY_BG_IMAGE_BRIGHTNESS = "bg_image_brightness";
+>>>>>>> v1.6.0
 
     public static final int BG_BLUR_MIN = 0;
     public static final int BG_BLUR_MAX = 25;
@@ -57,6 +80,7 @@ public class PersonalizationManager {
     public static final int BG_BRIGHTNESS_MAX = 150;
     public static final int BG_BRIGHTNESS_DEFAULT = 100;
 
+<<<<<<< HEAD
     /** UI 整体大小倍率范围（density 缩放，按钮等控件一起变）。 */
     public static final float UI_SCALE_MIN = 0.85f;
     public static final float UI_SCALE_MAX = 1.4f;
@@ -67,6 +91,10 @@ public class PersonalizationManager {
     public static final float FONT_SCALE_DEFAULT = 1.0f;
 
     private static int sChangeGeneration = 0;
+=======
+    private static final AtomicInteger sChangeGeneration = new AtomicInteger();
+    private static final AtomicInteger sBackgroundEffectGeneration = new AtomicInteger();
+>>>>>>> v1.6.0
 
     private final SharedPreferences prefs;
     private final Context context;
@@ -84,6 +112,23 @@ public class PersonalizationManager {
     public PersonalizationManager(Context context) {
         this.context = context.getApplicationContext();
         this.prefs = this.context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+<<<<<<< HEAD
+=======
+        String type = prefs.getString(KEY_BG_MEDIA_TYPE, "image");
+        if (!"image".equals(type) && !"animation".equals(type)) {
+            String previous = prefs.getString(KEY_BG_IMAGE_PATH, null);
+            String poster = prefs.getString(KEY_BG_POSTER_PATH, null);
+            SharedPreferences.Editor editor = prefs.edit();
+            if (poster != null && new File(poster).exists()) {
+                editor.putString(KEY_BG_IMAGE_PATH, poster).putString(KEY_BG_MEDIA_TYPE, "image");
+            } else {
+                editor.remove(KEY_BG_IMAGE_PATH).remove(KEY_BG_POSTER_PATH).remove(KEY_BG_MEDIA_TYPE);
+            }
+            editor.apply();
+            if (previous != null && !previous.equals(poster)) deleteBackgroundFile(previous);
+            sChangeGeneration.incrementAndGet();
+        }
+>>>>>>> v1.6.0
     }
 
     public int getAccentColor() {
@@ -92,7 +137,11 @@ public class PersonalizationManager {
 
     public void setAccentColor(int color) {
         prefs.edit().putInt(KEY_ACCENT_COLOR, color).apply();
+<<<<<<< HEAD
         sChangeGeneration++;
+=======
+        sChangeGeneration.incrementAndGet();
+>>>>>>> v1.6.0
     }
 
     public boolean hasCustomAccent() {
@@ -101,7 +150,11 @@ public class PersonalizationManager {
 
     public void clearAccentColor() {
         prefs.edit().remove(KEY_ACCENT_COLOR).apply();
+<<<<<<< HEAD
         sChangeGeneration++;
+=======
+        sChangeGeneration.incrementAndGet();
+>>>>>>> v1.6.0
     }
 
     public String getBackgroundImagePath() {
@@ -122,7 +175,11 @@ public class PersonalizationManager {
         int clamped = clamp(blurRadius, BG_BLUR_MIN, BG_BLUR_MAX);
         if (getBackgroundImageBlur() == clamped) return;
         prefs.edit().putInt(KEY_BG_IMAGE_BLUR, clamped).apply();
+<<<<<<< HEAD
         sChangeGeneration++;
+=======
+        sBackgroundEffectGeneration.incrementAndGet();
+>>>>>>> v1.6.0
     }
 
     public int getBackgroundImageBrightness() {
@@ -134,6 +191,7 @@ public class PersonalizationManager {
         int clamped = clamp(brightnessPercent, BG_BRIGHTNESS_MIN, BG_BRIGHTNESS_MAX);
         if (getBackgroundImageBrightness() == clamped) return;
         prefs.edit().putInt(KEY_BG_IMAGE_BRIGHTNESS, clamped).apply();
+<<<<<<< HEAD
         sChangeGeneration++;
     }
 
@@ -211,6 +269,110 @@ public class PersonalizationManager {
         if (path == null) return null;
         File f = new File(path);
         if (!f.exists()) return null;
+=======
+        sBackgroundEffectGeneration.incrementAndGet();
+    }
+
+    public boolean hasAnimatedBackground() {
+        return hasBackgroundImage() && "animation".equals(prefs.getString(KEY_BG_MEDIA_TYPE, "image"));
+    }
+
+    public boolean canBlurBackground() {
+        return !hasAnimatedBackground() || Build.VERSION.SDK_INT >= Build.VERSION_CODES.S;
+    }
+
+    public boolean setBackgroundImage(Uri sourceUri, Context activityContext) {
+        File media = null;
+        File poster = null;
+        Bitmap bitmap = null;
+        boolean installed = false;
+        try {
+            if (LauncherBackgroundController.isMinecraftBlocked()) return false;
+            File directory = new File(context.getFilesDir(), "personalization");
+            if (!directory.exists() && !directory.mkdirs()) return false;
+            String name = "background_" + UUID.randomUUID();
+            media = new File(directory, name + ".media");
+            poster = new File(directory, name + ".jpg");
+            try (InputStream input = activityContext.getContentResolver().openInputStream(sourceUri);
+                 FileOutputStream output = new FileOutputStream(media)) {
+                if (input == null) return false;
+                byte[] buffer = new byte[65536];
+                int count;
+                while ((count = input.read(buffer)) != -1) {
+                    ensureImportActive();
+                    output.write(buffer, 0, count);
+                }
+            }
+            ensureImportActive();
+            boolean[] animated = {false};
+            bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(media),
+                    (decoder, info, source) -> {
+                        animated[0] = info.isAnimated();
+                        int width = info.getSize().getWidth();
+                        int height = info.getSize().getHeight();
+                        float scale = Math.min(1f, (animated[0] ? 720f : 2048f)
+                                / Math.max(width, height));
+                        decoder.setTargetSize(Math.max(1, Math.round(width * scale)),
+                                Math.max(1, Math.round(height * scale)));
+                        decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
+                    });
+            String type = animated[0] ? "animation" : "image";
+            ensureImportActive();
+            try (FileOutputStream output = new FileOutputStream(poster)) {
+                if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 85, output)) return false;
+            }
+            ensureImportActive();
+            String previousMedia = getBackgroundImagePath();
+            String previousPoster = prefs.getString(KEY_BG_POSTER_PATH, null);
+            File selected = "image".equals(type) ? poster : media;
+            prefs.edit().putString(KEY_BG_IMAGE_PATH, selected.getAbsolutePath())
+                    .putString(KEY_BG_POSTER_PATH, poster.getAbsolutePath())
+                    .putString(KEY_BG_MEDIA_TYPE, type).apply();
+            installed = true;
+            sChangeGeneration.incrementAndGet();
+            if ("image".equals(type)) media.delete();
+            deleteBackgroundFile(previousMedia);
+            deleteBackgroundFile(previousPoster);
+            return true;
+        } catch (Exception | OutOfMemoryError e) {
+            return false;
+        } finally {
+            if (bitmap != null) bitmap.recycle();
+            if (!installed) {
+                if (media != null) media.delete();
+                if (poster != null) poster.delete();
+            }
+        }
+    }
+
+    private static void ensureImportActive() throws IOException {
+        if (Thread.currentThread().isInterrupted() || LauncherBackgroundController.isMinecraftBlocked()) {
+            throw new IOException("Background import cancelled");
+        }
+    }
+
+    private void deleteBackgroundFile(String path) {
+        if (path == null) return;
+        File file = new File(path);
+        File directory = new File(context.getFilesDir(), "personalization");
+        if (directory.equals(file.getParentFile())) file.delete();
+    }
+
+    public void clearBackgroundImage() {
+        LauncherBackgroundController.backgroundCleared();
+        String path = getBackgroundImagePath();
+        String poster = prefs.getString(KEY_BG_POSTER_PATH, null);
+        prefs.edit().remove(KEY_BG_IMAGE_PATH).remove(KEY_BG_POSTER_PATH)
+                .remove(KEY_BG_MEDIA_TYPE).apply();
+        deleteBackgroundFile(path);
+        deleteBackgroundFile(poster);
+        sChangeGeneration.incrementAndGet();
+    }
+
+    public Bitmap loadBackgroundBitmap() {
+        String path = prefs.getString(KEY_BG_POSTER_PATH, getBackgroundImagePath());
+        if (path == null || !new File(path).exists()) return null;
+>>>>>>> v1.6.0
         try {
             return BitmapFactory.decodeFile(path);
         } catch (Exception e) {
@@ -221,6 +383,7 @@ public class PersonalizationManager {
 
 
     public static int getChangeGeneration() {
+<<<<<<< HEAD
         return sChangeGeneration;
     }
 
@@ -248,6 +411,13 @@ public class PersonalizationManager {
 
     private float clamp(float value, float min, float max) {
         return Math.max(min, Math.min(max, value));
+=======
+        return sChangeGeneration.get();
+    }
+
+    public static int getBackgroundEffectGeneration() {
+        return sBackgroundEffectGeneration.get();
+>>>>>>> v1.6.0
     }
 
     public void applyToActivity(Activity activity) {
@@ -259,7 +429,14 @@ public class PersonalizationManager {
         int accent = getAccentColor();
         boolean hasBg = hasBackgroundImage();
 
+<<<<<<< HEAD
         if (hasBg) {
+=======
+        if (hasBg && !LauncherBackgroundController.isMinecraftBlocked()
+                && !(activity instanceof org.levimc.launcher.core.minecraft.MinecraftLoadingActivity)
+                && !(activity instanceof org.levimc.launcher.core.minecraft.LauncherRestartActivity)
+                && !(activity instanceof org.levimc.launcher.core.minecraft.MinecraftActivity)) {
+>>>>>>> v1.6.0
             applyBackgroundImage(activity, rootView);
         }
 
@@ -290,6 +467,7 @@ public class PersonalizationManager {
     }
 
     private void applyBackgroundImage(Activity activity, ViewGroup rootView) {
+<<<<<<< HEAD
         // v0.2.0：视频背景走 VideoView（循环静音），图片/GIF 走 ImageView
         boolean isVideo = isVideoBackground();
         View bgView;
@@ -335,6 +513,49 @@ public class PersonalizationManager {
             }
             bgView = img;
         }
+=======
+        View background = rootView.findViewWithTag("personalization_bg");
+        boolean animated = hasAnimatedBackground();
+        if (background != null && (animated != (background instanceof FrameLayout))) {
+            rootView.removeView(background);
+            background = null;
+        }
+        ImageView bgView;
+        if (animated) {
+            FrameLayout holder;
+            if (background == null) {
+                holder = new FrameLayout(activity);
+                holder.setTag("personalization_bg");
+                rootView.addView(holder, 0, new ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                bgView = new ImageView(activity);
+                bgView.setTag("personalization_poster");
+                bgView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                holder.addView(bgView, new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                FrameLayout media = new FrameLayout(activity);
+                media.setTag("personalization_media");
+                media.setClickable(false);
+                media.setFocusable(false);
+                holder.addView(media, new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                background = holder;
+            } else {
+                bgView = ((FrameLayout) background).findViewWithTag("personalization_poster");
+            }
+        } else {
+            if (background == null) {
+                bgView = new ImageView(activity);
+                bgView.setTag("personalization_bg");
+                bgView.setLayoutParams(new ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                bgView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                rootView.addView(bgView, 0);
+                background = bgView;
+            } else bgView = (ImageView) background;
+        }
+        if (!applyBackgroundImageToView(bgView)) return;
+>>>>>>> v1.6.0
 
         View overlayView = rootView.findViewWithTag("personalization_overlay");
         if (overlayView == null) {
@@ -343,7 +564,11 @@ public class PersonalizationManager {
             overlayView.setLayoutParams(new ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT));
+<<<<<<< HEAD
             int bgIndex = rootView.indexOfChild(bgView);
+=======
+            int bgIndex = rootView.indexOfChild(background);
+>>>>>>> v1.6.0
             rootView.addView(overlayView, bgIndex + 1);
         }
 
@@ -354,6 +579,7 @@ public class PersonalizationManager {
         makeChildBackgroundsTranslucent(rootView, activity);
     }
 
+<<<<<<< HEAD
     /** v0.2.0：当前背景是否为视频（按扩展名判断）。 */
     public boolean isVideoBackground() {
         String path = getBackgroundImagePath();
@@ -383,15 +609,35 @@ public class PersonalizationManager {
         if (bgView != null) {
             refreshBackgroundImageView(bgView);
         }
+=======
+    public void refreshBackgroundEffects(Activity activity) {
+        ViewGroup rootView = activity.findViewById(android.R.id.content);
+        if (rootView == null) return;
+        ImageView bgView = findBackgroundPoster(rootView);
+        if (bgView != null) refreshBackgroundImageView(bgView);
+        LauncherBackgroundController.refreshEffects();
+>>>>>>> v1.6.0
     }
 
     public void refreshBackgroundColorEffects(Activity activity) {
         ViewGroup rootView = activity.findViewById(android.R.id.content);
         if (rootView == null) return;
+<<<<<<< HEAD
         ImageView bgView = rootView.findViewWithTag("personalization_bg");
         if (bgView != null) {
             applyBackgroundImageEffects(bgView);
         }
+=======
+        ImageView bgView = findBackgroundPoster(rootView);
+        if (bgView != null) applyBackgroundImageEffects(bgView);
+        LauncherBackgroundController.refreshEffects();
+    }
+
+    private ImageView findBackgroundPoster(ViewGroup rootView) {
+        View background = rootView.findViewWithTag("personalization_bg");
+        if (background instanceof ImageView) return (ImageView) background;
+        return rootView.findViewWithTag("personalization_poster");
+>>>>>>> v1.6.0
     }
 
     public boolean supportsRealtimeBackgroundBlur() {
@@ -399,6 +645,7 @@ public class PersonalizationManager {
     }
 
     public boolean applyBackgroundImageToView(ImageView bgView) {
+<<<<<<< HEAD
         // v0.2.0：GIF 走 Glide（动图播放），静态图走原有 Bitmap 流程
         if (isGifBackground()) {
             try {
@@ -412,13 +659,28 @@ public class PersonalizationManager {
             } catch (Throwable t) {
                 return false;
             }
+=======
+        if (hasAnimatedBackground() && LauncherBackgroundController.isMinecraftBlocked()) return false;
+        String path = prefs.getString(KEY_BG_POSTER_PATH, getBackgroundImagePath());
+        int blur = Build.VERSION.SDK_INT < Build.VERSION_CODES.S && canBlurBackground()
+                ? getBackgroundImageBlur() : 0;
+        String contentKey = path + ":" + blur;
+        if (contentKey.equals(bgView.getTag(R.id.bg_image_preview)) && bgView.getDrawable() != null) {
+            applyBackgroundImageEffects(bgView);
+            return true;
+>>>>>>> v1.6.0
         }
         Bitmap bmp = loadBackgroundBitmap();
         if (bmp == null) return false;
 
         Bitmap displayBitmap = bmp;
+<<<<<<< HEAD
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S && getBackgroundImageBlur() > 0) {
             Bitmap blurredBitmap = createBlurredBitmap(bmp, getBackgroundImageBlur());
+=======
+        if (blur > 0) {
+            Bitmap blurredBitmap = createBlurredBitmap(bmp, blur);
+>>>>>>> v1.6.0
             if (blurredBitmap != null) {
                 displayBitmap = blurredBitmap;
                 if (displayBitmap != bmp) {
@@ -428,6 +690,10 @@ public class PersonalizationManager {
         }
 
         bgView.setImageBitmap(displayBitmap);
+<<<<<<< HEAD
+=======
+        bgView.setTag(R.id.bg_image_preview, contentKey);
+>>>>>>> v1.6.0
         applyBackgroundImageEffects(bgView);
         return true;
     }
@@ -702,6 +968,7 @@ public class PersonalizationManager {
                 if (btn.getBackgroundTintList() != null) {
                     int currentTint = btn.getBackgroundTintList().getDefaultColor();
                     if (currentTint == defaultPrimary || currentTint == defaultSecondary || currentTint == defaultTertiary) {
+<<<<<<< HEAD
                         // 首次接管：记录后应用 accent
                         managedButtonAccent.put(btn, accentColor);
                         btn.setBackgroundTintList(ColorStateList.valueOf(accentColor));
@@ -714,10 +981,15 @@ public class PersonalizationManager {
                             btn.setBackgroundTintList(ColorStateList.valueOf(accentColor));
                             btn.setTextColor(Color.WHITE);
                         }
+=======
+                        btn.setBackgroundTintList(ColorStateList.valueOf(accentColor));
+                        btn.setTextColor(Color.WHITE);
+>>>>>>> v1.6.0
                     }
                 }
             } catch (Exception ignored) {}
 
+<<<<<<< HEAD
             int btnTextColor = btn.getCurrentTextColor();
             if (btnTextColor == defaultPrimary || btnTextColor == defaultAccentText) {
                 managedTextAccent.put(btn, accentColor);
@@ -728,6 +1000,10 @@ public class PersonalizationManager {
                     managedTextAccent.put(btn, accentColor);
                     btn.setTextColor(accentColor);
                 }
+=======
+            if (btn.getCurrentTextColor() == defaultPrimary || btn.getCurrentTextColor() == defaultAccentText) {
+                btn.setTextColor(accentColor);
+>>>>>>> v1.6.0
             }
 
             Drawable bg = btn.getBackground();
@@ -737,6 +1013,7 @@ public class PersonalizationManager {
                     if (gd.getColor() != null) {
                         int gdColor = gd.getColor().getDefaultColor();
                         if (gdColor == defaultPrimary || gdColor == defaultSecondary || gdColor == defaultTertiary) {
+<<<<<<< HEAD
                             managedButtonAccent.put(btn, accentColor);
                             gd.setColor(accentColor);
                             btn.setTextColor(Color.WHITE);
@@ -747,6 +1024,10 @@ public class PersonalizationManager {
                                 gd.setColor(accentColor);
                                 btn.setTextColor(Color.WHITE);
                             }
+=======
+                            gd.setColor(accentColor);
+                            btn.setTextColor(Color.WHITE);
+>>>>>>> v1.6.0
                         }
                     }
                 } catch (Exception ignored) {}
@@ -758,6 +1039,7 @@ public class PersonalizationManager {
             int textColor = tv.getCurrentTextColor();
 
             if (textColor == defaultPrimary || textColor == defaultAccentText) {
+<<<<<<< HEAD
                 managedTextAccent.put(tv, accentColor);
                 tv.setTextColor(accentColor);
             } else {
@@ -766,6 +1048,9 @@ public class PersonalizationManager {
                     managedTextAccent.put(tv, accentColor);
                     tv.setTextColor(accentColor);
                 }
+=======
+                tv.setTextColor(accentColor);
+>>>>>>> v1.6.0
             }
 
             try {

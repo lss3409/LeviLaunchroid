@@ -3,7 +3,10 @@ package org.levimc.launcher.core.modcatalog;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+<<<<<<< HEAD
 import android.util.Log;
+=======
+>>>>>>> v1.6.0
 
 import androidx.core.content.FileProvider;
 
@@ -15,8 +18,11 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.security.MessageDigest;
+<<<<<<< HEAD
 import java.util.ArrayList;
 import java.util.List;
+=======
+>>>>>>> v1.6.0
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -34,6 +40,7 @@ public final class ModCatalogInstaller {
 
     private static final OkHttpClient HTTP = new OkHttpClient();
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
+<<<<<<< HEAD
 
     private static final String TAG = "ModCatalogInstaller";
     /**
@@ -48,6 +55,8 @@ public final class ModCatalogInstaller {
             "https://gh-proxy.com/",
             "https://mirror.ghproxy.com/"
     };
+=======
+>>>>>>> v1.6.0
     private final Context context;
     private final FileHandler fileHandler;
 
@@ -71,6 +80,7 @@ public final class ModCatalogInstaller {
                 if (!assetName.toLowerCase(Locale.ROOT).endsWith(extension)) assetName += extension;
                 downloadedFile = new File(downloadDir,
                         safeName(mod.id) + "-" + safeName(release.version) + "-" + assetName);
+<<<<<<< HEAD
                 Exception lastError = null;
                 List<String> candidates = buildDownloadCandidates(asset.downloadUrl);
                 for (int i = 0; i < candidates.size(); i++) {
@@ -93,6 +103,30 @@ public final class ModCatalogInstaller {
                 if (lastError != null) {
                     throw lastError;
                 }
+=======
+                Request request = new Request.Builder().url(asset.downloadUrl).build();
+                try (Response response = HTTP.newCall(request).execute()) {
+                    if (!response.isSuccessful() || response.body() == null) {
+                        throw new IllegalStateException("Download failed with HTTP " + response.code());
+                    }
+                    long total = response.body().contentLength();
+                    try (InputStream input = response.body().byteStream();
+                         FileOutputStream output = new FileOutputStream(downloadedFile)) {
+                        byte[] buffer = new byte[16384];
+                        long completed = 0;
+                        int read;
+                        while ((read = input.read(buffer)) != -1) {
+                            output.write(buffer, 0, read);
+                            completed += read;
+                            if (total > 0) {
+                                int progress = Math.min(85, (int) ((completed * 85L) / total));
+                                deliverProgress(callback, progress, false);
+                            }
+                        }
+                        output.getFD().sync();
+                    }
+                }
+>>>>>>> v1.6.0
                 if (!verifySha256(downloadedFile, asset.sha256)) {
                     throw new IllegalStateException(context.getString(R.string.external_mods_verification_failed));
                 }
@@ -139,6 +173,7 @@ public final class ModCatalogInstaller {
         }
     }
 
+<<<<<<< HEAD
     /**
      * 构建候选下载 URL 列表:原始直连 URL 永远在首位;仅当其位于 github.com
      * 域名时才依次追加镜像回退 URL(镜像 URL = 镜像前缀 + 原始完整 URL)。
@@ -195,6 +230,8 @@ public final class ModCatalogInstaller {
         }
     }
 
+=======
+>>>>>>> v1.6.0
     private boolean verifySha256(File file, String expected) throws Exception {
         if (expected == null || expected.isEmpty()) return true;
         MessageDigest digest = MessageDigest.getInstance("SHA-256");

@@ -38,6 +38,7 @@ public class QuickLaunchActivity extends BaseActivity {
         loadQuickActions();
     }
 
+<<<<<<< HEAD
     /** 让对话框里的输入框边框跟随个性化 accent 色（默认是主题深绿色）。 */
     private void applyTextInputAccent(View view) {
         int accent = new org.levimc.launcher.util.PersonalizationManager(this).getAccentColor();
@@ -53,6 +54,8 @@ public class QuickLaunchActivity extends BaseActivity {
         }
     }
 
+=======
+>>>>>>> v1.6.0
     private void setupViews() {
         quickActionsRecycler = findViewById(R.id.quick_actions_recycler);
         quickActionsRecycler.setLayoutManager(new LinearLayoutManager(this));

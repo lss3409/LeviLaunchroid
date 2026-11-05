@@ -91,4 +91,13 @@ Thumbs.db
 # Test stuffs
 BedrockTools-main
 tntimer-main
+<<<<<<< HEAD
 MinecraftAuth
+=======
+MinecraftAuth
+
+# git
+commit_msg.txt
+*.patch
+!/app/src/main/cpp/worldtools/vendor/zstd/build/
+>>>>>>> v1.6.0

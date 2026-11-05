@@ -25,7 +25,7 @@ public class SnaplookOverlay extends BaseOverlayButton {
 
     @Override
     protected int getIconResource() {
-        return isActive ? R.drawable.ic_snaplook_enabled : R.drawable.ic_snaplook_disabled;
+        return isActive ? R.drawable.ic_snaplook_pressed : R.drawable.ic_snaplook_normal;
     }
 
     @Override
@@ -43,11 +43,20 @@ public class SnaplookOverlay extends BaseOverlayButton {
     }
 
     private void initializeNative() {
+<<<<<<< HEAD
         handler.postDelayed(() -> {
             if (SnaplookMod.init()) {
                 initialized = true;
             }
         }, 1000);
+=======
+        handler.postDelayed(this::ensureInitialized, 1000);
+    }
+
+    private boolean ensureInitialized() {
+        if (!initialized) initialized = SnaplookMod.init();
+        return initialized;
+>>>>>>> v1.6.0
     }
 
     @Override
@@ -68,9 +77,13 @@ public class SnaplookOverlay extends BaseOverlayButton {
     }
 
     public void onKeyDown() {
+<<<<<<< HEAD
         if (!initialized) {
             return;
         }
+=======
+        if (!ensureInitialized()) return;
+>>>>>>> v1.6.0
         if (isActive) return;
 
         isActive = true;
@@ -91,7 +104,7 @@ public class SnaplookOverlay extends BaseOverlayButton {
             ImageButton btn = (ImageButton) overlayView;
             float userOpacity = getButtonOpacity();
             btn.setAlpha(userOpacity);
-            btn.setImageResource(active ? R.drawable.ic_snaplook_enabled : R.drawable.ic_snaplook_disabled);
+            btn.setImageResource(active ? R.drawable.ic_snaplook_pressed : R.drawable.ic_snaplook_normal);
         }
     }
 

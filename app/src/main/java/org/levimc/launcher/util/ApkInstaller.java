@@ -11,7 +11,10 @@ import android.provider.OpenableColumns;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 
+<<<<<<< HEAD
 import org.levimc.launcher.R;
+=======
+>>>>>>> v1.6.0
 import org.levimc.launcher.core.minecraft.MinecraftLauncher;
 import org.levimc.launcher.core.versions.VersionProfileMetadataStore;
 
@@ -171,6 +174,7 @@ public class ApkInstaller {
                 }
 
                 postProgress(PROGRESS_COPY_DONE);
+<<<<<<< HEAD
 
                 // 检测 base.apk.levi 是否写入成功（存储权限不足会导致空文件/缺失）
                 File baseApkLevi = new File(baseDir, APK_FILE_NAME);
@@ -182,6 +186,10 @@ public class ApkInstaller {
 
                 extractNativeLibsWithProgress(apkFilesToExtract, libTargetDir);
 
+=======
+                extractNativeLibsWithProgress(apkFilesToExtract, libTargetDir);
+
+>>>>>>> v1.6.0
                 String versionName = extractVersionName(apkOrApksUri, baseDir, dirName);
                 postProgress(PROGRESS_METADATA_DONE);
                 writeProfileMetadata(metadataDir, dirName, versionName);

@@ -1,14 +1,24 @@
 package org.levimc.launcher.core.minecraft
 
+<<<<<<< HEAD
+=======
+import android.app.Activity
+>>>>>>> v1.6.0
 import android.content.Context
 import android.content.Intent
 import android.content.res.AssetManager
 import android.graphics.Color
+<<<<<<< HEAD
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
+=======
+import android.os.Bundle
+import android.provider.OpenableColumns
+import android.text.InputType
+>>>>>>> v1.6.0
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -18,22 +28,34 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputConnectionWrapper
 import android.view.inputmethod.InputMethodManager
+<<<<<<< HEAD
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.appcompat.widget.AppCompatEditText
 import com.mojang.minecraftpe.MainActivity
 import org.levimc.launcher.R
 
+=======
+import androidx.appcompat.widget.AppCompatEditText
+import com.mojang.minecraftpe.MainActivity
+import org.levimc.launcher.core.crash.CrashReporter
+>>>>>>> v1.6.0
 import org.levimc.launcher.core.mods.ModManager
 import org.levimc.launcher.core.mods.inbuilt.nativemod.PojavControlsMod
 import org.levimc.launcher.core.mods.inbuilt.overlay.InbuiltOverlayManager
 import org.levimc.launcher.preloader.PreloaderInput
 import org.levimc.launcher.settings.FeatureSettings
+<<<<<<< HEAD
 import org.levimc.launcher.util.HardcoreBackupManager
+=======
+import org.levimc.launcher.util.LauncherBackgroundController
+>>>>>>> v1.6.0
 import org.levimc.pojavcontrols.PojavControls
 import org.levimc.pojavcontrols.PojavControlsHost
 import java.io.File
+import java.io.FileOutputStream
 
+<<<<<<< HEAD
 // v534：黑屏自愈阈值 5 分钟→90 秒（开了前台服务保活时渲染面丢失黑屏高发，
 // 更频繁），后台超 60s 回前台就走静默重启（游戏自动存档回启动器），
 // 宁可重启也不要黑屏卡死；联想 ZUI 机制宽松（90s 时也只黑过 1 次）
@@ -44,6 +66,13 @@ import java.io.File
 private const val BLACKSCREEN_HINT_MS = 120_000L
 
 class MinecraftActivity : MainActivity(), PojavControlsHost {
+=======
+class MinecraftActivity : MainActivity(), PojavControlsHost {
+
+    companion object {
+        private const val PRELOADER_DOCUMENT_REQUEST = 0x4C50
+    }
+>>>>>>> v1.6.0
 
     private lateinit var gameManager: GamePackageManager
     private lateinit var trace: LaunchTrace
@@ -53,6 +82,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     private var gameRuntimeStarted = false
     private var preloaderTextInput: PreloaderTextInput? = null
     private var previousInputFocus: View? = null
+<<<<<<< HEAD
 
     private val hardcoreBackupHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var hardcoreBackupRunning = false
@@ -67,6 +97,9 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             runHardcoreBackupCheck()
         }
     }
+=======
+    private var inbuiltKeyDispatchDepth = 0
+>>>>>>> v1.6.0
 
     private class PreloaderTextInput(context: Context) : AppCompatEditText(context) {
         override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
@@ -115,12 +148,18 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+<<<<<<< HEAD
+=======
+        LauncherBackgroundController.suspendForMinecraft()
+        LauncherBackgroundController.awaitShutdown()
+>>>>>>> v1.6.0
         trace = LaunchTrace.ensure(intent)
         trace.mark("MinecraftActivity onCreate entered")
         window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(resolveLaunchBackgroundColor()))
 
         if (savedInstanceState != null) {
             trace.mark("MinecraftActivity finishing restored instance")
+<<<<<<< HEAD
             // v545：进程被杀后系统恢复实例时，实例 native 库尚未加载——
             // 直接 super.onCreate 会因 GameActivity.initializeNativeCode 无实现而崩
             // （UnsatisfiedLinkError）。先走 prepare 加载实例库再结束会话。
@@ -131,6 +170,8 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             } catch (t: Throwable) {
                 android.util.Log.w("MinecraftActivity", "恢复实例库加载失败，直接结束", t)
             }
+=======
+>>>>>>> v1.6.0
             gameRuntimeStarted = true
             super.onCreate(null)
             finish()
@@ -145,6 +186,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             trace.mark("Prepared runtime consumed")
         } catch (throwable: Throwable) {
             trace.error("MinecraftActivity prepare failed", formatLaunchFailure(throwable))
+<<<<<<< HEAD
             // v432：必须先调 super.onCreate() 再 return——Android 要求
             // 每个 onCreate 都调 super，否则抛 SuperNotCalledException
             // 崩溃（官方代码固有 bug；1.20.30 prepare 失败实测触发）
@@ -164,6 +206,11 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         } catch (t: Throwable) {
             trace.warning("Crash analyzer snapshot failed", t.message)
         }
+=======
+            returnToLauncherAfterLaunchFailure()
+            return
+        }
+>>>>>>> v1.6.0
         trace.mark("Native mod enable started")
         ModManager.enableLoadedMods()
         trace.mark("Native mod enable finished")
@@ -189,9 +236,12 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         initializePreloaderTextInput()
         PreloaderInput.setActivity(this)
         MinecraftActivityState.onCreated(this)
+<<<<<<< HEAD
         // v544：会话起点（onDestroy 累加游玩时长）
         sessionStartElapsed = android.os.SystemClock.elapsedRealtime()
 
+=======
+>>>>>>> v1.6.0
         trace.mark("MinecraftActivity onCreate finished")
     }
 
@@ -215,7 +265,11 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     private fun returnToLauncherAfterLaunchFailure() {
         gameRuntimeStarted = false
         MinecraftLaunchSession.clear()
+<<<<<<< HEAD
         MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this, org.levimc.launcher.ui.activities.MainActivity.sForeground)
+=======
+        MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this)
+>>>>>>> v1.6.0
         finish()
     }
 
@@ -245,6 +299,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     // v450：性能监控悬浮窗已整体移除（MemoryMonitor 删除）
 
     override fun onNewIntent(intent: Intent) {
+<<<<<<< HEAD
         // 仅深链（带 data 的 VIEW）才更新 intent 并交给 Mojang 处理。
         // 「回到游戏」的纯带回前台请求不覆盖启动参数（存储路径等 extras），
         // 否则游戏会丢失重定向目录，世界列表/深链都会失效。
@@ -262,16 +317,101 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     override fun onBackPressed() {
         if (PojavControls.closeEditor()) return
         super.onBackPressed()
+=======
+        setIntent(intent)
+        super.onNewIntent(intent)
+>>>>>>> v1.6.0
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == PRELOADER_DOCUMENT_REQUEST) {
+            handlePreloaderDocumentResult(resultCode, data)
+            return
+        }
+        if (org.levimc.launcher.core.mods.inbuilt.overlay.MoreButtonsEditor.onActivityResult(requestCode, resultCode, data)) return
+        if (PojavControls.onActivityResult(requestCode, resultCode, data)) return
+        super.onActivityResult(requestCode, resultCode, data)
+    }
+
+    fun requestOpenModMenu() {
+        runOnUiThread {
+            if (isFinishing || isDestroyed) return@runOnUiThread
+            window.decorView.post {
+                if (!isFinishing && !isDestroyed) {
+                    overlayManager?.showModMenu()
+                }
+            }
+        }
+    }
+
+    fun requestCloseModMenu() {
+        runOnUiThread {
+            overlayManager?.hideModMenu()
+        }
+    }
+
+    fun openPreloaderDocumentPicker(mimeType: String) {
+        runOnUiThread {
+            try {
+                val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = mimeType.ifBlank { "*/*" }
+                }
+                startActivityForResult(picker, PRELOADER_DOCUMENT_REQUEST)
+            } catch (throwable: Throwable) {
+                PreloaderInput.onDocumentResult(false, "", "", throwable.message ?: "Unable to open document picker")
+            }
+        }
+    }
+
+    private fun handlePreloaderDocumentResult(resultCode: Int, data: Intent?) {
+        if (resultCode != Activity.RESULT_OK || data?.data == null) {
+            PreloaderInput.onDocumentResult(false, "", "", "Import cancelled")
+            return
+        }
+        val uri = data.data ?: return
+        var temporaryFile: File? = null
+        try {
+            var displayName = "selected_file"
+            contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (index >= 0) displayName = cursor.getString(index) ?: displayName
+                }
+            }
+            val safeName = displayName.replace(Regex("[^A-Za-z0-9._ -]"), "_").take(120).ifBlank { "selected_file" }
+            val directory = File(cacheDir, "preloader_documents").also { it.mkdirs() }
+            val importedFile = File(directory, "${System.nanoTime()}_$safeName")
+            temporaryFile = importedFile
+            contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(importedFile).use { output -> input.copyTo(output) }
+            } ?: throw IllegalStateException("Unable to read selected document")
+            PreloaderInput.onDocumentResult(true, importedFile.absolutePath, displayName, "")
+        } catch (throwable: Throwable) {
+            PreloaderInput.onDocumentResult(false, "", "", throwable.message ?: "Unable to import selected document")
+        } finally {
+            temporaryFile?.delete()
+        }
+    }
+
+    override fun onBackPressed() {
+        if (org.levimc.launcher.core.mods.inbuilt.overlay.MoreButtonsEditor.closeEditor()) return
+        if (PojavControls.closeEditor()) return
+        super.onBackPressed()
     }
 
     override fun onResume() {
         super.onResume()
+<<<<<<< HEAD
         // v598：删除后台久置自愈（后台 60s 回前台强制结束会话回启动器，
         // 用户实测与杀后台保活冲突、误杀正常联机挂机，明确要求移除）
+=======
+>>>>>>> v1.6.0
         if (!isFinishing) {
             normalExitPrepared = false
             normalExitRestartScheduled = false
         }
+<<<<<<< HEAD
         // v0.4.211：后台长挂机回前台弹应用内提示条（黑屏可一键重启，
         // 画面正常提示条自动消失——不误杀联机挂机，v598 教训）
         if (lastPauseElapsed > 0) {
@@ -284,6 +424,10 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             lastPauseElapsed = 0L
         }
         MinecraftActivityState.onResumed(this)
+=======
+        MinecraftActivityState.onResumed(this)
+        org.levimc.launcher.core.mods.inbuilt.overlay.MoreButtonsEditor.onResume()
+>>>>>>> v1.6.0
 
         if (overlayManager == null) {
             startInbuiltModServices()
@@ -422,7 +566,53 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             )
     }
 
+    private fun isMouseSource(source: Int): Boolean {
+        return (source and InputDevice.SOURCE_MOUSE) == InputDevice.SOURCE_MOUSE ||
+            (source and InputDevice.SOURCE_MOUSE_RELATIVE) == InputDevice.SOURCE_MOUSE_RELATIVE
+    }
+
+    private fun getMouseButton(event: KeyEvent): Int {
+        if (!isMouseSource(event.source)) {
+            return 0
+        }
+        return when (event.keyCode) {
+            KeyEvent.KEYCODE_BUTTON_1 -> MotionEvent.BUTTON_PRIMARY
+            KeyEvent.KEYCODE_BUTTON_2 -> MotionEvent.BUTTON_SECONDARY
+            KeyEvent.KEYCODE_BUTTON_3 -> MotionEvent.BUTTON_TERTIARY
+            KeyEvent.KEYCODE_BUTTON_4 -> MotionEvent.BUTTON_BACK
+            KeyEvent.KEYCODE_BUTTON_5 -> MotionEvent.BUTTON_FORWARD
+            else -> 0
+        }
+    }
+
+    private fun shouldConsumeMouseMotion(event: MotionEvent): Boolean {
+        return isMouseSource(event.source) &&
+            PreloaderInput.onMouseMotion(
+                event.actionMasked,
+                event.actionButton,
+                event.buttonState
+            )
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+<<<<<<< HEAD
+=======
+        val textInputActive = isTextWidgetActive() || preloaderTextInput?.hasFocus() == true
+        if (textInputActive) {
+            overlayManager?.releaseKeybinds()
+        }
+        if (inbuiltKeyDispatchDepth == 0 && !textInputActive &&
+            overlayManager?.handleModMenuShortcut(event) == true) {
+            return true
+        }
+        val inbuiltKeyReleased = inbuiltKeyDispatchDepth == 0 &&
+            event.action == KeyEvent.ACTION_UP && overlayManager?.handleKeyEvent(event) == true
+        if (isTextWidgetActive() &&
+            (event.keyCode == KeyEvent.KEYCODE_ESCAPE || event.keyCode == KeyEvent.KEYCODE_BACK)) {
+            return super.dispatchKeyEvent(event)
+        }
+
+>>>>>>> v1.6.0
         val mouseButton = getMouseButton(event)
         if (mouseButton != 0 &&
             (event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP) &&
@@ -443,12 +633,27 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             }
         }
 
+<<<<<<< HEAD
         overlayManager?.let { manager ->
             if (manager.handleKeyEvent(event.keyCode, event.action)) {
+=======
+        if (inbuiltKeyReleased) return true
+        if (inbuiltKeyDispatchDepth == 0 && !textInputActive) {
+            if (overlayManager?.handleKeyEvent(event) == true) {
+>>>>>>> v1.6.0
                 return true
             }
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    fun dispatchInbuiltKeyEvent(event: KeyEvent): Boolean {
+        inbuiltKeyDispatchDepth++
+        return try {
+            dispatchKeyEvent(event)
+        } finally {
+            inbuiltKeyDispatchDepth--
+        }
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
@@ -465,6 +670,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             return super.dispatchTouchEvent(event)
         }
 
+<<<<<<< HEAD
         // v0.4.212（官方 1372b49f 跟进）：MOVE/CANCEL 遍历全部触点传给
         // PreloaderInput（多指触摸处理），DOWN/UP 仍按 actionIndex 单指
         val action = event.actionMasked
@@ -473,6 +679,14 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             for (index in 0 until event.pointerCount) {
                 if (org.levimc.launcher.preloader.PreloaderInput.onTouch(
                         action, event.getPointerId(index),
+=======
+        val action = event.actionMasked
+        val consumed = if (action == MotionEvent.ACTION_MOVE ||
+            action == MotionEvent.ACTION_CANCEL) {
+            var anyConsumed = false
+            for (index in 0 until event.pointerCount) {
+                if (PreloaderInput.onTouch(action, event.getPointerId(index),
+>>>>>>> v1.6.0
                         event.getX(index), event.getY(index))) {
                     anyConsumed = true
                 }
@@ -480,8 +694,12 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             anyConsumed
         } else {
             val index = event.actionIndex
+<<<<<<< HEAD
             org.levimc.launcher.preloader.PreloaderInput.onTouch(
                 action, event.getPointerId(index),
+=======
+            PreloaderInput.onTouch(action, event.getPointerId(index),
+>>>>>>> v1.6.0
                 event.getX(index), event.getY(index))
         }
         if (consumed) {
@@ -545,9 +763,12 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun pojavSendTouch(event: MotionEvent): Boolean {
+<<<<<<< HEAD
         // v0.4.212（官方 f81ef34f 跟进）：运行时防护——游戏未启动/退出
         // 过程中的触摸事件直接丢弃（此前转发进销毁中的视图树）
         if (!gameRuntimeStarted || isFinishing || isDestroyed) return false
+=======
+>>>>>>> v1.6.0
         return super.onTouchEvent(event)
     }
 
@@ -561,6 +782,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun onPause() {
+<<<<<<< HEAD
         lastPauseElapsed = android.os.SystemClock.elapsedRealtime()
         dismissBlackscreenHint()
         // v527：退后台停语音采集（不再收麦），回前台自动恢复
@@ -577,6 +799,14 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             // 在主线程会卡死（与 enable 死锁同源），退出游戏后启动器
             // 主线程挂掉 → MainActivity 黑屏（平板实测）
             Thread({ ModManager.disableAndUnloadLoadedMods() }, "mod-unload").start()
+=======
+        overlayManager?.releaseModMenuShortcut()
+        overlayManager?.releaseKeybinds()
+        val shouldRestartAfterNormalExit = shouldRestartAfterNormalExit()
+        if (shouldRestartAfterNormalExit) {
+            PreloaderInput.cancelDocumentRequest("Minecraft closed")
+            ModManager.disableAndUnloadLoadedMods()
+>>>>>>> v1.6.0
             prepareNormalExitCleanup()
             scheduleNormalExitProcessRestart()
         }
@@ -584,6 +814,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         super.onPause()
     }
 
+<<<<<<< HEAD
     // v527：麦克风权限结果转发给联机悬浮窗
     override fun onRequestPermissionsResult(
         requestCode: Int,
@@ -623,6 +854,19 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         // v577：native unload 挪后台线程（主线程跑 BSChat unload 会卡死
         // → 返回启动器黑屏，与 onPause 处同因）
         Thread({ ModManager.disableAndUnloadLoadedMods() }, "mod-unload").start()
+=======
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        if (!hasFocus) {
+            overlayManager?.releaseModMenuShortcut()
+            overlayManager?.releaseKeybinds()
+        }
+        super.onWindowFocusChanged(hasFocus)
+    }
+
+    override fun onDestroy() {
+        PreloaderInput.cancelDocumentRequest("Minecraft closed")
+        ModManager.disableAndUnloadLoadedMods()
+>>>>>>> v1.6.0
         val shouldPrepareNormalExit = shouldRestartAfterNormalExit()
         if (shouldPrepareNormalExit) {
             prepareNormalExitCleanup()
@@ -634,6 +878,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         MinecraftActivityState.onDestroyed(this)
         MinecraftLaunchSession.clear()
         stopInbuiltModServices()
+<<<<<<< HEAD
 
         setLeviKeepRunningInBackground(false)
         MinecraftForegroundService.stop(this)
@@ -649,20 +894,43 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
 
     private fun shouldRestartAfterNormalExit(): Boolean {
         return gameRuntimeStarted && isFinishing
+=======
+        setLeviKeepRunningInBackground(false)
+        MinecraftForegroundService.stop(this)
+
+        try {
+            super.onDestroy()
+        } finally {
+            if (shouldPrepareNormalExit) {
+                scheduleNormalExitProcessRestart()
+            }
+        }
+    }
+
+    private fun shouldRestartAfterNormalExit(): Boolean {
+        return gameRuntimeStarted && isFinishing && !CrashReporter.isHandlingCrash()
+>>>>>>> v1.6.0
     }
 
     private fun prepareNormalExitCleanup() {
         if (normalExitPrepared) return
         normalExitPrepared = true
+<<<<<<< HEAD
         // 崩溃分析：标记本次会话为正常退出
         org.levimc.launcher.util.CrashAnalyzer.onGameExitNormal(this)
+=======
+>>>>>>> v1.6.0
     }
 
     private fun scheduleNormalExitProcessRestart() {
         if (normalExitRestartScheduled) return
         normalExitRestartScheduled = true
 
+<<<<<<< HEAD
         MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this, org.levimc.launcher.ui.activities.MainActivity.sForeground)
+=======
+        MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this)
+>>>>>>> v1.6.0
     }
 
     override fun getAssets(): AssetManager {
@@ -674,8 +942,11 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun getFilesDir(): File {
+<<<<<<< HEAD
         // 正版/盗版统一走启动器重定向目录：内部文件（世界/资源包等在内部存储时也读这里），
         // 避免 Android 11+ 无法写入正版 MC 原版 Android/data 目录。证书验证只依赖 getDataDir。
+=======
+>>>>>>> v1.6.0
         return resolveStorageDir(MinecraftLauncher.EXTRA_STORAGE_FILES_DIR, super.getFilesDir())
     }
 
@@ -685,15 +956,21 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun getDataDir(): File {
+<<<<<<< HEAD
         // 恢复 v107 行为：正版/盗版统一重定向到启动器目录。
         // 注意：若证书验证失败，再考虑用 originalMcContext 保持原版 dataDir 单独处理。
+=======
+>>>>>>> v1.6.0
         return resolveStorageDir(MinecraftLauncher.EXTRA_STORAGE_DATA_DIR, super.getDataDir())
     }
 
     override fun getExternalFilesDir(type: String?): File? {
+<<<<<<< HEAD
         // 正版/盗版统一走启动器重定向目录：外部文件（世界/资源包等）写到启动器自己的目录，
         // 避免 Android 11+ 无法写入正版 MC 原版 Android/data 目录的问题。
         // dataDir 仍保持 MC 原版（见 getDataDir），证书验证不受影响。
+=======
+>>>>>>> v1.6.0
         val baseDir = resolveStorageDir(
             MinecraftLauncher.EXTRA_STORAGE_EXTERNAL_FILES_DIR,
             super.getExternalFilesDir(null)
@@ -705,6 +982,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         }
     }
 
+<<<<<<< HEAD
     override fun getExternalFilesDirs(type: String?): Array<File> {
         // 关键：AGDK GameActivity 传给 native 的 externalDataPath 取自
         // getExternalFilesDirs(null)[0]（复数版本），而 ContextImpl 的复数实现
@@ -722,6 +1000,8 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         }
     }
 
+=======
+>>>>>>> v1.6.0
     override fun getInternalStoragePath(): String {
         return getFilesDir().absolutePath
     }
@@ -730,6 +1010,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         return (getExternalFilesDir(null) ?: getFilesDir()).absolutePath
     }
 
+<<<<<<< HEAD
     // 正版 MC 的原版 context（createPackageContext 创建），用于返回 MC 自己的目录；
     // 盗版 MC 返回 null，走下面的 resolveStorageDir 重定向。
     private fun originalMcContext(): android.content.Context? {
@@ -737,19 +1018,27 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         return if (::gameManager.isInitialized) gameManager.getPackageContext() else null
     }
 
+=======
+>>>>>>> v1.6.0
     private fun resolveStorageDir(extraName: String, fallback: File?): File {
         val path = intent?.getStringExtra(extraName)
         val dir = if (!path.isNullOrEmpty()) File(path) else fallback ?: super.getFilesDir()
         if (!dir.exists()) {
             dir.mkdirs()
         }
+<<<<<<< HEAD
         android.util.Log.i("MinecraftActivity", "resolveStorageDir $extraName -> ${dir.absolutePath}"
                 + if (path.isNullOrEmpty()) " [FALLBACK=${fallback?.absolutePath}]" else "")
+=======
+>>>>>>> v1.6.0
         return dir
     }
 
     override fun getDatabasePath(name: String): File {
+<<<<<<< HEAD
         originalMcContext()?.let { return it.getDatabasePath(name) }
+=======
+>>>>>>> v1.6.0
         val dbDir = File(getDataDir(), "databases")
         if (!dbDir.exists()) {
             dbDir.mkdirs()
@@ -758,7 +1047,10 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun getCacheDir(): File {
+<<<<<<< HEAD
         originalMcContext()?.let { return it.cacheDir }
+=======
+>>>>>>> v1.6.0
         return resolveStorageDir(MinecraftLauncher.EXTRA_STORAGE_CACHE_DIR, super.getCacheDir())
     }
 
@@ -825,6 +1117,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             previousInputFocus = null
         }
     }
+<<<<<<< HEAD
 
     /** v0.4.211：后台长挂机回前台的应用内提示条——画面黑屏可一键重启
      *  （走正常退出流程+游戏自动存档兜底）；画面正常提示条 8 秒自动消失。
@@ -896,4 +1189,6 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             }
         }
     }
+=======
+>>>>>>> v1.6.0
 }

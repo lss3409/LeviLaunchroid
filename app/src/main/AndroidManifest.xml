@@ -10,34 +10,34 @@
         android:name="android.hardware.touchscreen"
         android:required="false" />
 
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" tools:node="remove" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
-    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.BIND_VPN_SERVICE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission
-        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        tools:ignore="ScopedStorage" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- v1.6.0 merge：LBBL 自有权限（联机语音/网络/TUN/前台服务） -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.BIND_VPN_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"
         tools:ignore="ForegroundServicesPolicy" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <uses-permission
-        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
-        tools:ignore="AllFilesAccessPolicy,ScopedStorage" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"
         tools:ignore="RequestInstallPackagesPolicy" />
-    <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT" />
     <queries>
         <package android:name="com.mojang.minecraftpe" />
         <intent>
@@ -51,7 +51,6 @@
     </queries>
 
     <application
-        android:largeHeap="true"
         android:name="org.levimc.launcher.core.minecraft.LauncherApplication"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -77,17 +76,9 @@
 
         <activity
             android:name="org.levimc.launcher.ui.activities.MainActivity"
-            android:launchMode="singleTask"
             android:exported="true"
             android:screenOrientation="sensorLandscape"
             android:theme="@style/MainActivityTheme"
-            android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
-            tools:ignore="DiscouragedApi" />
-
-        <activity
-            android:name="org.levimc.launcher.ui.activities.WebViewActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape"
             android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
             tools:ignore="DiscouragedApi" />
 
@@ -98,8 +89,26 @@
             android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
             tools:ignore="DiscouragedApi" />
 
+        <service
+            android:name="org.levimc.launcher.core.minecraft.MinecraftForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the user-started Minecraft runtime at foreground-process priority while the game activity is backgrounded." />
+        </service>
+
+
+        <service
+            android:name="org.levimc.launcher.core.news.LauncherNewsMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <activity
-            android:name="org.levimc.launcher.ui.activities.SharedFolderActivity"
+            android:name="org.levimc.launcher.ui.activities.NewsActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape"
             android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
@@ -113,34 +122,12 @@
             tools:ignore="DiscouragedApi" />
 
         <activity
-            android:name="org.levimc.launcher.ui.activities.HardcoreBackupActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
-            tools:ignore="DiscouragedApi" />
-
-        <activity
-            android:name="org.levimc.launcher.ui.activities.FileManagerActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
-            tools:ignore="DiscouragedApi" />
-
-        <activity
-            android:name="org.levimc.launcher.ui.activities.TextEditorActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
-            tools:ignore="DiscouragedApi" />
-
-        <activity
-            android:name="org.levimc.launcher.ui.activities.NbtViewerActivity"
+            android:name="org.levimc.launcher.ui.activities.WorldEditorActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape"
             android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
             tools:ignore="DiscouragedApi"
-            android:label="@string/nbt_viewer_title" />
+            android:label="@string/edit_world" />
 
         <activity
             android:name="org.levimc.launcher.ui.activities.OptionsEditorActivity"
@@ -159,27 +146,18 @@
             android:label="@string/custom_flat_world" />
 
         <activity
-            android:name="org.levimc.launcher.ui.activities.InstancesActivity"
+            android:name="org.levimc.launcher.ui.activities.AboutActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape"
             android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
             tools:ignore="DiscouragedApi" />
 
         <activity
-            android:name="org.levimc.launcher.ui.activities.OnlineActivity"
-            android:exported="true"
+            android:name="org.levimc.launcher.ui.activities.InstancesActivity"
+            android:exported="false"
             android:screenOrientation="sensorLandscape"
             android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
-            tools:ignore="DiscouragedApi">
-            <!-- v0.4.34：邀请网页「打开启动器」深链——lbb://invite?code=P%2Fxxx
-                 唤起联机页并自动填充邀请码（exported=true 供浏览器外部唤起） -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="lbb" android:host="invite" />
-            </intent-filter>
-        </activity>
+            tools:ignore="DiscouragedApi" />
 
         <activity
             android:name="org.levimc.launcher.ui.activities.SettingsActivity"
@@ -222,6 +200,14 @@
             tools:ignore="DiscouragedApi" />
 
         <activity
+            android:name=".ui.activities.ExternalModsActivity"
+            android:theme="@style/Base.Theme.FullScreen"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
+            android:exported="false"
+            tools:ignore="DiscouragedApi" />
+
+        <activity
             android:name=".ui.activities.ModDetailActivity"
             android:theme="@style/Base.Theme.FullScreen"
             android:screenOrientation="sensorLandscape"
@@ -248,14 +234,6 @@
             tools:ignore="DiscouragedApi" />
 
         <activity
-            android:name=".ui.activities.ExternalModsActivity"
-            android:theme="@style/Base.Theme.FullScreen"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
-            android:exported="false"
-            tools:ignore="DiscouragedApi" />
-
-        <activity
             android:name=".ui.activities.ContentDetailsActivity"
             android:theme="@style/Base.Theme.FullScreen"
             android:screenOrientation="sensorLandscape"
@@ -273,21 +251,12 @@
             tools:ignore="DiscouragedApi" />
 
         <activity
-            android:name=".ui.activities.WorldPickerActivity"
-            android:theme="@style/Base.Theme.FullScreen"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
-            android:exported="false"
-            android:label="@string/quick_launch_load_world"
-            tools:ignore="DiscouragedApi" />
-
-        <activity
             android:name=".ui.activities.IntentHandler"
             android:alwaysRetainTaskState="true"
             android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
             android:excludeFromRecents="false"
             android:exported="true"
-            android:launchMode="standard"
+            android:launchMode="singleTask"
             android:screenOrientation="sensorLandscape"
             tools:ignore="DiscouragedApi">
             <meta-data
@@ -456,16 +425,6 @@
         </activity>
 
         <activity
-            android:name=".core.minecraft.ShortcutLaunchActivity"
-            android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
-            android:excludeFromRecents="true"
-            android:exported="true"
-            android:noHistory="true"
-            android:screenOrientation="sensorLandscape"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
-            tools:ignore="DiscouragedApi" />
-
-        <activity
             android:name=".core.minecraft.MinecraftLoadingActivity"
             android:alwaysRetainTaskState="true"
             android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
@@ -497,7 +456,7 @@
             android:excludeFromRecents="true"
             android:exported="false"
             android:finishOnTaskLaunch="true"
-            android:launchMode="standard"
+            android:launchMode="singleTask"
             android:process=":crash"
             android:screenOrientation="sensorLandscape"
             android:theme="@style/LauncherRestartTheme"
@@ -555,22 +514,85 @@
                 android:resource="@xml/file_provider_paths" />
         </provider>
 
-        <service
-            android:name="org.levimc.launcher.core.minecraft.MinecraftForegroundService"
+        <!-- v1.6.0 merge：LBBL 自有组件（联机/文件管理器/极限存档/地图/NBT/WebView 等） -->
+        <activity
+            android:name="org.levimc.launcher.ui.activities.WebViewActivity"
             android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Keeps the user-started Minecraft runtime at foreground-process priority while the game activity is backgrounded." />
-        </service>
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
+            tools:ignore="DiscouragedApi" />
 
-        <service
-            android:name="org.levimc.launcher.core.news.LauncherNewsMessagingService"
-            android:exported="false">
+        <activity
+            android:name="org.levimc.launcher.ui.activities.SharedFolderActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
+            tools:ignore="DiscouragedApi" />
+
+        <activity
+            android:name="org.levimc.launcher.ui.activities.HardcoreBackupActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
+            tools:ignore="DiscouragedApi" />
+
+        <activity
+            android:name="org.levimc.launcher.ui.activities.FileManagerActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
+            tools:ignore="DiscouragedApi" />
+
+        <activity
+            android:name="org.levimc.launcher.ui.activities.TextEditorActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
+            tools:ignore="DiscouragedApi" />
+
+        <activity
+            android:name="org.levimc.launcher.ui.activities.NbtViewerActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
+            tools:ignore="DiscouragedApi"
+            android:label="@string/nbt_viewer_title" />
+
+        <activity
+            android:name="org.levimc.launcher.ui.activities.OnlineActivity"
+            android:exported="true"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
+            tools:ignore="DiscouragedApi">
+            <!-- v0.4.34：邀请网页「打开启动器」深链——lbb://invite?code=P%2Fxxx
+                 唤起联机页并自动填充邀请码（exported=true 供浏览器外部唤起） -->
             <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="lbb" android:host="invite" />
             </intent-filter>
-        </service>
+        </activity>
+
+        <activity
+            android:name=".ui.activities.WorldPickerActivity"
+            android:theme="@style/Base.Theme.FullScreen"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
+            android:exported="false"
+            android:label="@string/quick_launch_load_world"
+            tools:ignore="DiscouragedApi" />
+
+        <activity
+            android:name=".core.minecraft.ShortcutLaunchActivity"
+            android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            tools:ignore="DiscouragedApi" />
 
         <!-- 联机组网 TUN（v495） -->
         <service
@@ -585,13 +607,6 @@
                 <action android:name="android.net.VpnService" />
             </intent-filter>
         </service>
-
-        <activity
-            android:name="org.levimc.launcher.ui.activities.NewsActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="fontScale|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|navigation|keyboardHidden|keyboard|touchscreen|locale|mnc|mcc"
-            tools:ignore="DiscouragedApi" />
 
     </application>
 

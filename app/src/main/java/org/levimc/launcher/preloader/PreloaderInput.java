@@ -24,6 +24,10 @@ public class PreloaderInput {
     public static native boolean nativeOnKeyEvent(int keyCode, int unicodeChar, boolean isKeyDown);
     public static native boolean nativeOnTextInput(String text);
     public static native boolean nativeOnMouse(int button, boolean isDown);
+<<<<<<< HEAD
+=======
+    public static native void nativeOnDocumentResult(boolean success, String path, String displayName, String error);
+>>>>>>> v1.6.0
     public static native void nativeSetActivity(Object activity);
     public static native void nativeClearActivity();
     public static native boolean nativeIsPauseMenuOpen();
@@ -70,7 +74,11 @@ public class PreloaderInput {
         try {
             return nativeShouldForceGlobalModMenu();
         } catch (UnsatisfiedLinkError e) {
+<<<<<<< HEAD
             return true;
+=======
+            return false;
+>>>>>>> v1.6.0
         }
     }
 
@@ -101,6 +109,25 @@ public class PreloaderInput {
         }
     }
 
+<<<<<<< HEAD
+=======
+    public static void onDocumentResult(boolean success, String path, String displayName, String error) {
+        try {
+            nativeOnDocumentResult(
+                    success,
+                    path == null ? "" : path,
+                    displayName == null ? "" : displayName,
+                    error == null ? "" : error
+            );
+        } catch (UnsatisfiedLinkError e) {
+        }
+    }
+
+    public static void cancelDocumentRequest(String reason) {
+        onDocumentResult(false, "", "", reason == null ? "Import cancelled" : reason);
+    }
+
+>>>>>>> v1.6.0
     private static boolean dispatchMouseTransition(int button, boolean isDown) {
         boolean alreadyDown = (mouseButtonsDown & button) != 0;
         if (alreadyDown == isDown) {

@@ -15,6 +15,10 @@
         <item name="colorOutline">@color/outline</item>
 
         <item name="android:windowBackground">@color/background</item>
+<<<<<<< HEAD
+=======
+        <item name="android:windowDisablePreview">true</item>
+>>>>>>> v1.6.0
 
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>

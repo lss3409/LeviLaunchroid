@@ -4,17 +4,19 @@ import android.app.Activity;
 import android.widget.ImageButton;
 
 import org.levimc.launcher.R;
+<<<<<<< HEAD
 
 import org.levimc.launcher.core.mods.inbuilt.manager.InbuiltModManager;
+=======
+>>>>>>> v1.6.0
 import org.levimc.launcher.core.mods.inbuilt.model.ModIds;
+import org.levimc.launcher.core.mods.inbuilt.nativemod.AutoSprintMod;
 
 public class AutoSprintOverlay extends BaseOverlayButton {
     private boolean isActive = false;
-    private int sprintKey;
 
-    public AutoSprintOverlay(Activity activity, int sprintKey) {
+    public AutoSprintOverlay(Activity activity) {
         super(activity);
-        this.sprintKey = sprintKey;
     }
 
     @Override
@@ -24,28 +26,25 @@ public class AutoSprintOverlay extends BaseOverlayButton {
 
     @Override
     protected int getIconResource() {
-        return isActive ? R.drawable.ic_sprint_enabled : R.drawable.ic_sprint_disabled;
+        return isActive ? R.drawable.ic_sprint_pressed : R.drawable.ic_sprint_normal;
     }
 
     @Override
     protected void onButtonClick() {
-        isActive = !isActive;
-        if (isActive) {
-            sendKeyDown(sprintKey);
-            updateButtonState(true);
-        } else {
-            sendKeyUp(sprintKey);
-            updateButtonState(false);
+        boolean nextState = !isActive;
+        if (!AutoSprintMod.setEnabled(nextState)) {
+            nextState = false;
         }
+        isActive = nextState;
+        updateButtonState(isActive);
     }
 
     private void updateButtonState(boolean active) {
         if (overlayView != null) {
             ImageButton btn = overlayView.findViewById(R.id.mod_overlay_button);
             if (btn != null) {
-                float userOpacity = getButtonOpacity();
-                btn.setAlpha(userOpacity);
-                btn.setImageResource(active ? R.drawable.ic_sprint_enabled : R.drawable.ic_sprint_disabled);
+                btn.setAlpha(getButtonOpacity());
+                btn.setImageResource(active ? R.drawable.ic_sprint_pressed : R.drawable.ic_sprint_normal);
             }
         }
     }
@@ -53,11 +52,13 @@ public class AutoSprintOverlay extends BaseOverlayButton {
     @Override
     public void hide() {
         if (isActive) {
-            sendKeyUp(sprintKey);
+            AutoSprintMod.setEnabled(false);
             isActive = false;
+            updateButtonState(false);
         }
         super.hide();
     }
+<<<<<<< HEAD
 
     @Override
     public void applyConfigurationChanges() {
@@ -77,4 +78,6 @@ public class AutoSprintOverlay extends BaseOverlayButton {
             sendKeyDown(sprintKey);
         }
     }
+=======
+>>>>>>> v1.6.0
 }

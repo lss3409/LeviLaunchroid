@@ -172,15 +172,27 @@ public class SplashActivity extends BaseActivity {
         binding.logoGlow.setBackground(createRadialGlow(accent));
         binding.orbitRing.setBackground(createOrbitRing(accent));
         binding.orbitDot.setBackground(createOrbitDot(accent));
+<<<<<<< HEAD
         // v0.4.132：波浪进度条（WaveProgressView）+ 手写字（HandwritingTextView）
         binding.loadingBar.setWaveColor(accent);
         binding.tvAppName.setTextColor(accent);
         binding.tvAppName.setText(getString(R.string.app_name));
+=======
+        binding.loadingBar.setProgressTintList(ColorStateList.valueOf(accent));
+        binding.loadingBar.setProgressBackgroundTintList(ColorStateList.valueOf(withAlpha(accent, 42)));
+        binding.loadingBar.setIndeterminateTintList(ColorStateList.valueOf(accent));
+>>>>>>> v1.6.0
         binding.tvPreparing.setTextColor(blendColors(
             getColor(R.color.text_secondary),
             accent,
             isDarkMode() ? 0.24f : 0.18f
         ));
+<<<<<<< HEAD
+=======
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            binding.loadingBar.getProgressDrawable().setColorFilter(null);
+        }
+>>>>>>> v1.6.0
     }
 
     private int resolveAccentColor() {

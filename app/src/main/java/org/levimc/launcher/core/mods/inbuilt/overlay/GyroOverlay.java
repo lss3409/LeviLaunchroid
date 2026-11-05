@@ -34,6 +34,10 @@ public class GyroOverlay extends BaseOverlayButton implements SensorEventListene
 
     private float prevDeltaYaw = 0f;
     private float prevDeltaPitch = 0f;
+<<<<<<< HEAD
+=======
+    private long lastGyroTimestampNs = 0L;
+>>>>>>> v1.6.0
 
     public GyroOverlay(Activity activity) {
         super(activity);
@@ -68,7 +72,11 @@ public class GyroOverlay extends BaseOverlayButton implements SensorEventListene
 
     @Override
     protected int getIconResource() {
+<<<<<<< HEAD
         return isActive ? R.drawable.ic_gyro_enabled : R.drawable.ic_gyro_disabled;
+=======
+        return isActive ? R.drawable.ic_gyro_pressed : R.drawable.ic_gyro_normal;
+>>>>>>> v1.6.0
     }
 
     @Override
@@ -86,22 +94,44 @@ public class GyroOverlay extends BaseOverlayButton implements SensorEventListene
     }
 
     private void initializeNative() {
+<<<<<<< HEAD
         handler.postDelayed(() -> {
             if (GyroMod.init()) {
                 initialized = true;
                 applyGyroSettings();
             }
         }, 1000);
+=======
+        handler.postDelayed(this::ensureInitialized, 1000);
+    }
+
+    private boolean ensureInitialized() {
+        if (!initialized && GyroMod.init()) {
+            initialized = true;
+            applyGyroSettings();
+        }
+        return initialized;
+>>>>>>> v1.6.0
     }
 
     private void applyGyroSettings() {
         InbuiltModManager manager = InbuiltModManager.getInstance(activity);
+<<<<<<< HEAD
         float sensX = manager.getGyroSensitivityX() / 100f;
         float sensY = manager.getGyroSensitivityY() / 100f;
         boolean invertX = manager.isGyroInvertX();
         boolean invertY = manager.isGyroInvertY();
         float deadzone = manager.getGyroDeadzone() / 10f;
         float deadzoneRad = (float) Math.toRadians(deadzone);
+=======
+        float multiplier = manager.getGyroSensitivityMultiplier() / 100f;
+        float sensX = manager.getGyroSensitivityX() / 100f * multiplier;
+        float sensY = manager.getGyroSensitivityY() / 100f * multiplier;
+        boolean invertX = manager.isGyroInvertX();
+        boolean invertY = manager.isGyroInvertY();
+        float filterDegrees = manager.getGyroDeadzone() / 100f;
+        float deadzoneRad = (float) Math.toRadians(filterDegrees);
+>>>>>>> v1.6.0
 
         GyroMod.nativeSetSensitivityX(sensX);
         GyroMod.nativeSetSensitivityY(sensY);
@@ -136,6 +166,10 @@ public class GyroOverlay extends BaseOverlayButton implements SensorEventListene
         hasReference = false;
         prevDeltaYaw = 0f;
         prevDeltaPitch = 0f;
+<<<<<<< HEAD
+=======
+        lastGyroTimestampNs = 0L;
+>>>>>>> v1.6.0
 
         sensorManager.registerListener(this, rotationSensor, SensorManager.SENSOR_DELAY_GAME);
         GyroMod.nativeSetEnabled(true);
@@ -155,6 +189,10 @@ public class GyroOverlay extends BaseOverlayButton implements SensorEventListene
         hasReference = false;
         prevDeltaYaw = 0f;
         prevDeltaPitch = 0f;
+<<<<<<< HEAD
+=======
+        lastGyroTimestampNs = 0L;
+>>>>>>> v1.6.0
     }
 
     private void updateButtonState(boolean active) {
@@ -162,7 +200,11 @@ public class GyroOverlay extends BaseOverlayButton implements SensorEventListene
             ImageButton btn = (ImageButton) overlayView;
             float userOpacity = getButtonOpacity();
             btn.setAlpha(userOpacity);
+<<<<<<< HEAD
             btn.setImageResource(active ? R.drawable.ic_gyro_enabled : R.drawable.ic_gyro_disabled);
+=======
+            btn.setImageResource(active ? R.drawable.ic_gyro_pressed : R.drawable.ic_gyro_normal);
+>>>>>>> v1.6.0
         }
     }
 
@@ -229,7 +271,21 @@ public class GyroOverlay extends BaseOverlayButton implements SensorEventListene
     }
 
     private void handleGyroscopeEvent(SensorEvent event) {
+<<<<<<< HEAD
         float dt = 0.02f;
+=======
+        if (lastGyroTimestampNs == 0L) {
+            lastGyroTimestampNs = event.timestamp;
+            return;
+        }
+
+        float dt = (event.timestamp - lastGyroTimestampNs) * 1.0e-9f;
+        lastGyroTimestampNs = event.timestamp;
+        if (dt <= 0f) {
+            return;
+        }
+        dt = Math.min(dt, 0.05f);
+>>>>>>> v1.6.0
 
         float gyroX = event.values[0];
         float gyroY = event.values[1];
@@ -291,7 +347,11 @@ public class GyroOverlay extends BaseOverlayButton implements SensorEventListene
     }
 
     public void toggleGyro() {
+<<<<<<< HEAD
         if (!initialized || rotationSensor == null) return;
+=======
+        if (rotationSensor == null || !ensureInitialized()) return;
+>>>>>>> v1.6.0
         if (isActive) {
             disableGyro();
         } else {

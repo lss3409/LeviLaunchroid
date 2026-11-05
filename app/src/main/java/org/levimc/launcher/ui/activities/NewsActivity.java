@@ -3,6 +3,7 @@ package org.levimc.launcher.ui.activities;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+<<<<<<< HEAD
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
@@ -14,6 +15,11 @@ import android.view.animation.DecelerateInterpolator;
 import android.view.animation.LayoutAnimationController;
 import android.view.animation.OvershootInterpolator;
 import android.view.animation.TranslateAnimation;
+=======
+import android.os.Build;
+import android.os.Bundle;
+import android.view.View;
+>>>>>>> v1.6.0
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ProgressBar;
@@ -32,7 +38,10 @@ import org.levimc.launcher.core.news.NewsNotificationHelper;
 import org.levimc.launcher.core.news.NewsRepository;
 import org.levimc.launcher.core.news.NewsState;
 import org.levimc.launcher.ui.animation.DynamicAnim;
+<<<<<<< HEAD
 import org.levimc.launcher.util.PersonalizationManager;
+=======
+>>>>>>> v1.6.0
 
 public final class NewsActivity extends BaseActivity {
     public static final String EXTRA_NEWS_ID = "news_id";
@@ -46,11 +55,14 @@ public final class NewsActivity extends BaseActivity {
     private ActivityResultLauncher<String> notificationPermissionLauncher;
     private boolean rendered;
 
+<<<<<<< HEAD
     /** v0.4.174：当前栏位（true=LBBL，false=LeviLauncher 官方）。 */
     private boolean lbblTab = true;
     /** v0.4.174：列表入场动画控制器（fadeInUp，逐 item 延迟）。 */
     private LayoutAnimationController itemEntrance;
 
+=======
+>>>>>>> v1.6.0
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -76,6 +88,7 @@ public final class NewsActivity extends BaseActivity {
         DynamicAnim.applyPressScale(refresh);
         DynamicAnim.applyPressScale(enableNotifications);
 
+<<<<<<< HEAD
         // v0.4.174：双栏位 Tab（LBBL 公告 / LeviLauncher 官方）
         // 初始底色由 AccentStyler 染成个性化 accent（选中）+ surface
         // （未选中）；切换态在 switchNewsSource 里同样走 accent。
@@ -172,6 +185,13 @@ public final class NewsActivity extends BaseActivity {
                 (int) (Color.blue(from) + (Color.blue(to) - Color.blue(from)) * t));
     }
 
+=======
+        updateNotificationButton();
+        NewsRepository.loadCached(this, (feed, error) -> render(feed));
+        refreshNews(false);
+    }
+
+>>>>>>> v1.6.0
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
@@ -182,11 +202,15 @@ public final class NewsActivity extends BaseActivity {
     @Override
     protected void onNewsChanged() {
         if (adapter == null) return;
+<<<<<<< HEAD
         if (lbblTab) {
             NewsRepository.loadCachedLbbl(this, (feed, error) -> render(feed));
         } else {
             NewsRepository.loadCached(this, (feed, error) -> render(feed));
         }
+=======
+        NewsRepository.loadCached(this, (feed, error) -> render(feed));
+>>>>>>> v1.6.0
     }
 
     private void refreshNews(boolean userRequested) {
@@ -202,6 +226,7 @@ public final class NewsActivity extends BaseActivity {
                         Toast.LENGTH_SHORT).show();
             }
         };
+<<<<<<< HEAD
         if (lbblTab) {
             if (userRequested) NewsRepository.refreshLbbl(this, callback);
             else NewsRepository.refreshIfStaleLbbl(this, callback);
@@ -209,6 +234,10 @@ public final class NewsActivity extends BaseActivity {
             if (userRequested) NewsRepository.refresh(this, callback);
             else NewsRepository.refreshIfStale(this, callback);
         }
+=======
+        if (userRequested) NewsRepository.refresh(this, callback);
+        else NewsRepository.refreshIfStale(this, callback);
+>>>>>>> v1.6.0
     }
 
     private void render(NewsFeed feed) {
@@ -219,6 +248,7 @@ public final class NewsActivity extends BaseActivity {
         progress.setVisibility(View.GONE);
         empty.setVisibility(feed.items.isEmpty() ? View.VISIBLE : View.GONE);
         recycler.setVisibility(feed.items.isEmpty() ? View.GONE : View.VISIBLE);
+<<<<<<< HEAD
         if (!feed.items.isEmpty()) {
             // v0.4.174：入场动画（每次切换源/刷新后播放一次；
             // submit 是同步 notify，schedule+requestLayout 保证在
@@ -229,6 +259,8 @@ public final class NewsActivity extends BaseActivity {
                 recycler.requestLayout();
             });
         }
+=======
+>>>>>>> v1.6.0
         NewsState.markAllRead(this, feed);
         scrollToRequestedItem();
     }

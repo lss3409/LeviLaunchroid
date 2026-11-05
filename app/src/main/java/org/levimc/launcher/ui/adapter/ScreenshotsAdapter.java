@@ -94,12 +94,15 @@ public class ScreenshotsAdapter extends RecyclerView.Adapter<ScreenshotsAdapter.
             }
         });
 
+<<<<<<< HEAD
         holder.locateButton.setOnClickListener(v -> {
             if (listener != null) {
                 listener.onLocateClick(screenshot);
             }
         });
 
+=======
+>>>>>>> v1.6.0
         org.levimc.launcher.util.PersonalizationManager pm = new org.levimc.launcher.util.PersonalizationManager(holder.itemView.getContext());
         pm.applyGlassToView(holder.itemView);
         pm.applyAccentToView(holder.itemView, holder.itemView.getContext());

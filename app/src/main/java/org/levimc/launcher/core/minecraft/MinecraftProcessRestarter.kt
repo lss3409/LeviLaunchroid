@@ -33,17 +33,28 @@ import org.levimc.launcher.util.PersonalizationManager
 import kotlin.system.exitProcess
 
 private const val EXTRA_OLD_MAIN_PROCESS_PID = "org.levimc.launcher.extra.OLD_MAIN_PROCESS_PID"
+<<<<<<< HEAD
 private const val EXTRA_SILENT_RESTART = "org.levimc.launcher.extra.SILENT_RESTART"
+=======
+>>>>>>> v1.6.0
 const val EXTRA_CLOSE_RESTART_ACTIVITY_ON_FIRST_DRAW =
     "org.levimc.launcher.extra.CLOSE_RESTART_ACTIVITY_ON_FIRST_DRAW"
 const val ACTION_MAIN_ACTIVITY_FIRST_DRAWN =
     "org.levimc.launcher.action.MAIN_ACTIVITY_FIRST_DRAWN"
 private const val LEGACY_LAUNCHER_RESTART_REQUEST_CODE = 0x1E72
+<<<<<<< HEAD
 private const val KILL_OLD_PROCESS_DELAY_MS = 150L
 private const val RELAUNCH_AFTER_KILL_DELAY_MS = 550L
 
 object MinecraftProcessRestarter {
     fun restartLauncherAfterMinecraftExit(context: Context, silent: Boolean = false) {
+=======
+private const val KILL_OLD_PROCESS_DELAY_MS = 300L
+private const val RELAUNCH_AFTER_KILL_DELAY_MS = 700L
+
+object MinecraftProcessRestarter {
+    fun restartLauncherAfterMinecraftExit(context: Context) {
+>>>>>>> v1.6.0
         val appContext = context.applicationContext
         val oldPid = Process.myPid()
         cancelLegacyLauncherRestart(appContext)
@@ -51,7 +62,10 @@ object MinecraftProcessRestarter {
         val intent = Intent(appContext, LauncherRestartActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
             putExtra(EXTRA_OLD_MAIN_PROCESS_PID, oldPid)
+<<<<<<< HEAD
             putExtra(EXTRA_SILENT_RESTART, silent)
+=======
+>>>>>>> v1.6.0
         }
 
         try {
@@ -110,6 +124,7 @@ class LauncherRestartActivity : BaseActivity() {
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
         registerCloseReceiver()
+<<<<<<< HEAD
         val silent = intent.getBooleanExtra(EXTRA_SILENT_RESTART, false)
         if (silent) {
             // 静默重启：主页在前台时游戏在后台退出，不显示过渡 UI，透明窗口直接杀进程重启
@@ -117,6 +132,9 @@ class LauncherRestartActivity : BaseActivity() {
         } else {
             setupRestartUi()
         }
+=======
+        setupRestartUi()
+>>>>>>> v1.6.0
         restartLauncher(intent)
     }
 

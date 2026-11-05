@@ -16,6 +16,7 @@ import org.levimc.launcher.util.PersonalizationManager;
 
 public class LoadingDialog extends Dialog {
     private TextView messageView;
+<<<<<<< HEAD
     private TextView detailView;
     private TextView hideView;
     private ProgressBar progressBar;
@@ -27,6 +28,10 @@ public class LoadingDialog extends Dialog {
     }
 
     private OnHideListener hideListener;
+=======
+    private ProgressBar progressBar;
+    private CharSequence pendingMessage;
+>>>>>>> v1.6.0
 
     public LoadingDialog(Context context) {
         super(context);
@@ -47,6 +52,7 @@ public class LoadingDialog extends Dialog {
         getWindow().setAttributes(params);
 
         messageView = view.findViewById(R.id.tv_message);
+<<<<<<< HEAD
         detailView = view.findViewById(R.id.tv_detail);
         hideView = view.findViewById(R.id.tv_hide);
         progressBar = view.findViewById(R.id.progress_bar);
@@ -80,6 +86,19 @@ public class LoadingDialog extends Dialog {
                 if (hideView != null) {
                     hideView.setTextColor(accent);
                 }
+=======
+        progressBar = view.findViewById(R.id.progress_bar);
+        
+        if (pendingMessage != null) {
+            messageView.setText(pendingMessage);
+        }
+        
+        try {
+            PersonalizationManager pm = new PersonalizationManager(getContext());
+            int accent = pm.getAccentColor();
+            if (accent != 0 && progressBar != null) {
+                progressBar.setIndeterminateTintList(ColorStateList.valueOf(accent));
+>>>>>>> v1.6.0
             }
         } catch (Exception ignored) {}
     }
@@ -89,6 +108,7 @@ public class LoadingDialog extends Dialog {
             messageView.setText(message);
         } else {
             pendingMessage = message;
+<<<<<<< HEAD
         }
     }
 
@@ -104,6 +124,8 @@ public class LoadingDialog extends Dialog {
         this.hideListener = listener;
         if (hideView != null && listener != null) {
             hideView.setOnClickListener(v -> listener.onHide());
+=======
+>>>>>>> v1.6.0
         }
     }
 }

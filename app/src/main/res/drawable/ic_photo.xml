@@ -4,7 +4,11 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24"
+<<<<<<< HEAD
     android:tint="@color/on_surface">
+=======
+    android:tint="?attr/colorControlNormal">
+>>>>>>> v1.6.0
 
     <path
         android:fillColor="@android:color/white"

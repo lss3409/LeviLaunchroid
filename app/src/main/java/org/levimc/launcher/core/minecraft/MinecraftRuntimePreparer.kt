@@ -4,12 +4,18 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.os.Build
+<<<<<<< HEAD
+=======
+import org.levimc.launcher.R
+import org.levimc.launcher.core.auth.MsftAuthManager
+>>>>>>> v1.6.0
 import org.levimc.launcher.core.mods.Mod
 import org.levimc.launcher.core.mods.ModManager
 import org.levimc.launcher.core.mods.ModNativeLoader
 import org.levimc.launcher.core.versions.GameVersion
 import org.levimc.launcher.preloader.PreloaderInput
 import org.levimc.launcher.preloader.PreloaderSignatureRulesManager
+<<<<<<< HEAD
 import org.levimc.launcher.util.LauncherStorage
 import org.levimc.launcher.core.auth.MsftAuthManager
 import org.levimc.launcher.core.auth.storage.XalExporter
@@ -17,6 +23,11 @@ import org.levimc.launcher.settings.FeatureSettings
 import org.levimc.launcher.R
 import org.levimc.launcher.util.GlobalConfigManager
 import org.levimc.launcher.util.PreloadManager
+=======
+import org.levimc.launcher.settings.FeatureSettings
+import org.levimc.launcher.util.LauncherStorage
+import org.levimc.launcher.util.NativeBridgeHelper
+>>>>>>> v1.6.0
 import java.io.File
 
 object MinecraftRuntimePreparer {
@@ -26,6 +37,14 @@ object MinecraftRuntimePreparer {
         val skippedIncompatibleMods: List<String> = emptyList()
     )
 
+<<<<<<< HEAD
+=======
+    private data class NativeModLoadResult(
+        val skippedIncompatibleMods: List<String>,
+        val loadedModIds: Set<String>
+    )
+
+>>>>>>> v1.6.0
     interface ProgressListener {
         fun onProgress(progress: Int, status: String, detail: String? = null)
         fun onLog(message: String)
@@ -53,21 +72,33 @@ object MinecraftRuntimePreparer {
         listener.onLog("Using ${version.directoryName} (${version.versionCode})")
         trace.mark("Minecraft version resolved", "${version.directoryName} ${version.versionCode}")
 
+<<<<<<< HEAD
         // v0.4.212（官方 e9777f9e 跟进，策略本地化）：启动前刷新微软/Xbox
         // 凭据——新 gxcore/XAL 层需要最新 refresh_token。**官方失败即中断，
         // 但国内网络连微软 API 不稳（实测 26.5s connection closed 直接
         // 卡死启动）——本地改为刷新失败静默继续**：旧凭据照常导出，
         // 游戏内登录状态由游戏自身处理，绝不阻塞启动
         if (FeatureSettings.getInstance().isLauncherManagedMcLoginEnabled()) {
+=======
+        if (FeatureSettings.getInstance().isLauncherManagedMcLoginEnabled) {
+            listener.onProgress(8, context.getString(R.string.ms_login_auth_xbox_device))
+>>>>>>> v1.6.0
             listener.onLog("Preparing Microsoft account")
             try {
                 MsftAuthManager.prepareActiveAccount(context.applicationContext)
                 trace.mark("Microsoft credentials prepared")
             } catch (error: Exception) {
+<<<<<<< HEAD
                 android.util.Log.w("MinecraftRuntimePreparer",
                         "credential refresh failed, continuing with saved credentials: "
                                 + (error.message ?: error.javaClass.simpleName))
                 trace.mark("Microsoft credentials refresh failed", error.message ?: "unknown")
+=======
+                throw IllegalStateException(
+                    context.getString(R.string.ms_login_failed_detail, MsftAuthManager.describeError(error)),
+                    error
+                )
+>>>>>>> v1.6.0
             }
         }
 
@@ -84,6 +115,24 @@ object MinecraftRuntimePreparer {
         modManager.setCurrentVersion(version)
         trace.mark("ModManager state prepared")
 
+<<<<<<< HEAD
+=======
+        if (gameManager.shouldLoadMallocRedirect()) {
+            listener.onProgress(38, "Loading native libraries", "libminecraftpe.so")
+            listener.onLog("Linking Minecraft and its native dependencies")
+            val libraryPath = gameManager.resolveLibraryPath("minecraftpe")
+                ?: throw RuntimeException("libminecraftpe.so not found in the Minecraft library cache")
+            trace.mark("Minecraft dependency graph loading started", libraryPath)
+            try {
+                NativeBridgeHelper.loadMinecraftRuntime(libraryPath)
+            } catch (error: UnsatisfiedLinkError) {
+                trace.error("Minecraft dependency graph load failed", error.message ?: "unknown error")
+                throw RuntimeException("Failed to load the Minecraft runtime: ${error.message}", error)
+            }
+            trace.mark("Minecraft dependency graph loaded", "MallocRedirect enabled")
+        }
+
+>>>>>>> v1.6.0
         listener.onProgress(40, "Preparing game loader")
         listener.onLog("Loading game loader")
         trace.mark("Game loader load started")
@@ -107,12 +156,47 @@ object MinecraftRuntimePreparer {
             org.levimc.launcher.core.mods.inbuilt.nativemod.GyroMod.nativePreResolve()
         } catch (_: Throwable) {}
 
+<<<<<<< HEAD
         //nativeSetupRuntime(modManager.currentVersion?.modsDir?.absolutePath.toString())
         val skippedIncompatibleMods = loadNativeMods(context, launchIntent, modManager, listener, trace)
 
         listener.onProgress(100, "Runtime ready", "Entering Minecraft")
         trace.milestone("Runtime preparation finished")
         return PreparedRuntime(version, gameManager, skippedIncompatibleMods)
+=======
+        try {
+            org.levimc.launcher.core.mods.inbuilt.nativemod.HotbarSlotMod.initialize()
+            org.levimc.launcher.core.mods.inbuilt.overlay.HotbarSlotOverlay.preloadArtwork(context)
+        } catch (error: Throwable) {
+            trace.warning("Hotbar Slot preparation unavailable", error.message ?: error.javaClass.simpleName)
+        }
+
+        //nativeSetupRuntime(modManager.currentVersion?.modsDir?.absolutePath.toString())
+        val nativeModResult = loadNativeMods(context, launchIntent, modManager, listener, trace)
+
+        try {
+            val profileId = MinecraftLauncher.getStorageProfileId(version)
+            val internalGameData = LauncherStorage.getStorageGameDataDir(context, profileId, version.versionIsolation, false)
+            val externalGameData = LauncherStorage.getStorageGameDataDir(context, profileId, version.versionIsolation, true)
+            val bundledPackCount = BundledResourcePackInstaller.sync(
+                modManager.mods,
+                nativeModResult.loadedModIds,
+                internalGameData,
+                externalGameData
+            )
+            if (bundledPackCount > 0) {
+                listener.onLog("Prepared $bundledPackCount bundled native-mod pack(s)")
+            }
+            trace.mark("Bundled native-mod packs synchronized", bundledPackCount.toString())
+        } catch (error: Exception) {
+            trace.error("Bundled native-mod pack synchronization failed", error.message ?: error.javaClass.simpleName)
+            throw RuntimeException("Failed to prepare bundled native-mod packs", error)
+        }
+
+        listener.onProgress(100, "Runtime ready", "Entering Minecraft")
+        trace.milestone("Runtime preparation finished")
+        return PreparedRuntime(version, gameManager, nativeModResult.skippedIncompatibleMods)
+>>>>>>> v1.6.0
     }
 
     @JvmStatic
@@ -170,6 +254,7 @@ object MinecraftRuntimePreparer {
         val dataDir = LauncherStorage.getStorageDataRoot(context, profileId, versionIsolation)
         val cacheDir = LauncherStorage.getStorageCacheRoot(context, profileId, versionIsolation)
 
+<<<<<<< HEAD
         // 正版/盗版统一：XAL 写到启动器内部 filesDir（Java takeover 读取路径）。
         try {
             XalExporter.exportActiveAccountToFiles(context.applicationContext, context.applicationContext.filesDir)
@@ -230,6 +315,8 @@ object MinecraftRuntimePreparer {
             }
         }
 
+=======
+>>>>>>> v1.6.0
         version.versionDir?.let { launchIntent.putExtra("MC_PATH", it.absolutePath) }
         launchIntent.putExtra("IS_INSTALLED", version.isInstalled)
         launchIntent.putExtra("VERSION_ISOLATION", versionIsolation)
@@ -255,6 +342,7 @@ object MinecraftRuntimePreparer {
         launchIntent.putExtra("VERSION_ISOLATION", version.versionIsolation)
     }
 
+<<<<<<< HEAD
     // 把共享文件夹 games/com.mojang 下的内容（世界/资源包/行为包/皮肤包/截图）复制进版本目录，
     // 使版本隔离时游戏也能读取共享内容。用复制而非软链接，避免 Android FUSE 下软链接不生效。
     private fun mergeSharedContent(context: Context, externalFilesDir: File) {
@@ -380,6 +468,8 @@ object MinecraftRuntimePreparer {
         }
     }
 
+=======
+>>>>>>> v1.6.0
     private fun loadMinecraftLibraries(
         gameManager: GamePackageManager,
         version: GameVersion,
@@ -389,20 +479,57 @@ object MinecraftRuntimePreparer {
         listener.onProgress(46, "Loading native libraries")
         trace.mark("Minecraft library loading started")
 
+<<<<<<< HEAD
         if (shouldLoadHttpClient(version)) {
             loadLibrary(gameManager, "c++_shared", 48, true, listener, trace)
             loadLibrary(gameManager, "HttpClient.Android", 52, true, listener, trace)
         }
 
+=======
+        val initializeBundledSdk = gameManager.shouldLoadMallocRedirect()
+        if (shouldLoadHttpClient(version)) {
+            if (initializeBundledSdk) {
+                trace.mark("Native dependency reused", "libc++_shared.so linked with Minecraft")
+            } else {
+                loadLibrary(gameManager, "c++_shared", 48, true, listener, trace)
+            }
+            loadLibrary(gameManager, "HttpClient.Android", 52, true, listener, trace)
+        }
+
+        if (initializeBundledSdk) {
+            loadLibrary(gameManager, "PlayFabMultiplayer", 53, true, listener, trace)
+            loadLibrary(gameManager, "maesdk", 54, true, listener, trace)
+        }
+
+>>>>>>> v1.6.0
         if (shouldLoadMaesdk(version)) {
             val excludeLibs = HashSet<String>()
             val excludeReasons = HashMap<String, String>()
             if (shouldLoadHttpClient(version)) {
                 excludeLibs.add("c++_shared")
+<<<<<<< HEAD
                 excludeLibs.add("HttpClient.Android")
                 excludeReasons["c++_shared"] = "already loaded before the bundle"
                 excludeReasons["HttpClient.Android"] = "already loaded before the bundle"
             }
+=======
+                excludeReasons["c++_shared"] = if (initializeBundledSdk) {
+                    "linked with Minecraft dependency graph"
+                } else {
+                    "already loaded before the bundle"
+                }
+            }
+            if (shouldLoadHttpClient(version)) {
+                excludeLibs.add("HttpClient.Android")
+                excludeReasons["HttpClient.Android"] = "already loaded before the bundle"
+            }
+            if (initializeBundledSdk) {
+                excludeLibs.add("PlayFabMultiplayer")
+                excludeLibs.add("maesdk")
+                excludeReasons["PlayFabMultiplayer"] = "JNI initialized before Minecraft"
+                excludeReasons["maesdk"] = "JNI initialized before Minecraft"
+            }
+>>>>>>> v1.6.0
             if (!shouldLoadPlayFab(version)) {
                 excludeLibs.add("PlayFabMultiplayer")
                 excludeReasons["PlayFabMultiplayer"] = "not required by this Minecraft version"
@@ -426,6 +553,12 @@ object MinecraftRuntimePreparer {
             }
             loadLibrary(gameManager, "fmod", 56, true, listener, trace)
             loadLibrary(gameManager, "MediaDecoders_Android", 62, true, listener, trace)
+<<<<<<< HEAD
+=======
+            if (gameManager.shouldLoadMallocRedirect()) {
+                loadLibrary(gameManager, "MallocRedirect", 66, true, listener, trace)
+            }
+>>>>>>> v1.6.0
             loadLibrary(gameManager, "minecraftpe", 70, true, listener, trace)
             loadLibrary(gameManager, "gxcore", 74, true, listener, trace)
         }
@@ -477,7 +610,11 @@ object MinecraftRuntimePreparer {
         modManager: ModManager,
         listener: ProgressListener,
         trace: LaunchTrace
+<<<<<<< HEAD
     ): List<String> {
+=======
+    ): NativeModLoadResult {
+>>>>>>> v1.6.0
         val cacheDir = resolveNativeModCacheDir(context, launchIntent)
         trace.mark(
             "Native mod loading started",
@@ -485,6 +622,10 @@ object MinecraftRuntimePreparer {
         )
         val modLoadLabels = java.util.IdentityHashMap<Mod, String>()
         val skippedIncompatibleMods = mutableListOf<String>()
+<<<<<<< HEAD
+=======
+        val loadedModIds = linkedSetOf<String>()
+>>>>>>> v1.6.0
         ModNativeLoader.loadEnabledSoMods(
             modManager,
             cacheDir,
@@ -507,6 +648,10 @@ object MinecraftRuntimePreparer {
 
                 override fun onModLoadFinished(mod: Mod) {
                     val label = modLoadLabels.remove(mod)?.let { "$it " }.orEmpty()
+<<<<<<< HEAD
+=======
+                    loadedModIds.add(mod.id)
+>>>>>>> v1.6.0
                     listener.onLog("Loaded mod: $label${mod.displayName}")
                     trace.mark("Native mod load finished", mod.displayName)
                 }
@@ -532,7 +677,11 @@ object MinecraftRuntimePreparer {
         listener.onProgress(96, "Native mods ready")
         listener.onLog("Native mods ready")
         trace.mark("Native mod loading finished")
+<<<<<<< HEAD
         return skippedIncompatibleMods
+=======
+        return NativeModLoadResult(skippedIncompatibleMods, loadedModIds)
+>>>>>>> v1.6.0
     }
 
     private fun resolveNativeModCacheDir(context: Context, launchIntent: Intent): File {

@@ -1,33 +1,12 @@
 package org.levimc.launcher.core.content.leveldb;
 
-import android.util.Log;
-
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.channels.FileChannel;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.zip.Inflater;
 
-public class LevelDBReader {
-    private static final String TAG = "LevelDBReader";
-    private static final long TABLE_MAGIC_NUMBER = 0xdb4775248b80fb57L;
-    private static final int BLOCK_TRAILER_SIZE = 5;
-    private static final int FOOTER_SIZE = 48;
-    private static final int LOG_BLOCK_SIZE = 32768;
-
-    private final File dbPath;
-    private final Map<ByteArrayWrapper, byte[]> allData = new HashMap<>();
+public final class LevelDBReader implements AutoCloseable {
+    private final File world;
 
     /** key 过滤：readEntries 只保留 accept 的条目（其余立即丢弃，大世界不炸内存）。 */
     public interface EntryFilter {
@@ -39,10 +18,11 @@ public class LevelDBReader {
     private List<byte[]> keysOnly;
 
     public LevelDBReader(File dbPath) {
-        this.dbPath = dbPath;
+        world = dbPath.getParentFile();
     }
 
     public List<LevelDBEntry> readAllEntries() throws IOException {
+<<<<<<< HEAD
         return readEntries(null);
     }
 
@@ -168,28 +148,35 @@ public class LevelDBReader {
                 }
             }
         }
+=======
+        return readEntries(new byte[0], 128 * 1024 * 1024);
+    }
+>>>>>>> v1.6.0
 
+    public List<LevelDBEntry> readEntries(byte[] prefix, long maximumBytes) throws IOException {
         List<LevelDBEntry> entries = new ArrayList<>();
-        for (Map.Entry<ByteArrayWrapper, byte[]> entry : allData.entrySet()) {
-            if (entry.getValue() != null) {
-                entries.add(new LevelDBEntry(entry.getKey().data, entry.getValue()));
-            }
+        long size = 0;
+        try (WorldDatabase db = new WorldDatabase(world)) {
+            byte[] after = null;
+            do {
+                WorldDatabase.Page page = db.scan(prefix, after, 128, "");
+                for (byte[] key : page.keys) {
+                    byte[] value = db.get(key);
+                    if (value == null) continue;
+                    size += value.length + key.length;
+                    if (size > maximumBytes)
+                        throw new IOException(
+                                "Selection exceeds the memory budget; use the paged database"
+                                        + " browser");
+                    entries.add(new LevelDBEntry(key, value));
+                }
+                after = page.next;
+            } while (after != null);
         }
-
-        Log.d(TAG, "Total entries read: " + entries.size());
-
-        int structureCount = 0;
-        for (LevelDBEntry entry : entries) {
-            String keyStr = tryDecodeKey(entry.getKey().getRawKey());
-            if (keyStr != null && keyStr.startsWith("structuretemplate_")) {
-                structureCount++;
-            }
-        }
-        Log.d(TAG, "Total structures found: " + structureCount);
-
         return entries;
     }
 
+<<<<<<< HEAD
     /** v403：log 解析结果静态缓存——烘焙 8 个 worker 各建 reader，
      *  每个 chunk 渲染都重读重解析 6MB log（"Reading log file" × 8
      *  + GC 阻塞 = 大地图烘焙慢的根因）。log 文件不变（读地图时
@@ -1489,4 +1476,8 @@ public class LevelDBReader {
             return hashCode;
         }
     }
+=======
+    @Override
+    public void close() {}
+>>>>>>> v1.6.0
 }

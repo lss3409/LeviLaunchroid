@@ -2,15 +2,25 @@ package org.levimc.launcher.core.auth;
 
 import android.content.Context;
 import android.text.TextUtils;
+<<<<<<< HEAD
+=======
+import android.util.AtomicFile;
+>>>>>>> v1.6.0
 import android.util.Log;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
+<<<<<<< HEAD
 import org.levimc.launcher.util.JsonIOUtils;
 
+=======
+>>>>>>> v1.6.0
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStreamReader;
 import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -49,18 +59,28 @@ public class MsftAccountStore {
     private static final Type LIST_TYPE = new TypeToken<List<MsftAccount>>(){}.getType();
 
     private static File getFile(Context ctx) {
+<<<<<<< HEAD
         File dir = new File(ctx.getFilesDir(), "xal");
+=======
+        File dir = new File(ctx.getApplicationContext().getFilesDir(), "xal");
+>>>>>>> v1.6.0
         if (!dir.exists()) dir.mkdirs();
         return new File(dir, FILENAME);
     }
 
     public static synchronized List<MsftAccount> list(Context ctx) {
         File f = getFile(ctx);
+<<<<<<< HEAD
         if (!f.exists()) return new ArrayList<>();
         try {
             String json = JsonIOUtils.read(f);
             if (TextUtils.isEmpty(json)) return new ArrayList<>();
             List<MsftAccount> list = GSON.fromJson(json, LIST_TYPE);
+=======
+        if (!f.exists() && !new File(f.getPath() + ".bak").exists()) return new ArrayList<>();
+        try (InputStreamReader reader = new InputStreamReader(new AtomicFile(f).openRead(), StandardCharsets.UTF_8)) {
+            List<MsftAccount> list = GSON.fromJson(reader, LIST_TYPE);
+>>>>>>> v1.6.0
             return list != null ? list : new ArrayList<>();
         } catch (Exception ex) {
             Log.w("XALExport", "Failed to read " + f.getAbsolutePath(), ex);
@@ -69,8 +89,10 @@ public class MsftAccountStore {
     }
 
     private static synchronized void save(Context ctx, List<MsftAccount> list) {
-        File f = getFile(ctx);
+        AtomicFile file = new AtomicFile(getFile(ctx));
+        FileOutputStream output = null;
         try {
+<<<<<<< HEAD
             JsonIOUtils.write(f, GSON.toJson(list));
             Log.i("MsftAccountStore", "saved " + list.size() + " accounts to " + f.getAbsolutePath()
                     + " exists=" + f.exists() + " len=" + f.length());
@@ -86,6 +108,45 @@ public class MsftAccountStore {
         }
     }
 
+=======
+            output = file.startWrite();
+            output.write(GSON.toJson(list).getBytes(StandardCharsets.UTF_8));
+            file.finishWrite(output);
+        } catch (Exception ex) {
+            if (output != null) file.failWrite(output);
+            throw new IllegalStateException("The Microsoft account could not be saved.", ex);
+        }
+    }
+
+    public static synchronized MsftAccount getActive(Context ctx) {
+        for (MsftAccount account : list(ctx)) {
+            if (account.active) return account;
+        }
+        return null;
+    }
+
+    public static synchronized MsftAccount updateAuth(Context ctx, String id, String serializedAuthManager) {
+        List<MsftAccount> accounts = list(ctx);
+        for (MsftAccount account : accounts) {
+            if (id.equals(account.id)) {
+                account.serializedAuthManager = serializedAuthManager;
+                account.lastUpdated = System.currentTimeMillis();
+                save(ctx, accounts);
+                return account;
+            }
+        }
+        throw new IllegalStateException("The Microsoft account was removed. Select an account and try again.");
+    }
+
+    public static synchronized void exportActiveAccount(Context ctx, String id) {
+        MsftAccount active = getActive(ctx);
+        if (active == null || !id.equals(active.id)) {
+            throw new IllegalStateException("The active Microsoft account changed. Launch Minecraft again.");
+        }
+        org.levimc.launcher.core.auth.storage.XalExporter.exportActiveAccountOrThrow(ctx);
+    }
+
+>>>>>>> v1.6.0
     public static synchronized MsftAccount addOrUpdate(Context ctx, String msUserId, String gamertag, String minecraftUsername, String xuid, String avatarUrl, String serializedAuthManager) {
         List<MsftAccount> list = list(ctx);
         MsftAccount target = null;
@@ -117,11 +178,13 @@ public class MsftAccountStore {
 
     public static synchronized void remove(Context ctx, String id) {
         List<MsftAccount> list = list(ctx);
+        String removedUserId = null;
         Iterator<MsftAccount> it = list.iterator();
         while (it.hasNext()) {
             MsftAccount a = it.next();
             if (a.id.equals(id)) {
                 it.remove();
+                removedUserId = a.msUserId;
             }
         }
 
@@ -129,6 +192,7 @@ public class MsftAccountStore {
         for (MsftAccount a : list) if (a.active) { hasActive = true; break; }
         if (!hasActive && !list.isEmpty()) list.get(0).active = true;
         save(ctx, list);
+<<<<<<< HEAD
         org.levimc.launcher.core.auth.storage.XalExporter.exportActiveAccount(ctx);
         // v527：删账号后刷新联机身份
         try {
@@ -166,20 +230,36 @@ public class MsftAccountStore {
             throw new IllegalStateException("The active Microsoft account changed. Launch Minecraft again.");
         }
         org.levimc.launcher.core.auth.storage.XalExporter.exportActiveAccountOrThrow(ctx);
+=======
+        org.levimc.launcher.core.auth.storage.XalExporter.removeAccountData(ctx, removedUserId);
+        if (list.isEmpty()) org.levimc.launcher.core.auth.storage.XalExporter.exportActiveAccount(ctx);
+>>>>>>> v1.6.0
     }
 
     public static synchronized void setActive(Context ctx, String id) {
         List<MsftAccount> list = list(ctx);
+        boolean found = false;
         for (MsftAccount a : list) {
-            a.active = a.id.equals(id);
+            if (id.equals(a.id)) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) throw new IllegalStateException("The Microsoft account is no longer available.");
+        for (MsftAccount a : list) {
+            a.active = id.equals(a.id);
         }
         save(ctx, list);
+<<<<<<< HEAD
         org.levimc.launcher.core.auth.storage.XalExporter.exportActiveAccount(ctx);
         // v527：切换账号后刷新联机身份
         try {
             org.levimc.launcher.core.online.PlayerIdentity.refresh(ctx);
         } catch (Throwable ignored) {
         }
+=======
+        org.levimc.launcher.core.auth.storage.XalExporter.exportActiveAccountOrThrow(ctx);
+>>>>>>> v1.6.0
     }
 
     public static synchronized MsftAccount find(Context ctx, String id) {

@@ -34,9 +34,14 @@ import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
 import org.levimc.launcher.ui.animation.DynamicAnim;
 import org.levimc.launcher.ui.views.MainViewModel;
 import org.levimc.launcher.ui.views.MainViewModelFactory;
+<<<<<<< HEAD
 import org.levimc.launcher.util.PermissionsHandler;
 import org.levimc.launcher.util.PersonalizationManager;
 import java.io.File;
+=======
+import org.levimc.launcher.util.StorageAccess;
+import org.levimc.launcher.util.PersonalizationManager;
+>>>>>>> v1.6.0
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -73,6 +78,7 @@ public class ModsFullscreenActivity extends BaseActivity {
         setupRecyclerView();
         fileHandler = new FileHandler(this, viewModel, VersionManager.get(this));
 
+<<<<<<< HEAD
         permissionResultLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
@@ -83,10 +89,18 @@ public class ModsFullscreenActivity extends BaseActivity {
         permissionsHandler = PermissionsHandler.getInstance();
         permissionsHandler.setActivity(this, permissionResultLauncher);
         
+=======
+>>>>>>> v1.6.0
         pickModLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
                     if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+<<<<<<< HEAD
+=======
+                        for (Uri uri : StorageAccess.selectedUris(result.getData())) {
+                            StorageAccess.retainReadPermission(this, result.getData(), uri);
+                        }
+>>>>>>> v1.6.0
                         fileHandler.processIncomingFilesWithConfirmation(
                                 result.getData(), createImportCallback(), true);
                     }
@@ -102,6 +116,7 @@ public class ModsFullscreenActivity extends BaseActivity {
         });
         DynamicAnim.applyPressScale(addModButton);
 
+<<<<<<< HEAD
         scanModsButton = findViewById(R.id.scan_mods_button);
         scanModsButton.setEnabled(!scanInProgress);
         scanModsButton.setText(scanInProgress
@@ -110,6 +125,8 @@ public class ModsFullscreenActivity extends BaseActivity {
         scanModsButton.setOnClickListener(v -> requestDownloadsScan());
         DynamicAnim.applyPressScale(scanModsButton);
 
+=======
+>>>>>>> v1.6.0
         Button modMenuButton = findViewById(R.id.mod_menu_button);
         boolean isMenuEnabled = inbuiltModManager.isModMenuEnabled();
         modMenuButton.setText(getString(R.string.mod_menu) + ": " + (isMenuEnabled ? "ON" : "OFF"));
@@ -138,6 +155,7 @@ public class ModsFullscreenActivity extends BaseActivity {
     }
 
     private void startFilePicker() {
+<<<<<<< HEAD
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("*/*");
@@ -147,6 +165,28 @@ public class ModsFullscreenActivity extends BaseActivity {
                 "application/zip", "application/x-zip", "application/x-zip-compressed",
                 "application/octet-stream", "application/x-sharedlib"});
         pickModLauncher.launch(intent);
+=======
+        pickModLauncher.launch(StorageAccess.downloadsPicker(true));
+    }
+
+    private FileHandler.FileOperationCallback createImportCallback() {
+        return new FileHandler.FileOperationCallback() {
+            @Override
+            public void onSuccess(int processedFiles) {
+                Toast.makeText(ModsFullscreenActivity.this,
+                        getString(R.string.files_processed, processedFiles), Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onError(String errorMessage) {
+                Toast.makeText(ModsFullscreenActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onProgressUpdate(int progress) {
+            }
+        };
+>>>>>>> v1.6.0
     }
 
     private void requestDownloadsScan() {
@@ -415,8 +455,11 @@ public class ModsFullscreenActivity extends BaseActivity {
         itemTouchHelper.attachToRecyclerView(modsRecycler);
         modsAdapter.setItemTouchHelper(itemTouchHelper);
     }
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> v1.6.0
 
     private void updateModsUI(List<Mod> mods) {
         if (modsAdapter != null) {
@@ -453,9 +496,12 @@ public class ModsFullscreenActivity extends BaseActivity {
     @Override
     protected void onResume() {
         super.onResume();
+<<<<<<< HEAD
         if (permissionsHandler != null) {
             permissionsHandler.setActivity(this, permissionResultLauncher);
         }
+=======
+>>>>>>> v1.6.0
         setupViews();
         if (viewModel != null) {
             viewModel.refreshMods();
@@ -463,6 +509,7 @@ public class ModsFullscreenActivity extends BaseActivity {
         updateModsCount();
     }
 
+<<<<<<< HEAD
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
                                            @NonNull int[] grantResults) {
@@ -471,4 +518,6 @@ public class ModsFullscreenActivity extends BaseActivity {
             permissionsHandler.onRequestPermissionsResult(requestCode, permissions, grantResults);
         }
     }
+=======
+>>>>>>> v1.6.0
 }

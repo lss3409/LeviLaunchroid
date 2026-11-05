@@ -1,5 +1,6 @@
 {
   "schemaVersion": 1,
+<<<<<<< HEAD
   "headline": "LeviLauncher Hotfix",
   "summary": "This update improves the External Mods catalog with V2 support and better newest-release sorting.",
   "sections": [
@@ -9,6 +10,30 @@
         {
           "text": "Added V2 external mod catalog support with automatic release metadata and multiple download assets.",
           "url": "https://github.com/LiteLDev/LeviLaunchroid/commit/95e535b6f0f99488c02d75a21ff0657f9f4a6b4f"
+=======
+  "headline": "LeviLauncher v1.6.0",
+  "summary": "Added Minecraft 26.60 support, launcher HUD controls, new world tools, and numerous optimisations.",
+  "sections": [
+    {
+      "title": "New Features",
+      "items": [
+        {
+          "text": "Added support for Minecraft 26.60."
+        },
+        {
+          "text": "Added an option to hide the launcher HUD and overlay buttons."
+        },
+        {
+          "text": "Added a world map and advanced NBT editing."
+        }
+      ]
+    },
+    {
+      "title": "Improvements",
+      "items": [
+        {
+          "text": "Made numerous performance optimisations."
+>>>>>>> v1.6.0
         }
       ]
     },
@@ -16,8 +41,12 @@
       "title": "Fixes",
       "items": [
         {
+<<<<<<< HEAD
           "text": "Fixed external mods sorting so newly updated mods appear first when sorting by newest.",
           "url": "https://github.com/LiteLDev/LeviLaunchroid/commit/e9c9cc6d5c23911559cb83b8064c415242ea3f4f"
+=======
+          "text": "Fixed the options editor not working."
+>>>>>>> v1.6.0
         }
       ]
     }

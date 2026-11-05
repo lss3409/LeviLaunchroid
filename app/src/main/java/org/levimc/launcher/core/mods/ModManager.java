@@ -12,10 +12,15 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
 
+<<<<<<< HEAD
 import org.levimc.launcher.core.minecraft.LauncherApplication;
 import org.levimc.launcher.core.versions.GameVersion;
 import org.levimc.launcher.core.mods.config.ModConfigManager;
 import org.levimc.launcher.util.LauncherStorage;
+=======
+import org.levimc.launcher.core.versions.GameVersion;
+import org.levimc.launcher.core.mods.config.ModConfigManager;
+>>>>>>> v1.6.0
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -152,6 +157,7 @@ public class ModManager {
         }
     }
 
+<<<<<<< HEAD
     /** v569：进程内只启用一次——防 Activity 重建时重复 enable（见 enableLoadedMods）。 */
     private static volatile boolean modsEnabledOnce;
     /** v579：上次 enable 超时（vivo 死锁场景）——本次会话内不再重试，
@@ -168,10 +174,14 @@ public class ModManager {
         if (modsEnabledOnce || enableTimedOut) {
             return;
         }
+=======
+    public static void enableLoadedMods() {
+>>>>>>> v1.6.0
         if (!ensurePreloaderLoaded()) {
             return;
         }
 
+<<<<<<< HEAD
         // v578：enable 放工作线程 + 4s 超时——vivo 上加新模组后启动游戏
         // 首次 enable 就死锁（BSChat 内部 futex 等待永不完成，平板无此
         // 现象，tombstone 573 trace 同款栈）。超时后主线程继续启动游戏
@@ -200,6 +210,12 @@ public class ModManager {
         } catch (InterruptedException e) {
             enableTimedOut = true;
             Log.e(TAG, "nativeEnableLoadedMods 等待被中断", e);
+=======
+        try {
+            nativeEnableLoadedMods();
+        } catch (UnsatisfiedLinkError e) {
+            Log.e(TAG, "Failed to invoke nativeEnableLoadedMods", e);
+>>>>>>> v1.6.0
         }
     }
 
@@ -212,10 +228,13 @@ public class ModManager {
             nativeDisableAndUnloadLoadedMods();
         } catch (UnsatisfiedLinkError e) {
             Log.e(TAG, "Failed to invoke nativeDisableAndUnloadLoadedMods", e);
+<<<<<<< HEAD
         } finally {
             // v579：unload 后复位超时标志——下次启动游戏重试 enable
             // （vivo 死锁会话结束后，下一次启动有机会正常加载）
             enableTimedOut = false;
+=======
+>>>>>>> v1.6.0
         }
     }
 

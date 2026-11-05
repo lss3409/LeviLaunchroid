@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
-import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -18,11 +17,9 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
-import android.widget.LinearLayout;
-import android.widget.SeekBar;
-import android.widget.TextView;
 
 import org.levimc.launcher.R;
+import org.levimc.launcher.core.minecraft.MinecraftActivity;
 import org.levimc.launcher.core.mods.inbuilt.manager.InbuiltModManager;
 
 public abstract class BaseOverlayButton {
@@ -36,8 +33,6 @@ public abstract class BaseOverlayButton {
     private boolean isLocked = false;
     private long touchDownTime = 0;
     private static final long TAP_TIMEOUT = 200;
-    private static final long LONG_PRESS_TIMEOUT = 500;
-    private static final long SLIDER_HIDE_DELAY = 2000;
     private static final float DRAG_THRESHOLD = 10f;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean isShowing = false;
@@ -45,13 +40,6 @@ public abstract class BaseOverlayButton {
     private Runnable pendingShowRunnable;
     private boolean isHudEditorSelected = false;
     
-    private View sliderOverlay;
-    private WindowManager.LayoutParams sliderParams;
-    private boolean isSliderShowing = false;
-    private Runnable longPressRunnable;
-    private Runnable sliderHideRunnable;
-    private long lastSliderInteraction = 0;
-
     public BaseOverlayButton(Activity activity) {
         this.activity = activity;
         this.windowManager = (WindowManager) activity.getSystemService(Context.WINDOW_SERVICE);
@@ -102,13 +90,32 @@ public abstract class BaseOverlayButton {
 
     public void tick() {}
 
+    protected void onOverlayGeometryChanged(int x, int y, int width, int height) {}
+
+    private void notifyOverlayGeometryChanged() {
+        if (overlayView == null) return;
+        if (wmParams != null) {
+            onOverlayGeometryChanged(wmParams.x, wmParams.y, wmParams.width, wmParams.height);
+            return;
+        }
+        ViewGroup.LayoutParams params = overlayView.getLayoutParams();
+        if (params instanceof FrameLayout.LayoutParams) {
+            FrameLayout.LayoutParams frameParams = (FrameLayout.LayoutParams) params;
+            onOverlayGeometryChanged(frameParams.leftMargin, frameParams.topMargin, frameParams.width, frameParams.height);
+        }
+    }
+
+    protected long getShowDelayMillis() {
+        return 500L;
+    }
+
     public void show(int startX, int startY) {
         if (isShowing || isHiding) return;
         if (pendingShowRunnable != null) {
             handler.removeCallbacks(pendingShowRunnable);
         }
         pendingShowRunnable = () -> showInternal(startX, startY);
-        handler.postDelayed(pendingShowRunnable, 500);
+        handler.postDelayed(pendingShowRunnable, getShowDelayMillis());
     }
 
     private void showInternal(int startX, int startY) {
@@ -146,10 +153,16 @@ public abstract class BaseOverlayButton {
             wmParams.token = activity.getWindow().getDecorView().getWindowToken();
 
             overlayView.setOnTouchListener(this::handleTouch);
+<<<<<<< HEAD
+=======
+            overlayView.setVisibility(View.GONE);
+>>>>>>> v1.6.0
             windowManager.addView(overlayView, wmParams);
             isShowing = true;
             applyOpacity();
             updateLockState();
+            notifyOverlayGeometryChanged();
+            refreshRuntimeVisibility();
         } catch (Exception e) {
             showFallback(startX, startY);
         }
@@ -185,11 +198,24 @@ public abstract class BaseOverlayButton {
         params.topMargin = position.y;
 
         overlayView.setOnTouchListener(this::handleTouchFallback);
+<<<<<<< HEAD
+=======
+        overlayView.setVisibility(View.GONE);
+>>>>>>> v1.6.0
         rootView.addView(overlayView, params);
         isShowing = true;
         wmParams = null;
         applyOpacity();
         updateLockState();
+        notifyOverlayGeometryChanged();
+        refreshRuntimeVisibility();
+    }
+
+    private void refreshRuntimeVisibility() {
+        InbuiltOverlayManager manager = InbuiltOverlayManager.getInstance();
+        if (manager != null) {
+            manager.refreshRuntimeVisibility();
+        }
     }
 
     public void hide() {
@@ -202,7 +228,6 @@ public abstract class BaseOverlayButton {
             return;
         }
         isHiding = true;
-        hideSliderOverlay();
         try {
             if (wmParams != null && windowManager != null) {
                 windowManager.removeView(overlayView);
@@ -266,6 +291,10 @@ public abstract class BaseOverlayButton {
                 overlayView.setLayoutParams(params);
             }
         }
+<<<<<<< HEAD
+=======
+        notifyOverlayGeometryChanged();
+>>>>>>> v1.6.0
     }
 
     private boolean handleTouch(View v, MotionEvent event) {
@@ -286,6 +315,7 @@ public abstract class BaseOverlayButton {
                 v.getParent().requestDisallowInterceptTouchEvent(!isLocked || isHudEditorMode);
                 if (!isHudEditorMode) {
                     onButtonPressStart();
+<<<<<<< HEAD
                 }
                 
                 if (longPressRunnable != null) {
@@ -297,6 +327,9 @@ public abstract class BaseOverlayButton {
                     }
                 };
                 handler.postDelayed(longPressRunnable, LONG_PRESS_TIMEOUT);
+=======
+                }
+>>>>>>> v1.6.0
                 return true;
 
             case MotionEvent.ACTION_MOVE:
@@ -306,9 +339,6 @@ public abstract class BaseOverlayButton {
                     if (isHudEditorMode) {
                         isDragging = true;
                     }
-                    if (longPressRunnable != null) {
-                        handler.removeCallbacks(longPressRunnable);
-                    }
                 }
                 if (isDragging && isHudEditorMode && windowManager != null && overlayView != null) {
                     OverlayBounds.Position position = OverlayBounds.clampPosition(
@@ -316,13 +346,11 @@ public abstract class BaseOverlayButton {
                     wmParams.x = position.x;
                     wmParams.y = position.y;
                     windowManager.updateViewLayout(overlayView, wmParams);
+                    notifyOverlayGeometryChanged();
                 }
                 return isHudEditorMode || !isDragging;
 
             case MotionEvent.ACTION_UP:
-                if (longPressRunnable != null) {
-                    handler.removeCallbacks(longPressRunnable);
-                }
                 long elapsed = SystemClock.uptimeMillis() - touchDownTime;
                 float totalDx = event.getRawX() - initialTouchX;
                 float totalDy = event.getRawY() - initialTouchY;
@@ -342,8 +370,8 @@ public abstract class BaseOverlayButton {
 
             case MotionEvent.ACTION_CANCEL:
             case MotionEvent.ACTION_OUTSIDE:
-                if (longPressRunnable != null) {
-                    handler.removeCallbacks(longPressRunnable);
+                if (!isHudEditorMode) {
+                    onButtonPressEnd();
                 }
                 if (!isHudEditorMode) {
                     onButtonPressEnd();
@@ -378,6 +406,7 @@ public abstract class BaseOverlayButton {
                 v.getParent().requestDisallowInterceptTouchEvent(!isLocked || isHudEditorMode);
                 if (!isHudEditorMode) {
                     onButtonPressStart();
+<<<<<<< HEAD
                 }
                 
                 if (longPressRunnable != null) {
@@ -389,6 +418,9 @@ public abstract class BaseOverlayButton {
                     }
                 };
                 handler.postDelayed(longPressRunnable, LONG_PRESS_TIMEOUT);
+=======
+                }
+>>>>>>> v1.6.0
                 return true;
 
             case MotionEvent.ACTION_MOVE:
@@ -398,9 +430,6 @@ public abstract class BaseOverlayButton {
                     if (!isLocked || isHudEditorMode) {
                         isDragging = true;
                     }
-                    if (longPressRunnable != null) {
-                        handler.removeCallbacks(longPressRunnable);
-                    }
                 }
                 if (isDragging && (!isLocked || isHudEditorMode)) {
                     OverlayBounds.Position position = OverlayBounds.clampPosition(
@@ -408,13 +437,11 @@ public abstract class BaseOverlayButton {
                     params.leftMargin = position.x;
                     params.topMargin = position.y;
                     overlayView.setLayoutParams(params);
+                    notifyOverlayGeometryChanged();
                 }
                 return isHudEditorMode || !isLocked || !isDragging;
 
             case MotionEvent.ACTION_UP:
-                if (longPressRunnable != null) {
-                    handler.removeCallbacks(longPressRunnable);
-                }
                 long elapsed = SystemClock.uptimeMillis() - touchDownTime;
                 float totalDx = event.getRawX() - initialTouchX;
                 float totalDy = event.getRawY() - initialTouchY;
@@ -433,8 +460,8 @@ public abstract class BaseOverlayButton {
                 return true;
 
             case MotionEvent.ACTION_CANCEL:
-                if (longPressRunnable != null) {
-                    handler.removeCallbacks(longPressRunnable);
+                if (!isHudEditorMode) {
+                    onButtonPressEnd();
                 }
                 if (!isHudEditorMode) {
                     onButtonPressEnd();
@@ -451,8 +478,8 @@ public abstract class BaseOverlayButton {
             long time = SystemClock.uptimeMillis();
             KeyEvent down = new KeyEvent(time, time, KeyEvent.ACTION_DOWN, keyCode, 0, 0, -1, 0, 0, InputDevice.SOURCE_KEYBOARD);
             KeyEvent up = new KeyEvent(time, time + 10, KeyEvent.ACTION_UP, keyCode, 0, 0, -1, 0, 0, InputDevice.SOURCE_KEYBOARD);
-            activity.dispatchKeyEvent(down);
-            activity.dispatchKeyEvent(up);
+            dispatchGameKey(down);
+            dispatchGameKey(up);
         });
     }
 
@@ -460,7 +487,7 @@ public abstract class BaseOverlayButton {
         handler.post(() -> {
             long time = SystemClock.uptimeMillis();
             KeyEvent down = new KeyEvent(time, time, KeyEvent.ACTION_DOWN, keyCode, 0, 0, -1, 0, 0, InputDevice.SOURCE_KEYBOARD);
-            activity.dispatchKeyEvent(down);
+            dispatchGameKey(down);
         });
     }
 
@@ -468,8 +495,16 @@ public abstract class BaseOverlayButton {
         handler.post(() -> {
             long time = SystemClock.uptimeMillis();
             KeyEvent up = new KeyEvent(time, time, KeyEvent.ACTION_UP, keyCode, 0, 0, -1, 0, 0, InputDevice.SOURCE_KEYBOARD);
-            activity.dispatchKeyEvent(up);
+            dispatchGameKey(up);
         });
+    }
+
+    private void dispatchGameKey(KeyEvent event) {
+        if (activity instanceof MinecraftActivity) {
+            ((MinecraftActivity) activity).dispatchInbuiltKeyEvent(event);
+        } else {
+            activity.dispatchKeyEvent(event);
+        }
     }
 
     protected abstract int getIconResource();
@@ -517,6 +552,7 @@ public abstract class BaseOverlayButton {
         applyOpacity();
 
         updateLockState();
+<<<<<<< HEAD
         onButtonSizeChanged();
     }
 
@@ -758,5 +794,11 @@ public abstract class BaseOverlayButton {
         onButtonSizeChanged();
     }
 
+=======
+        notifyOverlayGeometryChanged();
+        onButtonSizeChanged();
+    }
+
+>>>>>>> v1.6.0
     protected void onButtonSizeChanged() {}
 }

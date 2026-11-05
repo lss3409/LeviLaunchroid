@@ -172,6 +172,7 @@ public class FileHandler {
         }).start();
     }
 
+<<<<<<< HEAD
     public void processScannedFile(Uri uri, FileOperationCallback callback) {
         if (uri == null) {
             postError(callback, context.getString(R.string.invalid_mod_file_reason));
@@ -200,6 +201,8 @@ public class FileHandler {
         }).start();
     }
 
+=======
+>>>>>>> v1.6.0
     public void processCatalogModDirectly(Intent intent, String name, String author, String version,
                                           List<String> minecraftVersions, FileOperationCallback callback) {
         List<Uri> fileUris = extractFileUris(intent);

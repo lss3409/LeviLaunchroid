@@ -5,6 +5,10 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.preference.PreferenceManager
 import org.levimc.launcher.core.crash.CrashReporter
+<<<<<<< HEAD
+=======
+import org.levimc.launcher.core.news.NewsNotificationHelper
+>>>>>>> v1.6.0
 import org.levimc.launcher.settings.FeatureSettings
 import org.levimc.launcher.ui.dialogs.LogcatOverlayManager
 
@@ -14,6 +18,7 @@ class LauncherApplication : Application() {
         super.onCreate()
         context = applicationContext
         FeatureSettings.init(applicationContext)
+<<<<<<< HEAD
         LaunchTrace.init(applicationContext)
         val processName = Application.getProcessName()
         if (processName.endsWith(":crash")) return
@@ -43,6 +48,16 @@ class LauncherApplication : Application() {
             override fun onActivitySaveInstanceState(activity: android.app.Activity, state: android.os.Bundle) {}
             override fun onActivityDestroyed(activity: android.app.Activity) {}
         })
+=======
+        CrashReporter.init(this)
+        val processName = Application.getProcessName()
+        if (processName.endsWith(":crash")) return
+
+        NewsNotificationHelper.initialize(this)
+        LogcatOverlayManager.init(this)
+
+        preferences = PreferenceManager.getDefaultSharedPreferences(this)
+>>>>>>> v1.6.0
     }
 
     companion object {

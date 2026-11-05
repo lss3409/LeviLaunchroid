@@ -6,7 +6,10 @@ import android.util.Log;
 
 import org.levimc.launcher.R;
 import org.levimc.launcher.core.versions.GameVersion;
+<<<<<<< HEAD
 import org.levimc.launcher.util.HardcoreBackupManager;
+=======
+>>>>>>> v1.6.0
 import org.levimc.launcher.util.LauncherStorage;
 
 import java.io.File;
@@ -395,6 +398,7 @@ public class WorldManager {
         }
     }
 
+<<<<<<< HEAD
     /** v412：读 level.dat，无 leviWorldId 时生成 UUID 注入（TAG_String）
      *  并返回注入后的字节；已有标识则原样返回。NBT 解析失败时不阻断
      *  导出（原字节打包）。 */
@@ -427,6 +431,18 @@ public class WorldManager {
             } catch (IOException ignored) {
                 return new byte[0];
             }
+=======
+    private String createBackup(WorldItem world) throws IOException {
+        File backupDir = LauncherStorage.getWorldBackupsDir(context);
+        backupDir.mkdirs();
+        
+        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        String backupName = world.getName() + "_" + timestamp + ".mcworld";
+        File backupFile = new File(backupDir, backupName);
+        
+        try (FileOutputStream fos = new FileOutputStream(backupFile)) {
+            createWorldZip(world.getFile(), fos, null);
+>>>>>>> v1.6.0
         }
     }
 

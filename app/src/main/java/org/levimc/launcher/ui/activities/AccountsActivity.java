@@ -35,8 +35,11 @@ import okhttp3.Response;
 
 import android.util.Pair;
 
+<<<<<<< HEAD
 import net.raphimc.minecraftauth.bedrock.BedrockAuthManager;
 
+=======
+>>>>>>> v1.6.0
 public class AccountsActivity extends BaseActivity {
 
     private TextView gamertagText;
@@ -94,29 +97,20 @@ public class AccountsActivity extends BaseActivity {
         adapter.setOnAccountActionListener(new AccountsAdapter.OnAccountActionListener() {
             @Override
             public void onSetActive(MsftAccountStore.MsftAccount account) {
-                MsftAccountStore.setActive(AccountsActivity.this, account.id);
-
-                boolean withinSevenDays = AccountTextUtils.isRecentlyUpdated(account, 7);
-
-                if (withinSevenDays) {
-                    runOnUiThread(() -> {
-                        org.levimc.launcher.util.DialogUtils.dismissQuietly(loadingDialog);
-                        String statusName = AccountTextUtils.displayNameOrNotSigned(AccountsActivity.this, account);
-                        Toast.makeText(AccountsActivity.this, getString(R.string.ms_login_success, statusName), Toast.LENGTH_SHORT).show();
-                        refreshUI();
-                    });
-                    return;
-                }
-
                 loadingDialog = org.levimc.launcher.util.DialogUtils.ensure(AccountsActivity.this, loadingDialog);
                 org.levimc.launcher.util.DialogUtils.showWithMessage(loadingDialog, getString(R.string.ms_login_auth_xbox_device));
 
                 executor.execute(() -> {
                     try {
+<<<<<<< HEAD
                         BedrockAuthManager authManager = MsftAuthManager.refreshAndAuth(account);
                         MsftAuthManager.saveAccountOrThrow(AccountsActivity.this, authManager);
                         MsftAccountStore.setActive(AccountsActivity.this, account.id);
                         String minecraftUsername = authManager.getMinecraftCertificateChain().getUpToDate().getIdentityDisplayName();
+=======
+                        MsftAccountStore.MsftAccount refreshed = MsftAuthManager.refreshAccountAndActivate(AccountsActivity.this, account.id);
+                        String minecraftUsername = AccountTextUtils.displayNameOrNotSigned(AccountsActivity.this, refreshed);
+>>>>>>> v1.6.0
 
                         runOnUiThread(() -> {
                             org.levimc.launcher.util.DialogUtils.dismissQuietly(loadingDialog);

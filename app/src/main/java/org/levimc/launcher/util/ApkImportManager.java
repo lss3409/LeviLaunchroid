@@ -25,9 +25,12 @@ public class ApkImportManager {
     private final MainViewModel viewModel;
     private final InstallProgressDialog progressDialog;
     private OnImportCompleteListener importCompleteListener;
+<<<<<<< HEAD
     private final List<Uri> pendingUris = new ArrayList<>();
     private int totalCount = 0;
     private int totalImported = 0;
+=======
+>>>>>>> v1.6.0
 
     public interface OnImportCompleteListener {
         void onImportComplete();
@@ -43,9 +46,17 @@ public class ApkImportManager {
         this.importCompleteListener = listener;
     }
 
+<<<<<<< HEAD
     public void handleApkImportResultForUri(Uri apkUri) {
         if (apkUri == null) return;
 
+=======
+    public void handleApkImportResult(Intent data) {
+        Uri apkUri = data.getData();
+        if (apkUri == null) return;
+        StorageAccess.retainReadPermission(activity, data, apkUri);
+        
+>>>>>>> v1.6.0
         String fileName = getFileName(apkUri);
         boolean isApks = fileName != null && fileName.toLowerCase().endsWith(".apks");
 
@@ -101,8 +112,14 @@ public class ApkImportManager {
                                             Toast.LENGTH_LONG
                                     ).show();
                                     VersionManager.get(activity).loadAllVersions();
+<<<<<<< HEAD
                                     totalImported++;
                                     processNextApk();
+=======
+                                    if (importCompleteListener != null) {
+                                        importCompleteListener.onImportComplete();
+                                    }
+>>>>>>> v1.6.0
                                 });
                             }
 
@@ -127,6 +144,7 @@ public class ApkImportManager {
     }
 
     void showProgress() {
+<<<<<<< HEAD
         android.util.Log.i("ApkImport", "showProgress on " + activity.getClass().getSimpleName());
         try {
             progressDialog.setProgress(0);
@@ -134,6 +152,10 @@ public class ApkImportManager {
         } catch (Throwable t) {
             android.util.Log.e("ApkImport", "progress dialog failed", t);
         }
+=======
+        progressDialog.setProgress(0);
+        if (!progressDialog.isShowing()) progressDialog.show();
+>>>>>>> v1.6.0
     }
 
     void dismissProgress() {

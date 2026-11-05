@@ -5,7 +5,11 @@
     android:layout_height="match_parent"
     android:background="@color/background">
 
+<<<<<<< HEAD
     <ScrollView
+=======
+    <LinearLayout
+>>>>>>> v1.6.0
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:fillViewport="true"
@@ -65,6 +69,18 @@
             app:iconPadding="6dp"
             app:iconTint="@android:color/white"
             app:cornerRadius="8dp" />
+<<<<<<< HEAD
+=======
+
+        <ImageButton
+            android:id="@+id/edit_options_button"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_settings"
+            android:contentDescription="@string/edit_options"
+            app:tint="@color/text_secondary" />
+>>>>>>> v1.6.0
 
     </LinearLayout>
 

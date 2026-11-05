@@ -10,6 +10,7 @@
 
     <color name="tertiary">#01579B</color>
     <color name="on_tertiary">#FFFFFF</color>
+    <color name="external_mod_ad">#E65100</color>
 
     <color name="external_mod_ad">#E65100</color>
 
@@ -43,6 +44,7 @@
     <color name="text_secondary">#757575</color>
     <color name="qa_icon_color">#000000</color>
     <color name="ic_launcher_adaptive_back">#F6F3EA</color>
+<<<<<<< HEAD
 
     <!-- World map (Blocktopograph-style terrain palette) -->
     <color name="world_map_water_deep">#1E56A0</color>
@@ -53,3 +55,6 @@
     <color name="world_map_snow">#F2F2F2</color>
     <color name="world_map_unknown">#9E9E9E</color>
 </resources>
+=======
+</resources>
+>>>>>>> v1.6.0

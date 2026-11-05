@@ -1,10 +1,14 @@
 package org.levimc.launcher.core.minecraft;
 
+<<<<<<< HEAD
 import android.content.Context;
+=======
+>>>>>>> v1.6.0
 import android.content.Intent;
 import android.os.SystemClock;
 import android.util.Log;
 
+<<<<<<< HEAD
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -12,6 +16,8 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
+=======
+>>>>>>> v1.6.0
 import java.util.Locale;
 import java.util.UUID;
 
@@ -20,6 +26,7 @@ public final class LaunchTrace {
     public static final String EXTRA_STARTED_ELAPSED_MS = "org.levimc.launcher.extra.LAUNCH_STARTED_ELAPSED_MS";
 
     private static final String TAG = "MinecraftLaunchTrace";
+<<<<<<< HEAD
     private static final String LOG_DIR_NAME = "launch_logs";
     private static final int MAX_LOG_FILES = 30;
 
@@ -48,6 +55,8 @@ public final class LaunchTrace {
     public static File getLogFileFor(Context context, String sessionId) {
         return new File(getLogDir(context), "launch_" + sessionId + ".log");
     }
+=======
+>>>>>>> v1.6.0
 
     private final String sessionId;
     private final long startedElapsedMs;
@@ -136,6 +145,7 @@ public final class LaunchTrace {
             message += " - " + detail;
         }
         Log.println(level, TAG, message);
+<<<<<<< HEAD
         appendToLogFile(message);
     }
 
@@ -164,6 +174,8 @@ public final class LaunchTrace {
             //noinspection ResultOfMethodCallIgnored
             files[i].delete();
         }
+=======
+>>>>>>> v1.6.0
     }
 
     public String formatForUi(String message) {

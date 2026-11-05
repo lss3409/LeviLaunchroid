@@ -1,6 +1,10 @@
 # Build from Source
 
+<<<<<<< HEAD
 This page is for contributors who want to build LeviLaunchroid itself. Native mod build notes live in [Native Mod Quick Start](/guide/developer).
+=======
+This page is for contributors who want to build LeviLauncher for Android itself. Native mod build notes live in [Native Mod Quick Start](/guide/developer).
+>>>>>>> v1.6.0
 
 ## Prerequisites
 
@@ -40,4 +44,8 @@ On Windows:
 
 ## Contributor Checks
 
+<<<<<<< HEAD
 Before submitting launcher changes, build the app and test the touched flow on a device. Documentation-only changes should at least pass the VitePress build from `docs/`.
+=======
+Before submitting launcher changes, build the app and test the touched flow on a device. Documentation-only changes should at least pass the docs build: run `npm ci` and then `npm run build` in `docs/` (the site is built with levimc-kit).
+>>>>>>> v1.6.0

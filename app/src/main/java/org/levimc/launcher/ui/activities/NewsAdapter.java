@@ -69,12 +69,16 @@ final class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.Holder> {
         holder.card.setStrokeColor(holder.itemView.getContext().getColor(R.color.primary));
 
         View.OnClickListener open = v -> {
+<<<<<<< HEAD
             if (TextUtils.isEmpty(item.url)) {
                 // v0.4.200：无 GitHub release 的历史版本——本地详情弹窗
                 // （不拉链接；有 release 的跳对应版本 releases 页）
                 showLocalDetail(holder.itemView.getContext(), item);
                 return;
             }
+=======
+            if (TextUtils.isEmpty(item.url)) return;
+>>>>>>> v1.6.0
             Uri uri = Uri.parse(item.url);
             String scheme = uri.getScheme();
             if (!("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme))) return;
@@ -91,6 +95,7 @@ final class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.Holder> {
         return items.size();
     }
 
+<<<<<<< HEAD
     /** v0.4.200：无 url 条目点击——本地详情弹窗（版本更新内容）。 */
     private void showLocalDetail(android.content.Context context, NewsItem item) {
         String detail = item.summary;
@@ -106,6 +111,8 @@ final class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.Holder> {
         dlg.show();
     }
 
+=======
+>>>>>>> v1.6.0
     private String formatDate(String value) {
         try {
             return dateFormat.format(Instant.parse(value).atZone(ZoneId.systemDefault()));

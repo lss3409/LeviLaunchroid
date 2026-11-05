@@ -1,6 +1,5 @@
 package com.mojang.minecraftpe;
 
-import android.Manifest;
 import android.accessibilityservice.AccessibilityServiceInfo;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
@@ -79,7 +78,6 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
     private static final int POST_NOTIFICATIONS_PERMISSION_ID = 2;
     public static int RESULT_PICK_IMAGE = 1;
     static final int SAVE_FILE_RESULT_CODE = 4;
-    private static final int STORAGE_PERMISSION_ID = 1;
     private static boolean _isPowerVr;
     private static boolean mHasStoragePermission ;
     private static boolean mHasReadMediaImagesPermission;
@@ -102,6 +100,7 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
     private ThermalMonitor mThermalMonitor;
 
     public TextInputProxyEditTextbox textInputWidget;
+    private View textInputFocusSink;
     private TextToSpeech textToSpeechManager;
     private Thread mMainThread = null;
     public int virtualKeyboardHeight = 0;
@@ -259,9 +258,12 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
 
     native long nativeInitializeXboxLive(long xalInitArgs, long xblInitArgs);
 
+<<<<<<< HEAD
     // v0.4.212（官方 303f00a2 跟进）：26.60 键盘修复——native 现在按
     // 输入源区分按键（输入法 commit 的字符 vs 物理键盘），两参包装保持
     // 旧 JNI 注册兼容（@Keep 防混淆裁剪）
+=======
+>>>>>>> v1.6.0
     @androidx.annotation.Keep
     public boolean nativeKeyHandler(final int keycode, final int action) {
         return nativeKeyHandler(keycode, action, InputDevice.SOURCE_KEYBOARD);
@@ -471,8 +473,8 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
         headsetConnectionReceiver = new HeadsetConnectionReceiver();
         mNetworkMonitor = new NetworkMonitor(getApplicationContext());
         platform.onAppStart(getWindow().getDecorView());
-        mHasStoragePermission = checkPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, Process.myPid(), Process.myUid()) == 0;
-        mHasReadMediaImagesPermission = Build.VERSION.SDK_INT < 33 || checkPermission("android.permission.READ_MEDIA_IMAGES", Process.myPid(), Process.myUid()) == 0;
+        mHasStoragePermission = hasWriteExternalStoragePermission();
+        mHasReadMediaImagesPermission = true;
         nativeSetHeadphonesConnected(((AudioManager) getSystemService(Context.AUDIO_SERVICE)).isWiredHeadsetOn());
         clipboardManager = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         initialUserLocale = Locale.getDefault();
@@ -513,21 +515,34 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
 
         mWorldRecovery = new WorldRecovery(getApplicationContext(), getApplicationContext().getContentResolver());
 
-        pickMedia =
-                registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
-                    if (uri != null) {
-                        String[] projection = {MediaStore.Images.Media.DATA};
-                        Cursor cursor = getContentResolver().query(uri, projection, null, null, null);
-                        if (cursor != null && cursor.moveToFirst()) {
-                            String filePath = cursor.getString(cursor.getColumnIndexOrThrow(projection[0]));
-                            nativeOnPickImageSuccess(mCallback, filePath);
-                            cursor.close();
-                        } else {
-                            nativeOnPickImageCanceled(mCallback);
-                        }
-                    } else {
-                        nativeOnPickImageCanceled(mCallback);
+        pickMedia = registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
+            final long callback = mCallback;
+            if (uri == null) {
+                nativeOnPickImageCanceled(callback);
+                return;
+            }
+            new Thread(() -> {
+                File selectedImage = null;
+                try {
+                    File directory = new File(getCacheDir(), "skin_picker");
+                    if (!directory.isDirectory() && !directory.mkdirs()) throw new IOException("Cannot create image directory");
+                    String mimeType = getContentResolver().getType(uri);
+                    String suffix = "image/jpeg".equals(mimeType) ? ".jpg" : ".png";
+                    selectedImage = File.createTempFile("selected_skin_", suffix, directory);
+                    try (InputStream input = getContentResolver().openInputStream(uri);
+                         FileOutputStream output = new FileOutputStream(selectedImage)) {
+                        if (input == null) throw new IOException("Cannot read selected image");
+                        byte[] buffer = new byte[65536];
+                        int count;
+                        while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
                     }
+                    String path = selectedImage.getAbsolutePath();
+                    runOnUiThread(() -> nativeOnPickImageSuccess(callback, path));
+                } catch (Exception error) {
+                    if (selectedImage != null) selectedImage.delete();
+                    runOnUiThread(() -> nativeOnPickImageCanceled(callback));
+                }
+            }).start();
         });
         this.textInputWidget = createTextWidget();
     }
@@ -625,9 +640,31 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
         return super.dispatchGenericMotionEvent(event);
     }
 
+    private boolean handleActiveTextInputBackKey(@NonNull KeyEvent event) {
+        if (!isTextWidgetActive()) {
+            return false;
+        }
+
+        int keyCode = event.getKeyCode();
+        if (keyCode != KeyEvent.KEYCODE_ESCAPE && keyCode != KeyEvent.KEYCODE_BACK) {
+            return false;
+        }
+
+        if (event.getAction() == KeyEvent.ACTION_UP) {
+            nativeBackPressed();
+        }
+        return true;
+    }
+
     @Override
     public boolean dispatchKeyEvent(@NonNull KeyEvent event) {
+<<<<<<< HEAD
         // v0.4.212（官方 303f00a2 跟进）：带输入源调用
+=======
+        if (handleActiveTextInputBackKey(event)) {
+            return true;
+        }
+>>>>>>> v1.6.0
         if (nativeKeyHandler(event.getKeyCode(), event.getAction(), event.getSource())) {
             return true;
         }
@@ -666,56 +703,29 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
         textToSpeechManager = null;
     }
 
-    public void requestStoragePermission(int i) {
-        mLastPermissionRequestReason = i;
-        suspendGameplayUpdates();
-        requestPermissions(new String[]{"android.permission.WRITE_EXTERNAL_STORAGE"}, 1);
+    public void requestStoragePermission(int reason) {
+        mLastPermissionRequestReason = reason;
+        runOnUiThread(() -> nativeStoragePermissionRequestResult(hasWriteExternalStoragePermission(), reason));
     }
 
 
-    public void requestMediaImagesPermission(int i) {
-        if (Build.VERSION.SDK_INT >= 33) {
-            mLastPermissionRequestReason = i;
-            suspendGameplayUpdates();
-            requestPermissions(new String[]{"android.permission.READ_MEDIA_IMAGES"}, 3);
-            return;
-        }
-        requestStoragePermission(i);
+    public void requestMediaImagesPermission(int reason) {
+        mLastPermissionRequestReason = reason;
+        runOnUiThread(() -> nativeStoragePermissionRequestResult(hasReadMediaImagesPermission(), reason));
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String @NotNull [] permissions, int @NotNull [] grantResults) {
-        Log.i("MinecraftPlatform", "MainActivity::onRequestPermissionsResult");
         resumeGameplayUpdates();
-        if (requestCode == STORAGE_PERMISSION_ID) {
-            mHasStoragePermission = grantResults.length > 0 && grantResults[0] == 0;
-            nativeStoragePermissionRequestResult(mHasStoragePermission, this.mLastPermissionRequestReason);
-            return;
-        }
-        if (requestCode == 2) {
-            if (grantResults.length == 0 || grantResults[0] != 0) {
-                return;
-            }
+        if (requestCode == POST_NOTIFICATIONS_PERMISSION_ID
+                && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
             mBrazeManager.requestImmediateDataFlush();
-            return;
         }
-        if (requestCode != 3) {
-            return;
-        }
-        mHasReadMediaImagesPermission = grantResults.length > 0 && grantResults[0] == 0;
-        nativeStoragePermissionRequestResult(mHasReadMediaImagesPermission, this.mLastPermissionRequestReason);
     }
 
     public boolean hasReadMediaImagesPermission() {
-        final boolean z;
-        if (Build.VERSION.SDK_INT >= 33) {
-            z = checkPermission("android.permission.READ_MEDIA_IMAGES", Process.myPid(), Process.myUid()) == 0;
-            mHasReadMediaImagesPermission = z;
-        } else {
-            z = checkPermission("android.permission.WRITE_EXTERNAL_STORAGE", Process.myPid(), Process.myUid()) == 0;
-            mHasStoragePermission = z;
-        }
-        return z;
+        mHasReadMediaImagesPermission = true;
+        return true;
     }
 
     public void resumeGameplayUpdates() {
@@ -728,9 +738,10 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
     }
 
     public boolean hasWriteExternalStoragePermission() {
-        final boolean hasStoragePermission = Build.VERSION.SDK_INT >= 33 || checkPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, Process.myPid(), Process.myUid()) == PackageManager.PERMISSION_GRANTED;
-        mHasStoragePermission = hasStoragePermission;
-        return hasStoragePermission;
+        File directory = getExternalFilesDir(null);
+        mHasStoragePermission = directory != null
+                && (directory.isDirectory() || directory.mkdirs()) && directory.canWrite();
+        return mHasStoragePermission;
     }
 
     public boolean hasHardwareKeyboard() {
@@ -853,8 +864,21 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
                 });
             }
         });
-        ((ViewGroup) findViewById(android.R.id.content)).addView(textInputProxyEditTextbox, new ViewGroup.LayoutParams(1, 1));
-        final View rootView = findViewById(android.R.id.content).getRootView();
+        ViewGroup contentView = (ViewGroup) findViewById(android.R.id.content);
+        contentView.addView(textInputProxyEditTextbox, new ViewGroup.LayoutParams(1, 1));
+
+        this.textInputFocusSink = new View(this);
+        this.textInputFocusSink.setFocusable(true);
+        this.textInputFocusSink.setFocusableInTouchMode(true);
+        this.textInputFocusSink.setClickable(false);
+        this.textInputFocusSink.setLongClickable(false);
+        this.textInputFocusSink.setAlpha(0.0f);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            this.textInputFocusSink.setDefaultFocusHighlightEnabled(false);
+        }
+        contentView.addView(this.textInputFocusSink, new ViewGroup.LayoutParams(1, 1));
+
+        final View rootView = contentView.getRootView();
         rootView.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
             @Override
             public void onGlobalLayout() {
@@ -920,9 +944,15 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
         getInputMethodManager().hideSoftInputFromWindow(this.textInputWidget.getWindowToken(), 0);
 
         this.textInputWidget.clearFocus();
+<<<<<<< HEAD
         View decorView = getWindow().getDecorView();
         decorView.setFocusableInTouchMode(true);
         decorView.requestFocus();
+=======
+        if (this.textInputFocusSink != null) {
+            this.textInputFocusSink.requestFocus();
+        }
+>>>>>>> v1.6.0
 
         this.mPauseTextboxUIUpdates = true;
         try {

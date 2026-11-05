@@ -1,6 +1,10 @@
 # 功能概览
 
+<<<<<<< HEAD
 LeviLauncher 的核心是日常 Minecraft 基岩版启动器工作流。Native mod API 是开发者扩展能力，不是普通用户的默认入口。
+=======
+LeviLauncher for Android 的核心是日常 Minecraft 基岩版启动器工作流。原生模组 API 是开发者扩展能力，不是普通用户的默认入口。
+>>>>>>> v1.6.0
 
 ## 版本与实例管理
 
@@ -14,14 +18,24 @@ LeviLauncher 的核心是日常 Minecraft 基岩版启动器工作流。Native m
 
 ## Xbox 账号
 
+<<<<<<< HEAD
 LeviLauncher 可以在启动器内管理多个 Xbox 账号。启动 Minecraft 前选择需要使用的账号，避免进游戏后才发现身份不对。
+=======
+LeviLauncher for Android 可以在启动器内管理多个 Xbox 账号。启动 Minecraft 前选择需要使用的账号，避免进游戏后才发现身份不对。
+>>>>>>> v1.6.0
 
 ## 快速启动
 
 快速启动使用 Minecraft URI 操作直接进入常用流程。根据不同操作，可以打开指定游戏页面、连接服务器、添加服务器、加入 Realm、加载本地世界或执行命令。
 
+<<<<<<< HEAD
 ## Native 模块
 
 启动器支持安装 native SO 模块，供明确需要扩展能力的用户和开发者使用。Native 模块会运行本机代码，只安装你信任的包。
+=======
+## 原生模组
+
+启动器支持安装原生模组，供明确需要扩展能力的用户和开发者使用。原生模组会运行原生代码，只安装你信任的包。
+>>>>>>> v1.6.0
 
 开发者文档位于 [开发者](/zh-CN/guide/developer)，Preloader API 参考也从该分类进入。
