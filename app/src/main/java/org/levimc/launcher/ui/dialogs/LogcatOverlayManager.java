@@ -16,10 +16,6 @@ public class LogcatOverlayManager {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private volatile boolean onSplash = false;
     private volatile boolean onLoading = false;
-<<<<<<< HEAD
-    /** v0.4.211（官方 5bf4c980 跟进）：F1 隐藏 HUD 时联动隐藏。 */
-=======
->>>>>>> v1.6.0
     private volatile boolean gameHudHidden = false;
 
     private LogcatOverlayManager(Application app) {
@@ -50,23 +46,11 @@ public class LogcatOverlayManager {
     }
 
     private void updateVisibility() {
-<<<<<<< HEAD
-        boolean show = FeatureSettings.getInstance().isLogcatOverlayEnabled()
-                && !onSplash && !onLoading && !gameHudHidden;
-=======
         boolean show = FeatureSettings.getInstance().isLogcatOverlayEnabled() && !onSplash && !onLoading && !gameHudHidden;
->>>>>>> v1.6.0
         mainHandler.post(() -> {
             if (overlay == null) return;
             if (show) overlay.show(); else overlay.hide();
         });
-    }
-
-    /** v0.4.211（官方 5bf4c980 跟进）：F1 隐藏 HUD 时联动隐藏 logcat 悬浮层。 */
-    public void setGameHudHidden(boolean hidden) {
-        if (gameHudHidden == hidden) return;
-        gameHudHidden = hidden;
-        updateVisibility();
     }
 
     private void registerLifecycleCallbacks() {

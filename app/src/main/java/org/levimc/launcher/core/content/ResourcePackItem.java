@@ -90,13 +90,10 @@ public class ResourcePackItem extends ContentItem {
         return version;
     }
 
-<<<<<<< HEAD
     public String getUuid() {
         return uuid;
     }
 
-=======
->>>>>>> v1.6.0
     public File getIconFile() {
         if (file == null) return null;
         File icon = new File(file, "pack_icon.png");

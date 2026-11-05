@@ -4,11 +4,6 @@ import android.app.Activity;
 import android.widget.ImageButton;
 
 import org.levimc.launcher.R;
-<<<<<<< HEAD
-
-import org.levimc.launcher.core.mods.inbuilt.manager.InbuiltModManager;
-=======
->>>>>>> v1.6.0
 import org.levimc.launcher.core.mods.inbuilt.model.ModIds;
 import org.levimc.launcher.core.mods.inbuilt.nativemod.AutoSprintMod;
 
@@ -58,26 +53,4 @@ public class AutoSprintOverlay extends BaseOverlayButton {
         }
         super.hide();
     }
-<<<<<<< HEAD
-
-    @Override
-    public void applyConfigurationChanges() {
-        sprintKey = InbuiltModManager.getInstance(activity).getAutoSprintKeybind();
-        super.applyConfigurationChanges();
-    }
-
-    private int tickCount = 0;
-    
-    @Override
-    public void tick() {
-        if (!isActive) return;
-        
-        tickCount++;
-        if (tickCount >= 20) { 
-            tickCount = 0;
-            sendKeyDown(sprintKey);
-        }
-    }
-=======
->>>>>>> v1.6.0
 }

@@ -69,7 +69,6 @@ public class WorldItem extends ContentItem {
         return worldName;
     }
 
-<<<<<<< HEAD
     /** v0.0.24：修复存档游戏模式恒显示 Unknown——无参版本硬编码 "Unknown"，
      *  三处 UI 调用方误用。改为与有参版本同源的映射（英文，无 Context 时用）。 */
     public String getGameMode() {
@@ -102,10 +101,6 @@ public class WorldItem extends ContentItem {
                 res = org.levimc.launcher.R.string.game_mode_unknown;
         }
         return ctx.getString(res);
-=======
-    public String getGameMode() {
-        return gameMode != null ? gameMode : "Unknown";
->>>>>>> v1.6.0
     }
 
     public File getIconFile() {
@@ -118,7 +113,6 @@ public class WorldItem extends ContentItem {
         return null;
     }
 
-<<<<<<< HEAD
     /** v413：存档唯一标识（无则 null）。 */
     public String getLeviWorldId() {
         return leviWorldId;
@@ -294,8 +288,6 @@ public class WorldItem extends ContentItem {
         return file != null ? file.getName() : name;
     }
 
-=======
->>>>>>> v1.6.0
     private void loadWorldInfo() {
         if (file == null || !file.exists() || !file.isDirectory()) {
             isValid = false;

@@ -46,7 +46,6 @@ public final class ContentActionPopup {
         LinearLayout items = content.findViewById(R.id.action_menu_items);
         titleView.setText(title);
 
-<<<<<<< HEAD
         View root = anchor.getRootView();
         int[] rootLocation = new int[2];
         root.getLocationOnScreen(rootLocation);
@@ -64,14 +63,6 @@ public final class ContentActionPopup {
         android.content.res.Configuration cfg = context.getResources().getConfiguration();
         boolean compact = Math.min(cfg.screenWidthDp, cfg.screenHeightDp) < 600;
         final PopupWindow[] popupRef = new PopupWindow[1];
-=======
-        PopupWindow popup = new PopupWindow(content, dp(context, 220), ViewGroup.LayoutParams.WRAP_CONTENT, true);
-        popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        popup.setOutsideTouchable(true);
-        popup.setClippingEnabled(true);
-        popup.setElevation(dp(context, 10));
-
->>>>>>> v1.6.0
         for (Action action : actions) {
             View row = inflater.inflate(R.layout.item_content_action, items, false);
             ImageView icon = row.findViewById(R.id.action_icon);
@@ -81,7 +72,6 @@ public final class ContentActionPopup {
             int color = ContextCompat.getColor(context, action.destructive ? R.color.error : R.color.on_surface);
             label.setTextColor(color);
             ImageViewCompat.setImageTintList(icon, ColorStateList.valueOf(color));
-<<<<<<< HEAD
             if (compact) {
                 ViewGroup.LayoutParams icp = icon.getLayoutParams();
                 icp.width = dp(context, 20);
@@ -99,12 +89,6 @@ public final class ContentActionPopup {
             });
             // v0.4.17：条目可聚焦——系统手柄 DPAD/A 导航 + 描边
             row.setFocusable(true);
-=======
-            row.setOnClickListener(v -> {
-                popup.dismiss();
-                action.callback.run();
-            });
->>>>>>> v1.6.0
             items.addView(row);
         }
 
@@ -112,7 +96,6 @@ public final class ContentActionPopup {
                 View.MeasureSpec.makeMeasureSpec(dp(context, 220), View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         );
-<<<<<<< HEAD
         int measuredHeight = content.getMeasuredHeight();
         if (measuredHeight > maxPopupHeight) {
             popupHeight = maxPopupHeight;
@@ -144,28 +127,16 @@ public final class ContentActionPopup {
         }
         int[] location = new int[2];
         anchor.getLocationOnScreen(location);
-=======
-        int popupHeight = content.getMeasuredHeight();
-        int[] location = new int[2];
-        anchor.getLocationOnScreen(location);
-        View root = anchor.getRootView();
-        int[] rootLocation = new int[2];
-        root.getLocationOnScreen(rootLocation);
-        int screenBottom = rootLocation[1] + root.getHeight();
->>>>>>> v1.6.0
         int xOffset = anchor.getWidth() - dp(context, 220);
         int yOffset = dp(context, 4);
         if (location[1] + anchor.getHeight() + popupHeight + yOffset > screenBottom) {
             yOffset = -popupHeight - anchor.getHeight() - dp(context, 4);
-<<<<<<< HEAD
             // v452：往上翻不能超出屏幕顶——超出时贴顶显示（此前
             // 直接裁剪，手机上"显示不全"）
             int topAfter = location[1] + yOffset;
             if (topAfter < screenTop) {
                 yOffset = screenTop - location[1] + dp(context, 4);
             }
-=======
->>>>>>> v1.6.0
         }
         popup.showAsDropDown(anchor, xOffset, yOffset);
     }

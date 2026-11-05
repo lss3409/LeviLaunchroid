@@ -1,11 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-<<<<<<<< HEAD:app/src/main/res/drawable/bg_share_log_button.xml
     <solid android:color="#E0484E" />
     <corners android:radius="8dp" />
-========
-    <solid android:color="#1A4CAF50" />
-    <corners android:radius="4dp" />
->>>>>>>> v1.6.0:app/src/main/res/drawable/bg_release_tag.xml
 </shape>

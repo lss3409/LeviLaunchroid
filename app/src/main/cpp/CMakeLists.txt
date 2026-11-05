@@ -11,8 +11,5 @@ endif()
 
 add_subdirectory(preloader)
 add_subdirectory(libHttpClient/Build/libHttpClient.Android)
-<<<<<<< HEAD
 add_subdirectory(structurefinder)
-=======
 add_subdirectory(worldtools)
->>>>>>> v1.6.0

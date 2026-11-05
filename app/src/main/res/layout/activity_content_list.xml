@@ -13,23 +13,15 @@
 
         <LinearLayout
             android:layout_width="match_parent"
-<<<<<<< HEAD
             android:layout_height="wrap_content"
-=======
-            android:layout_height="56dp"
->>>>>>> v1.6.0
             android:layout_margin="8dp"
             android:background="@drawable/bg_rounded_card"
             android:elevation="4dp"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-<<<<<<< HEAD
             android:minHeight="56dp"
             android:paddingHorizontal="8dp"
             android:paddingVertical="4dp">
-=======
-            android:paddingHorizontal="8dp">
->>>>>>> v1.6.0
 
             <LinearLayout
                 android:id="@+id/normal_toolbar"
@@ -49,11 +41,7 @@
                     android:maxLines="1"
                     android:text="@string/worlds_title"
                     android:textColor="@color/primary"
-<<<<<<< HEAD
                     android:textSize="20sp"
-=======
-                    android:textSize="22sp"
->>>>>>> v1.6.0
                     android:textStyle="bold" />
 
                 <TextView
@@ -74,11 +62,7 @@
                     android:id="@+id/search_edit_text"
                     android:layout_width="0dp"
                     android:layout_height="38dp"
-<<<<<<< HEAD
                     android:layout_marginStart="12dp"
-=======
-                    android:layout_marginStart="14dp"
->>>>>>> v1.6.0
                     android:layout_weight="1"
                     android:background="@drawable/bg_search_box"
                     android:drawableStart="@drawable/ic_search"
@@ -124,7 +108,6 @@
                     android:textColor="@color/on_primary"
                     android:textSize="12sp"
                     android:visibility="gone" />
-<<<<<<< HEAD
 
                 <Button
                     android:id="@+id/hardcore_manage_button"
@@ -141,8 +124,6 @@
                     android:textColor="@color/on_primary"
                     android:textSize="12sp"
                     android:visibility="gone" />
-=======
->>>>>>> v1.6.0
             </LinearLayout>
 
             <LinearLayout
@@ -167,7 +148,6 @@
                     android:textStyle="bold" />
 
                 <Button
-<<<<<<< HEAD
                     android:id="@+id/selection_cancel_button"
                     android:layout_width="wrap_content"
                     android:layout_height="38dp"
@@ -183,8 +163,6 @@
                     android:textSize="12sp" />
 
                 <Button
-=======
->>>>>>> v1.6.0
                     android:id="@+id/select_all_button"
                     android:layout_width="wrap_content"
                     android:layout_height="38dp"
@@ -240,11 +218,7 @@
                     android:paddingHorizontal="12dp"
                     android:text="@string/delete"
                     android:textAllCaps="false"
-<<<<<<< HEAD
                     android:textColor="@color/on_error"
-=======
-                    android:textColor="@android:color/white"
->>>>>>> v1.6.0
                     android:textSize="12sp" />
             </LinearLayout>
         </LinearLayout>
@@ -306,11 +280,7 @@
             android:id="@+id/loading_overlay"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-<<<<<<< HEAD
             android:background="@android:color/transparent"
-=======
-            android:background="#80000000"
->>>>>>> v1.6.0
             android:visibility="gone">
 
             <ProgressBar

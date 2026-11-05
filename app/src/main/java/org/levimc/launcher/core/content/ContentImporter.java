@@ -58,20 +58,14 @@ public class ContentImporter {
         this.executor = Executors.newSingleThreadExecutor();
     }
 
-<<<<<<< HEAD
     /** gameVersion = 目标实例游戏版本（如 "1.26.45"），用于包版本对比，可为 null。 */
     public void importContent(List<Uri> uris, File resourcePacksDir, File behaviorPacksDir,
                               File skinPacksDir, File worldsDir, File structuresDir,
                               String gameVersion, ImportCallback callback) {
-=======
-    public void importContent(List<Uri> uris, File resourcePacksDir, File behaviorPacksDir, 
-                              File skinPacksDir, File worldsDir, ImportCallback callback) {
->>>>>>> v1.6.0
         executor.execute(() -> {
             try {
                 ImportResult totalResult = new ImportResult();
                 StringBuilder errors = new StringBuilder();
-<<<<<<< HEAD
                 // v532：包版本对比初始化
                 versionWarnings = new ArrayList<>();
                 gameVersionRaw = gameVersion;
@@ -81,10 +75,6 @@ public class ContentImporter {
                 int index = 0;
                 for (Uri uri : uris) {
                     index++;
-=======
-
-                for (Uri uri : uris) {
->>>>>>> v1.6.0
                     try {
                         String fileName = getFileName(uri);
                         if (fileName == null || fileName.isEmpty()) {
@@ -92,12 +82,9 @@ public class ContentImporter {
                         }
                         String lowerName = fileName.toLowerCase();
                         Log.d(TAG, "Importing file: " + fileName);
-<<<<<<< HEAD
                         if (callback != null) {
                             callback.onProgress(index, total, fileName);
                         }
-=======
->>>>>>> v1.6.0
 
                         InputStream inputStream = context.getContentResolver().openInputStream(uri);
                         if (inputStream == null) {
@@ -113,30 +100,20 @@ public class ContentImporter {
 
                         if (lowerName.endsWith(".mcworld")) {
                             importMcworld(tempFile, worldsDir, result);
-<<<<<<< HEAD
                         } else if (lowerName.endsWith(".mcstructure")) {
                             importMcstructure(tempFile, fileName, structuresDir, result);
-=======
->>>>>>> v1.6.0
                         } else if (lowerName.endsWith(".mcaddon")) {
                             importMcaddon(tempFile, resourcePacksDir, behaviorPacksDir, skinPacksDir, result);
                         } else if (lowerName.endsWith(".mcpack")) {
                             importMcpack(tempFile, resourcePacksDir, behaviorPacksDir, skinPacksDir, result);
-<<<<<<< HEAD
                         } else if (lowerName.endsWith(".zip")) {
                             importGenericArchive(tempFile, resourcePacksDir, behaviorPacksDir, skinPacksDir, worldsDir, structuresDir, result);
-=======
->>>>>>> v1.6.0
                         } else {
                             importMcpack(tempFile, resourcePacksDir, behaviorPacksDir, skinPacksDir, result);
                             if (result.resourcePacksImported == 0 && result.behaviorPacksImported == 0 && result.skinPacksImported == 0) {
                                 importMcaddon(tempFile, resourcePacksDir, behaviorPacksDir, skinPacksDir, result);
                             }
-<<<<<<< HEAD
                             if (result.resourcePacksImported == 0 && result.behaviorPacksImported == 0 &&
-=======
-                            if (result.resourcePacksImported == 0 && result.behaviorPacksImported == 0 && 
->>>>>>> v1.6.0
                                 result.skinPacksImported == 0 && result.worldsImported == 0) {
                                 importMcworld(tempFile, worldsDir, result);
                             }
@@ -146,27 +123,19 @@ public class ContentImporter {
                         totalResult.behaviorPacksImported += result.behaviorPacksImported;
                         totalResult.skinPacksImported += result.skinPacksImported;
                         totalResult.worldsImported += result.worldsImported;
-<<<<<<< HEAD
                         totalResult.structuresImported += result.structuresImported;
-=======
->>>>>>> v1.6.0
 
                         tempFile.delete();
 
                     } catch (Exception e) {
                         Log.e(TAG, "Import failed for uri: " + uri, e);
-<<<<<<< HEAD
                         errors.append(context.getString(R.string.import_failed_item,
                                 uri.getLastPathSegment(), e.getMessage())).append("\n");
-=======
-                        errors.append("Failed for ").append(uri.getLastPathSegment()).append(": ").append(e.getMessage()).append("\n");
->>>>>>> v1.6.0
                     }
                 }
 
                 StringBuilder message = new StringBuilder();
                 if (totalResult.worldsImported > 0) {
-<<<<<<< HEAD
                     message.append(context.getString(R.string.import_count_worlds,
                             totalResult.worldsImported)).append(" ");
                 }
@@ -202,28 +171,6 @@ public class ContentImporter {
                 // v532：包版本高于当前实例 → 弹窗 + 通知栏提醒
                 if (!versionWarnings.isEmpty() && callback != null) {
                     callback.onVersionWarnings(new ArrayList<>(versionWarnings));
-=======
-                    message.append("Worlds: ").append(totalResult.worldsImported).append(" ");
-                }
-                if (totalResult.resourcePacksImported > 0) {
-                    message.append("Resource Packs: ").append(totalResult.resourcePacksImported).append(" ");
-                }
-                if (totalResult.behaviorPacksImported > 0) {
-                    message.append("Behavior Packs: ").append(totalResult.behaviorPacksImported).append(" ");
-                }
-                if (totalResult.skinPacksImported > 0) {
-                    message.append("Skin Packs: ").append(totalResult.skinPacksImported).append(" ");
-                }
-
-                if (message.length() == 0) {
-                    callback.onError(errors.length() > 0 ? errors.toString().trim() : "No content was imported");
-                } else {
-                    String finalMessage = "Imported: " + message.toString().trim();
-                    if (errors.length() > 0) {
-                        finalMessage += "\nErrors:\n" + errors.toString().trim();
-                    }
-                    callback.onSuccess(finalMessage);
->>>>>>> v1.6.0
                 }
 
             } catch (Exception e) {

@@ -119,13 +119,6 @@ public class VersionProfileMetadataStore {
                 if (!object.has("installed")) {
                     metadata.installed = defaults.installed;
                 }
-<<<<<<< HEAD
-                // 正版强制版本隔离：资源只显示在正版版本号，不进共享文件夹
-                if (metadata.installed) {
-                    metadata.versionIsolation = true;
-                }
-=======
->>>>>>> v1.6.0
             }
             return isUsable(metadata) ? new JsonReadResult(metadata, completedMissingFields) : null;
         } catch (Exception ignored) {
@@ -300,11 +293,7 @@ public class VersionProfileMetadataStore {
                     LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID,
                     safeVersionName,
                     null,
-<<<<<<< HEAD
-                    true,
-=======
                     false,
->>>>>>> v1.6.0
                     false,
                     true,
                     safePackageName

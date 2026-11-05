@@ -6,7 +6,7 @@ public class LevelDBKey {
     public enum KeyType {
         DATA_3D(0x2b, "Data3D"),
         CHUNK_VERSION(0x2c, "ChunkVersion"),
-        CHUNK(0x30, "LegacyTerrain"),
+        CHUNK(0x2d, "Chunk"),
         DATA_2D(0x2d, "Data2D"),
         SUB_CHUNK(0x2f, "SubChunk"),
         BLOCK_ENTITY(0x31, "BlockEntity"),
@@ -61,7 +61,6 @@ public class LevelDBKey {
             keyType = KeyType.UNKNOWN;
             return;
         }
-<<<<<<< HEAD
 
         if (rawKey.length == 9 || rawKey.length == 10 || rawKey.length == 13 || rawKey.length == 14) {
 
@@ -87,17 +86,14 @@ public class LevelDBKey {
                     stringKey = safeAscii(rawKey);
                 }
             }
-=======
-        org.levimc.launcher.core.content.world.ChunkKey chunk =
-                org.levimc.launcher.core.content.world.ChunkKey.parse(rawKey);
-        if (chunk != null) {
-            keyType = KeyType.fromId(chunk.tag);
-            isChunkKey = true;
-            subChunkIndex = chunk.subChunk ? chunk.section : -1;
->>>>>>> v1.6.0
         } else {
-            stringKey = new String(rawKey, StandardCharsets.UTF_8);
+            isChunkKey = false;
             keyType = KeyType.GENERAL;
+            try {
+                stringKey = new String(rawKey, StandardCharsets.UTF_8);
+            } catch (Exception e) {
+                stringKey = bytesToHex(rawKey);
+            }
         }
     }
 

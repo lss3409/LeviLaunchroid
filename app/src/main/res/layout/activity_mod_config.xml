@@ -13,7 +13,6 @@
         android:paddingTop="15dp"
         android:paddingBottom="24dp">
 
-<<<<<<<< HEAD:app/src/main/res/layout/activity_mod_config.xml
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -33,26 +32,6 @@
                 android:textColor="@color/primary"
                 android:textSize="22sp"
                 android:textStyle="bold" />
-========
-        <TextView
-            android:id="@+id/title_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:fontFamily="@font/misans"
-            android:maxLines="1"
-            android:text="@string/edit_world"
-            android:textColor="@color/primary"
-            android:textSize="22sp"
-            android:textStyle="bold" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
->>>>>>>> v1.6.0:app/src/main/res/layout/activity_world_editor.xml
 
             <Spinner
                 android:id="@+id/mod_config_file_spinner"

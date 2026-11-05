@@ -31,15 +31,6 @@ class GamePackageManager private constructor(
     private val applicationInfo: ApplicationInfo
 
     private val knownPackages = arrayOf(MinecraftLauncher.MC_PACKAGE_NAME)
-<<<<<<< HEAD
-
-    private val requiredLibs = arrayOf(
-        "libc++_shared.so",
-        "libfmod.so",
-        "libMediaDecoders_Android.so",
-        "libminecraftpe.so",
-    )
-=======
 
     private val requiredLibs = buildList {
         add("libc++_shared.so")
@@ -50,13 +41,6 @@ class GamePackageManager private constructor(
         }
         add("libminecraftpe.so")
     }.toTypedArray()
-
-    private val optionalLibs = arrayOf(
-        "libHttpClient.Android.so",
-    )
-
-    private val extractableLibs = requiredLibs + optionalLibs
->>>>>>> v1.6.0
 
     private val optionalLibs = arrayOf(
         "libHttpClient.Android.so",
@@ -81,34 +65,14 @@ class GamePackageManager private constructor(
 
     init {
         report("GamePackageManager init started")
-<<<<<<< HEAD
-        val isImportedVersion = version != null && !version.isInstalled
-        val packageName = if (isImportedVersion) {
-            // 手动导入的版本：跳过系统包管理器检测，直接伪造 ApplicationInfo
-            MinecraftLauncher.MC_PACKAGE_NAME
-        } else {
-            detectGamePackage() ?: throw IllegalStateException("Minecraft not found")
-        }
-        report("Detected Minecraft package: $packageName")
-        packageContext = if (isImportedVersion) {
-            // 手动导入版本不依赖系统包管理器；使用启动器自身 context 作为占位
-            context
-        } else {
-            context.createPackageContext(
-                packageName,
-                Context.CONTEXT_IGNORE_SECURITY or Context.CONTEXT_INCLUDE_CODE
-            )
-        }
-=======
         val packageName = detectGamePackage() ?: throw IllegalStateException("Minecraft not found")
         report("Detected Minecraft package: $packageName")
         packageContext = context.createPackageContext(
             packageName,
             Context.CONTEXT_IGNORE_SECURITY or Context.CONTEXT_INCLUDE_CODE
         )
->>>>>>> v1.6.0
         
-        if (isImportedVersion) {
+        if (version != null && !version.isInstalled) {
             applicationInfo = MinecraftLauncher(context).createFakeApplicationInfo(version, MinecraftLauncher.MC_PACKAGE_NAME)
             nativeLibDir = applicationInfo.nativeLibraryDir
         } else {
@@ -264,10 +228,7 @@ class GamePackageManager private constructor(
             append("token=").append(NativeImageGuard.TOKEN).append('\n')
             append("mode=").append(if (version != null && !version.isInstalled) "isolated" else "installed").append('\n')
             append("http=").append(shouldLoadHttpClient()).append('\n')
-<<<<<<< HEAD
-=======
             append("malloc=").append(shouldLoadMallocRedirect()).append('\n')
->>>>>>> v1.6.0
             apkFiles.forEach { file ->
                 append("apk=")
                     .append(file.absolutePath)
@@ -418,8 +379,6 @@ class GamePackageManager private constructor(
         }
     }
 
-<<<<<<< HEAD
-=======
     fun shouldLoadMallocRedirect(): Boolean {
         val versionCode = version?.versionCode ?: try {
             context.packageManager.getPackageInfo(MinecraftLauncher.MC_PACKAGE_NAME, 0).versionName
@@ -429,7 +388,6 @@ class GamePackageManager private constructor(
         return versionCode != null && isVersionAtLeast(versionCode, "1.26.70.20")
     }
 
->>>>>>> v1.6.0
     private fun shouldLoadHttpClient(): Boolean {
         val versionCode = version?.versionCode ?: return false
         val targetVersion = if (versionCode.contains("beta")) "1.21.130.20" else "1.21.130"

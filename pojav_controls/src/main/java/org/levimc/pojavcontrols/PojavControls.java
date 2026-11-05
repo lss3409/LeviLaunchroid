@@ -12,10 +12,6 @@ public final class PojavControls {
 
     private static WeakReference<Activity> attachedActivity = new WeakReference<>(null);
     private static PojavControlOverlay overlay;
-<<<<<<< HEAD
-    /** v0.4.211（官方 5bf4c980 跟进）：F1 隐藏游戏 HUD 时联动隐藏按键覆盖层。 */
-    private static boolean hudVisible = true;
-=======
     private static boolean hudVisible = true;
     private static WeakReference<Activity> editorActivity = new WeakReference<>(null);
     private static PojavControlsEditorView editor;
@@ -26,7 +22,6 @@ public final class PojavControls {
         if (enabled) attach(activity, host);
         else detach();
     }
->>>>>>> v1.6.0
 
     public static synchronized void setHudVisible(boolean visible) {
         hudVisible = visible;
@@ -37,18 +32,6 @@ public final class PojavControls {
             }
         }
     }
-<<<<<<< HEAD
-    private static WeakReference<Activity> editorActivity = new WeakReference<>(null);
-    private static PojavControlsEditorView editor;
-
-    private PojavControls() {}
-
-    public static synchronized void setEnabled(Activity activity, PojavControlsHost host, boolean enabled) {
-        if (enabled) attach(activity, host);
-        else detach();
-    }
-=======
->>>>>>> v1.6.0
 
     public static synchronized boolean isEnabled() {
         return overlay != null && overlay.isAttachedToWindow();
@@ -64,13 +47,10 @@ public final class PojavControls {
         return true;
     }
 
-<<<<<<< HEAD
-=======
     public static synchronized boolean isEditorOpen() {
         return editor != null && editor.isAttachedToWindow();
     }
 
->>>>>>> v1.6.0
     public static synchronized boolean onActivityResult(int requestCode, int resultCode, Intent data) {
         return editor != null && editor.handleActivityResult(requestCode, resultCode, data);
     }
@@ -98,10 +78,7 @@ public final class PojavControls {
         ((ViewGroup) content).addView(overlay, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         overlay.bringToFront();
-<<<<<<< HEAD
-=======
         overlay.setVisibility(hudVisible ? View.VISIBLE : View.GONE);
->>>>>>> v1.6.0
         attachedActivity = new WeakReference<>(activity);
     }
 

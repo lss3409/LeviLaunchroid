@@ -1,24 +1,13 @@
 package org.levimc.launcher.core.minecraft
 
-<<<<<<< HEAD
-=======
 import android.app.Activity
->>>>>>> v1.6.0
 import android.content.Context
 import android.content.Intent
 import android.content.res.AssetManager
 import android.graphics.Color
-<<<<<<< HEAD
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
-import android.os.Bundle
-import android.text.InputType
-import android.view.Gravity
-=======
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.text.InputType
->>>>>>> v1.6.0
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -28,51 +17,25 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputConnectionWrapper
 import android.view.inputmethod.InputMethodManager
-<<<<<<< HEAD
-import android.widget.FrameLayout
-import android.widget.TextView
-import androidx.appcompat.widget.AppCompatEditText
-import com.mojang.minecraftpe.MainActivity
-import org.levimc.launcher.R
-
-=======
 import androidx.appcompat.widget.AppCompatEditText
 import com.mojang.minecraftpe.MainActivity
 import org.levimc.launcher.core.crash.CrashReporter
->>>>>>> v1.6.0
 import org.levimc.launcher.core.mods.ModManager
 import org.levimc.launcher.core.mods.inbuilt.nativemod.PojavControlsMod
 import org.levimc.launcher.core.mods.inbuilt.overlay.InbuiltOverlayManager
 import org.levimc.launcher.preloader.PreloaderInput
 import org.levimc.launcher.settings.FeatureSettings
-<<<<<<< HEAD
-import org.levimc.launcher.util.HardcoreBackupManager
-=======
 import org.levimc.launcher.util.LauncherBackgroundController
->>>>>>> v1.6.0
 import org.levimc.pojavcontrols.PojavControls
 import org.levimc.pojavcontrols.PojavControlsHost
 import java.io.File
 import java.io.FileOutputStream
 
-<<<<<<< HEAD
-// v534：黑屏自愈阈值 5 分钟→90 秒（开了前台服务保活时渲染面丢失黑屏高发，
-// 更频繁），后台超 60s 回前台就走静默重启（游戏自动存档回启动器），
-// 宁可重启也不要黑屏卡死；联想 ZUI 机制宽松（90s 时也只黑过 1 次）
-// v598 删除自动重启（误杀联机挂机）；v0.4.211 改为应用内提示条
-// （挂机超 2 分钟回前台弹「黑屏可一键重启」横幅，8 秒自动消失）
-
-/** v0.4.211：后台挂机超过此时长回前台弹黑屏提示条（用户实测 2-3 分钟黑屏）。 */
-private const val BLACKSCREEN_HINT_MS = 120_000L
-
-class MinecraftActivity : MainActivity(), PojavControlsHost {
-=======
 class MinecraftActivity : MainActivity(), PojavControlsHost {
 
     companion object {
         private const val PRELOADER_DOCUMENT_REQUEST = 0x4C50
     }
->>>>>>> v1.6.0
 
     private lateinit var gameManager: GamePackageManager
     private lateinit var trace: LaunchTrace
@@ -82,24 +45,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     private var gameRuntimeStarted = false
     private var preloaderTextInput: PreloaderTextInput? = null
     private var previousInputFocus: View? = null
-<<<<<<< HEAD
-
-    private val hardcoreBackupHandler = android.os.Handler(android.os.Looper.getMainLooper())
-    private var hardcoreBackupRunning = false
-    /** v0.4.211：后台挂机计时（黑屏提示条用）。 */
-    private var lastPauseElapsed = 0L
-    /** v0.4.211：黑屏提示条（应用内横幅，非系统对话框）。 */
-    private var blackscreenHintBar: View? = null
-    /** v544：本次会话起点（累计游玩时长统计）。 */
-    private var sessionStartElapsed = 0L
-    private val hardcoreBackupRunnable = object : Runnable {
-        override fun run() {
-            runHardcoreBackupCheck()
-        }
-    }
-=======
     private var inbuiltKeyDispatchDepth = 0
->>>>>>> v1.6.0
 
     private class PreloaderTextInput(context: Context) : AppCompatEditText(context) {
         override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
@@ -148,30 +94,14 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-<<<<<<< HEAD
-=======
         LauncherBackgroundController.suspendForMinecraft()
         LauncherBackgroundController.awaitShutdown()
->>>>>>> v1.6.0
         trace = LaunchTrace.ensure(intent)
         trace.mark("MinecraftActivity onCreate entered")
         window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(resolveLaunchBackgroundColor()))
 
         if (savedInstanceState != null) {
             trace.mark("MinecraftActivity finishing restored instance")
-<<<<<<< HEAD
-            // v545：进程被杀后系统恢复实例时，实例 native 库尚未加载——
-            // 直接 super.onCreate 会因 GameActivity.initializeNativeCode 无实现而崩
-            // （UnsatisfiedLinkError）。先走 prepare 加载实例库再结束会话。
-            try {
-                val preparedRuntime = MinecraftLaunchSession.getPreparedRuntime()
-                    ?: MinecraftRuntimePreparer.prepare(applicationContext, intent)
-                gameManager = preparedRuntime.gameManager
-            } catch (t: Throwable) {
-                android.util.Log.w("MinecraftActivity", "恢复实例库加载失败，直接结束", t)
-            }
-=======
->>>>>>> v1.6.0
             gameRuntimeStarted = true
             super.onCreate(null)
             finish()
@@ -186,31 +116,9 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             trace.mark("Prepared runtime consumed")
         } catch (throwable: Throwable) {
             trace.error("MinecraftActivity prepare failed", formatLaunchFailure(throwable))
-<<<<<<< HEAD
-            // v432：必须先调 super.onCreate() 再 return——Android 要求
-            // 每个 onCreate 都调 super，否则抛 SuperNotCalledException
-            // 崩溃（官方代码固有 bug；1.20.30 prepare 失败实测触发）
-            gameRuntimeStarted = true
-            super.onCreate(null)
             returnToLauncherAfterLaunchFailure()
             return
         }
-        // 崩溃分析：记录本次会话与启用的模组快照（用于异常退出后的中文分析提示）
-        try {
-            val enabledModNames = java.util.ArrayList<String>()
-            for (mod in ModManager.getInstance().mods) {
-                if (mod.isEnabled) enabledModNames.add(mod.displayName)
-            }
-            org.levimc.launcher.util.CrashAnalyzer.onGameLaunchStarted(
-                this, enabledModNames, intent?.getStringExtra("MINECRAFT_VERSION"))
-        } catch (t: Throwable) {
-            trace.warning("Crash analyzer snapshot failed", t.message)
-        }
-=======
-            returnToLauncherAfterLaunchFailure()
-            return
-        }
->>>>>>> v1.6.0
         trace.mark("Native mod enable started")
         ModManager.enableLoadedMods()
         trace.mark("Native mod enable finished")
@@ -236,12 +144,6 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         initializePreloaderTextInput()
         PreloaderInput.setActivity(this)
         MinecraftActivityState.onCreated(this)
-<<<<<<< HEAD
-        // v544：会话起点（onDestroy 累加游玩时长）
-        sessionStartElapsed = android.os.SystemClock.elapsedRealtime()
-
-=======
->>>>>>> v1.6.0
         trace.mark("MinecraftActivity onCreate finished")
     }
 
@@ -265,11 +167,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     private fun returnToLauncherAfterLaunchFailure() {
         gameRuntimeStarted = false
         MinecraftLaunchSession.clear()
-<<<<<<< HEAD
-        MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this, org.levimc.launcher.ui.activities.MainActivity.sForeground)
-=======
         MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this)
->>>>>>> v1.6.0
         finish()
     }
 
@@ -296,31 +194,9 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         overlayManager = null
     }
 
-    // v450：性能监控悬浮窗已整体移除（MemoryMonitor 删除）
-
     override fun onNewIntent(intent: Intent) {
-<<<<<<< HEAD
-        // 仅深链（带 data 的 VIEW）才更新 intent 并交给 Mojang 处理。
-        // 「回到游戏」的纯带回前台请求不覆盖启动参数（存储路径等 extras），
-        // 否则游戏会丢失重定向目录，世界列表/深链都会失效。
-        if (intent.data != null && Intent.ACTION_VIEW == intent.action) {
-            setIntent(intent)
-            super.onNewIntent(intent)
-        }
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if (PojavControls.onActivityResult(requestCode, resultCode, data)) return
-        super.onActivityResult(requestCode, resultCode, data)
-    }
-
-    override fun onBackPressed() {
-        if (PojavControls.closeEditor()) return
-        super.onBackPressed()
-=======
         setIntent(intent)
         super.onNewIntent(intent)
->>>>>>> v1.6.0
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -402,168 +278,16 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
 
     override fun onResume() {
         super.onResume()
-<<<<<<< HEAD
-        // v598：删除后台久置自愈（后台 60s 回前台强制结束会话回启动器，
-        // 用户实测与杀后台保活冲突、误杀正常联机挂机，明确要求移除）
-=======
->>>>>>> v1.6.0
         if (!isFinishing) {
             normalExitPrepared = false
             normalExitRestartScheduled = false
         }
-<<<<<<< HEAD
-        // v0.4.211：后台长挂机回前台弹应用内提示条（黑屏可一键重启，
-        // 画面正常提示条自动消失——不误杀联机挂机，v598 教训）
-        if (lastPauseElapsed > 0) {
-            val pausedMs = android.os.SystemClock.elapsedRealtime() - lastPauseElapsed
-            if (pausedMs > BLACKSCREEN_HINT_MS) {
-                org.levimc.launcher.util.OnlineDebugLog.log(
-                    "mc-black 后台挂机 " + pausedMs / 1000 + "s 回前台，弹黑屏提示条")
-                showBlackscreenHint()
-            }
-            lastPauseElapsed = 0L
-        }
-        MinecraftActivityState.onResumed(this)
-=======
         MinecraftActivityState.onResumed(this)
         org.levimc.launcher.core.mods.inbuilt.overlay.MoreButtonsEditor.onResume()
->>>>>>> v1.6.0
 
         if (overlayManager == null) {
             startInbuiltModServices()
         }
-
-        // v521：联机会话激活时显示游戏内悬浮窗
-        try {
-            if (org.levimc.launcher.core.online.EasyTierManager.get().state
-                == org.levimc.launcher.core.online.EasyTierManager.State.CONNECTED) {
-                org.levimc.launcher.core.online.OnlineOverlay.get(this).show()
-                // v527：回前台恢复语音采集
-                org.levimc.launcher.core.online.voice.VoiceEngine.get(this).resume()
-            }
-        } catch (t: Throwable) {
-            android.util.Log.w("MinecraftActivity", "online overlay failed", t)
-        }
-
-        startHardcoreBackupScheduler()
-    }
-
-    /** 游玩中自动备份：按设定的间隔周期检查并备份极限世界（最后一层保险）。 */
-    private fun startHardcoreBackupScheduler() {
-        hardcoreBackupHandler.removeCallbacks(hardcoreBackupRunnable)
-        val manager = HardcoreBackupManager(applicationContext)
-        if (!manager.isEnabled) return
-        // 仅在「局内备份」时机下启动定时器
-        if (manager.getBackupTrigger() != HardcoreBackupManager.TRIGGER_INGAME) return
-        // 立即执行一次检查，再按间隔循环
-        hardcoreBackupHandler.postDelayed(hardcoreBackupRunnable, 1000L)
-    }
-
-    private fun runHardcoreBackupCheck() {
-        if (hardcoreBackupRunning) return
-        val manager = HardcoreBackupManager(applicationContext)
-        if (!manager.isEnabled) return
-
-        hardcoreBackupRunning = true
-        val intervalMs = manager.getIntervalMs()
-        Thread({
-            try {
-                val extFilesDir = getExternalFilesDir(null)
-                val worldsDir = extFilesDir?.let { File(it, "games/com.mojang/minecraftWorlds") }
-                val hardcoreWorlds = HardcoreBackupManager.scanHardcoreWorldsIn(worldsDir)
-                manager.checkAndBackup(hardcoreWorlds, object : HardcoreBackupManager.Callback {
-                    override fun onBackedUp(world: org.levimc.launcher.core.content.WorldItem, backupPath: String) {
-                        android.util.Log.i("HardcoreBackup", "In-game backed up: " + backupPath)
-                        // 游戏内 Toast 提示备份完成
-                        runOnUiThread {
-                            android.widget.Toast.makeText(
-                                this@MinecraftActivity,
-                                getString(R.string.hardcore_backup_completed_toast, world.getWorldName()),
-                                android.widget.Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }
-
-                    override fun onSkipped(world: org.levimc.launcher.core.content.WorldItem, reason: String) {
-                        android.util.Log.d("HardcoreBackup", "Skipped ${world.getWorldName()}: $reason")
-                    }
-
-                    override fun onFinished(backedUp: Int, skipped: Int) {
-                        hardcoreBackupRunning = false
-                        // 继续下一轮定时检查
-                        hardcoreBackupHandler.postDelayed(hardcoreBackupRunnable, intervalMs.coerceAtLeast(60_000L))
-                    }
-                })
-            } catch (t: Throwable) {
-                android.util.Log.w("HardcoreBackup", "check failed: ${t.message}")
-                hardcoreBackupRunning = false
-                hardcoreBackupHandler.postDelayed(hardcoreBackupRunnable, intervalMs.coerceAtLeast(60_000L))
-            }
-        }, "hardcore-in-game-backup").start()
-    }
-
-    private fun stopHardcoreBackupScheduler() {
-        hardcoreBackupHandler.removeCallbacks(hardcoreBackupRunnable)
-    }
-
-    /** 「局内暂停时备份」：游戏切到后台/暂停时触发一次备份。 */
-    private fun backupOnPauseIfNeeded() {
-        val manager = HardcoreBackupManager(applicationContext)
-        if (!manager.isEnabled) return
-        if (manager.getBackupTrigger() != HardcoreBackupManager.TRIGGER_PAUSE) return
-        if (hardcoreBackupRunning) return
-        hardcoreBackupRunning = true
-        Thread({
-            try {
-                val extFilesDir = getExternalFilesDir(null)
-                val worldsDir = extFilesDir?.let { File(it, "games/com.mojang/minecraftWorlds") }
-                val hardcoreWorlds = HardcoreBackupManager.scanHardcoreWorldsIn(worldsDir)
-                manager.checkAndBackup(hardcoreWorlds, object : HardcoreBackupManager.Callback {
-                    override fun onBackedUp(world: org.levimc.launcher.core.content.WorldItem, backupPath: String) {
-                        android.util.Log.i("HardcoreBackup", "Pause backed up: " + backupPath)
-                    }
-
-                    override fun onSkipped(world: org.levimc.launcher.core.content.WorldItem, reason: String) {
-                        android.util.Log.d("HardcoreBackup", "Pause skipped ${world.getWorldName()}: $reason")
-                    }
-
-                    override fun onFinished(backedUp: Int, skipped: Int) {
-                        hardcoreBackupRunning = false
-                    }
-                })
-            } catch (t: Throwable) {
-                android.util.Log.w("HardcoreBackup", "pause backup failed: ${t.message}")
-                hardcoreBackupRunning = false
-            }
-        }, "hardcore-pause-backup").start()
-    }
-
-    private fun isMouseSource(source: Int): Boolean {
-        return (source and InputDevice.SOURCE_MOUSE) == InputDevice.SOURCE_MOUSE ||
-            (source and InputDevice.SOURCE_MOUSE_RELATIVE) == InputDevice.SOURCE_MOUSE_RELATIVE
-    }
-
-    private fun getMouseButton(event: KeyEvent): Int {
-        if (!isMouseSource(event.source)) {
-            return 0
-        }
-        return when (event.keyCode) {
-            KeyEvent.KEYCODE_BUTTON_1 -> MotionEvent.BUTTON_PRIMARY
-            KeyEvent.KEYCODE_BUTTON_2 -> MotionEvent.BUTTON_SECONDARY
-            KeyEvent.KEYCODE_BUTTON_3 -> MotionEvent.BUTTON_TERTIARY
-            KeyEvent.KEYCODE_BUTTON_4 -> MotionEvent.BUTTON_BACK
-            KeyEvent.KEYCODE_BUTTON_5 -> MotionEvent.BUTTON_FORWARD
-            else -> 0
-        }
-    }
-
-    private fun shouldConsumeMouseMotion(event: MotionEvent): Boolean {
-        return isMouseSource(event.source) &&
-            PreloaderInput.onMouseMotion(
-                event.actionMasked,
-                event.actionButton,
-                event.buttonState
-            )
     }
 
     private fun isMouseSource(source: Int): Boolean {
@@ -595,8 +319,6 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-<<<<<<< HEAD
-=======
         val textInputActive = isTextWidgetActive() || preloaderTextInput?.hasFocus() == true
         if (textInputActive) {
             overlayManager?.releaseKeybinds()
@@ -612,7 +334,6 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             return super.dispatchKeyEvent(event)
         }
 
->>>>>>> v1.6.0
         val mouseButton = getMouseButton(event)
         if (mouseButton != 0 &&
             (event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP) &&
@@ -633,14 +354,9 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             }
         }
 
-<<<<<<< HEAD
-        overlayManager?.let { manager ->
-            if (manager.handleKeyEvent(event.keyCode, event.action)) {
-=======
         if (inbuiltKeyReleased) return true
         if (inbuiltKeyDispatchDepth == 0 && !textInputActive) {
             if (overlayManager?.handleKeyEvent(event) == true) {
->>>>>>> v1.6.0
                 return true
             }
         }
@@ -670,23 +386,12 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             return super.dispatchTouchEvent(event)
         }
 
-<<<<<<< HEAD
-        // v0.4.212（官方 1372b49f 跟进）：MOVE/CANCEL 遍历全部触点传给
-        // PreloaderInput（多指触摸处理），DOWN/UP 仍按 actionIndex 单指
-        val action = event.actionMasked
-        val consumed = if (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_CANCEL) {
-            var anyConsumed = false
-            for (index in 0 until event.pointerCount) {
-                if (org.levimc.launcher.preloader.PreloaderInput.onTouch(
-                        action, event.getPointerId(index),
-=======
         val action = event.actionMasked
         val consumed = if (action == MotionEvent.ACTION_MOVE ||
             action == MotionEvent.ACTION_CANCEL) {
             var anyConsumed = false
             for (index in 0 until event.pointerCount) {
                 if (PreloaderInput.onTouch(action, event.getPointerId(index),
->>>>>>> v1.6.0
                         event.getX(index), event.getY(index))) {
                     anyConsumed = true
                 }
@@ -694,12 +399,7 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             anyConsumed
         } else {
             val index = event.actionIndex
-<<<<<<< HEAD
-            org.levimc.launcher.preloader.PreloaderInput.onTouch(
-                action, event.getPointerId(index),
-=======
             PreloaderInput.onTouch(action, event.getPointerId(index),
->>>>>>> v1.6.0
                 event.getX(index), event.getY(index))
         }
         if (consumed) {
@@ -763,12 +463,6 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun pojavSendTouch(event: MotionEvent): Boolean {
-<<<<<<< HEAD
-        // v0.4.212（官方 f81ef34f 跟进）：运行时防护——游戏未启动/退出
-        // 过程中的触摸事件直接丢弃（此前转发进销毁中的视图树）
-        if (!gameRuntimeStarted || isFinishing || isDestroyed) return false
-=======
->>>>>>> v1.6.0
         return super.onTouchEvent(event)
     }
 
@@ -782,31 +476,12 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun onPause() {
-<<<<<<< HEAD
-        lastPauseElapsed = android.os.SystemClock.elapsedRealtime()
-        dismissBlackscreenHint()
-        // v527：退后台停语音采集（不再收麦），回前台自动恢复
-        try {
-            org.levimc.launcher.core.online.voice.VoiceEngine.get(this).suspend()
-        } catch (t: Throwable) {
-        }
-        org.levimc.launcher.core.online.OnlineOverlay.hideIfShown()
-        stopHardcoreBackupScheduler()
-        backupOnPauseIfNeeded()
-        val shouldRestartAfterNormalExit = shouldRestartAfterNormalExit()
-        if (shouldRestartAfterNormalExit) {
-            // v577：native unload 挪后台线程——BSChat 的 C++ 卸载生命周期
-            // 在主线程会卡死（与 enable 死锁同源），退出游戏后启动器
-            // 主线程挂掉 → MainActivity 黑屏（平板实测）
-            Thread({ ModManager.disableAndUnloadLoadedMods() }, "mod-unload").start()
-=======
         overlayManager?.releaseModMenuShortcut()
         overlayManager?.releaseKeybinds()
         val shouldRestartAfterNormalExit = shouldRestartAfterNormalExit()
         if (shouldRestartAfterNormalExit) {
             PreloaderInput.cancelDocumentRequest("Minecraft closed")
             ModManager.disableAndUnloadLoadedMods()
->>>>>>> v1.6.0
             prepareNormalExitCleanup()
             scheduleNormalExitProcessRestart()
         }
@@ -814,47 +489,6 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         super.onPause()
     }
 
-<<<<<<< HEAD
-    // v527：麦克风权限结果转发给联机悬浮窗
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        try {
-            if (requestCode == 100) {
-                var granted = false
-                for (i in permissions.indices) {
-                    if (permissions[i] == android.Manifest.permission.RECORD_AUDIO
-                        && i < grantResults.size
-                        && grantResults[i] == android.content.pm.PackageManager.PERMISSION_GRANTED
-                    ) {
-                        granted = true
-                    }
-                }
-                org.levimc.launcher.core.online.OnlineOverlay.forwardMicPermissionResult(this, granted)
-            }
-        } catch (t: Throwable) {
-        }
-    }
-
-    override fun onDestroy() {
-        // v544：累计游玩时长（分钟，联机玩家详情卡展示）
-        try {
-            if (sessionStartElapsed > 0) {
-                val mins = (android.os.SystemClock.elapsedRealtime() - sessionStartElapsed) / 60_000L
-                if (mins > 0) {
-                    org.levimc.launcher.core.online.PlayerIdentity.addPlayMinutes(this, mins)
-                }
-            }
-        } catch (t: Throwable) {
-        }
-        stopHardcoreBackupScheduler()
-        // v577：native unload 挪后台线程（主线程跑 BSChat unload 会卡死
-        // → 返回启动器黑屏，与 onPause 处同因）
-        Thread({ ModManager.disableAndUnloadLoadedMods() }, "mod-unload").start()
-=======
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         if (!hasFocus) {
             overlayManager?.releaseModMenuShortcut()
@@ -866,7 +500,6 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     override fun onDestroy() {
         PreloaderInput.cancelDocumentRequest("Minecraft closed")
         ModManager.disableAndUnloadLoadedMods()
->>>>>>> v1.6.0
         val shouldPrepareNormalExit = shouldRestartAfterNormalExit()
         if (shouldPrepareNormalExit) {
             prepareNormalExitCleanup()
@@ -878,23 +511,6 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         MinecraftActivityState.onDestroyed(this)
         MinecraftLaunchSession.clear()
         stopInbuiltModServices()
-<<<<<<< HEAD
-
-        setLeviKeepRunningInBackground(false)
-        MinecraftForegroundService.stop(this)
-
-        try {
-            super.onDestroy()
-        } finally {
-            if (shouldPrepareNormalExit) {
-                scheduleNormalExitProcessRestart()
-            }
-        }
-    }
-
-    private fun shouldRestartAfterNormalExit(): Boolean {
-        return gameRuntimeStarted && isFinishing
-=======
         setLeviKeepRunningInBackground(false)
         MinecraftForegroundService.stop(this)
 
@@ -909,28 +525,18 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
 
     private fun shouldRestartAfterNormalExit(): Boolean {
         return gameRuntimeStarted && isFinishing && !CrashReporter.isHandlingCrash()
->>>>>>> v1.6.0
     }
 
     private fun prepareNormalExitCleanup() {
         if (normalExitPrepared) return
         normalExitPrepared = true
-<<<<<<< HEAD
-        // 崩溃分析：标记本次会话为正常退出
-        org.levimc.launcher.util.CrashAnalyzer.onGameExitNormal(this)
-=======
->>>>>>> v1.6.0
     }
 
     private fun scheduleNormalExitProcessRestart() {
         if (normalExitRestartScheduled) return
         normalExitRestartScheduled = true
 
-<<<<<<< HEAD
-        MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this, org.levimc.launcher.ui.activities.MainActivity.sForeground)
-=======
         MinecraftProcessRestarter.restartLauncherAfterMinecraftExit(this)
->>>>>>> v1.6.0
     }
 
     override fun getAssets(): AssetManager {
@@ -942,11 +548,6 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun getFilesDir(): File {
-<<<<<<< HEAD
-        // 正版/盗版统一走启动器重定向目录：内部文件（世界/资源包等在内部存储时也读这里），
-        // 避免 Android 11+ 无法写入正版 MC 原版 Android/data 目录。证书验证只依赖 getDataDir。
-=======
->>>>>>> v1.6.0
         return resolveStorageDir(MinecraftLauncher.EXTRA_STORAGE_FILES_DIR, super.getFilesDir())
     }
 
@@ -956,21 +557,10 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun getDataDir(): File {
-<<<<<<< HEAD
-        // 恢复 v107 行为：正版/盗版统一重定向到启动器目录。
-        // 注意：若证书验证失败，再考虑用 originalMcContext 保持原版 dataDir 单独处理。
-=======
->>>>>>> v1.6.0
         return resolveStorageDir(MinecraftLauncher.EXTRA_STORAGE_DATA_DIR, super.getDataDir())
     }
 
     override fun getExternalFilesDir(type: String?): File? {
-<<<<<<< HEAD
-        // 正版/盗版统一走启动器重定向目录：外部文件（世界/资源包等）写到启动器自己的目录，
-        // 避免 Android 11+ 无法写入正版 MC 原版 Android/data 目录的问题。
-        // dataDir 仍保持 MC 原版（见 getDataDir），证书验证不受影响。
-=======
->>>>>>> v1.6.0
         val baseDir = resolveStorageDir(
             MinecraftLauncher.EXTRA_STORAGE_EXTERNAL_FILES_DIR,
             super.getExternalFilesDir(null)
@@ -982,26 +572,6 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         }
     }
 
-<<<<<<< HEAD
-    override fun getExternalFilesDirs(type: String?): Array<File> {
-        // 关键：AGDK GameActivity 传给 native 的 externalDataPath 取自
-        // getExternalFilesDirs(null)[0]（复数版本），而 ContextImpl 的复数实现
-        // 不经过单数 getExternalFilesDir，直接用包名拼 Android/data 默认目录。
-        // 不重写它的话，游戏原生始终认为外部存储是启动器默认目录（那里没有世界），
-        // minecraft://?load= 深链查不到世界会静默失败。
-        val baseDir = resolveStorageDir(
-            MinecraftLauncher.EXTRA_STORAGE_EXTERNAL_FILES_DIR,
-            super.getExternalFilesDir(null)
-        )
-        return if (type.isNullOrEmpty()) {
-            arrayOf(baseDir)
-        } else {
-            arrayOf(File(baseDir, type).also { it.mkdirs() })
-        }
-    }
-
-=======
->>>>>>> v1.6.0
     override fun getInternalStoragePath(): String {
         return getFilesDir().absolutePath
     }
@@ -1010,35 +580,16 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
         return (getExternalFilesDir(null) ?: getFilesDir()).absolutePath
     }
 
-<<<<<<< HEAD
-    // 正版 MC 的原版 context（createPackageContext 创建），用于返回 MC 自己的目录；
-    // 盗版 MC 返回 null，走下面的 resolveStorageDir 重定向。
-    private fun originalMcContext(): android.content.Context? {
-        if (intent?.getBooleanExtra("IS_INSTALLED", false) != true) return null
-        return if (::gameManager.isInitialized) gameManager.getPackageContext() else null
-    }
-
-=======
->>>>>>> v1.6.0
     private fun resolveStorageDir(extraName: String, fallback: File?): File {
         val path = intent?.getStringExtra(extraName)
         val dir = if (!path.isNullOrEmpty()) File(path) else fallback ?: super.getFilesDir()
         if (!dir.exists()) {
             dir.mkdirs()
         }
-<<<<<<< HEAD
-        android.util.Log.i("MinecraftActivity", "resolveStorageDir $extraName -> ${dir.absolutePath}"
-                + if (path.isNullOrEmpty()) " [FALLBACK=${fallback?.absolutePath}]" else "")
-=======
->>>>>>> v1.6.0
         return dir
     }
 
     override fun getDatabasePath(name: String): File {
-<<<<<<< HEAD
-        originalMcContext()?.let { return it.getDatabasePath(name) }
-=======
->>>>>>> v1.6.0
         val dbDir = File(getDataDir(), "databases")
         if (!dbDir.exists()) {
             dbDir.mkdirs()
@@ -1047,10 +598,6 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
     }
 
     override fun getCacheDir(): File {
-<<<<<<< HEAD
-        originalMcContext()?.let { return it.cacheDir }
-=======
->>>>>>> v1.6.0
         return resolveStorageDir(MinecraftLauncher.EXTRA_STORAGE_CACHE_DIR, super.getCacheDir())
     }
 
@@ -1117,78 +664,4 @@ class MinecraftActivity : MainActivity(), PojavControlsHost {
             previousInputFocus = null
         }
     }
-<<<<<<< HEAD
-
-    /** v0.4.211：后台长挂机回前台的应用内提示条——画面黑屏可一键重启
-     *  （走正常退出流程+游戏自动存档兜底）；画面正常提示条 8 秒自动消失。
-     *  不弹系统对话框（onResume 铁律）、不自动杀进程（v598 误杀联机教训）。 */
-    private fun showBlackscreenHint() {
-        dismissBlackscreenHint()
-        runOnUiThread {
-            if (isFinishing) return@runOnUiThread
-            val accent = org.levimc.launcher.util.PersonalizationManager(this)
-                .getAccentColor().let { if (it != 0) it else 0xFF43A047.toInt() }
-            val density = resources.displayMetrics.density
-            val bar = FrameLayout(this)
-            bar.setPadding((16 * density).toInt(), (10 * density).toInt(),
-                (16 * density).toInt(), (10 * density).toInt())
-            bar.setBackgroundColor(0xE6232326.toInt())
-            bar.elevation = 12 * density
-
-            val text = TextView(this)
-            text.setText(R.string.mc_blackscreen_hint)
-            text.setTextColor(0xFFFFFFFF.toInt())
-            text.textSize = 13f
-            val textLp = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT)
-            textLp.gravity = android.view.Gravity.CENTER_VERTICAL
-            textLp.marginEnd = (96 * density).toInt() // 右侧给「重启游戏」按钮留位
-            bar.addView(text, textLp)
-
-            val btn = TextView(this)
-            btn.setText(R.string.mc_blackscreen_restart)
-            btn.setTextColor(accent)
-            btn.textSize = 13f
-            btn.setTypeface(null, android.graphics.Typeface.BOLD)
-            btn.setPadding((12 * density).toInt(), (8 * density).toInt(),
-                (12 * density).toInt(), (8 * density).toInt())
-            btn.isClickable = true
-            btn.setOnClickListener {
-                org.levimc.launcher.util.OnlineDebugLog.log("mc-black 用户点击重启游戏")
-                dismissBlackscreenHint()
-                finish()
-            }
-            val btnLp = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT)
-            btnLp.gravity = android.view.Gravity.CENTER_VERTICAL or android.view.Gravity.END
-            bar.addView(btn, btnLp)
-
-            findViewById<ViewGroup>(android.R.id.content).addView(
-                bar,
-                FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.WRAP_CONTENT,
-                    android.view.Gravity.TOP)
-            )
-            blackscreenHintBar = bar
-            // 8 秒自动消失（画面正常时无需任何操作）
-            android.os.Handler(android.os.Looper.getMainLooper())
-                .postDelayed({ dismissBlackscreenHint() }, 8000)
-        }
-    }
-
-    private fun dismissBlackscreenHint() {
-        val bar = blackscreenHintBar ?: return
-        blackscreenHintBar = null
-        runOnUiThread {
-            try {
-                (bar.parent as? ViewGroup)?.removeView(bar)
-            } catch (t: Throwable) {
-            }
-        }
-    }
-=======
->>>>>>> v1.6.0
 }

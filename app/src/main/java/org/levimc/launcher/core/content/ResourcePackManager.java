@@ -119,17 +119,12 @@ public class ResourcePackManager {
 
     public List<ResourcePackItem> getSkinPacks() {
         List<ResourcePackItem> packs = new ArrayList<>();
-<<<<<<< HEAD
         if (aggregateGameDataDirs != null) {
             for (File gameDataDir : aggregateGameDataDirs) {
                 File dir = new File(gameDataDir, "skin_packs");
                 if (dir.exists()) addPacksFromDirectory(dir, ResourcePackItem.PackType.SKIN_PACK, packs);
             }
         } else if (skinPacksDirectory != null && skinPacksDirectory.exists()) {
-=======
-        
-        if (skinPacksDirectory != null && skinPacksDirectory.exists()) {
->>>>>>> v1.6.0
             addPacksFromDirectory(skinPacksDirectory, ResourcePackItem.PackType.SKIN_PACK, packs);
         }
 

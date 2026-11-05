@@ -108,10 +108,7 @@ public class FpsDisplayOverlay {
             updateLockState();
             applySize();
             updatePosition(wmParams.x, wmParams.y);
-<<<<<<< HEAD
-=======
             refreshRuntimeVisibility();
->>>>>>> v1.6.0
         } catch (Exception e) {
             showFallback(startX, startY);
         }
@@ -145,8 +142,6 @@ public class FpsDisplayOverlay {
         applyOpacity();
         updateLockState();
         applySize();
-<<<<<<< HEAD
-=======
         refreshRuntimeVisibility();
     }
 
@@ -155,7 +150,6 @@ public class FpsDisplayOverlay {
         if (manager != null) {
             manager.refreshRuntimeVisibility();
         }
->>>>>>> v1.6.0
     }
 
     private void updateDisplay() {

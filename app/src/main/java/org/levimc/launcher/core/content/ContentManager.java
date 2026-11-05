@@ -67,7 +67,6 @@ public class ContentManager {
         resourcePackManager.setPackDirectories(resourcePacksDir, behaviorPacksDir, skinPacksDir);
         screenshotManager.setScreenshotsDirectory(screenshotsDir);
         serverManager.setMinecraftPeDirectory(minecraftPeDir);
-<<<<<<< HEAD
     }
 
     public void setAggregatedStorageDirectories(List<File> gameDataDirs) {
@@ -78,8 +77,6 @@ public class ContentManager {
         worldManager.setAggregateWorldsDirectories(worldsDirs);
         resourcePackManager.setAggregateGameDataDirectories(gameDataDirs);
         refreshContent();
-=======
->>>>>>> v1.6.0
     }
 
     public void refreshContent() {

@@ -30,7 +30,6 @@ public class CurseForgeContentAdapter extends RecyclerView.Adapter<RecyclerView.
     public interface OnPageChangeListener {
         void onNextPage();
         void onPrevPage();
-        void onJumpToPage(int page);
     }
 
     private static final int VIEW_TYPE_ITEM = 0;
@@ -70,10 +69,6 @@ public class CurseForgeContentAdapter extends RecyclerView.Adapter<RecyclerView.
         } else if (holder instanceof FooterViewHolder) {
             ((FooterViewHolder) holder).bind(currentPage, totalPages, pageChangeListener);
         }
-
-        android.content.Context ctx = holder.itemView.getContext();
-        org.levimc.launcher.util.PersonalizationManager pm = new org.levimc.launcher.util.PersonalizationManager(ctx);
-        pm.applyAccentToView(holder.itemView, ctx);
     }
 
     @Override
@@ -159,12 +154,6 @@ public class CurseForgeContentAdapter extends RecyclerView.Adapter<RecyclerView.
                 Glide.with(icon).clear(icon);
                 icon.setImageResource(R.drawable.ic_minecraft_cube);
             }
-<<<<<<< HEAD
-
-            new org.levimc.launcher.util.PersonalizationManager(itemView.getContext()).applyGlassToView(itemView);
-
-=======
->>>>>>> v1.6.0
             itemView.setOnClickListener(v -> listener.onContentClick(content));
         }
     }
@@ -187,22 +176,6 @@ public class CurseForgeContentAdapter extends RecyclerView.Adapter<RecyclerView.
             }
         }
 
-<<<<<<< HEAD
-        void bind(int currentPage, int totalPages, final OnPageChangeListener listener) {
-            String totalStr = totalPages > 0 ? String.valueOf(totalPages) : "?";
-            tvPageInfo.setText(itemView.getContext().getString(R.string.page_info, currentPage, totalStr));
-
-            btnPrev.setEnabled(currentPage > 1);
-            btnPrev.setAlpha(currentPage > 1 ? 1.0f : 0.5f);
-
-            btnNext.setEnabled(totalPages == 0 || currentPage < totalPages);
-            btnNext.setAlpha((totalPages == 0 || currentPage < totalPages) ? 1.0f : 0.5f);
-
-            btnPrev.setOnClickListener(v -> {
-                if (listener != null) listener.onPrevPage();
-            });
-
-=======
         void bind(int page, int total, OnPageChangeListener listener) {
             tvPageInfo.setText(itemView.getContext().getString(
                     R.string.pagination_page_of, page, total > 0 ? String.valueOf(total) : "?"));
@@ -215,13 +188,8 @@ public class CurseForgeContentAdapter extends RecyclerView.Adapter<RecyclerView.
             btnPrev.setOnClickListener(v -> {
                 if (listener != null) listener.onPrevPage();
             });
->>>>>>> v1.6.0
             btnNext.setOnClickListener(v -> {
                 if (listener != null) listener.onNextPage();
-            });
-
-            tvPageInfo.setOnClickListener(v -> {
-                if (listener != null) listener.onJumpToPage(currentPage);
             });
         }
     }

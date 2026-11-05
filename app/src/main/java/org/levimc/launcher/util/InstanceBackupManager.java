@@ -4,11 +4,6 @@ import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
-<<<<<<< HEAD
-=======
-import android.content.UriPermission;
-import android.provider.DocumentsContract;
->>>>>>> v1.6.0
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
@@ -68,16 +63,11 @@ public class InstanceBackupManager {
     private static final String SHARED_PREFIX = "shared/";
     private static final String RUNTIME_LIBS_PREFIX = "runtime_libs/";
     private static final String PACKAGE_PREFIX = "package/";
-<<<<<<< HEAD
     /** v569：烘培地图缓存（<启动器数据根>/Cache/map_cache）随备份捎带。 */
     private static final String BAKED_CACHE_PREFIX = "baked_cache/";
     /** v570：Xbox 登录数据（files/xal/，含 gamertag）随备份捎带——
      * 导入菜单二级详情可显示玩家登录信息。 */
     private static final String XAL_PREFIX = "xal/";
-=======
-    private static final String DOWNLOAD_RELATIVE_PATH =
-            Environment.DIRECTORY_DOWNLOADS + "/LeviLauncher/Backups";
->>>>>>> v1.6.0
     private static final Gson GSON = new GsonBuilder().serializeNulls().setPrettyPrinting().create();
 
     private final Context context;
@@ -96,10 +86,7 @@ public class InstanceBackupManager {
         void onProgress(int progress);
         void onSuccess(String restoredName);
         void onError(String message);
-<<<<<<< HEAD
         void onAlreadyExists(String existingName);
-=======
->>>>>>> v1.6.0
     }
 
     public static class BackupManifest {
@@ -137,71 +124,6 @@ public class InstanceBackupManager {
         this.context = context.getApplicationContext();
     }
 
-<<<<<<< HEAD
-=======
-    public boolean needsDownloadsFolderSelection() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) return false;
-        Uri tree = getBackupDownloadsTree();
-        if (tree == null) return true;
-        for (UriPermission permission : context.getContentResolver().getPersistedUriPermissions()) {
-            if (tree.equals(permission.getUri()) && permission.isReadPermission() && permission.isWritePermission()) return false;
-        }
-        return true;
-    }
-
-    public Intent downloadsFolderPicker() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-        intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI,
-                DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", "primary:Download"));
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
-        return intent;
-    }
-
-    public void setDownloadsFolder(Intent data) throws IOException {
-        Uri tree = data == null ? null : data.getData();
-        if (tree == null || !"com.android.externalstorage.documents".equals(tree.getAuthority())
-                || !"primary:Download".equals(DocumentsContract.getTreeDocumentId(tree))) {
-            throw new IOException(context.getString(org.levimc.launcher.R.string.backup_select_downloads));
-        }
-        int flags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-        if ((flags & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION))
-                != (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION)) {
-            throw new IOException(context.getString(org.levimc.launcher.R.string.backup_select_downloads));
-        }
-        context.getContentResolver().takePersistableUriPermission(tree, flags);
-        context.getSharedPreferences("instance_backups", Context.MODE_PRIVATE).edit()
-                .putString("downloads_tree", tree.toString()).apply();
-    }
-
-    private Uri getBackupDownloadsTree() {
-        String value = context.getSharedPreferences("instance_backups", Context.MODE_PRIVATE)
-                .getString("downloads_tree", null);
-        return value == null ? null : Uri.parse(value);
-    }
-
-    private Uri getOrCreateBackupDirectory(Uri tree, Uri parent, String name) throws IOException {
-        Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, DocumentsContract.getDocumentId(parent));
-        String[] projection = {DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-                DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE};
-        try (Cursor cursor = context.getContentResolver().query(children, projection, null, null, null)) {
-            if (cursor == null) throw new IOException("Cannot read Downloads");
-            while (cursor.moveToNext()) {
-                if (name.equals(cursor.getString(1))) {
-                    if (!DocumentsContract.Document.MIME_TYPE_DIR.equals(cursor.getString(2))) {
-                        throw new IOException("Backup path is not a folder");
-                    }
-                    return DocumentsContract.buildDocumentUriUsingTree(tree, cursor.getString(0));
-                }
-            }
-        }
-        Uri directory = DocumentsContract.createDocument(context.getContentResolver(), parent,
-                DocumentsContract.Document.MIME_TYPE_DIR, name);
-        if (directory == null) throw new IOException("Cannot create backup folder");
-        return directory;
-    }
-
->>>>>>> v1.6.0
     public void backup(GameVersion version, BackupCallback callback) {
         executor.execute(() -> {
             postStarted(callback);
@@ -238,7 +160,6 @@ public class InstanceBackupManager {
                     zipDirectory(runtimeLibDir, RUNTIME_LIBS_PREFIX, zos, addedEntries,
                             copiedBytes, totalBytes, lastProgress, callback);
 
-<<<<<<< HEAD
                     // v569：烘培地图缓存捎上（不存在则跳过；缓存大时备份
                     // 体积会明显增大，恢复端会解回新缓存目录）
                     zipDirectory(LauncherStorage.getBakedMapCacheDir(context), BAKED_CACHE_PREFIX,
@@ -248,8 +169,6 @@ public class InstanceBackupManager {
                     zipDirectory(new File(context.getFilesDir(), "xal"), XAL_PREFIX,
                             zos, addedEntries, copiedBytes, totalBytes, lastProgress, callback);
 
-=======
->>>>>>> v1.6.0
                     for (NamedSource source : packageSources) {
                         zipSingleFile(source.file, source.entryPath, zos, addedEntries,
                                 copiedBytes, totalBytes, lastProgress, callback);
@@ -282,24 +201,17 @@ public class InstanceBackupManager {
                     BackupManifest manifest = readManifest(zipFile);
                     validateManifest(manifest);
 
-<<<<<<< HEAD
                     if (!manifest.installed && isInstanceAlreadyExists(manifest)) {
                         String existingName = firstNonEmpty(manifest.directoryName, manifest.profileId, manifest.instanceName);
                         postAlreadyExists(callback, existingName);
                         return;
                     }
 
-=======
->>>>>>> v1.6.0
                     boolean restoredInstalledData = manifest.installed;
                     String restoredName = restoredInstalledData
                             ? restoreInstalledData(zipFile, manifest, callback)
                             : restoreCustomInstance(zipFile, manifest, callback);
 
-<<<<<<< HEAD
-=======
-                    VersionManager.get(context).loadAllVersions();
->>>>>>> v1.6.0
                     postRestoreSuccess(callback, restoredName);
                 }
             } catch (Exception e) {
@@ -414,7 +326,6 @@ public class InstanceBackupManager {
     }
 
     private String buildBackupFileName(BackupManifest manifest) {
-<<<<<<< HEAD
         // 每个实例使用固定的备份文件名：再次备份时覆盖旧文件（更新），不产生新文件。
         return "levilauncher_instance_"
                 + sanitizeFileName(firstNonEmpty(manifest.directoryName, manifest.instanceName, "instance"))
@@ -453,26 +364,6 @@ public class InstanceBackupManager {
             values.put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath);
             values.put(MediaStore.MediaColumns.IS_PENDING, 1);
 
-=======
-        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date(manifest.createdAt));
-        return "levilauncher_instance_"
-                + sanitizeFileName(firstNonEmpty(manifest.directoryName, manifest.instanceName, "instance"))
-                + "_"
-                + timestamp
-                + BACKUP_EXTENSION;
-    }
-
-    private OutputTarget createOutputTarget(String fileName) throws IOException {
-        OutputTarget target = new OutputTarget();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ContentValues values = new ContentValues();
-            values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
-            values.put(MediaStore.MediaColumns.MIME_TYPE, "application/zip");
-            values.put(MediaStore.MediaColumns.RELATIVE_PATH, DOWNLOAD_RELATIVE_PATH);
-            values.put(MediaStore.MediaColumns.IS_PENDING, 1);
-
-            ContentResolver resolver = context.getContentResolver();
->>>>>>> v1.6.0
             target.uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
             if (target.uri == null) {
                 throw new IOException("Failed to create backup file");
@@ -481,7 +372,6 @@ public class InstanceBackupManager {
             if (target.outputStream == null) {
                 throw new IOException("Failed to open backup output");
             }
-<<<<<<< HEAD
             target.displayPath = new File(backupDir, fileName).getAbsolutePath();
             return target;
         }
@@ -493,27 +383,6 @@ public class InstanceBackupManager {
         target.file = new File(backupDir, fileName);
         target.outputStream = new FileOutputStream(target.file);
         target.displayPath = target.file.getAbsolutePath();
-=======
-            target.displayPath = DOWNLOAD_RELATIVE_PATH + "/" + fileName;
-            return target;
-        }
-
-        Uri tree = getBackupDownloadsTree();
-        if (tree == null) throw new IOException(context.getString(org.levimc.launcher.R.string.backup_select_downloads));
-        Uri downloads = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree));
-        Uri launcherFolder = getOrCreateBackupDirectory(tree, downloads, "LeviLauncher");
-        Uri backupFolder = getOrCreateBackupDirectory(tree, launcherFolder, "Backups");
-        target.uri = DocumentsContract.createDocument(context.getContentResolver(), backupFolder, "application/zip", fileName);
-        if (target.uri == null) throw new IOException("Cannot create backup file");
-        try {
-            target.outputStream = context.getContentResolver().openOutputStream(target.uri);
-            if (target.outputStream == null) throw new IOException("Cannot open backup file");
-        } catch (IOException | RuntimeException error) {
-            DocumentsContract.deleteDocument(context.getContentResolver(), target.uri);
-            throw error;
-        }
-        target.displayPath = DOWNLOAD_RELATIVE_PATH + "/" + fileName;
->>>>>>> v1.6.0
         return target;
     }
 
@@ -533,14 +402,6 @@ public class InstanceBackupManager {
             } else {
                 resolver.delete(target.uri, null, null);
             }
-<<<<<<< HEAD
-=======
-        } else if (!success && target.uri != null) {
-            try {
-                DocumentsContract.deleteDocument(context.getContentResolver(), target.uri);
-            } catch (Exception ignored) {
-            }
->>>>>>> v1.6.0
         } else if (!success && target.file != null && target.file.exists()) {
             target.file.delete();
         }
@@ -596,13 +457,10 @@ public class InstanceBackupManager {
             total += countFileBytes(LauncherStorage.getSharedRoot(context));
         }
         total += countFileBytes(MinecraftLauncher.getRuntimeLibDir(context, version.getStorageProfileId()));
-<<<<<<< HEAD
         // v569：烘培缓存计入进度（不捎则进度条会提前到 100%）
         total += countFileBytes(LauncherStorage.getBakedMapCacheDir(context));
         // v570：XAL 登录数据
         total += countFileBytes(new File(context.getFilesDir(), "xal"));
-=======
->>>>>>> v1.6.0
         for (NamedSource source : packageSources) {
             total += Math.max(0L, source.file.length());
         }
@@ -826,7 +684,6 @@ public class InstanceBackupManager {
         }
     }
 
-<<<<<<< HEAD
     private boolean isInstanceAlreadyExists(BackupManifest manifest) {
         String targetProfileId = firstNonEmpty(manifest.profileId,
                 LauncherStorage.sanitizeProfileId(manifest.directoryName));
@@ -849,8 +706,6 @@ public class InstanceBackupManager {
         return false;
     }
 
-=======
->>>>>>> v1.6.0
     private String restoreCustomInstance(ZipFile zipFile, BackupManifest manifest, RestoreCallback callback) throws IOException {
         File minecraftRoot = LauncherStorage.getMinecraftRoot(context);
         String originalName = firstNonEmpty(manifest.directoryName, manifest.profileId, "restored_instance");
@@ -874,7 +729,6 @@ public class InstanceBackupManager {
                 if (entryName.startsWith(RUNTIME_LIBS_PREFIX)) {
                     return new RestoreTarget(targetRuntimeRoot, relativePath);
                 }
-<<<<<<< HEAD
                 // v569：烘培缓存解回新缓存目录
                 if (entryName.startsWith(BAKED_CACHE_PREFIX)) {
                     return new RestoreTarget(LauncherStorage.getBakedMapCacheDir(context), relativePath);
@@ -883,8 +737,6 @@ public class InstanceBackupManager {
                 if (entryName.startsWith(XAL_PREFIX)) {
                     return new RestoreTarget(new File(context.getFilesDir(), "xal"), relativePath);
                 }
-=======
->>>>>>> v1.6.0
                 return null;
             });
             updateCustomMetadata(targetName, manifest, sharedRestoredIntoProfile);
@@ -924,7 +776,6 @@ public class InstanceBackupManager {
             if (entryName.startsWith(RUNTIME_LIBS_PREFIX)) {
                 return new RestoreTarget(runtimeRoot, relativePath);
             }
-<<<<<<< HEAD
             // v569：烘培缓存解回新缓存目录
             if (entryName.startsWith(BAKED_CACHE_PREFIX)) {
                 return new RestoreTarget(LauncherStorage.getBakedMapCacheDir(context), relativePath);
@@ -933,8 +784,6 @@ public class InstanceBackupManager {
             if (entryName.startsWith(XAL_PREFIX)) {
                 return new RestoreTarget(new File(context.getFilesDir(), "xal"), relativePath);
             }
-=======
->>>>>>> v1.6.0
             return null;
         });
         return firstNonEmpty(manifest.instanceName, LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID);
@@ -1108,7 +957,6 @@ public class InstanceBackupManager {
         if (entryName.startsWith(PACKAGE_PREFIX)) {
             return entryName.substring(PACKAGE_PREFIX.length());
         }
-<<<<<<< HEAD
         // v569：烘培缓存条目
         if (entryName.startsWith(BAKED_CACHE_PREFIX)) {
             return entryName.substring(BAKED_CACHE_PREFIX.length());
@@ -1117,8 +965,6 @@ public class InstanceBackupManager {
         if (entryName.startsWith(XAL_PREFIX)) {
             return entryName.substring(XAL_PREFIX.length());
         }
-=======
->>>>>>> v1.6.0
         return null;
     }
 
@@ -1238,15 +1084,12 @@ public class InstanceBackupManager {
         }
     }
 
-<<<<<<< HEAD
     private void postAlreadyExists(RestoreCallback callback, String existingName) {
         if (callback != null) {
             mainHandler.post(() -> callback.onAlreadyExists(existingName));
         }
     }
 
-=======
->>>>>>> v1.6.0
     private static String sanitizeFileName(String value) {
         String safe = firstNonEmpty(value, "instance").replaceAll("[^A-Za-z0-9._-]+", "_");
         while (safe.startsWith(".")) safe = safe.substring(1);

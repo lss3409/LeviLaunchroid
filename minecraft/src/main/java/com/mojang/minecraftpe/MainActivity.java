@@ -258,12 +258,6 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
 
     native long nativeInitializeXboxLive(long xalInitArgs, long xblInitArgs);
 
-<<<<<<< HEAD
-    // v0.4.212（官方 303f00a2 跟进）：26.60 键盘修复——native 现在按
-    // 输入源区分按键（输入法 commit 的字符 vs 物理键盘），两参包装保持
-    // 旧 JNI 注册兼容（@Keep 防混淆裁剪）
-=======
->>>>>>> v1.6.0
     @androidx.annotation.Keep
     public boolean nativeKeyHandler(final int keycode, final int action) {
         return nativeKeyHandler(keycode, action, InputDevice.SOURCE_KEYBOARD);
@@ -658,13 +652,9 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
 
     @Override
     public boolean dispatchKeyEvent(@NonNull KeyEvent event) {
-<<<<<<< HEAD
-        // v0.4.212（官方 303f00a2 跟进）：带输入源调用
-=======
         if (handleActiveTextInputBackKey(event)) {
             return true;
         }
->>>>>>> v1.6.0
         if (nativeKeyHandler(event.getKeyCode(), event.getAction(), event.getSource())) {
             return true;
         }
@@ -944,15 +934,9 @@ public class MainActivity extends GameActivity implements View.OnKeyListener, Fi
         getInputMethodManager().hideSoftInputFromWindow(this.textInputWidget.getWindowToken(), 0);
 
         this.textInputWidget.clearFocus();
-<<<<<<< HEAD
-        View decorView = getWindow().getDecorView();
-        decorView.setFocusableInTouchMode(true);
-        decorView.requestFocus();
-=======
         if (this.textInputFocusSink != null) {
             this.textInputFocusSink.requestFocus();
         }
->>>>>>> v1.6.0
 
         this.mPauseTextboxUIUpdates = true;
         try {

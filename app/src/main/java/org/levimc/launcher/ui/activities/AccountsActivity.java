@@ -35,11 +35,6 @@ import okhttp3.Response;
 
 import android.util.Pair;
 
-<<<<<<< HEAD
-import net.raphimc.minecraftauth.bedrock.BedrockAuthManager;
-
-=======
->>>>>>> v1.6.0
 public class AccountsActivity extends BaseActivity {
 
     private TextView gamertagText;
@@ -102,15 +97,8 @@ public class AccountsActivity extends BaseActivity {
 
                 executor.execute(() -> {
                     try {
-<<<<<<< HEAD
-                        BedrockAuthManager authManager = MsftAuthManager.refreshAndAuth(account);
-                        MsftAuthManager.saveAccountOrThrow(AccountsActivity.this, authManager);
-                        MsftAccountStore.setActive(AccountsActivity.this, account.id);
-                        String minecraftUsername = authManager.getMinecraftCertificateChain().getUpToDate().getIdentityDisplayName();
-=======
                         MsftAccountStore.MsftAccount refreshed = MsftAuthManager.refreshAccountAndActivate(AccountsActivity.this, account.id);
                         String minecraftUsername = AccountTextUtils.displayNameOrNotSigned(AccountsActivity.this, refreshed);
->>>>>>> v1.6.0
 
                         runOnUiThread(() -> {
                             org.levimc.launcher.util.DialogUtils.dismissQuietly(loadingDialog);

@@ -50,27 +50,6 @@ public final class MinecraftImportIntents {
         return true;
     }
 
-<<<<<<< HEAD
-    /** 是否为世界类资源（.mcworld/.mctemplate）——导入到内容管理的世界列表。 */
-    public static boolean isWorldResource(Context context, Uri uri) {
-        if (uri == null) return false;
-        String name = candidateName(context, uri);
-        if (name == null) return false;
-        String lowerValue = name.toLowerCase(Locale.ROOT);
-        return lowerValue.endsWith(".mcworld") || lowerValue.endsWith(".mctemplate");
-    }
-
-    /** 是否为资源包类资源（.mcpack/.mcaddon）——导入到内容管理的资源包/行为包。 */
-    public static boolean isPackResource(Context context, Uri uri) {
-        if (uri == null) return false;
-        String name = candidateName(context, uri);
-        if (name == null) return false;
-        String lowerValue = name.toLowerCase(Locale.ROOT);
-        return lowerValue.endsWith(".mcpack") || lowerValue.endsWith(".mcaddon");
-    }
-
-=======
->>>>>>> v1.6.0
     private static boolean isMinecraftResourceUri(Context context, Uri uri) {
         if (uri == null) return false;
         return hasMinecraftResourceExtension(uri.getPath())
@@ -88,16 +67,6 @@ public final class MinecraftImportIntents {
                 || lowerValue.endsWith(".mctemplate");
     }
 
-<<<<<<< HEAD
-    private static String candidateName(Context context, Uri uri) {
-        String name = resolveDisplayName(context, uri);
-        if (name == null) name = uri.getLastPathSegment();
-        if (name == null) name = uri.getPath();
-        return name;
-    }
-
-=======
->>>>>>> v1.6.0
     private static String resolveDisplayName(Context context, Uri uri) {
         if (context == null || uri == null) return null;
 

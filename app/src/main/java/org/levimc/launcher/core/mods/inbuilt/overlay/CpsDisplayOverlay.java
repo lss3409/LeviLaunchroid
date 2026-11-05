@@ -176,10 +176,7 @@ public class CpsDisplayOverlay {
             updateLockState();
             applySize();
             updatePosition(wmParams.x, wmParams.y);
-<<<<<<< HEAD
-=======
             refreshRuntimeVisibility();
->>>>>>> v1.6.0
         } catch (Exception e) {
             showFallback(startX, startY);
         }
@@ -213,8 +210,6 @@ public class CpsDisplayOverlay {
         applyOpacity();
         updateLockState();
         applySize();
-<<<<<<< HEAD
-=======
         refreshRuntimeVisibility();
     }
 
@@ -223,7 +218,6 @@ public class CpsDisplayOverlay {
         if (manager != null) {
             manager.refreshRuntimeVisibility();
         }
->>>>>>> v1.6.0
     }
 
     private void updateDisplay() {

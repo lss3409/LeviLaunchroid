@@ -23,25 +23,18 @@ import net.raphimc.minecraftauth.msa.model.MsaToken;
 import net.raphimc.minecraftauth.msa.request.MsaAuthCodeTokenRequest;
 import net.raphimc.minecraftauth.msa.request.MsaDeviceCodeRequest;
 import net.raphimc.minecraftauth.msa.request.MsaDeviceCodeTokenRequest;
-<<<<<<< HEAD
-=======
 import net.raphimc.minecraftauth.msa.request.MsaRefreshTokenRequest;
 import net.raphimc.minecraftauth.util.Expirable;
 import net.raphimc.minecraftauth.util.holder.Holder;
->>>>>>> v1.6.0
 import net.raphimc.minecraftauth.util.http.exception.ApiHttpRequestException;
 import net.raphimc.minecraftauth.util.http.exception.InformativeHttpRequestException;
 import net.raphimc.minecraftauth.xbl.exception.XblRequestException;
 import net.raphimc.minecraftauth.xbl.model.XblUserProfile;
 
 import org.levimc.launcher.BuildConfig;
-<<<<<<< HEAD
-
-=======
 import org.levimc.launcher.core.auth.storage.XalExporter;
 
 import java.io.IOException;
->>>>>>> v1.6.0
 import java.net.ConnectException;
 import java.net.NoRouteToHostException;
 import java.net.SocketException;
@@ -68,40 +61,6 @@ public final class MsftAuthManager {
     private static final long SLOW_DOWN_INCREMENT_MS = 5000L;
     private static final long MAX_TRANSIENT_RETRY_DELAY_MS = 10000L;
     private static final int ACCOUNT_NETWORK_RETRY_COUNT = 4;
-<<<<<<< HEAD
-
-    public static final String DEFAULT_CLIENT_ID = MsaConstants.BEDROCK_ANDROID_TITLE_ID;
-    // 注意：库默认 SCOPE_TITLE_AUTH 是大写 MBI_SSL，但游戏 XAL 向 XSTS 交换 token 时
-    // 严格校验 ticket 的 scope 必须是小写 mbi_ssl，大写会被拒绝导致游戏静默登录失败
-    // （表现为「请登录」引导页）。这里用小写 scope 登录，token 才能被游戏直接使用。
-    public static final String DEFAULT_SCOPE = "service::user.auth.xboxlive.com::mbi_ssl";
-
-    private MsftAuthManager() {
-    }
-
-    public static MsaApplicationConfig getAppConfig() {
-        return new MsaApplicationConfig(
-                DEFAULT_CLIENT_ID,
-                DEFAULT_SCOPE,
-                null,
-                // 必须与游戏 XAL 的 redirect_uri 一致（minecraft 模块 strings.xml 的 xal_token）：
-                // MSA 的 refresh_token 绑定 redirect_uri，游戏刷新 token 时用 ms-xal-...://auth，
-                // 若启动器用默认 oauth20_desktop.srf 登录，access_token 过期后游戏无法刷新
-                // （表现为启动器登录后进游戏「未登录/弹引导窗」）。
-                // 注意：网页登录对自定义 scheme 回调兼容性差，请使用「设备代码登录」
-                // （设备码流程不受 redirect 影响，且 token 与游戏一致）。
-                "ms-xal-0000000048183522://auth",
-                MsaEnvironment.LIVE
-        );
-    }
-
-    /**
-     * 网页（WebView）登录用的配置：redirect 用 MSA native client URL（https）。
-     * WebView 无法导航到自定义 scheme（ms-xal://），会卡在「获取 Minecraft 身份」，
-     * 所以网页登录必须用 https 回调；token 换 Minecraft 身份不受影响。
-     */
-    public static MsaApplicationConfig getWebAppConfig() {
-=======
     private static final long TOKEN_EXPIRY_MARGIN_MS = 5 * 60 * 1000L;
 
     public static final String DEFAULT_CLIENT_ID = MsaConstants.BEDROCK_ANDROID_TITLE_ID;
@@ -111,7 +70,6 @@ public final class MsftAuthManager {
     }
 
     public static MsaApplicationConfig getAppConfig() {
->>>>>>> v1.6.0
         return new MsaApplicationConfig(
                 DEFAULT_CLIENT_ID,
                 DEFAULT_SCOPE,
@@ -122,11 +80,7 @@ public final class MsftAuthManager {
     }
 
     public static String buildAuthorizeUrl(String state) {
-<<<<<<< HEAD
-        MsaApplicationConfig config = getWebAppConfig();
-=======
         MsaApplicationConfig config = getAppConfig();
->>>>>>> v1.6.0
         return Uri.parse(config.getEnvironment().getAuthorizeUrl())
                 .buildUpon()
                 .appendQueryParameter("client_id", config.getClientId())
@@ -146,11 +100,7 @@ public final class MsftAuthManager {
             throw new IllegalArgumentException("Microsoft returned an empty authorization code.");
         }
         HttpClient httpClient = createHttpClient();
-<<<<<<< HEAD
-        MsaApplicationConfig config = getWebAppConfig();
-=======
         MsaApplicationConfig config = getAppConfig();
->>>>>>> v1.6.0
         MsaToken token = httpClient.executeAndHandle(new MsaAuthCodeTokenRequest(config, code));
         return BedrockAuthManager.create(httpClient, GAME_VERSION)
                 .msaApplicationConfig(config)
@@ -254,16 +204,6 @@ public final class MsftAuthManager {
         throw new TimeoutException("The Microsoft device code expired. Start sign-in again.");
     }
 
-<<<<<<< HEAD
-    // ---------------- v0.4.212（官方 e9777f9e 跟进）：启动前凭据刷新链 ----------------
-
-    private static final long TOKEN_EXPIRY_MARGIN_MS = 5 * 60 * 1000L;
-
-    /** 启动游戏前刷新活跃账号凭据并导出（官方同名，MinecraftRuntimePreparer 调用）。
-     *  v0.4.212 本地化：重试 2 次快速失败（官方 4 次+退避≈26s，国内网络
-     *  下拖慢启动；失败由调用方静默继续）。 */
-=======
->>>>>>> v1.6.0
     public static synchronized MsftAccountStore.MsftAccount prepareActiveAccount(Context context) throws Exception {
         MsftAccountStore.MsftAccount active = MsftAccountStore.getActive(context);
         if (active == null) {
@@ -273,11 +213,7 @@ public final class MsftAuthManager {
                 () -> refreshSavedAccount(context, active.id, false),
                 null,
                 null,
-<<<<<<< HEAD
-                2
-=======
                 ACCOUNT_NETWORK_RETRY_COUNT
->>>>>>> v1.6.0
         );
     }
 
@@ -297,11 +233,7 @@ public final class MsftAuthManager {
         }
         HttpClient httpClient = createHttpClient();
         JsonObject json = JsonParser.parseString(account.serializedAuthManager).getAsJsonObject();
-<<<<<<< HEAD
-        if (org.levimc.launcher.core.auth.storage.XalExporter.importRefreshToken(context, account, json)) {
-=======
         if (XalExporter.importRefreshToken(context, account, json)) {
->>>>>>> v1.6.0
             MsftAccountStore.updateAuth(context, id, json.toString());
         }
         BedrockAuthManager authManager = BedrockAuthManager.fromJson(httpClient, GAME_VERSION, json);
@@ -328,12 +260,7 @@ public final class MsftAuthManager {
         return refreshed;
     }
 
-<<<<<<< HEAD
-    private static <T extends net.raphimc.minecraftauth.util.Expirable> T refreshToken(
-            net.raphimc.minecraftauth.util.holder.Holder<T> holder) throws java.io.IOException {
-=======
     private static <T extends Expirable> T refreshToken(Holder<T> holder) throws IOException {
->>>>>>> v1.6.0
         T token = holder.getCached();
         if (token == null || token.getExpireTimeMs() <= System.currentTimeMillis() + TOKEN_EXPIRY_MARGIN_MS) {
             return holder.refresh();
@@ -341,11 +268,7 @@ public final class MsftAuthManager {
         return token;
     }
 
-<<<<<<< HEAD
-    private static void refreshMsaToken(BedrockAuthManager authManager) throws java.io.IOException {
-=======
     private static void refreshMsaToken(BedrockAuthManager authManager) throws IOException {
->>>>>>> v1.6.0
         MsaToken token = authManager.getMsaToken().getCached();
         if (token == null) {
             throw new IllegalStateException("Microsoft credentials are missing. Sign in again from Accounts.");
@@ -355,22 +278,14 @@ public final class MsftAuthManager {
             throw new IllegalStateException("The Microsoft session cannot be refreshed. Sign in again from Accounts.");
         }
         MsaToken refreshed = authManager.getHttpClient().executeAndHandle(
-<<<<<<< HEAD
-                new net.raphimc.minecraftauth.msa.request.MsaRefreshTokenRequest(authManager.getMsaApplicationConfig(), token));
-=======
                 new MsaRefreshTokenRequest(authManager.getMsaApplicationConfig(), token));
->>>>>>> v1.6.0
         if (TextUtils.isEmpty(refreshed.getRefreshToken())) {
             refreshed = new MsaToken(refreshed.getExpireTimeMs(), refreshed.getAccessToken(), token.getRefreshToken());
         }
         authManager.getMsaToken().set(refreshed);
     }
 
-<<<<<<< HEAD
-    private static void refreshXalCredentials(BedrockAuthManager authManager) throws java.io.IOException {
-=======
     private static void refreshXalCredentials(BedrockAuthManager authManager) throws IOException {
->>>>>>> v1.6.0
         refreshMsaToken(authManager);
         refreshToken(authManager.getXblDeviceToken());
         refreshToken(authManager.getXblUserToken());
@@ -382,38 +297,16 @@ public final class MsftAuthManager {
         refreshToken(authManager.getMinecraftCertificateChain());
         try {
             refreshToken(authManager.getPlayFabXstsToken());
-<<<<<<< HEAD
-        } catch (java.io.IOException error) {
-=======
         } catch (IOException error) {
->>>>>>> v1.6.0
             Log.w(TAG, "PlayFab token unavailable", error);
         }
         try {
             refreshToken(authManager.getRealmsXstsToken());
-<<<<<<< HEAD
-        } catch (java.io.IOException error) {
-=======
         } catch (IOException error) {
->>>>>>> v1.6.0
             Log.w(TAG, "Realms token unavailable", error);
         }
     }
 
-<<<<<<< HEAD
-    public static BedrockAuthManager refreshAndAuth(MsftAccountStore.MsftAccount account) throws Exception {
-        if (account == null || TextUtils.isEmpty(account.serializedAuthManager)) {
-            throw new IllegalArgumentException("Account data is missing or damaged.");
-        }
-        HttpClient httpClient = createHttpClient();
-        JsonObject json = JsonParser.parseString(account.serializedAuthManager).getAsJsonObject();
-        BedrockAuthManager authManager = BedrockAuthManager.fromJson(httpClient, GAME_VERSION, json);
-        authManager.getMinecraftCertificateChain().getUpToDate();
-        return authManager;
-    }
-
-=======
->>>>>>> v1.6.0
     public static MsftAccountStore.MsftAccount saveAccountAndActivateWithRetry(
             Context context,
             BedrockAuthManager authManager,
@@ -428,30 +321,19 @@ public final class MsftAuthManager {
         );
     }
 
-<<<<<<< HEAD
-    public static MsftAccountStore.MsftAccount saveAccountAndActivate(Context context, BedrockAuthManager authManager) throws Exception {
-=======
     public static synchronized MsftAccountStore.MsftAccount saveAccountAndActivate(Context context, BedrockAuthManager authManager) throws Exception {
->>>>>>> v1.6.0
         MsftAccountStore.MsftAccount account = saveAccountOrThrow(context, authManager);
         MsftAccountStore.setActive(context, account.id);
         MsftAccountStore.MsftAccount active = MsftAccountStore.find(context, account.id);
         return active != null ? active : account;
     }
 
-<<<<<<< HEAD
-    public static MsftAccountStore.MsftAccount saveAccountOrThrow(Context context, BedrockAuthManager authManager) throws Exception {
-=======
     public static synchronized MsftAccountStore.MsftAccount saveAccountOrThrow(Context context, BedrockAuthManager authManager) throws Exception {
->>>>>>> v1.6.0
         if (context == null || authManager == null) {
             throw new IllegalArgumentException("Authentication result is missing.");
         }
 
-<<<<<<< HEAD
-=======
         refreshXalCredentials(authManager);
->>>>>>> v1.6.0
         XblUserProfile profile = authManager.getXboxUserProfile().getUpToDate();
         MinecraftCertificateChain certificateChain = authManager.getMinecraftCertificateChain().getUpToDate();
 
@@ -468,21 +350,6 @@ public final class MsftAuthManager {
         String minecraftUsername = certificateChain.getIdentityDisplayName();
         String xuid = certificateChain.getIdentityXuid();
 
-<<<<<<< HEAD
-        try {
-            authManager.getPlayFabXstsToken().getUpToDate();
-        } catch (Exception e) {
-            Log.w(TAG, "PlayFab token unavailable", e);
-        }
-        try {
-            authManager.getRealmsXstsToken().getUpToDate();
-        } catch (Exception e) {
-            Log.w(TAG, "Realms token unavailable", e);
-        }
-        authManager.getXboxLiveXstsToken().getUpToDate();
-
-=======
->>>>>>> v1.6.0
         String serialized = BedrockAuthManager.toJson(authManager).toString();
         MsftAccountStore.MsftAccount account = MsftAccountStore.addOrUpdate(
                 context,

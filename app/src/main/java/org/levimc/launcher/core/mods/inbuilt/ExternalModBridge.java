@@ -8,10 +8,7 @@ public class ExternalModBridge {
     private static final String TAG = "ExternalModBridge";
 
     private static native int nativeGetExternalModCount();
-<<<<<<< HEAD
-=======
     private static native boolean nativeIsFloatingModMenuButtonHidden();
->>>>>>> v1.6.0
     private static native String nativeGetExternalModInfo(int index);
     private static native String nativeGetExternalModsInfo();
     private static native String nativeGetExternalModConfigSchema(String moduleId);
@@ -35,8 +32,6 @@ public class ExternalModBridge {
         }
     }
 
-<<<<<<< HEAD
-=======
     public static boolean isFloatingModMenuButtonHidden() {
         if (!ModManager.ensurePreloaderLoaded()) return false;
         try {
@@ -46,7 +41,6 @@ public class ExternalModBridge {
         }
     }
 
->>>>>>> v1.6.0
     public static String getExternalModInfo(int index) {
         if (!ModManager.ensurePreloaderLoaded()) return "{}";
         try {

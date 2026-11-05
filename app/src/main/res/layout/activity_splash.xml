@@ -76,11 +76,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="14dp"
         android:alpha="0.6"
-<<<<<<< HEAD
         android:text="@string/splash_preparing_to_launch"
-=======
-        android:text="@string/preparing_to_launch"
->>>>>>> v1.6.0
         android:textColor="@color/on_background"
         android:textSize="12sp"
         android:letterSpacing="0.08"

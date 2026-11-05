@@ -1,23 +1,16 @@
 package org.levimc.launcher.util;
 
 import android.content.Context;
-<<<<<<< HEAD
 import android.os.Environment;
-=======
->>>>>>> v1.6.0
 
 import org.levimc.launcher.settings.FeatureSettings;
 
 import java.io.File;
-<<<<<<< HEAD
 import java.io.IOException;
-=======
->>>>>>> v1.6.0
 import java.util.ArrayDeque;
 import java.util.Locale;
 
 public final class LauncherStorage {
-<<<<<<< HEAD
     private static final String PREFS_NAME = "storage_migration";
     private static final String KEY_COMPLETED = "storage_migration_completed";
     private static final String STORAGE_LAYOUT_PREFS_NAME = "storage_layout";
@@ -33,18 +26,6 @@ public final class LauncherStorage {
     public static final String DEFAULT_STORAGE_PATH = "/storage/emulated/0/Levilauncher";
     public static final String MINECRAFT_DIR = "minecraft";
     public static final String SHARED_PROFILE_ID = "shared";
-=======
-    private static final String STORAGE_LAYOUT_PREFS_NAME = "storage_layout";
-    private static final String KEY_SHARED_INTERNAL_MODE = "shared_internal_mode";
-    private static final String KEY_SHARED_EXTERNAL_MODE = "shared_external_mode";
-    static final String SHARED_MODE_LEGACY = "legacy";
-    static final String SHARED_MODE_NEW = "new";
-    private static final String NO_MEDIA_FILE = ".nomedia";
-    private static final String ANDROID_DIR = "Android";
-    private static final String ANDROID_MEDIA_DIR = "media";
-    public static final String MINECRAFT_DIR = "minecraft";
-    public static final String SHARED_PROFILE_ID = "_shared";
->>>>>>> v1.6.0
     public static final String LEGACY_UNCLASSIFIED_DIR = "_legacy_unclassified";
     public static final String INSTALLED_MINECRAFT_PROFILE_ID = "com.mojang.minecraftpe";
     public static final String INTERNAL_STORAGE_DIR = "internal";
@@ -87,7 +68,6 @@ public final class LauncherStorage {
     }
 
     private static File resolveTargetAppRoot(Context context) {
-<<<<<<< HEAD
         // 第一级：自定义路径（设置页手动配置），非空直接返回
         String customPath = getCustomStoragePath(context);
         if (customPath != null) {
@@ -105,24 +85,10 @@ public final class LauncherStorage {
 
         // 第三级：内部存储 fallback
         File internalFallback = new File(context.getFilesDir(), GAMES_DIR);
-=======
-        File[] mediaDirs = context.getExternalMediaDirs();
-        if (mediaDirs != null) {
-            for (File mediaDir : mediaDirs) {
-                File appRoot = buildTargetMediaAppRoot(mediaDir);
-                if (ensureDir(appRoot)) {
-                    return appRoot;
-                }
-            }
-        }
-
-        File internalFallback = context.getFilesDir();
->>>>>>> v1.6.0
         ensureDir(internalFallback);
         return internalFallback;
     }
 
-<<<<<<< HEAD
     public static String getCustomStoragePath(Context context) {
         String path = context.getSharedPreferences(STORAGE_LAYOUT_PREFS_NAME, Context.MODE_PRIVATE)
                 .getString(KEY_CUSTOM_STORAGE_PATH, null);
@@ -142,20 +108,15 @@ public final class LauncherStorage {
         setCustomStoragePath(context, null);
     }
 
-=======
->>>>>>> v1.6.0
     static File buildTargetMediaAppRoot(File mediaDir) {
         return mediaDir;
     }
 
     public static String getTargetAppRootDisplayPath(Context context) {
-<<<<<<< HEAD
         File external = context.getExternalFilesDir(null);
         if (external != null) {
             return external.getAbsolutePath();
         }
-=======
->>>>>>> v1.6.0
         return buildTargetAppRootDisplayPath(context.getPackageName());
     }
 
@@ -357,15 +318,12 @@ public final class LauncherStorage {
         return dir;
     }
 
-<<<<<<< HEAD
     public static File getSharedModsDir(Context context) {
         File dir = new File(getSharedRoot(context), PROFILE_MODS_DIR);
         ensureDir(dir);
         return dir;
     }
 
-=======
->>>>>>> v1.6.0
     public static File getProfileMetadataDir(Context context, String profileId) {
         File dir = new File(getVersionRoot(context, profileId), PROFILE_METADATA_DIR);
         ensureDir(dir);
@@ -401,7 +359,6 @@ public final class LauncherStorage {
         return getSharedGameDataDir(context, storageType == FeatureSettings.StorageType.EXTERNAL);
     }
 
-<<<<<<< HEAD
     // 正版（已安装）Minecraft 的原版游戏数据目录（games/com.mojang），
     // 通过 createPackageContext 获取 MC 自己的 context，避免读到启动器重定向的目录。
     public static File getInstalledMinecraftGameDataDir(Context context, boolean external) {
@@ -418,8 +375,6 @@ public final class LauncherStorage {
         }
     }
 
-=======
->>>>>>> v1.6.0
     public static FeatureSettings.StorageType normalizeContentStorageType(
             FeatureSettings.StorageType storageType,
             boolean versionIsolation
@@ -459,7 +414,6 @@ public final class LauncherStorage {
         return dir;
     }
 
-<<<<<<< HEAD
     // ---------- v0.4.13：可配置的启动器内容根（备份/导出/结构/缓存） ----------
 
     private static final String KEY_EXTENDED_ROOT_PATH = "extended_root_path";
@@ -493,16 +447,11 @@ public final class LauncherStorage {
 
     public static File getBackupsRoot(Context context) {
         File dir = new File(getExtendedRootDir(context), "Backups");
-=======
-    public static File getBackupsRoot(Context context) {
-        File dir = new File(getAppRoot(context), BACKUPS_DIR);
->>>>>>> v1.6.0
         ensureDir(dir);
         return dir;
     }
 
     public static File getWorldBackupsDir(Context context) {
-<<<<<<< HEAD
         File dir = new File(getBackupsRoot(context), "minecraftWorlds backups");
         ensureDir(dir);
         return dir;
@@ -540,9 +489,6 @@ public final class LauncherStorage {
     /** v569：扩展缓存目录：<内容根>/Cache/map_cache（烘培地图数据）。 */
     public static File getBakedMapCacheDir(Context context) {
         File dir = new File(getExtendedRootDir(context), "Cache/map_cache");
-=======
-        File dir = new File(getBackupsRoot(context), WORLDS_DIR);
->>>>>>> v1.6.0
         ensureDir(dir);
         return dir;
     }

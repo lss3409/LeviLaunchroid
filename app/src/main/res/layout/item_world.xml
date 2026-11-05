@@ -3,25 +3,17 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/world_card"
     android:layout_width="match_parent"
-<<<<<<< HEAD
     android:layout_height="wrap_content"
     android:minHeight="84dp"
     android:layout_marginHorizontal="4dp"
     android:layout_marginVertical="3dp"
     android:background="@drawable/bg_content_item"
     android:baselineAligned="false"
-=======
-    android:layout_height="84dp"
-    android:layout_marginHorizontal="4dp"
-    android:layout_marginVertical="3dp"
-    android:background="@drawable/bg_content_item"
->>>>>>> v1.6.0
     android:gravity="center_vertical"
     android:orientation="horizontal"
     android:paddingHorizontal="10dp"
     android:paddingVertical="8dp">
 
-<<<<<<< HEAD
     <FrameLayout
         android:layout_width="60dp"
         android:layout_height="60dp">
@@ -51,27 +43,10 @@
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-=======
-    <com.google.android.material.imageview.ShapeableImageView
-        android:id="@+id/world_icon"
-        android:layout_width="60dp"
-        android:layout_height="60dp"
-        android:contentDescription="@null"
-        android:scaleType="centerCrop"
-        android:src="@drawable/ic_world"
-        app:shapeAppearanceOverlay="@style/LeviContentThumbnailShape"
-        app:strokeColor="@color/outline"
-        app:strokeWidth="1dp" />
-
-    <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
->>>>>>> v1.6.0
         android:layout_marginStart="12dp"
         android:layout_weight="1"
         android:gravity="center_vertical"
         android:orientation="vertical">
-<<<<<<< HEAD
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -123,29 +98,6 @@
             android:ellipsize="end"
             android:fontFamily="@font/misans"
             android:maxLines="1"
-=======
-
-        <TextView
-            android:id="@+id/world_name"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:fontFamily="@font/misans"
-            android:maxLines="1"
-            android:text="@string/world_name_placeholder"
-            android:textColor="@color/on_surface"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/world_description"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:ellipsize="end"
-            android:fontFamily="@font/misans"
-            android:maxLines="1"
->>>>>>> v1.6.0
             android:text="@string/world_game_mode_survival_placeholder"
             android:textColor="@color/text_secondary"
             android:textSize="12sp" />
@@ -153,7 +105,6 @@
         <TextView
             android:id="@+id/world_last_played"
             android:layout_width="match_parent"
-<<<<<<< HEAD
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
             android:ellipsize="end"
@@ -170,20 +121,11 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
             android:fontFamily="@font/misans"
-=======
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:ellipsize="end"
-            android:fontFamily="@font/misans"
-            android:maxLines="1"
-            android:text="@string/world_last_played_placeholder"
->>>>>>> v1.6.0
             android:textColor="@color/text_secondary"
             android:textSize="11sp" />
     </LinearLayout>
 
     <ImageButton
-<<<<<<< HEAD
         android:id="@+id/world_play_button"
             android:focusable="false"
         android:layout_width="40dp"
@@ -221,27 +163,6 @@
         android:src="@drawable/ic_more_vert"
         app:tint="@color/on_surface" />
 
-=======
-        android:id="@+id/world_edit_button"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/edit"
-        android:padding="9dp"
-        android:src="@drawable/ic_edit"
-        app:tint="@color/on_surface" />
-
-    <ImageButton
-        android:id="@+id/world_overflow_button"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/more_actions"
-        android:padding="8dp"
-        android:src="@drawable/ic_more_vert"
-        app:tint="@color/on_surface" />
-
->>>>>>> v1.6.0
     <ImageView
         android:id="@+id/world_selection_indicator"
         android:layout_width="36dp"

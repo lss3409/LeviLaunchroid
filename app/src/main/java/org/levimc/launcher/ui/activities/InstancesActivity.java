@@ -1,23 +1,12 @@
 package org.levimc.launcher.ui.activities;
 
 import android.app.Activity;
-<<<<<<< HEAD
-import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
-=======
-import android.content.Context;
-import android.content.Intent;
->>>>>>> v1.6.0
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
-<<<<<<< HEAD
-import android.os.Build;
-=======
->>>>>>> v1.6.0
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.text.Editable;
@@ -36,13 +25,7 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
-<<<<<<< HEAD
-import androidx.core.app.ActivityCompat;
 import androidx.core.app.ActivityOptionsCompat;
-import androidx.core.content.ContextCompat;
-=======
-import androidx.core.app.ActivityOptionsCompat;
->>>>>>> v1.6.0
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -55,10 +38,7 @@ import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
 import org.levimc.launcher.ui.dialogs.InstallProgressDialog;
 import org.levimc.launcher.util.ApkImportManager;
 import org.levimc.launcher.util.InstanceBackupManager;
-<<<<<<< HEAD
-=======
 import org.levimc.launcher.util.StorageAccess;
->>>>>>> v1.6.0
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -69,10 +49,6 @@ public class InstancesActivity extends BaseActivity {
 
     private static final int FILTER_ALL = 0;
     private static final int FILTER_CUSTOM = 1;
-<<<<<<< HEAD
-    private static final int REQUEST_BATCH_BACKUP_STORAGE = 4301;
-=======
->>>>>>> v1.6.0
     private static final int CARD_GLASS_ALPHA_LIGHT = 48;
     private static final int CARD_GLASS_ALPHA_DARK = 58;
     private static final int CARD_OUTLINE_ALPHA_LIGHT = 90;
@@ -92,10 +68,7 @@ public class InstancesActivity extends BaseActivity {
 
     private ApkImportManager apkImportManager;
     private InstanceBackupManager backupManager;
-<<<<<<< HEAD
-=======
     private ActivityResultLauncher<Intent> backupDownloadsFolderLauncher;
->>>>>>> v1.6.0
     private InstallProgressDialog restoreProgressDialog;
     private InstallProgressDialog batchBackupProgressDialog;
     private TextView batchBackupButton;
@@ -118,8 +91,6 @@ public class InstancesActivity extends BaseActivity {
 
         apkImportManager = new ApkImportManager(this, null);
         backupManager = new InstanceBackupManager(this);
-<<<<<<< HEAD
-=======
         backupDownloadsFolderLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
@@ -132,7 +103,6 @@ public class InstancesActivity extends BaseActivity {
                     }
                 });
 
->>>>>>> v1.6.0
         apkImportManager.setOnImportCompleteListener(() -> {
             versionManager.loadAllVersions();
             loadVersions();
@@ -181,14 +151,6 @@ public class InstancesActivity extends BaseActivity {
         int spacing = (int) (10 * getResources().getDisplayMetrics().density);
         recyclerView.addItemDecoration(new GridSpacingDecoration(spanCount, spacing));
 
-<<<<<<< HEAD
-        // v681：fastScroll 从 XML 移除（vivo Android 16 上 selector inflate 为 null
-        // 导致 RecyclerView 构造崩溃）。改反射调用 1.2.1 的 4 参 initFastScroller，
-        // 任一环节失败静默降级为系统滚动条，不再崩溃。
-        enableFastScroll(recyclerView);
-
-=======
->>>>>>> v1.6.0
         loadVersions();
 
         GameVersion selectedVersion = versionManager.getSelectedVersion();
@@ -332,24 +294,7 @@ public class InstancesActivity extends BaseActivity {
         btnImportBackup.setVisibility(View.VISIBLE);
         btnImportBackup.setSelected(true);
         applyAccentButtonStyle(btnImportBackup);
-<<<<<<< HEAD
-        // v570：导入备份菜单化——点按钮打开备份列表（一级时间戳列表 +
-        // 二级详情），菜单里保留「从文件管理器选择」兜底原 SAF 流程
-        btnImportBackup.setOnClickListener(v -> new org.levimc.launcher.ui.dialogs.BackupListDialog(
-                this, new org.levimc.launcher.ui.dialogs.BackupListDialog.Listener() {
-            @Override
-            public void onRestoreRequested(java.io.File backupFile) {
-                restoreBackup(android.net.Uri.fromFile(backupFile));
-            }
-
-            @Override
-            public void onPickFromFilesRequested() {
-                startBackupImportPicker();
-            }
-        }).show());
-=======
         btnImportBackup.setOnClickListener(v -> startBackupImportPicker());
->>>>>>> v1.6.0
     }
 
     private void setupBatchBackupButton() {
@@ -375,16 +320,7 @@ public class InstancesActivity extends BaseActivity {
     }
 
     private void startApkFilePicker() {
-<<<<<<< HEAD
-        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("*/*");
-        String[] mimeTypes = {"application/vnd.android.package-archive", "application/octet-stream", "application/zip"};
-        intent.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes);
-        apkImportResultLauncher.launch(intent);
-=======
         apkImportResultLauncher.launch(StorageAccess.downloadsPicker(false));
->>>>>>> v1.6.0
     }
 
     private void startBackupImportPicker() {
@@ -449,19 +385,6 @@ public class InstancesActivity extends BaseActivity {
                         .setPositiveButton(getString(R.string.confirm), null)
                         .show();
             }
-<<<<<<< HEAD
-
-            @Override
-            public void onAlreadyExists(String existingName) {
-                finishRestoreProgress();
-                new CustomAlertDialog(InstancesActivity.this)
-                        .setTitleText(getString(R.string.instance_restore_already_exists_title))
-                        .setMessage(getString(R.string.instance_restore_already_exists_message, existingName))
-                        .setPositiveButton(getString(R.string.confirm), null)
-                        .show();
-            }
-=======
->>>>>>> v1.6.0
         });
     }
 
@@ -662,17 +585,8 @@ public class InstancesActivity extends BaseActivity {
 
     private void startBatchBackupWithPermissionCheck(List<GameVersion> versionsToBackup) {
         pendingBatchBackupVersions = new ArrayList<>(versionsToBackup);
-<<<<<<< HEAD
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
-                && ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
-                    REQUEST_BATCH_BACKUP_STORAGE);
-=======
         if (backupManager.needsDownloadsFolderSelection()) {
             backupDownloadsFolderLauncher.launch(backupManager.downloadsFolderPicker());
->>>>>>> v1.6.0
             return;
         }
         startBatchBackup();
@@ -757,31 +671,14 @@ public class InstancesActivity extends BaseActivity {
 
         String savedLines = joinLines(batchBackupPaths);
         String failedLines = joinLines(batchBackupFailures);
-<<<<<<< HEAD
-        // v532：备份结果提示改通知栏（成功/部分成功），失败保留弹窗
-        if (batchBackupPaths.isEmpty()) {
-            new CustomAlertDialog(this)
-=======
         CustomAlertDialog resultDialog = new CustomAlertDialog(this);
         if (batchBackupPaths.isEmpty()) {
             resultDialog
->>>>>>> v1.6.0
                     .setTitleText(getString(R.string.instance_batch_backup_failed_title))
                     .setMessage(getString(R.string.instance_batch_backup_failed_message, failedLines))
                     .setPositiveButton(getString(R.string.confirm), null)
                     .show();
         } else if (batchBackupFailures.isEmpty()) {
-<<<<<<< HEAD
-            org.levimc.launcher.util.BackupNotifier.show(this,
-                    getString(R.string.instance_batch_backup_success_title),
-                    getString(R.string.instance_batch_backup_success_message,
-                            batchBackupPaths.size(), savedLines));
-        } else {
-            org.levimc.launcher.util.BackupNotifier.show(this,
-                    getString(R.string.instance_batch_backup_partial_title),
-                    getString(R.string.instance_batch_backup_partial_message,
-                            batchBackupPaths.size(), batchBackupFailures.size(), savedLines, failedLines));
-=======
             resultDialog
                     .setTitleText(getString(R.string.instance_batch_backup_success_title))
                     .setMessage(getString(R.string.instance_batch_backup_success_message,
@@ -795,7 +692,6 @@ public class InstancesActivity extends BaseActivity {
                             batchBackupPaths.size(), batchBackupFailures.size(), savedLines, failedLines))
                     .setPositiveButton(getString(R.string.confirm), null)
                     .show();
->>>>>>> v1.6.0
         }
 
         pendingBatchBackupVersions = new ArrayList<>();
@@ -919,22 +815,6 @@ public class InstancesActivity extends BaseActivity {
         applyFilters();
     }
 
-<<<<<<< HEAD
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQUEST_BATCH_BACKUP_STORAGE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startBatchBackup();
-            } else {
-                pendingBatchBackupVersions = new ArrayList<>();
-                Toast.makeText(this, R.string.storage_permission_not_granted, Toast.LENGTH_SHORT).show();
-            }
-        }
-    }
-
-=======
->>>>>>> v1.6.0
     private static class GridSpacingDecoration extends RecyclerView.ItemDecoration {
         private final int spanCount;
         private final int spacing;
@@ -1125,34 +1005,4 @@ public class InstancesActivity extends BaseActivity {
             }
         }
     }
-<<<<<<< HEAD
-
-    /**
-     * v681：fastScroll 由 XML 改为反射启用。
-     * vivo Android 16 上 XML 的 selector inflate 为 null 导致 RecyclerView 构造崩溃；
-     * 反射走 1.2.1 的 4 参 initFastScroller，失败静默降级为系统滚动条。
-     */
-    private void enableFastScroll(RecyclerView rv) {
-        try {
-            java.lang.reflect.Field enabled = RecyclerView.class.getDeclaredField("mEnableFastScroller");
-            enabled.setAccessible(true);
-            enabled.setBoolean(rv, true);
-            java.lang.reflect.Method init = RecyclerView.class.getDeclaredMethod("initFastScroller",
-                    android.graphics.drawable.StateListDrawable.class,
-                    android.graphics.drawable.Drawable.class,
-                    android.graphics.drawable.StateListDrawable.class,
-                    android.graphics.drawable.Drawable.class);
-            init.setAccessible(true);
-            android.graphics.drawable.StateListDrawable thumb =
-                    (android.graphics.drawable.StateListDrawable) ContextCompat.getDrawable(this, R.drawable.bg_fastscroll_thumb);
-            android.graphics.drawable.Drawable track =
-                    ContextCompat.getDrawable(this, R.drawable.bg_fastscroll_track);
-            if (thumb == null || track == null) return; // 降级：系统滚动条
-            init.invoke(rv, thumb, track, thumb, track);
-        } catch (Throwable t) {
-            // 任一环节失败：降级为系统滚动条，不崩溃
-        }
-    }
-=======
->>>>>>> v1.6.0
 }

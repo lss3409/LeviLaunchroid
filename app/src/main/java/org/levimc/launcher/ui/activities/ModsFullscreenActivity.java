@@ -3,10 +3,7 @@ package org.levimc.launcher.ui.activities;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.Environment;
-import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.Button;
 
 import android.widget.TextView;
@@ -29,21 +26,13 @@ import org.levimc.launcher.core.mods.Mod;
 import org.levimc.launcher.core.mods.inbuilt.manager.InbuiltModManager;
 import org.levimc.launcher.core.versions.VersionManager;
 import org.levimc.launcher.ui.adapter.ModsAdapter;
-import org.levimc.launcher.ui.adapter.ScannedModsAdapter;
 import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
 import org.levimc.launcher.ui.animation.DynamicAnim;
 import org.levimc.launcher.ui.views.MainViewModel;
 import org.levimc.launcher.ui.views.MainViewModelFactory;
-<<<<<<< HEAD
-import org.levimc.launcher.util.PermissionsHandler;
-import org.levimc.launcher.util.PersonalizationManager;
-import java.io.File;
-=======
 import org.levimc.launcher.util.StorageAccess;
 import org.levimc.launcher.util.PersonalizationManager;
->>>>>>> v1.6.0
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
 public class ModsFullscreenActivity extends BaseActivity {
@@ -54,12 +43,8 @@ public class ModsFullscreenActivity extends BaseActivity {
     private TextView totalModsCount;
     private TextView enabledModsCount;
     private ActivityResultLauncher<Intent> pickModLauncher;
-    private ActivityResultLauncher<Intent> permissionResultLauncher;
     private FileHandler fileHandler;
     private InbuiltModManager inbuiltModManager;
-    private PermissionsHandler permissionsHandler;
-    private Button scanModsButton;
-    private boolean scanInProgress;
     private int lastModsCount = -1;
 
     @Override
@@ -78,29 +63,13 @@ public class ModsFullscreenActivity extends BaseActivity {
         setupRecyclerView();
         fileHandler = new FileHandler(this, viewModel, VersionManager.get(this));
 
-<<<<<<< HEAD
-        permissionResultLauncher = registerForActivityResult(
-                new ActivityResultContracts.StartActivityForResult(),
-                result -> {
-                    if (permissionsHandler != null) {
-                        permissionsHandler.onActivityResult(result.getResultCode(), result.getData());
-                    }
-                });
-        permissionsHandler = PermissionsHandler.getInstance();
-        permissionsHandler.setActivity(this, permissionResultLauncher);
-        
-=======
->>>>>>> v1.6.0
         pickModLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
                     if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-<<<<<<< HEAD
-=======
                         for (Uri uri : StorageAccess.selectedUris(result.getData())) {
                             StorageAccess.retainReadPermission(this, result.getData(), uri);
                         }
->>>>>>> v1.6.0
                         fileHandler.processIncomingFilesWithConfirmation(
                                 result.getData(), createImportCallback(), true);
                     }
@@ -116,17 +85,6 @@ public class ModsFullscreenActivity extends BaseActivity {
         });
         DynamicAnim.applyPressScale(addModButton);
 
-<<<<<<< HEAD
-        scanModsButton = findViewById(R.id.scan_mods_button);
-        scanModsButton.setEnabled(!scanInProgress);
-        scanModsButton.setText(scanInProgress
-                ? R.string.scan_downloads_scanning
-                : R.string.scan_downloads);
-        scanModsButton.setOnClickListener(v -> requestDownloadsScan());
-        DynamicAnim.applyPressScale(scanModsButton);
-
-=======
->>>>>>> v1.6.0
         Button modMenuButton = findViewById(R.id.mod_menu_button);
         boolean isMenuEnabled = inbuiltModManager.isModMenuEnabled();
         modMenuButton.setText(getString(R.string.mod_menu) + ": " + (isMenuEnabled ? "ON" : "OFF"));
@@ -155,167 +113,7 @@ public class ModsFullscreenActivity extends BaseActivity {
     }
 
     private void startFilePicker() {
-<<<<<<< HEAD
-        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("*/*");
-        // 支持批量选择模组（.so / .zip / .levipack），FileHandler 会按 ClipData 逐个处理
-        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
-                "application/zip", "application/x-zip", "application/x-zip-compressed",
-                "application/octet-stream", "application/x-sharedlib"});
-        pickModLauncher.launch(intent);
-=======
         pickModLauncher.launch(StorageAccess.downloadsPicker(true));
-    }
-
-    private FileHandler.FileOperationCallback createImportCallback() {
-        return new FileHandler.FileOperationCallback() {
-            @Override
-            public void onSuccess(int processedFiles) {
-                Toast.makeText(ModsFullscreenActivity.this,
-                        getString(R.string.files_processed, processedFiles), Toast.LENGTH_SHORT).show();
-            }
-
-            @Override
-            public void onError(String errorMessage) {
-                Toast.makeText(ModsFullscreenActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
-            }
-
-            @Override
-            public void onProgressUpdate(int progress) {
-            }
-        };
->>>>>>> v1.6.0
-    }
-
-    private void requestDownloadsScan() {
-        if (scanInProgress || permissionsHandler == null) return;
-        permissionsHandler.requestPermission(PermissionsHandler.PermissionType.STORAGE,
-                new PermissionsHandler.PermissionResultCallback() {
-                    @Override
-                    public void onPermissionGranted(PermissionsHandler.PermissionType type) {
-                        if (type == PermissionsHandler.PermissionType.STORAGE) {
-                            scanDownloads();
-                        }
-                    }
-
-                    @Override
-                    public void onPermissionDenied(PermissionsHandler.PermissionType type, boolean permanentlyDenied) {
-                        if (type == PermissionsHandler.PermissionType.STORAGE) {
-                            Toast.makeText(ModsFullscreenActivity.this,
-                                    R.string.scan_downloads_permission_denied,
-                                    Toast.LENGTH_LONG).show();
-                        }
-                    }
-                });
-    }
-
-    private void scanDownloads() {
-        scanInProgress = true;
-        updateScanButton();
-        new Thread(() -> {
-            List<File> files = new ArrayList<>();
-            String error = null;
-            try {
-                File downloads = Environment.getExternalStoragePublicDirectory(
-                        Environment.DIRECTORY_DOWNLOADS);
-                if (downloads.isDirectory()) {
-                    File[] downloadedFiles = downloads.listFiles();
-                    if (downloadedFiles == null) {
-                        throw new IllegalStateException("Downloads is not readable");
-                    }
-                    collectDownloadedMods(downloadedFiles, files);
-                }
-                files.sort(Comparator.comparingLong(File::lastModified).reversed());
-            } catch (Exception e) {
-                error = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
-            }
-
-            String scanError = error;
-            runOnUiThread(() -> {
-                scanInProgress = false;
-                if (isFinishing() || isDestroyed()) return;
-                updateScanButton();
-                if (scanError != null) {
-                    Toast.makeText(this, R.string.scan_downloads_failed, Toast.LENGTH_LONG).show();
-                    return;
-                }
-                if (files.isEmpty()) {
-                    Toast.makeText(this, R.string.scan_downloads_none_found, Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                showScannedMods(files);
-            });
-        }).start();
-    }
-
-    private void showScannedMods(List<File> files) {
-        View content = LayoutInflater.from(this).inflate(R.layout.dialog_scanned_mods, null);
-        RecyclerView results = content.findViewById(R.id.scan_results_recycler);
-        results.setLayoutManager(new LinearLayoutManager(this));
-
-        ScannedModsAdapter[] adapterHolder = new ScannedModsAdapter[1];
-        adapterHolder[0] = new ScannedModsAdapter(files,
-                file -> addScannedMod(file, adapterHolder[0]));
-        results.setAdapter(adapterHolder[0]);
-
-        float density = getResources().getDisplayMetrics().density;
-        ViewGroup.LayoutParams params = results.getLayoutParams();
-        int desiredHeight = (int) (Math.min(files.size(), 4) * 72 * density);
-        int availableHeight = getResources().getDisplayMetrics().heightPixels - (int) (190 * density);
-        params.height = Math.min(desiredHeight, Math.max((int) (72 * density), availableHeight));
-        results.setLayoutParams(params);
-
-        new CustomAlertDialog(this)
-                .setTitleText(getString(R.string.scan_downloads_results_title))
-                .setCustomView(content)
-                .setNegativeButton(getString(R.string.close), null)
-                .setUseBorderedBackground(true)
-                .setBlurBackground(true)
-                .show();
-    }
-
-    private void addScannedMod(File file, ScannedModsAdapter adapter) {
-        adapter.setImporting(file);
-        fileHandler.processScannedFile(Uri.fromFile(file), new FileHandler.FileOperationCallback() {
-            @Override
-            public void onSuccess(int processedFiles) {
-                if (isFinishing() || isDestroyed()) return;
-                adapter.setAdded(file);
-                Toast.makeText(ModsFullscreenActivity.this,
-                        getString(R.string.scan_downloads_added_message, file.getName()),
-                        Toast.LENGTH_SHORT).show();
-            }
-
-            @Override
-            public void onError(String errorMessage) {
-                if (isFinishing() || isDestroyed()) return;
-                adapter.setIdle(file);
-                Toast.makeText(ModsFullscreenActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
-            }
-
-            @Override
-            public void onProgressUpdate(int progress) {
-            }
-        });
-    }
-
-    private void collectDownloadedMods(File[] children, List<File> files) {
-        for (File child : children) {
-            String name = child.getName().toLowerCase(java.util.Locale.ROOT);
-            if (child.isFile() && (name.endsWith(".levipack") || name.endsWith(".so"))) {
-                files.add(child);
-            }
-        }
-    }
-
-    private void updateScanButton() {
-        if (scanModsButton == null) return;
-        scanModsButton.setEnabled(!scanInProgress);
-        scanModsButton.setText(scanInProgress
-                ? R.string.scan_downloads_scanning
-                : R.string.scan_downloads);
     }
 
     private FileHandler.FileOperationCallback createImportCallback() {
@@ -455,11 +253,6 @@ public class ModsFullscreenActivity extends BaseActivity {
         itemTouchHelper.attachToRecyclerView(modsRecycler);
         modsAdapter.setItemTouchHelper(itemTouchHelper);
     }
-<<<<<<< HEAD
-
-
-=======
->>>>>>> v1.6.0
 
     private void updateModsUI(List<Mod> mods) {
         if (modsAdapter != null) {
@@ -496,12 +289,6 @@ public class ModsFullscreenActivity extends BaseActivity {
     @Override
     protected void onResume() {
         super.onResume();
-<<<<<<< HEAD
-        if (permissionsHandler != null) {
-            permissionsHandler.setActivity(this, permissionResultLauncher);
-        }
-=======
->>>>>>> v1.6.0
         setupViews();
         if (viewModel != null) {
             viewModel.refreshMods();
@@ -509,15 +296,4 @@ public class ModsFullscreenActivity extends BaseActivity {
         updateModsCount();
     }
 
-<<<<<<< HEAD
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (permissionsHandler != null) {
-            permissionsHandler.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        }
-    }
-=======
->>>>>>> v1.6.0
 }

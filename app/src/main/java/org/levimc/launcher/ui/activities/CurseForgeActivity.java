@@ -15,25 +15,9 @@ import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.PopupMenu;
 import android.widget.ProgressBar;
-<<<<<<< HEAD
-import android.widget.Spinner;
-import android.widget.RadioGroup;
-import android.widget.RadioButton;
-import android.widget.PopupMenu;
-import android.view.ViewGroup;
-import android.widget.Toast;
-import android.graphics.Color;
-import android.graphics.drawable.GradientDrawable;
-import android.graphics.drawable.StateListDrawable;
-import android.content.res.ColorStateList;
-import android.util.TypedValue;
-import androidx.core.content.ContextCompat;
-import org.levimc.launcher.util.PersonalizationManager;
-=======
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
->>>>>>> v1.6.0
 
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -55,20 +39,6 @@ import java.util.List;
 
 public class CurseForgeActivity extends BaseActivity {
 
-<<<<<<< HEAD
-    private EditText searchBox;
-    private RadioGroup categoryGroup;
-    private com.google.android.material.button.MaterialButton btnSort;
-    private SortOption currentSort;
-    private RecyclerView recyclerView;
-    private ProgressBar loadingProgress;
-    private CurseForgeContentAdapter adapter;
-    private CurseForgeClient client;
-    private Handler handler = new Handler(Looper.getMainLooper());
-    private int currentPage = 1;
-    private int totalPages = 1;
-=======
->>>>>>> v1.6.0
     private static final int PAGE_SIZE = 20;
 
     private EditText searchBox;
@@ -121,19 +91,6 @@ public class CurseForgeActivity extends BaseActivity {
     }
 
     private void setupData() {
-<<<<<<< HEAD
-        categories.add(new Category(getString(R.string.curseforge_all_categories), 0));
-        categories.add(new Category(getString(R.string.curseforge_addons), 4984));
-        categories.add(new Category(getString(R.string.curseforge_maps), 6913));
-        categories.add(new Category(getString(R.string.curseforge_skins), 6925));
-        categories.add(new Category(getString(R.string.curseforge_texture_packs), 6929));
-        categories.add(new Category(getString(R.string.curseforge_scripts), 6940));
-
-        sortOptions.add(new SortOption(getString(R.string.curseforge_relevancy), CurseForgeClient.SORT_POPULARITY, "desc"));
-        sortOptions.add(new SortOption(getString(R.string.curseforge_total_downloads), CurseForgeClient.SORT_TOTAL_DOWNLOADS, "desc"));
-        sortOptions.add(new SortOption(getString(R.string.curseforge_last_updated), CurseForgeClient.SORT_LAST_UPDATED, "desc"));
-        sortOptions.add(new SortOption(getString(R.string.curseforge_name), CurseForgeClient.SORT_NAME, "asc"));
-=======
         categories.add(new Category("All", 0));
         categories.add(new Category("Addons", 4984));
         categories.add(new Category("Maps", 6913));
@@ -145,7 +102,6 @@ public class CurseForgeActivity extends BaseActivity {
         sortOptions.add(new SortOption("Downloads", CurseForgeClient.SORT_TOTAL_DOWNLOADS, "desc"));
         sortOptions.add(new SortOption("Recently updated", CurseForgeClient.SORT_LAST_UPDATED, "desc"));
         sortOptions.add(new SortOption("Name", CurseForgeClient.SORT_NAME, "asc"));
->>>>>>> v1.6.0
     }
 
     private int dp(float value) {
@@ -158,10 +114,7 @@ public class CurseForgeActivity extends BaseActivity {
         btnSort = findViewById(R.id.btn_sort);
         recyclerView = findViewById(R.id.mods_recycler);
         loadingProgress = findViewById(R.id.loading_progress);
-<<<<<<< HEAD
-=======
         emptyMessage = findViewById(R.id.empty_message);
->>>>>>> v1.6.0
 
         adapter = new CurseForgeContentAdapter(this::onContentClick, new CurseForgeContentAdapter.OnPageChangeListener() {
             @Override
@@ -179,31 +132,6 @@ public class CurseForgeActivity extends BaseActivity {
                     loadContent();
                 }
             }
-
-            @Override
-            public void onJumpToPage(int page) {
-                android.widget.EditText input = new android.widget.EditText(CurseForgeActivity.this);
-                input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-                input.setHint("1 - " + totalPages);
-                input.setTextColor(getColor(R.color.on_surface));
-                input.setHintTextColor(getColor(R.color.text_secondary));
-                new org.levimc.launcher.ui.dialogs.CustomAlertDialog(CurseForgeActivity.this)
-                        .setTitleText(getString(R.string.jump_to_page))
-                        .setCustomView(input)
-                        .setPositiveButton(getString(R.string.go), v -> {
-                            String s = input.getText().toString().trim();
-                            if (s.isEmpty()) return;
-                            try {
-                                int target = Integer.parseInt(s);
-                                if (target >= 1 && target <= totalPages && target != currentPage) {
-                                    currentPage = target;
-                                    loadContent();
-                                }
-                            } catch (NumberFormatException ignored) {}
-                        })
-                        .setNegativeButton(getString(R.string.cancel), null)
-                        .show();
-            }
         });
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setItemAnimator(null);
@@ -220,60 +148,6 @@ public class CurseForgeActivity extends BaseActivity {
             return false;
         });
 
-<<<<<<< HEAD
-        PersonalizationManager pm = new PersonalizationManager(this);
-        int accentColor = pm.hasCustomAccent() ? pm.getAccentColor() : ContextCompat.getColor(this, R.color.primary);
-        int onSurface = ContextCompat.getColor(this, R.color.on_surface);
-
-        ColorStateList textColors = new ColorStateList(
-            new int[][]{
-                new int[]{android.R.attr.state_checked},
-                new int[]{android.R.attr.state_selected},
-                new int[]{}
-            },
-            new int[]{
-                Color.WHITE,
-                Color.WHITE,
-                onSurface
-            }
-        );
-
-        float radiusPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20f, getResources().getDisplayMetrics());
-
-        for (int i = 0; i < categories.size(); i++) {
-            Category cat = categories.get(i);
-            RadioButton rb = new RadioButton(this);
-            rb.setId(View.generateViewId());
-            rb.setText(cat.name);
-            rb.setTextColor(textColors);
-            rb.setTextSize(14f);
-            rb.setButtonDrawable(android.R.color.transparent);
-            
-            GradientDrawable checkedBg = new GradientDrawable();
-            checkedBg.setShape(GradientDrawable.RECTANGLE);
-            checkedBg.setCornerRadius(radiusPx);
-            checkedBg.setColor(accentColor);
-            
-            GradientDrawable uncheckedBg = new GradientDrawable();
-            uncheckedBg.setShape(GradientDrawable.RECTANGLE);
-            uncheckedBg.setCornerRadius(radiusPx);
-            uncheckedBg.setColor(Color.parseColor("#1A888888"));
-            
-            StateListDrawable sld = new StateListDrawable();
-            sld.addState(new int[]{android.R.attr.state_checked}, checkedBg);
-            sld.addState(new int[]{android.R.attr.state_selected}, checkedBg);
-            sld.addState(new int[]{}, uncheckedBg);
-            
-            rb.setBackground(sld);
-            rb.setPadding(40, 20, 40, 20);
-            RadioGroup.LayoutParams params = new RadioGroup.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, 
-                ViewGroup.LayoutParams.WRAP_CONTENT);
-            params.setMargins(0, 0, 16, 0);
-            categoryGroup.addView(rb, params);
-            if (i == 0) rb.setChecked(true);
-            rb.setTag(cat);
-=======
         PersonalizationManager personalization = new PersonalizationManager(this);
         int accentColor = personalization.hasCustomAccent()
                 ? personalization.getAccentColor()
@@ -317,7 +191,6 @@ public class CurseForgeActivity extends BaseActivity {
             params.setMarginEnd(dp(7));
             categoryGroup.addView(chip, params);
             if (i == 0) chip.setChecked(true);
->>>>>>> v1.6.0
         }
 
         categoryGroup.setOnCheckedChangeListener((group, checkedId) -> {
@@ -326,17 +199,6 @@ public class CurseForgeActivity extends BaseActivity {
         });
 
         currentSort = sortOptions.get(0);
-<<<<<<< HEAD
-        btnSort.setText(getString(R.string.curseforge_sort, currentSort.name));
-        btnSort.setOnClickListener(v -> {
-            PopupMenu popup = new PopupMenu(this, v);
-            for (int i = 0; i < sortOptions.size(); i++) {
-                popup.getMenu().add(0, i, i, sortOptions.get(i).name);
-            }
-            popup.setOnMenuItemClickListener(item -> {
-                currentSort = sortOptions.get(item.getItemId());
-                btnSort.setText(getString(R.string.curseforge_sort, currentSort.name));
-=======
         btnSort.setText(currentSort.name);
         btnSort.setOnClickListener(view -> {
             PopupMenu menu = new PopupMenu(this, view);
@@ -346,32 +208,15 @@ public class CurseForgeActivity extends BaseActivity {
             menu.setOnMenuItemClickListener(item -> {
                 currentSort = sortOptions.get(item.getItemId());
                 btnSort.setText(currentSort.name);
->>>>>>> v1.6.0
                 currentPage = 1;
                 loadContent();
                 return true;
             });
-<<<<<<< HEAD
-            popup.show();
-=======
             menu.show();
->>>>>>> v1.6.0
         });
     }
 
     private void loadContent() {
-<<<<<<< HEAD
-        String query = searchBox.getText().toString();
-        
-        Category category = null;
-        int checkedId = categoryGroup.getCheckedRadioButtonId();
-        if (checkedId != -1) {
-            category = (Category) findViewById(checkedId).getTag();
-        }
-        
-        SortOption sort = currentSort;
-        
-=======
         String query = searchBox.getText().toString().trim();
         int checkedId = categoryGroup.getCheckedRadioButtonId();
         Category category = null;
@@ -383,7 +228,6 @@ public class CurseForgeActivity extends BaseActivity {
         SortOption sort = currentSort;
         int request = ++requestSequence;
         int requestedPage = currentPage;
->>>>>>> v1.6.0
         loadingProgress.setVisibility(View.VISIBLE);
         emptyMessage.setVisibility(View.GONE);
         recyclerView.setVisibility(adapter.getItemCount() > 0 ? View.VISIBLE : View.INVISIBLE);

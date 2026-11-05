@@ -37,7 +37,6 @@
             android:background="@color/outline"
             android:alpha="0.35" />
 
-<<<<<<< HEAD
         <!-- v455：items 区可滚动——小屏弹窗高度受限时内部滚动，
              不再超出屏幕 -->
         <ScrollView
@@ -55,14 +54,6 @@
                 android:orientation="vertical"
                 android:paddingTop="5dp" />
         </ScrollView>
-=======
-        <LinearLayout
-            android:id="@+id/action_menu_items"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingTop="5dp" />
->>>>>>> v1.6.0
 
     </LinearLayout>
 

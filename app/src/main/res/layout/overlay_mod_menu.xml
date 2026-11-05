@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<org.levimc.launcher.core.mods.inbuilt.overlay.ModMenuKeyRoot xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -25,10 +25,6 @@
             android:orientation="horizontal">
 
             <LinearLayout
-<<<<<<< HEAD
-=======
-                android:id="@+id/mod_menu_sidebar"
->>>>>>> v1.6.0
                 android:layout_width="150dp"
                 android:layout_height="match_parent"
                 android:background="#151719"
@@ -37,10 +33,6 @@
                 android:paddingBottom="14dp">
 
                 <ImageView
-<<<<<<< HEAD
-=======
-                    android:id="@+id/mod_menu_logo"
->>>>>>> v1.6.0
                     android:layout_width="38dp"
                     android:layout_height="38dp"
                     android:layout_gravity="center_horizontal"
@@ -67,24 +59,6 @@
                     android:textSize="13sp"
                     android:textStyle="bold" />
 
-<<<<<<< HEAD
-=======
-                <ImageButton
-                    android:id="@+id/nav_modules_compact"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="2dp"
-                    android:background="@drawable/bg_mod_menu_nav_compact_selected"
-                    android:contentDescription="@string/mod_menu_modules"
-                    android:defaultFocusHighlightEnabled="false"
-                    android:padding="12dp"
-                    android:scaleType="center"
-                    android:src="@drawable/ic_modules"
-                    android:tint="#4AE0A0"
-                    android:visibility="gone" />
-
->>>>>>> v1.6.0
                 <TextView
                     android:id="@+id/nav_hud_editor"
                     android:layout_width="match_parent"
@@ -103,24 +77,6 @@
                     android:text="@string/mod_menu_hud_editor"
                     android:textColor="#A8B0B8"
                     android:textSize="13sp" />
-<<<<<<< HEAD
-=======
-
-                <ImageButton
-                    android:id="@+id/nav_hud_editor_compact"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="6dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="@string/mod_menu_hud_editor"
-                    android:defaultFocusHighlightEnabled="false"
-                    android:padding="12dp"
-                    android:scaleType="center"
-                    android:src="@drawable/ic_edit"
-                    android:tint="#A8B0B8"
-                    android:visibility="gone" />
->>>>>>> v1.6.0
 
                 <TextView
                     android:id="@+id/nav_settings"
@@ -140,24 +96,6 @@
                     android:text="@string/settings"
                     android:textColor="#A8B0B8"
                     android:textSize="13sp" />
-<<<<<<< HEAD
-=======
-
-                <ImageButton
-                    android:id="@+id/nav_settings_compact"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="6dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="@string/settings"
-                    android:defaultFocusHighlightEnabled="false"
-                    android:padding="12dp"
-                    android:scaleType="center"
-                    android:src="@drawable/ic_settings"
-                    android:tint="#A8B0B8"
-                    android:visibility="gone" />
->>>>>>> v1.6.0
 
             </LinearLayout>
 
@@ -258,156 +196,6 @@
                         android:padding="8dp"
                         android:src="@drawable/ic_close"
                         android:tint="#FFFFFF" />
-<<<<<<< HEAD
-=======
-
-                </LinearLayout>
-
-                <HorizontalScrollView
-                    android:id="@+id/filter_bar"
-                    android:layout_width="match_parent"
-                    android:layout_height="44dp"
-                    android:background="#1C1F22"
-                    android:overScrollMode="never"
-                    android:scrollbars="none">
-
-                    <LinearLayout
-                        android:layout_width="wrap_content"
-                        android:layout_height="match_parent"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingStart="12dp"
-                        android:paddingEnd="12dp">
-
-                        <TextView
-                            android:id="@+id/filter_all"
-                            android:layout_width="wrap_content"
-                            android:layout_height="30dp"
-                            android:layout_marginEnd="8dp"
-                            android:background="@drawable/bg_search_field"
-                            android:defaultFocusHighlightEnabled="false"
-                            android:gravity="center"
-                            android:minWidth="58dp"
-                            android:paddingStart="14dp"
-                            android:paddingEnd="14dp"
-                            android:text="@string/filter_all"
-                            android:textColor="#4AE0A0"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/filter_favorites"
-                            android:layout_width="wrap_content"
-                            android:layout_height="30dp"
-                            android:layout_marginEnd="8dp"
-                            android:background="@drawable/bg_search_field"
-                            android:defaultFocusHighlightEnabled="false"
-                            android:gravity="center"
-                            android:minWidth="72dp"
-                            android:paddingStart="14dp"
-                            android:paddingEnd="14dp"
-                            android:text="@string/mod_menu_favorites"
-                            android:textColor="#A8B0B8"
-                            android:textSize="12sp" />
-
-                        <TextView
-                            android:id="@+id/filter_enabled"
-                            android:layout_width="wrap_content"
-                            android:layout_height="30dp"
-                            android:layout_marginEnd="8dp"
-                            android:background="@drawable/bg_search_field"
-                            android:defaultFocusHighlightEnabled="false"
-                            android:gravity="center"
-                            android:minWidth="72dp"
-                            android:paddingStart="14dp"
-                            android:paddingEnd="14dp"
-                            android:text="@string/mod_menu_filter_enabled"
-                            android:textColor="#A8B0B8"
-                            android:textSize="12sp" />
-
-                        <TextView
-                            android:id="@+id/filter_inbuilt"
-                            android:layout_width="wrap_content"
-                            android:layout_height="30dp"
-                            android:layout_marginEnd="8dp"
-                            android:background="@drawable/bg_search_field"
-                            android:defaultFocusHighlightEnabled="false"
-                            android:gravity="center"
-                            android:minWidth="72dp"
-                            android:paddingStart="14dp"
-                            android:paddingEnd="14dp"
-                            android:text="@string/mod_menu_filter_inbuilt"
-                            android:textColor="#A8B0B8"
-                            android:textSize="12sp" />
-
-                        <TextView
-                            android:id="@+id/filter_external"
-                            android:layout_width="wrap_content"
-                            android:layout_height="30dp"
-                            android:layout_marginEnd="8dp"
-                            android:background="@drawable/bg_search_field"
-                            android:defaultFocusHighlightEnabled="false"
-                            android:gravity="center"
-                            android:minWidth="72dp"
-                            android:paddingStart="14dp"
-                            android:paddingEnd="14dp"
-                            android:text="@string/mod_menu_filter_external"
-                            android:textColor="#A8B0B8"
-                            android:textSize="12sp" />
-
-                        <TextView
-                            android:id="@+id/module_count_text"
-                            android:layout_width="wrap_content"
-                            android:layout_height="30dp"
-                            android:gravity="center"
-                            android:textColor="#A8B0B8"
-                            android:textSize="11sp" />
-
-                    </LinearLayout>
-                </HorizontalScrollView>
-
-                <LinearLayout
-                    android:id="@+id/compact_filter_bar"
-                    android:layout_width="match_parent"
-                    android:layout_height="44dp"
-                    android:background="#1C1F22"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingStart="10dp"
-                    android:paddingEnd="12dp"
-                    android:visibility="gone">
-
-                    <TextView
-                        android:id="@+id/compact_filter_selector"
-                        android:layout_width="wrap_content"
-                        android:layout_height="30dp"
-                        android:background="@drawable/bg_search_field"
-                        android:defaultFocusHighlightEnabled="false"
-                        android:drawableEnd="@drawable/ic_arrow_down"
-                        android:drawablePadding="6dp"
-                        android:drawableTint="#A8B0B8"
-                        android:gravity="center_vertical"
-                        android:minWidth="94dp"
-                        android:paddingStart="12dp"
-                        android:paddingEnd="10dp"
-                        android:text="@string/filter_all"
-                        android:textColor="#4AE0A0"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-
-                    <Space
-                        android:layout_width="0dp"
-                        android:layout_height="1dp"
-                        android:layout_weight="1" />
-
-                    <TextView
-                        android:id="@+id/compact_module_count"
-                        android:layout_width="wrap_content"
-                        android:layout_height="30dp"
-                        android:gravity="center"
-                        android:textColor="#A8B0B8"
-                        android:textSize="11sp" />
->>>>>>> v1.6.0
 
                 </LinearLayout>
 
@@ -632,14 +420,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:thumbTint="#4AE0A0"
-<<<<<<< HEAD
                                 android:trackTint="@color/switch_track_color"
                                 android:showText="true"
                                 android:textOn="@string/switch_on"
                                 android:textOff="@string/switch_off" />
-=======
-                                android:trackTint="@color/switch_track_color" />
->>>>>>> v1.6.0
 
                         </LinearLayout>
 
@@ -689,71 +473,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:thumbTint="#4AE0A0"
-<<<<<<< HEAD
                                 android:trackTint="@color/switch_track_color"
                                 android:showText="true"
                                 android:textOn="@string/switch_on"
                                 android:textOff="@string/switch_off" />
-=======
-                                android:trackTint="@color/switch_track_color" />
-
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:id="@+id/setting_mod_menu_keybind"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
-                            android:background="@drawable/bg_mod_status_disabled"
-                            android:clickable="true"
-                            android:focusable="true"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal"
-                            android:padding="12dp">
-
-                            <ImageView
-                                android:layout_width="24dp"
-                                android:layout_height="24dp"
-                                android:src="@drawable/ic_menu"
-                                android:tint="#888888" />
-
-                            <LinearLayout
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="12dp"
-                                android:layout_weight="1"
-                                android:orientation="vertical">
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/mod_menu_keybind"
-                                    android:textColor="#FFFFFF"
-                                    android:textSize="13sp"
-                                    android:textStyle="bold" />
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginTop="2dp"
-                                    android:text="@string/mod_menu_keybind_desc"
-                                    android:textColor="#888888"
-                                    android:textSize="11sp" />
-
-                            </LinearLayout>
-
-                            <TextView
-                                android:id="@+id/mod_menu_keybind_value"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="12dp"
-                                android:minWidth="44dp"
-                                android:gravity="center"
-                                android:text="M"
-                                android:textColor="#4AE0A0"
-                                android:textSize="14sp"
-                                android:textStyle="bold" />
->>>>>>> v1.6.0
 
                         </LinearLayout>
 
@@ -776,65 +499,9 @@
                             android:textStyle="bold" />
 
                         <LinearLayout
-<<<<<<< HEAD
                             android:id="@+id/setting_mod_menu_opacity"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-=======
-                            android:id="@+id/setting_compact_mod_menu"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginBottom="12dp"
-                            android:background="@drawable/bg_mod_status_disabled"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal"
-                            android:padding="12dp">
-
-                            <ImageView
-                                android:layout_width="24dp"
-                                android:layout_height="24dp"
-                                android:src="@drawable/ic_menu"
-                                android:tint="#888888" />
-
-                            <LinearLayout
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="12dp"
-                                android:layout_weight="1"
-                                android:orientation="vertical">
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/mod_menu_compact"
-                                    android:textColor="#FFFFFF"
-                                    android:textSize="13sp"
-                                    android:textStyle="bold" />
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginTop="2dp"
-                                    android:text="@string/mod_menu_compact_desc"
-                                    android:textColor="#888888"
-                                    android:textSize="11sp" />
-
-                            </LinearLayout>
-
-                            <Switch
-                                android:id="@+id/switch_compact_mod_menu"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:thumbTint="#4AE0A0"
-                                android:trackTint="@color/switch_track_color" />
-
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:id="@+id/setting_mod_menu_opacity"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
->>>>>>> v1.6.0
                             android:background="@drawable/bg_mod_status_disabled"
                             android:orientation="vertical"
                             android:padding="12dp">
@@ -943,16 +610,11 @@
                     </LinearLayout>
                 </ScrollView>
 
-<<<<<<< HEAD
                 <LinearLayout
-=======
-                <FrameLayout
->>>>>>> v1.6.0
                     android:id="@+id/mod_config_container"
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
                     android:layout_weight="1"
-<<<<<<< HEAD
                     android:orientation="vertical"
                     android:visibility="gone">
 
@@ -969,15 +631,6 @@
                             android:padding="16dp" />
                     </ScrollView>
                 </LinearLayout>
-=======
-                    android:visibility="gone">
-
-                    <FrameLayout
-                        android:id="@+id/mod_config_content"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent" />
-                </FrameLayout>
->>>>>>> v1.6.0
 
             </LinearLayout>
 
@@ -1011,7 +664,6 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
-<<<<<<< HEAD
                 <ImageView
                     android:layout_width="24dp"
                     android:layout_height="24dp"
@@ -1027,58 +679,6 @@
                     android:textColor="#F1F4F6"
                     android:textSize="13sp"
                     android:textStyle="bold" />
-=======
-                <LinearLayout
-                    android:id="@+id/hud_editor_drag_handle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:minWidth="170dp"
-                    android:minHeight="56dp"
-                    android:layout_marginEnd="12dp"
-                    android:background="@drawable/bg_mod_status_enabled"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingStart="10dp"
-                    android:paddingEnd="10dp"
-                    android:paddingTop="8dp"
-                    android:paddingBottom="8dp"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:contentDescription="@string/hud_editor_drag_description">
-
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:layout_marginEnd="8dp"
-                        android:importantForAccessibility="no"
-                        android:src="@drawable/ic_drag_handle"
-                        android:tint="#4AE0A0" />
-
-                    <LinearLayout
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:importantForAccessibility="noHideDescendants">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/mod_menu_hud_editor"
-                            android:textColor="#F1F4F6"
-                            android:textSize="13sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:text="@string/hud_editor_drag_hint"
-                            android:textColor="#4AE0A0"
-                            android:textSize="11sp" />
-
-                    </LinearLayout>
-                </LinearLayout>
->>>>>>> v1.6.0
 
                 <ImageButton
                     android:id="@+id/btn_hud_save"
@@ -1146,8 +746,4 @@
         </LinearLayout>
     </androidx.cardview.widget.CardView>
 
-<<<<<<< HEAD
 </FrameLayout>
-=======
-</org.levimc.launcher.core.mods.inbuilt.overlay.ModMenuKeyRoot>
->>>>>>> v1.6.0

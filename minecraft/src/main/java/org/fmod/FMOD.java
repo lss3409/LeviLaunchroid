@@ -226,19 +226,6 @@ public class FMOD {
         return new int[0];
     }
 
-<<<<<<< HEAD
-    public static android.media.AudioDeviceInfo[] getAudioDevices(int dir) {
-        if (gContext != null && Build.VERSION.SDK_INT >= 23) {
-            AudioManager am = (AudioManager) gContext.getSystemService(Context.AUDIO_SERVICE);
-            if (am != null) {
-                return am.getDevices(dir);
-            }
-        }
-        return new android.media.AudioDeviceInfo[0];
-    }
-
-=======
->>>>>>> v1.6.0
     public static String getDeviceName(int deviceId) {
         Log.d("fmod", "FMOD::getDeviceName called with deviceId: " + deviceId);
         return "Default Device";

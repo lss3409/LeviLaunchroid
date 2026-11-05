@@ -1,12 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-<<<<<<< HEAD
     android:orientation="vertical"
-=======
-    android:orientation="horizontal"
-    android:gravity="center_vertical"
->>>>>>> v1.6.0
     android:paddingHorizontal="24dp"
     android:paddingVertical="20dp"
     android:background="@drawable/bg_rounded_card"
@@ -14,7 +9,6 @@
     android:layout_height="wrap_content"
     android:layout_gravity="center"
     android:minWidth="280dp">
-<<<<<<< HEAD
 
     <LinearLayout
         android:orientation="horizontal"
@@ -65,24 +59,3 @@
         android:background="?attr/selectableItemBackgroundBorderless"
         android:padding="4dp" />
 </LinearLayout>
-=======
-
-    <ProgressBar
-        android:id="@+id/progress_bar"
-        android:layout_width="36dp"
-        android:layout_height="36dp"
-        android:indeterminate="true"
-        android:layout_marginEnd="16dp" />
-        
-    <TextView
-        android:id="@+id/tv_message"
-        android:layout_width="0dp"
-        android:layout_weight="1"
-        android:layout_height="wrap_content"
-        android:text="@string/loading"
-        android:fontFamily="@font/misans"
-        android:textColor="@color/on_surface"
-        android:textStyle="bold"
-        android:textSize="16sp"/>
-</LinearLayout>
->>>>>>> v1.6.0

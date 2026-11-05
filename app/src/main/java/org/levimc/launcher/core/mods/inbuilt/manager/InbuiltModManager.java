@@ -4,11 +4,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.view.KeyEvent;
 
-<<<<<<< HEAD
-=======
 import org.levimc.launcher.core.mods.inbuilt.model.ModIds;
 
->>>>>>> v1.6.0
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -23,11 +20,8 @@ public class InbuiltModManager {
     private static final String KEY_NOTIFICATIONS_ENABLED = "notifications_enabled";
     private static final String KEY_MOD_MENU_OPACITY = "mod_menu_opacity";
     private static final String KEY_MOD_MENU_BUTTON_OPACITY = "mod_menu_button_opacity";
-<<<<<<< HEAD
-=======
     private static final String KEY_MOD_MENU_COMPACT = "mod_menu_compact";
     private static final String KEY_MOD_MENU_KEYBIND = "mod_menu_keybind";
->>>>>>> v1.6.0
     private static final String KEY_PAUSE_MENU_ONLY = "pause_menu_only";
     private static final String KEY_HIDE_LAUNCHER_HUD = "hide_launcher_hud_with_minecraft";
     private static final String KEY_FAVORITE_MOD_KEYS = "favorite_mod_keys";
@@ -37,10 +31,7 @@ public class InbuiltModManager {
     private static final String KEY_ZOOM_KEYBIND = "zoom_keybind";
     private static final String KEY_ZOOM_TRANSITION_DURATION = "zoom_transition_duration";
     private static final String KEY_CURSOR_SENSITIVITY = "cursor_sensitivity";
-<<<<<<< HEAD
-=======
     private static final String KEY_GYRO_SENSITIVITY_MULTIPLIER = "gyro_sensitivity_multiplier";
->>>>>>> v1.6.0
     private static final String KEY_GYRO_SENSITIVITY_X = "gyro_sensitivity_x";
     private static final String KEY_GYRO_SENSITIVITY_Y = "gyro_sensitivity_y";
     private static final String KEY_GYRO_INVERT_X = "gyro_invert_x";
@@ -50,22 +41,16 @@ public class InbuiltModManager {
     private static final String KEY_OVERLAY_POSITION_Y_PREFIX = "overlay_pos_y_";
     private static final String KEY_OVERLAY_LOCK_PREFIX = "overlay_lock_";
     private static final String KEY_OVERLAY_SHOW_EVERYWHERE_PREFIX = "overlay_show_everywhere_";
-<<<<<<< HEAD
-=======
     private static final String KEY_HOTBAR_ITEM_ICONS = "hotbar_item_icons";
     private static final String KEY_HOTBAR_ITEM_COUNTS = "hotbar_item_counts";
     private static final String KEY_HOTBAR_SLOT_ENABLED_PREFIX = "hotbar_slot_enabled_";
->>>>>>> v1.6.0
     private static final int DEFAULT_OVERLAY_BUTTON_SIZE = 56;
     private static final int DEFAULT_OVERLAY_OPACITY = 100;
     private static final int MIN_MOD_MENU_OPACITY = 70;
     private static final int DEFAULT_ZOOM_LEVEL = 10;
     private static final int DEFAULT_ZOOM_TRANSITION_DURATION = 150;
     private static final int DEFAULT_CURSOR_SENSITIVITY = 120;
-<<<<<<< HEAD
-=======
     private static final int DEFAULT_GYRO_SENSITIVITY_MULTIPLIER = 100;
->>>>>>> v1.6.0
     private static final int DEFAULT_GYRO_SENSITIVITY = 100;
     private static final int DEFAULT_GYRO_DEADZONE = 5;
 
@@ -166,11 +151,6 @@ public class InbuiltModManager {
         prefs.edit().putBoolean(KEY_MOD_MENU_ENABLED, enabled).apply();
     }
 
-<<<<<<< HEAD
-    /** v0.4.211（官方 5bf4c980 跟进）：F1 隐藏游戏 HUD 时联动隐藏启动器
-     *  悬浮球/覆盖按钮。 */
-=======
->>>>>>> v1.6.0
     public boolean isLauncherHudHideEnabled() {
         return prefs.getBoolean(KEY_HIDE_LAUNCHER_HUD, true);
     }
@@ -203,8 +183,6 @@ public class InbuiltModManager {
         prefs.edit().putInt(KEY_MOD_MENU_BUTTON_OPACITY, Math.max(0, Math.min(100, opacity))).apply();
     }
 
-<<<<<<< HEAD
-=======
     public boolean isModMenuCompact() {
         return prefs.getBoolean(KEY_MOD_MENU_COMPACT, false);
     }
@@ -221,7 +199,6 @@ public class InbuiltModManager {
         prefs.edit().putInt(KEY_MOD_MENU_KEYBIND, Math.max(KeyEvent.KEYCODE_UNKNOWN, keyCode)).apply();
     }
 
->>>>>>> v1.6.0
     public boolean isPauseMenuOnly() {
         return prefs.getBoolean(KEY_PAUSE_MENU_ONLY, false);
     }
@@ -331,59 +308,7 @@ public class InbuiltModManager {
     }
 
     public boolean isOverlayShowEverywhere(String modId) {
-<<<<<<< HEAD
-        return prefs.getBoolean(KEY_OVERLAY_SHOW_EVERYWHERE_PREFIX + modId, false);
-    }
-
-    public void setOverlayShowEverywhere(String modId, boolean showEverywhere) {
-        prefs.edit().putBoolean(KEY_OVERLAY_SHOW_EVERYWHERE_PREFIX + modId, showEverywhere).apply();
-    }
-
-    public long getOverlayVisibilityRevision() {
-        return overlayVisibilityRevision.get();
-    }
-
-    public int getGyroSensitivityX() {
-        return prefs.getInt(KEY_GYRO_SENSITIVITY_X, DEFAULT_GYRO_SENSITIVITY);
-    }
-
-    public void setGyroSensitivityX(int sensitivity) {
-        prefs.edit().putInt(KEY_GYRO_SENSITIVITY_X, Math.max(10, Math.min(300, sensitivity))).apply();
-    }
-
-    public int getGyroSensitivityY() {
-        return prefs.getInt(KEY_GYRO_SENSITIVITY_Y, DEFAULT_GYRO_SENSITIVITY);
-    }
-
-    public void setGyroSensitivityY(int sensitivity) {
-        prefs.edit().putInt(KEY_GYRO_SENSITIVITY_Y, Math.max(10, Math.min(300, sensitivity))).apply();
-    }
-
-    public boolean isGyroInvertX() {
-        return prefs.getBoolean(KEY_GYRO_INVERT_X, false);
-    }
-
-    public void setGyroInvertX(boolean invert) {
-        prefs.edit().putBoolean(KEY_GYRO_INVERT_X, invert).apply();
-    }
-
-    public boolean isGyroInvertY() {
-        return prefs.getBoolean(KEY_GYRO_INVERT_Y, false);
-    }
-
-    public void setGyroInvertY(boolean invert) {
-        prefs.edit().putBoolean(KEY_GYRO_INVERT_Y, invert).apply();
-    }
-
-    public int getGyroDeadzone() {
-        return prefs.getInt(KEY_GYRO_DEADZONE, DEFAULT_GYRO_DEADZONE);
-    }
-
-    public void setGyroDeadzone(int deadzone) {
-        prefs.edit().putInt(KEY_GYRO_DEADZONE, Math.max(0, Math.min(50, deadzone))).apply();
-=======
         return prefs.getBoolean(KEY_OVERLAY_SHOW_EVERYWHERE_PREFIX + sharedOverlaySettingsId(modId), false);
->>>>>>> v1.6.0
     }
 
     public void setOverlayShowEverywhere(String modId, boolean showEverywhere) {

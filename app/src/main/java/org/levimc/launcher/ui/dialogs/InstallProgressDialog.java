@@ -57,16 +57,10 @@ public class InstallProgressDialog extends Dialog {
         if (window != null) {
             window.setBackgroundDrawableResource(android.R.color.transparent);
             WindowManager.LayoutParams params = window.getAttributes();
-<<<<<<< HEAD
-            // v552：统一弹窗尺寸规范（平板比例为主，手机自动缩小）
-            params.width = org.levimc.launcher.util.DialogSizer.dialogWidth(
-                    getContext(), 340);
-=======
             float density = getContext().getResources().getDisplayMetrics().density;
             int screenWidth = getContext().getResources().getDisplayMetrics().widthPixels;
             int maxWidth = (int) (400 * density);
             params.width = Math.min((int) (screenWidth * 0.9f), maxWidth);
->>>>>>> v1.6.0
             params.height = WindowManager.LayoutParams.WRAP_CONTENT;
             params.dimAmount = 0.6f;
             window.setAttributes(params);
@@ -76,12 +70,6 @@ public class InstallProgressDialog extends Dialog {
         View content = findViewById(android.R.id.content);
         if (content != null) {
             DynamicAnim.animateDialogShow(content);
-            // 兜底：动画异常时强制显示内容，避免进度窗「弹出但不可见」
-            content.postDelayed(() -> {
-                content.setAlpha(1f);
-                content.setScaleX(1f);
-                content.setScaleY(1f);
-            }, 700);
         }
     }
 

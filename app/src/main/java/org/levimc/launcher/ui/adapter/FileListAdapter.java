@@ -85,15 +85,7 @@ public class FileListAdapter extends RecyclerView.Adapter<FileListAdapter.ViewHo
                 version.setText("");
             }
             
-<<<<<<< HEAD
-            if (btnDownload instanceof com.google.android.material.button.MaterialButton) {
-                com.google.android.material.button.MaterialButton btn = (com.google.android.material.button.MaterialButton) btnDownload;
-                btn.setTextColor(accentColor);
-                btn.setIconTint(android.content.res.ColorStateList.valueOf(accentColor));
-            }
-=======
             ((ImageButton) btnDownload).setImageTintList(ColorStateList.valueOf(accentColor));
->>>>>>> v1.6.0
 
             itemView.setOnClickListener(v -> listener.onDownloadClick(file));
             btnDownload.setOnClickListener(v -> listener.onDownloadClick(file));

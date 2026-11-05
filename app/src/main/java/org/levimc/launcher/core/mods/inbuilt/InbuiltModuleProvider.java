@@ -3,22 +3,15 @@ package org.levimc.launcher.core.mods.inbuilt;
 import android.app.Activity;
 import android.content.Context;
 
-<<<<<<< HEAD
-=======
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
->>>>>>> v1.6.0
 import org.levimc.launcher.R;
 import org.levimc.launcher.core.mods.inbuilt.manager.InbuiltModManager;
 import org.levimc.launcher.core.mods.inbuilt.model.ModIds;
 import org.levimc.launcher.core.mods.inbuilt.overlay.InbuiltOverlayManager;
-<<<<<<< HEAD
-import org.levimc.pojavcontrols.PojavControls;
-=======
 import org.levimc.launcher.core.mods.inbuilt.overlay.MoreButtonsEditor;
->>>>>>> v1.6.0
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,34 +25,25 @@ public final class InbuiltModuleProvider {
     private static final String CFG_OVERLAY_LOCK = "overlay_lock";
     private static final String CFG_OVERLAY_SHOW_EVERYWHERE = "overlay_show_everywhere";
     private static final String CFG_HIDE_LAUNCHER_HUD = "hide_launcher_hud";
-<<<<<<< HEAD
-=======
     private static final String CFG_ACTIVATION_KEYBIND = "activation_keybind";
     private static final String CFG_EDIT_CONTROLS = "edit_controls";
->>>>>>> v1.6.0
     private static final String CFG_AUTO_SPRINT_KEYBIND = "auto_sprint_keybind";
     private static final String CFG_CURSOR_SENSITIVITY = "cursor_sensitivity";
     private static final String CFG_ZOOM_LEVEL = "zoom_level";
     private static final String CFG_ZOOM_TRANSITION = "zoom_transition";
     private static final String CFG_ZOOM_KEYBIND = "zoom_keybind";
-<<<<<<< HEAD
-=======
     private static final String CFG_GYRO_SENSITIVITY_MULTIPLIER = "gyro_sensitivity_multiplier";
->>>>>>> v1.6.0
     private static final String CFG_GYRO_SENSITIVITY_X = "gyro_sensitivity_x";
     private static final String CFG_GYRO_SENSITIVITY_Y = "gyro_sensitivity_y";
     private static final String CFG_GYRO_INVERT_X = "gyro_invert_x";
     private static final String CFG_GYRO_INVERT_Y = "gyro_invert_y";
     private static final String CFG_GYRO_DEADZONE = "gyro_deadzone";
-<<<<<<< HEAD
-=======
     private static final String CFG_HOTBAR_ITEM_ICONS = "hotbar_item_icons";
     private static final String CFG_HOTBAR_ITEM_COUNTS = "hotbar_item_counts";
     private static final String CFG_HOTBAR_SLOT_PREFIX = "hotbar_slot_";
     private static final String CFG_HOTBAR_SLOT_ENABLED = "enabled";
     private static final String CFG_HOTBAR_SLOT_SIZE = "size";
     private static final String CFG_HOTBAR_SLOT_OPACITY = "opacity";
->>>>>>> v1.6.0
 
     private InbuiltModuleProvider() {
     }
@@ -106,15 +90,12 @@ public final class InbuiltModuleProvider {
         mods.add(create(activity, manager, overlayManager, ModIds.POJAV_CONTROLS,
                 R.string.inbuilt_mod_pojav_controls, R.string.inbuilt_mod_pojav_controls_desc,
                 groupName));
-<<<<<<< HEAD
-=======
         mods.add(create(activity, manager, overlayManager, ModIds.MORE_BUTTONS,
                 R.string.inbuilt_mod_more_buttons, R.string.inbuilt_mod_more_buttons_desc,
                 groupName));
         mods.add(create(activity, manager, overlayManager, ModIds.HOTBAR_SLOT,
                 R.string.inbuilt_mod_hotbar_slot, R.string.inbuilt_mod_hotbar_slot_desc,
                 groupName));
->>>>>>> v1.6.0
 
         return mods;
     }
@@ -125,13 +106,8 @@ public final class InbuiltModuleProvider {
         boolean active = overlayManager != null
                 ? overlayManager.isModActive(id)
                 : manager.resolveInbuiltModEnabled(id, false);
-<<<<<<< HEAD
-        boolean customConfig = ModIds.POJAV_CONTROLS.equals(id);
-        return new UnifiedMod(
-=======
         boolean customConfig = ModIds.MORE_BUTTONS.equals(id);
         UnifiedMod result = new UnifiedMod(
->>>>>>> v1.6.0
                 id,
                 activity.getString(nameRes),
                 activity.getString(descRes),
@@ -144,10 +120,6 @@ public final class InbuiltModuleProvider {
                 groupName,
                 (mod, enabled) -> setEnabled(manager, mod, enabled),
                 (mod, config, value) -> setConfig(manager, mod, config, value),
-<<<<<<< HEAD
-                customConfig ? mod -> PojavControls.launchEditor(activity) : null
-        );
-=======
                 ModIds.MORE_BUTTONS.equals(id) ? mod -> MoreButtonsEditor.show(activity) : null
         );
         result.setLocalConfigSchema(createLocalConfigSchema(activity, result));
@@ -246,27 +218,12 @@ public final class InbuiltModuleProvider {
                     .put("key", config.dependsOn).put("op", "truthy")));
         }
         return node;
->>>>>>> v1.6.0
     }
 
     private static List<UnifiedMod.ConfigEntry> createConfigs(Context context,
                                                               InbuiltModManager manager,
                                                               String modId) {
         List<UnifiedMod.ConfigEntry> configs = new ArrayList<>();
-<<<<<<< HEAD
-        if (ModIds.POJAV_CONTROLS.equals(modId)) return configs;
-        if (!ModIds.CHICK_PET.equals(modId)) {
-            configs.add(config(CFG_OVERLAY_SIZE,
-                    context.getString(R.string.mod_config_overlay_button_size_dp),
-                    UnifiedMod.ConfigType.SLIDER_INT,
-                    "56", "20", "100",
-                    String.valueOf(manager.getOverlayButtonSize(modId))));
-            configs.add(config(CFG_OVERLAY_OPACITY,
-                    context.getString(R.string.mod_config_overlay_opacity_percent),
-                    UnifiedMod.ConfigType.SLIDER_INT,
-                    "100", "10", "100",
-                    String.valueOf(manager.getOverlayOpacity(modId))));
-=======
         if (ModIds.MORE_BUTTONS.equals(modId)) return configs;
         if (ModIds.POJAV_CONTROLS.equals(modId)) {
             configs.add(activationKeybind(context, manager, modId));
@@ -289,7 +246,6 @@ public final class InbuiltModuleProvider {
                         "100", "0", "100",
                         String.valueOf(manager.getOverlayOpacity(modId))));
             }
->>>>>>> v1.6.0
             configs.add(config(CFG_OVERLAY_LOCK,
                     context.getString(R.string.overlay_button_lock),
                     UnifiedMod.ConfigType.TOGGLE,
@@ -302,10 +258,6 @@ public final class InbuiltModuleProvider {
                     String.valueOf(manager.isOverlayShowEverywhere(modId))));
         }
 
-<<<<<<< HEAD
-        // v0.4.211（官方 5bf4c980 跟进）：F1 隐藏 HUD 联动隐藏启动器悬浮球
-=======
->>>>>>> v1.6.0
         if (ModIds.TOGGLE_HUD.equals(modId)) {
             configs.add(config(CFG_HIDE_LAUNCHER_HUD,
                     context.getString(R.string.mod_config_hide_launcher_hud),
@@ -314,8 +266,6 @@ public final class InbuiltModuleProvider {
                     String.valueOf(manager.isLauncherHudHideEnabled())));
         }
 
-<<<<<<< HEAD
-=======
         if (ModIds.HOTBAR_SLOT.equals(modId)) {
             configs.add(config(CFG_HOTBAR_ITEM_ICONS,
                     context.getString(R.string.mod_config_hotbar_item_icons),
@@ -348,16 +298,11 @@ public final class InbuiltModuleProvider {
             }
         }
 
->>>>>>> v1.6.0
         if (ModIds.AUTO_SPRINT.equals(modId)) {
             configs.add(config(CFG_AUTO_SPRINT_KEYBIND,
                     context.getString(R.string.mod_config_auto_sprint_keybind),
                     UnifiedMod.ConfigType.KEYBIND,
-<<<<<<< HEAD
-                    "", "", "",
-=======
                     String.valueOf(manager.getDefaultInbuiltModKeybind(modId)), "", "",
->>>>>>> v1.6.0
                     String.valueOf(manager.getAutoSprintKeybind())));
         } else if (ModIds.VIRTUAL_CURSOR.equals(modId)) {
             configs.add(config(CFG_CURSOR_SENSITIVITY,
@@ -379,13 +324,6 @@ public final class InbuiltModuleProvider {
             configs.add(config(CFG_ZOOM_KEYBIND,
                     context.getString(R.string.mod_config_zoom_keybind),
                     UnifiedMod.ConfigType.KEYBIND,
-<<<<<<< HEAD
-                    "", "", "",
-                    String.valueOf(manager.getZoomKeybind())));
-        } else if (ModIds.GYRO.equals(modId)) {
-            configs.add(config(CFG_GYRO_SENSITIVITY_X,
-                    context.getString(R.string.mod_config_gyro_sensitivity_x),
-=======
                     String.valueOf(manager.getDefaultInbuiltModKeybind(modId)), "", "",
                     String.valueOf(manager.getZoomKeybind())));
         } else if (ModIds.GYRO.equals(modId)) {
@@ -396,16 +334,11 @@ public final class InbuiltModuleProvider {
                     String.valueOf(manager.getGyroSensitivityMultiplier())));
             configs.add(config(CFG_GYRO_SENSITIVITY_X,
                     context.getString(R.string.mod_config_gyro_horizontal_speed),
->>>>>>> v1.6.0
                     UnifiedMod.ConfigType.SLIDER_INT,
                     "100", "10", "300",
                     String.valueOf(manager.getGyroSensitivityX())));
             configs.add(config(CFG_GYRO_SENSITIVITY_Y,
-<<<<<<< HEAD
-                    context.getString(R.string.mod_config_gyro_sensitivity_y),
-=======
                     context.getString(R.string.mod_config_gyro_vertical_speed),
->>>>>>> v1.6.0
                     UnifiedMod.ConfigType.SLIDER_INT,
                     "100", "10", "300",
                     String.valueOf(manager.getGyroSensitivityY())));
@@ -420,16 +353,6 @@ public final class InbuiltModuleProvider {
                     "false", "", "",
                     String.valueOf(manager.isGyroInvertY())));
             configs.add(config(CFG_GYRO_DEADZONE,
-<<<<<<< HEAD
-                    context.getString(R.string.mod_config_gyro_deadzone),
-                    UnifiedMod.ConfigType.SLIDER_INT,
-                    "5", "0", "50",
-                    String.valueOf(manager.getGyroDeadzone())));
-        }
-        return configs;
-    }
-
-=======
                     context.getString(R.string.mod_config_gyro_small_movement_filter),
                     UnifiedMod.ConfigType.SLIDER_INT,
                     "5", "0", "100",
@@ -449,19 +372,10 @@ public final class InbuiltModuleProvider {
                 String.valueOf(manager.getInbuiltModKeybind(modId)));
     }
 
->>>>>>> v1.6.0
     private static UnifiedMod.ConfigEntry config(String key, String displayName,
                                                  UnifiedMod.ConfigType type,
                                                  String defaultValue, String minValue,
                                                  String maxValue, String currentValue) {
-<<<<<<< HEAD
-        return new UnifiedMod.ConfigEntry(
-                key, displayName, type, defaultValue, minValue, maxValue,
-                currentValue, ""
-        );
-    }
-
-=======
         return config(key, displayName, type, defaultValue, minValue, maxValue, currentValue, "");
     }
 
@@ -480,7 +394,6 @@ public final class InbuiltModuleProvider {
         return CFG_HOTBAR_SLOT_PREFIX + slot + "_" + setting;
     }
 
->>>>>>> v1.6.0
     private static void setEnabled(InbuiltModManager manager, UnifiedMod mod, boolean enabled) {
         manager.setInbuiltModEnabled(mod.getId(), enabled);
         InbuiltOverlayManager overlayManager = InbuiltOverlayManager.getInstance();
@@ -491,9 +404,6 @@ public final class InbuiltModuleProvider {
 
     private static void setConfig(InbuiltModManager manager, UnifiedMod mod, UnifiedMod.ConfigEntry config,
                                   String value) {
-<<<<<<< HEAD
-        switch (config.key) {
-=======
         if (ModIds.HOTBAR_SLOT.equals(mod.getId()) && setHotbarSlotConfig(manager, config.key, value)) return;
         switch (config.key) {
             case CFG_ACTIVATION_KEYBIND:
@@ -503,7 +413,6 @@ public final class InbuiltModuleProvider {
                 InbuiltOverlayManager overlayManager = InbuiltOverlayManager.getInstance();
                 if (overlayManager != null) overlayManager.openPojavControlsEditor();
                 break;
->>>>>>> v1.6.0
             case CFG_OVERLAY_SIZE:
                 manager.setOverlayButtonSize(mod.getId(), parseInt(value, manager.getOverlayButtonSize(mod.getId())));
                 break;
@@ -517,14 +426,9 @@ public final class InbuiltModuleProvider {
                 manager.setOverlayShowEverywhere(mod.getId(), parseBoolean(value));
                 break;
             case CFG_HIDE_LAUNCHER_HUD:
-<<<<<<< HEAD
-                // v0.4.211（官方 5bf4c980）：开关切换后 tick 轮询自动应用
-                manager.setLauncherHudHideEnabled(parseBoolean(value));
-=======
                 manager.setLauncherHudHideEnabled(parseBoolean(value));
                 InbuiltOverlayManager hudManager = InbuiltOverlayManager.getInstance();
                 if (hudManager != null) hudManager.refreshRuntimeVisibility();
->>>>>>> v1.6.0
                 break;
             case CFG_AUTO_SPRINT_KEYBIND:
                 manager.setAutoSprintKeybind(parseInt(value, manager.getAutoSprintKeybind()));
@@ -541,12 +445,9 @@ public final class InbuiltModuleProvider {
             case CFG_ZOOM_KEYBIND:
                 manager.setZoomKeybind(parseInt(value, manager.getZoomKeybind()));
                 break;
-<<<<<<< HEAD
-=======
             case CFG_GYRO_SENSITIVITY_MULTIPLIER:
                 manager.setGyroSensitivityMultiplier(parseInt(value, manager.getGyroSensitivityMultiplier()));
                 break;
->>>>>>> v1.6.0
             case CFG_GYRO_SENSITIVITY_X:
                 manager.setGyroSensitivityX(parseInt(value, manager.getGyroSensitivityX()));
                 break;
@@ -562,22 +463,17 @@ public final class InbuiltModuleProvider {
             case CFG_GYRO_DEADZONE:
                 manager.setGyroDeadzone(parseInt(value, manager.getGyroDeadzone()));
                 break;
-<<<<<<< HEAD
-=======
             case CFG_HOTBAR_ITEM_ICONS:
                 manager.setHotbarItemIconsEnabled(parseBoolean(value));
                 break;
             case CFG_HOTBAR_ITEM_COUNTS:
                 manager.setHotbarItemCountsEnabled(parseBoolean(value));
                 break;
->>>>>>> v1.6.0
             default:
                 break;
         }
     }
 
-<<<<<<< HEAD
-=======
     private static boolean setHotbarSlotConfig(InbuiltModManager manager, String key, String value) {
         for (int slot = 1; slot <= 9; slot++) {
             String overlayKey = ModIds.HOTBAR_SLOT + ":" + slot;
@@ -597,7 +493,6 @@ public final class InbuiltModuleProvider {
         return false;
     }
 
->>>>>>> v1.6.0
     private static int parseInt(String value, int fallback) {
         try {
             return Integer.parseInt(value);
