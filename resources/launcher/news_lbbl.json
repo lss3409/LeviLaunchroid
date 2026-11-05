@@ -2,13 +2,23 @@
   "schemaVersion": 1,
   "items": [
     {
+      "id": "release-v0.5.0",
+      "title": "v0.5.0（当前版本）",
+      "summary": "Ciallo～(∠・ω< )⌒★\n修复了 26.60 补丁无法生效的问题\n移植重构了 LeviLauncher 的地图编辑器\n3D 视图转为可用的 beta 版本",
+      "publishedAt": "2026-11-06T00:00:00Z",
+      "category": "Release",
+      "url": "https://github.com/lss3409/levi-updates/releases/tag/v0.5.0",
+      "important": true,
+      "notify": false
+    },
+    {
       "id": "release-v0.4.211",
-      "title": "v0.4.211（当前版本）",
+      "title": "v0.4.211",
       "summary": "Ciallo～(∠・ω< )⌒★\n文件管理器双窗口模式上线喵\n极限存档逻辑大优化\n适配 Minecraft 1.26.60 版本号\n修复了已知问题，优化使用体验",
       "publishedAt": "2026-11-01T00:00:00Z",
       "category": "Release",
       "url": "https://github.com/lss3409/levi-updates/releases/tag/v0.4.211",
-      "important": true,
+      "important": false,
       "notify": false
     },
     {
