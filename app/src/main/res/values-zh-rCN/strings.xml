@@ -8,7 +8,7 @@
 
 <resources>
     <!-- Common -->
-    <string name="app_name">LeviLauncher</string>
+    <string name="app_name">LBBL</string>
     <string name="minecraft">Minecraft</string>
     <string name="launch">启动</string>
     <string name="beta_badge">Beta</string>
@@ -578,14 +578,14 @@
     <string name="ms_active_badge">当前</string>
     <string name="ms_account_subtitle_format">用户ID：%1$s • 更新：%2$s</string>
     <string name="xbox_avatar">Xbox头像</string>
-    <string name="launcher_managed_mc_login">使用 LeviLauncher 登录 Minecraft</string>
+    <string name="launcher_managed_mc_login">使用 LBBL 登录 Minecraft</string>
     <string name="dialog_title_login_required">需要登录</string>
     <string name="dialog_message_login_required">已开启使用启动器登录，但当前未登录。请前往账号管理登录后再启动。</string>
     <string name="go_to_accounts">账号管理</string>
     <string name="disable_launcher_login_and_continue">关闭</string>
 
     <string name="ms_feature_disabled_title">功能已禁用</string>
-    <string name="ms_feature_disabled_desc">请在设置中启用“使用 LeviLauncher 登录 Minecraft”，以管理 Microsoft 账户。</string>
+    <string name="ms_feature_disabled_desc">请在设置中启用“使用 LBBL 登录 Minecraft”，以管理 Microsoft 账户。</string>
     <string name="ms_activated">已激活</string>
 
     <!-- Popup labels -->
@@ -838,13 +838,13 @@
 
     <!-- CurseForge -->
     <string name="curseforge_title">CurseForge</string>
-    <string name="curseforge_subtitle">浏览并下载内容</string>
-    <string name="curseforge_search_hint">搜索内容…</string>
-    <string name="curseforge_download">下载</string>
-    <string name="curseforge_downloading">下载中…</string>
-    <string name="curseforge_importing">导入中…</string>
-    <string name="curseforge_download_failed">下载失败</string>
-    <string name="curseforge_available_files">可用文件</string>
+<string name="curseforge_subtitle">浏览并下载内容</string>
+<string name="curseforge_search_hint">搜索内容…</string>
+<string name="curseforge_download">下载</string>
+<string name="curseforge_downloading">下载中…</string>
+<string name="curseforge_importing">导入中…</string>
+<string name="curseforge_download_failed">下载失败</string>
+<string name="curseforge_available_files">可用文件</string>
 
     <!-- Navigation Bar -->
     <string name="nav_launch">启动</string>

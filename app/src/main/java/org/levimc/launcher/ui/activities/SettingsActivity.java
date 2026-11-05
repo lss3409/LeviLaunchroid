@@ -505,6 +505,12 @@ public class SettingsActivity extends BaseActivity {
         switchForegroundService.setChecked(fs.isForegroundServiceEnabled());
         switchForegroundService.setOnCheckedChangeListener((btn, checked) -> fs.setForegroundServiceEnabled(checked));
 
+        // v0.4.213：使用启动器管理登录开关（merge 后加回——用户依赖 LL 登录）
+        SwitchMaterial switchManagedLogin = findViewById(R.id.switch_managed_login);
+        switchManagedLogin.setChecked(fs.isLauncherManagedMcLoginEnabled());
+        switchManagedLogin.setOnCheckedChangeListener((btn, checked) ->
+                fs.setLauncherManagedMcLoginEnabled(checked));
+
         // v0.4.11：手柄光标灵敏度（0.5x-3.0x，默认 1.0x）
         com.google.android.material.slider.Slider sliderCursorSpeed =
                 findViewById(R.id.slider_cursor_speed);

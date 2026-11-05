@@ -8,7 +8,7 @@
 
 <resources>
     <!-- Common -->
-    <string name="app_name">LeviLauncher</string>
+    <string name="app_name">LBBL</string>
     <string name="minecraft">Minecraft</string>
     <string name="launch">Launch</string>
     <string name="beta_badge">Beta</string>
@@ -578,14 +578,14 @@
     <string name="ms_active_badge">Active</string>
     <string name="ms_account_subtitle_format">User ID: %1$s • Updated: %2$s</string>
     <string name="xbox_avatar">Xbox avatar</string>
-    <string name="launcher_managed_mc_login">Sign in to Minecraft with LeviLauncher</string>
+    <string name="launcher_managed_mc_login">Sign in to Minecraft with LBBL</string>
     <string name="dialog_title_login_required">Sign-in required</string>
     <string name="dialog_message_login_required">Launcher-managed login is enabled, but no account is signed in. Go to Accounts to sign in.</string>
     <string name="go_to_accounts">Accounts</string>
     <string name="disable_launcher_login_and_continue">Close</string>
 
     <string name="ms_feature_disabled_title">Feature Disabled</string>
-    <string name="ms_feature_disabled_desc">Please enable \'Sign in to Minecraft with LeviLauncher\' in Settings to manage Microsoft accounts.</string>
+    <string name="ms_feature_disabled_desc">Please enable \'Sign in to Minecraft with LBBL\' in Settings to manage Microsoft accounts.</string>
     <string name="ms_activated">Activated</string>
 
     <!-- Popup labels -->
