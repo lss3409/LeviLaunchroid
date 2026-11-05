@@ -1087,6 +1087,10 @@
 <string name="settings_tab_migration">माइग्रेशन</string>
 <string name="storage_migration_title">स्टोरेज माइग्रेशन आवश्यक है</string>
     <string name="storage_migration_message">LeviLauncher को जारी रखने से पहले games/org.levimc से डेटा %1$s में माइग्रेट करना होगा।
+
+यह स्टोरेज बदलाव Google Play पर प्रकाशित करने की आवश्यकताओं को पूरा करने के लिए जरूरी है। पुराना फ़ोल्डर जस का तस रहेगा, लेकिन माइग्रेशन के बाद उसका उपयोग नहीं होगा।
+
+माइग्रेशन में समय लग सकता है। इसके चलते समय ऐप को बैकग्राउंड में छोड़ा जा सकता है; बहुत सारी फ़ाइलें कॉपी करते समय फ़ोन गर्म हो सकता है। कृपया समझें।</string>
 <string name="storage_migration_start">माइग्रेट करें</string>
 <string name="storage_migration_permission_denied">माइग्रेशन के लिए पुराने फ़ोल्डर को पढ़ने हेतु स्टोरेज अनुमति आवश्यक है।</string>
 <string name="storage_migration_progress_title">स्टोरेज माइग्रेट हो रहा है</string>
@@ -1101,10 +1105,14 @@
 <string name="storage_migration_background_hint">माइग्रेशन बैकग्राउंड में जारी रह सकता है। फ़ोन को चार्ज पर रखना बेहतर है; फ़ाइल कॉपी करते समय फ़ोन गर्म हो सकता है। कृपया समझें।</string>
 <string name="storage_migration_completed_title">माइग्रेशन पूरा हुआ</string>
     <string name="storage_migration_completed_message">%1$d फ़ाइलें माइग्रेट हुईं (%2$s)। %3$d फ़ाइलें पहले से अपडेट थीं।
+
+पुराना games/org.levimc फ़ोल्डर हटाया नहीं गया और अब उपयोग नहीं होगा।</string>
 <string name="storage_migration_partial_title">माइग्रेशन अधूरा है</string>
 <string name="storage_migration_partial_message">%2$d में से %1$d फ़ाइलें कॉपी नहीं हो सकीं। LeviLauncher जारी रखने से पहले माइग्रेशन पूरा होना चाहिए।</string>
 <string name="storage_migration_failed_title">माइग्रेशन विफल</string>
     <string name="storage_migration_failed_message">माइग्रेशन जारी नहीं रह सका: %1$s
+
+LeviLauncher जारी रखने से पहले माइग्रेशन पूरा होना चाहिए।</string>
 <string name="migration_cleanup_title">पुरानी डायरेक्टरी साफ़ करें</string>
 <string name="migration_cleanup_desc">पुरानी games/org.levimc डायरेक्टरी को तभी हटाएँ जब आपने पुष्टि कर ली हो कि सभी इंस्टेंस सामान्य रूप से शुरू होते हैं और world, resource pack, behavior pack या settings गायब नहीं हैं। हटाए गए पुराने डेटा को इस डायरेक्टरी से वापस नहीं लाया जा सकेगा।</string>
 <string name="migration_cleanup_button">पुरानी डायरेक्टरी साफ़ करें</string>
@@ -1978,8 +1986,14 @@
 <string name="fm_ui_editor_save_exit">सहेजें और बाहर निकलें</string>
 <string name="fm_ui_editor_discard">बदलाव छोड़ दें</string>
     <string name="online_connected_fmt">कनेक्टेड ✓
+वर्चुअल IP: %1$s
+(रूम सूची और एक-क्लिक जुड़ाव जल्द आ रहा है)</string>
     <string name="online_share_text">【LBBL आमंत्रण】
+मेरी Minecraft दुनिया में जुड़ें! आमंत्रण कोड: %1$s
+LBBL खोलें → ऑनलाइन → जुड़ें, फिर कोड पेस्ट करें————————%2$s</string>
     <string name="online_room_created_fmt">रूम बन गया ✓
+आमंत्रण कोड: %1$s
+(एक ही Wi-Fi पर मौजूद दोस्त इस कोड से जुड़ सकते हैं)</string>
     <string name="scan_type_world">दुनिया</string>
     <string name="scan_type_resource">रिसोर्स पैक</string>
     <string name="scan_type_behavior">बिहेवियर पैक</string>

@@ -1087,6 +1087,10 @@
 <string name="settings_tab_migration">Taşıma</string>
 <string name="storage_migration_title">Depolama Taşıması Gerekli</string>
     <string name="storage_migration_message">LeviLauncher, devam etmeden önce verileri games/org.levimc konumundan %1$s konumuna taşımalıdır.
+
+Bu depolama değişikliği Google Play listeleme uyumluluğu için zorunludur. Eski dizin dokunulmadan kalacak ancak taşımanın ardından artık kullanılmayacaktır.
+
+Taşıma biraz zaman alabilir. Uygulama arka planda çalışırken ayrılabilirsiniz; yoğun dosya kopyalama sırasında telefon ısınabilir. Anlayışınız için teşekkür ederiz.</string>
 <string name="storage_migration_start">Taşı</string>
 <string name="storage_migration_permission_denied">Taşıma için eski dizini okumak amacıyla depolama izni gereklidir.</string>
 <string name="storage_migration_progress_title">Depolama Taşınıyor</string>
@@ -1101,10 +1105,14 @@
 <string name="storage_migration_background_hint">Taşıma arka planda çalışmaya devam edebilir. Dosya kopyalama sırasında telefon ısınabilir; telefonun şarjlı kalması önerilir. Anlayışınız için teşekkür ederiz.</string>
 <string name="storage_migration_completed_title">Taşıma Tamamlandı</string>
     <string name="storage_migration_completed_message">%1$d dosya (%2$s) taşındı. %3$d dosya zaten günceldi.
+
+Eski games/org.levimc dizini silinmedi ve artık kullanılmıyor.</string>
 <string name="storage_migration_partial_title">Taşıma Tamamlanamadı</string>
 <string name="storage_migration_partial_message">%1$d dosyadan %2$d tanesi kopyalanamadı. LeviLauncher\'ın devam edebilmesi için taşımanın tamamlanması gerekiyor.</string>
 <string name="storage_migration_failed_title">Taşıma Başarısız</string>
     <string name="storage_migration_failed_message">Taşıma devam edemedi: %1$s
+
+LeviLauncher\'ın devam edebilmesi için taşımanın tamamlanması gerekiyor.</string>
 <string name="migration_cleanup_title">Eski Dizini Temizle</string>
 <string name="migration_cleanup_desc">Eski games/org.levimc dizinini yalnızca tüm örneklerin normal başlatıldığını ve dünyaların, kaynak paketlerin, davranış paketlerinin ve ayarların eksiksiz olduğunu doğruladıktan sonra kaldırın. Silinen veriler bu dizinden geri yüklenemez.</string>
 <string name="migration_cleanup_button">Eski Dizini Temizle</string>
@@ -1978,8 +1986,14 @@
 <string name="fm_ui_editor_save_exit">Kaydet ve Çık</string>
 <string name="fm_ui_editor_discard">Değişiklikleri At</string>
     <string name="online_connected_fmt">Bağlandı ✓
+Sanal IP: %1$s
+(Oda listesi ve tek dokunuşla katılma yakında)</string>
     <string name="online_share_text">【LBBL Daveti】
+Minecraft dünyama katıl! Davet kodu: %1$s
+LBBL → Çevrimiçi → Katıl\'ı aç, sonra kodu yapıştır————————%2$s</string>
     <string name="online_room_created_fmt">Oda oluşturuldu ✓
+Davet kodu: %1$s
+(Aynı Wi-Fi\'deki arkadaşlar bu kodla katılabilir)</string>
     <string name="scan_type_world">Dünya</string>
     <string name="scan_type_resource">Kaynak Paketi</string>
     <string name="scan_type_behavior">Davranış Paketi</string>

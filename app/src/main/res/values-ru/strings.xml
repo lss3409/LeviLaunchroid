@@ -1094,6 +1094,10 @@
 <string name="storage_permission_not_granted">Разрешение на доступ к хранилищу не выдано</string>
 <string name="storage_migration_title">Требуется миграция хранилища</string>
     <string name="storage_migration_message">LeviLauncher должен перенести данные из games/org.levimc в %1$s перед продолжением.
+
+Это изменение хранилища необходимо для соответствия требованиям публикации в Google Play. Старая папка останется нетронутой, но после миграции больше не будет использоваться.
+
+Миграция может занять время. Можно оставить приложение в фоне; при интенсивном копировании файлов телефон может нагреваться. Благодарим за понимание.</string>
 <string name="storage_migration_start">Перенести</string>
 <string name="storage_migration_permission_denied">Для чтения старой папки во время миграции требуется разрешение на доступ к хранилищу.</string>
 <string name="storage_migration_progress_title">Миграция хранилища</string>
@@ -1108,10 +1112,14 @@
 <string name="storage_migration_background_hint">Миграция может продолжаться в фоне. Рекомендуется держать телефон заряженным; во время копирования файлов телефон может нагреваться. Благодарим за понимание.</string>
 <string name="storage_migration_completed_title">Миграция завершена</string>
     <string name="storage_migration_completed_message">Перенесено файлов: %1$d (%2$s). Уже актуальны: %3$d.
+
+Старая папка games/org.levimc не была удалена и больше не используется.</string>
 <string name="storage_migration_partial_title">Миграция не завершена</string>
 <string name="storage_migration_partial_message">Не удалось скопировать %1$d из %2$d файлов. Миграция должна завершиться, прежде чем LeviLauncher сможет продолжить.</string>
 <string name="storage_migration_failed_title">Ошибка миграции</string>
     <string name="storage_migration_failed_message">Миграция не может продолжиться: %1$s
+
+Миграция должна завершиться, прежде чем LeviLauncher сможет продолжить.</string>
 <string name="migration_cleanup_title">Очистить исторический каталог</string>
 <string name="migration_cleanup_desc">Удаляйте старый каталог games/org.levimc только после того, как убедитесь, что все экземпляры запускаются нормально, а миры, наборы ресурсов, наборы поведения и настройки не пропали. Удалённые исторические данные нельзя будет восстановить из этого каталога.</string>
 <string name="migration_cleanup_button">Очистить исторический каталог</string>
@@ -1986,8 +1994,14 @@
 <string name="fm_ui_editor_save_exit">Сохранить и выйти</string>
 <string name="fm_ui_editor_discard">Отбросить изменения</string>
     <string name="online_connected_fmt">Подключено ✓
+Виртуальный IP: %1$s
+(Список комнат и присоединение в одно касание скоро появятся)</string>
     <string name="online_share_text">【Приглашение LBBL】
+Присоединяйтесь к моему миру Minecraft! Код приглашения: %1$s
+Откройте LBBL → Онлайн → Присоединиться и вставьте код————————%2$s</string>
     <string name="online_room_created_fmt">Комната создана ✓
+Код приглашения: %1$s
+(Друзья в той же сети Wi-Fi могут присоединиться по этому коду)</string>
     <string name="scan_type_world">Мир</string>
     <string name="scan_type_resource">Пакет ресурсов</string>
     <string name="scan_type_behavior">Пакет поведения</string>

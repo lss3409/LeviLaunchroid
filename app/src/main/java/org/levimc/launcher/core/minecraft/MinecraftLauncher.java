@@ -10,9 +10,6 @@ import android.widget.Toast;
 import org.levimc.launcher.R;
 import org.levimc.launcher.core.versions.GameVersion;
 import org.levimc.launcher.util.LauncherStorage;
-import org.levimc.launcher.util.PlayStoreValidator;
-import org.levimc.launcher.ui.dialogs.PlayStoreValidationDialog;
-import org.levimc.launcher.util.LauncherBackgroundController;
 import android.util.Log;
 
 import java.io.File;
@@ -136,16 +133,9 @@ public class MinecraftLauncher {
 
             activity.runOnUiThread(() -> {
                 try {
-                    if (!PlayStoreValidator.isMinecraftFromPlayStore(activity)) {
-                        Log.w(TAG, "Launch denied: Minecraft is not verified as Play Store install");
-                        PlayStoreValidationDialog.showNotFromPlayStoreDialog(activity);
-                        notifyLaunchFailed(callback, new SecurityException("Minecraft is not verified as Play Store install"));
-                        return;
-                    }
                     launchMinecraftActivity(sourceIntent, version, false);
                     notifyLaunchStarted(callback);
                 } catch (Exception e) {
-                    LauncherBackgroundController.launchFailed(activity);
                     Log.e(TAG, "Launch failed: " + e.getMessage(), e);
                     showLaunchErrorOnUi("Launch failed: " + e.getMessage());
                     notifyLaunchFailed(callback, e);
@@ -172,6 +162,13 @@ public class MinecraftLauncher {
         File externalFilesDir = LauncherStorage.getStorageFilesRoot(context, profileId, versionIsolation, true);
         File dataDir = LauncherStorage.getStorageDataRoot(context, profileId, versionIsolation);
         File cacheDir = LauncherStorage.getStorageCacheRoot(context, profileId, versionIsolation);
+        Log.i(TAG, "fillStoragePaths: version=" + (version == null ? "null" : version.directoryName)
+                + " isInstalled=" + (version == null ? "null" : version.isInstalled)
+                + " isolation=" + versionIsolation
+                + " profileId=" + profileId
+                + " filesDir=" + filesDir.getAbsolutePath()
+                + " externalFilesDir=" + externalFilesDir.getAbsolutePath()
+                + " dataDir=" + dataDir.getAbsolutePath());
 
         sourceIntent.putExtra("MC_PATH", version.versionDir == null ? "" : version.versionDir.getAbsolutePath());
         sourceIntent.putExtra("IS_INSTALLED", version.isInstalled);
@@ -181,6 +178,22 @@ public class MinecraftLauncher {
         sourceIntent.putExtra(EXTRA_STORAGE_EXTERNAL_FILES_DIR, externalFilesDir.getAbsolutePath());
         sourceIntent.putExtra(EXTRA_STORAGE_DATA_DIR, dataDir.getAbsolutePath());
         sourceIntent.putExtra(EXTRA_STORAGE_CACHE_DIR, cacheDir.getAbsolutePath());
+    }
+
+    /**
+     * 构造用于桌面快捷方式的启动 Intent：直接指向 MinecraftLoadingActivity，
+     * 携带完整版本信息（GameVersion + 存储路径），点击后跳过主页直接进入对应版本加载流程。
+     */
+    public Intent buildShortcutLaunchIntent(GameVersion version) {
+        Intent launchIntent = new Intent(context, MinecraftLoadingActivity.class);
+        fillIntentWithStoragePaths(launchIntent, version);
+        launchIntent.putExtra(EXTRA_GAME_VERSION, version);
+        launchIntent.putExtra("MODS_ENABLED", false);
+        launchIntent.putExtra("MINECRAFT_VERSION", version.versionCode);
+        launchIntent.putExtra("MINECRAFT_VERSION_DIR", version.directoryName);
+        launchIntent.putExtra("LAUNCH_VERTICALLY", version.launchVertically);
+        launchIntent.putExtra("VERSION_ISOLATION", version.versionIsolation);
+        return launchIntent;
     }
 
     private void launchMinecraftActivity(Intent sourceIntent, GameVersion version, boolean modsEnabled) {
@@ -202,7 +215,10 @@ public class MinecraftLauncher {
         launchIntent.putExtra("VERSION_ISOLATION", version.versionIsolation);
         launchIntent.removeExtra("LAUNCH_WITH_URI");
 
-        LauncherBackgroundController.suspendForMinecraft();
+        // 游戏链路使用独立 taskAffinity，配合 NEW_TASK 让游戏进入独立任务栈，
+        // 与启动器主页（默认任务栈）分离成两个后台。
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
         activity.startActivity(launchIntent);
         activity.overridePendingTransition(R.anim.fade_in, R.anim.fade_out);
         trace.mark("MinecraftLoadingActivity startActivity called");
@@ -211,7 +227,7 @@ public class MinecraftLauncher {
     private void showLaunchErrorOnUi(String message) {
         Activity activity = (Activity) context;
         activity.runOnUiThread(() -> Toast.makeText(
-                activity, activity.getString(R.string.dialog_message_launch_failed, message), Toast.LENGTH_LONG).show()
+                activity, "Failed to launch Minecraft: " + message, Toast.LENGTH_LONG).show()
         );
     }
 

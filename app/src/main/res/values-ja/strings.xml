@@ -1087,6 +1087,10 @@
 <string name="settings_tab_migration">移行</string>
 <string name="storage_migration_title">ストレージ移行が必要です</string>
     <string name="storage_migration_message">LeviLauncher を続行する前に、games/org.levimc のデータを %1$s に移行する必要があります。
+
+このストレージ変更は Google Play への公開要件を満たすために必要です。古いディレクトリはそのまま保持されますが、移行後は使用されません。
+
+移行には時間がかかる場合があります。実行中はアプリをバックグラウンドにしておけます。大量のファイルコピー中は端末が熱くなることがあります。ご理解ください。</string>
 <string name="storage_migration_start">移行</string>
 <string name="storage_migration_permission_denied">移行のために古いディレクトリを読み取るには、ストレージ権限が必要です。</string>
 <string name="storage_migration_progress_title">ストレージを移行中</string>
@@ -1101,10 +1105,14 @@
 <string name="storage_migration_background_hint">移行はバックグラウンドで続行できます。充電したままにすることをおすすめします。ファイルコピー中は端末が熱くなることがあります。ご理解ください。</string>
 <string name="storage_migration_completed_title">移行完了</string>
     <string name="storage_migration_completed_message">%1$d 個のファイル (%2$s) を移行しました。%3$d 個のファイルは既に最新でした。
+
+古い games/org.levimc ディレクトリは削除されておらず、今後は使用されません。</string>
 <string name="storage_migration_partial_title">移行が完了していません</string>
 <string name="storage_migration_partial_message">%1$d/%2$d 個のファイルをコピーできませんでした。LeviLauncher を続行するには移行を完了する必要があります。</string>
 <string name="storage_migration_failed_title">移行失敗</string>
     <string name="storage_migration_failed_message">移行を続行できませんでした: %1$s
+
+LeviLauncher を続行するには移行を完了する必要があります。</string>
 <string name="migration_cleanup_title">履歴ディレクトリを削除</string>
 <string name="migration_cleanup_desc">すべてのインスタンスが正常に起動し、ワールド、リソースパック、ビヘイビアーパック、設定が失われていないことを確認してから、古い games/org.levimc ディレクトリを削除してください。削除した履歴データはこのディレクトリから復元できません。</string>
 <string name="migration_cleanup_button">履歴ディレクトリを削除</string>
@@ -1978,8 +1986,14 @@
 <string name="fm_ui_editor_save_exit">保存して終了</string>
 <string name="fm_ui_editor_discard">変更を破棄</string>
     <string name="online_connected_fmt">接続しました ✓
+仮想 IP：%1$s
+（ルーム一覧とワンタップ参加は近日対応予定）</string>
     <string name="online_share_text">【LBBL 招待】
+私の Minecraft ワールドに参加しよう！招待コード：%1$s
+LBBL を開く → オンライン → 参加、コードを貼り付け————————%2$s</string>
     <string name="online_room_created_fmt">ルームを作成しました ✓
+招待コード：%1$s
+（同じ Wi-Fi の友達がこのコードで参加できます）</string>
     <string name="scan_type_world">ワールド</string>
     <string name="scan_type_resource">リソースパック</string>
     <string name="scan_type_behavior">ビヘイビアーパック</string>

@@ -1120,6 +1120,10 @@
 <string name="settings_tab_migration">Storage</string>
 <string name="storage_migration_title">Storage Migration Required</string>
     <string name="storage_migration_message">LBBL must migrate data from games/org.levimc to %1$s before continuing.
+
+This storage change is required for Google Play listing compliance. The old directory will be kept untouched, but it will no longer be used after migration.
+
+Migration may take a while. You can leave the app in the background while it runs; the phone may get warm during heavy file copying. Thank you for your understanding.</string>
 <string name="storage_migration_start">Migrate</string>
 <string name="storage_migration_permission_denied">Storage permission is required to read the old directory for migration.</string>
 <string name="storage_migration_progress_title">Migrating Storage</string>
@@ -1134,10 +1138,14 @@
 <string name="storage_migration_background_hint">Migration can keep running in the background. Keeping the phone charged is recommended; the phone may heat up during file copying. Thank you for your understanding.</string>
 <string name="storage_migration_completed_title">Migration Completed</string>
     <string name="storage_migration_completed_message">Migrated %1$d files (%2$s). %3$d files were already up to date.
+
+The old games/org.levimc directory was not deleted and is no longer used.</string>
 <string name="storage_migration_partial_title">Migration Incomplete</string>
 <string name="storage_migration_partial_message">%1$d of %2$d files could not be copied. Migration must complete before LBBL can continue.</string>
 <string name="storage_migration_failed_title">Migration Failed</string>
     <string name="storage_migration_failed_message">Migration could not continue: %1$s
+
+Migration must complete before LBBL can continue.</string>
 <string name="migration_cleanup_title">Clean Historical Directory</string>
 <string name="migration_cleanup_desc">Only remove the old games/org.levimc directory after you have confirmed every instance launches normally and worlds, resource packs, behavior packs, and settings are not missing. Deleted historical data cannot be restored from this directory.</string>
 <string name="migration_cleanup_button">Clean Historical Directory</string>
@@ -1463,6 +1471,8 @@
 <string name="online_connecting_kernel">Starting network kernel…</string>
 <string name="online_wait_ip">Kernel started, waiting for virtual IP…</string>
     <string name="online_connected_fmt">Connected ✓
+Virtual IP: %1$s
+(Room list and one-click join coming soon)</string>
 <string name="online_disconnected">Disconnected</string>
 <string name="online_vpn_needed">Online play requires VPN permission. Please allow it.</string>
 <string name="online_vpn_cancelled">VPN permission cancelled, not joined</string>
@@ -1532,6 +1542,8 @@
 <string name="online_state_idle">Not connected</string>
 <string name="online_state_connected_fmt">Connected · Virtual IP %1$s</string>
     <string name="online_share_text">【LBBL Invite】
+Join my Minecraft world! Invite code: %1$s
+Open LBBL → Online → Join, then paste the code————————%2$s</string>
     <string name="online_clipboard_title">LBBL invite detected</string>
     <string name="online_clipboard_msg">Invite code in clipboard: %1$s\nJoin this room?</string>
     <string name="online_clipboard_expired_title">Invite expired</string>
@@ -1554,6 +1566,8 @@
 <string name="online_code_progress_fmt">%1$d/16</string>
 <string name="online_code_valid">✓ Invite code valid</string>
     <string name="online_room_created_fmt">Room created ✓
+Invite code: %1$s
+(Friends on the same Wi-Fi can join with this code)</string>
 <string name="voice_mute">Muted</string>
 <string name="voice_open">Mic on</string>
 <string name="voice_ptt">PTT</string>

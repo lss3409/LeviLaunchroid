@@ -1087,6 +1087,10 @@
 <string name="settings_tab_migration">Migración</string>
 <string name="storage_migration_title">Migración de almacenamiento requerida</string>
     <string name="storage_migration_message">LeviLauncher debe migrar los datos de games/org.levimc a %1$s antes de continuar.
+
+Este cambio de almacenamiento es necesario para cumplir los requisitos de publicación en Google Play. El directorio antiguo se conservará intacto, pero ya no se usará después de la migración.
+
+La migración puede tardar. Puedes dejar la app en segundo plano mientras se ejecuta; el teléfono puede calentarse durante la copia intensa de archivos. Gracias por tu comprensión.</string>
 <string name="storage_migration_start">Migrar</string>
 <string name="storage_migration_permission_denied">Se necesita permiso de almacenamiento para leer el directorio antiguo durante la migración.</string>
 <string name="storage_migration_progress_title">Migrando almacenamiento</string>
@@ -1101,10 +1105,14 @@
 <string name="storage_migration_background_hint">La migración puede seguir en segundo plano. Se recomienda mantener el teléfono cargado; el teléfono puede calentarse durante la copia de archivos. Gracias por tu comprensión.</string>
 <string name="storage_migration_completed_title">Migración completada</string>
     <string name="storage_migration_completed_message">Se migraron %1$d archivos (%2$s). %3$d archivos ya estaban actualizados.
+
+El antiguo directorio games/org.levimc no fue eliminado y ya no se usa.</string>
 <string name="storage_migration_partial_title">Migración incompleta</string>
 <string name="storage_migration_partial_message">No se pudieron copiar %1$d de %2$d archivos. La migración debe completarse antes de continuar con LeviLauncher.</string>
 <string name="storage_migration_failed_title">Migración fallida</string>
     <string name="storage_migration_failed_message">La migración no pudo continuar: %1$s
+
+La migración debe completarse antes de continuar con LeviLauncher.</string>
 <string name="migration_cleanup_title">Limpiar directorio histórico</string>
 <string name="migration_cleanup_desc">Elimina el directorio antiguo games/org.levimc solo después de confirmar que todas las instancias se inician correctamente y que no faltan mundos, paquetes de recursos, paquetes de comportamiento ni ajustes. Los datos históricos eliminados no se podrán restaurar desde este directorio.</string>
 <string name="migration_cleanup_button">Limpiar directorio histórico</string>
@@ -1978,8 +1986,14 @@
 <string name="fm_ui_editor_save_exit">Guardar y salir</string>
 <string name="fm_ui_editor_discard">Descartar cambios</string>
     <string name="online_connected_fmt">Conectado ✓
+IP virtual: %1$s
+(Próximamente: lista de salas y unión con un toque)</string>
     <string name="online_share_text">【Invitación de LBBL】
+¡Únete a mi mundo de Minecraft! Código de invitación: %1$s
+Abre LBBL → En línea → Unirse y pega el código————————%2$s</string>
     <string name="online_room_created_fmt">Sala creada ✓
+Código de invitación: %1$s
+(Los amigos en la misma Wi-Fi pueden unirse con este código)</string>
     <string name="scan_type_world">Mundo</string>
     <string name="scan_type_resource">Paquete de recursos</string>
     <string name="scan_type_behavior">Paquete de comportamiento</string>

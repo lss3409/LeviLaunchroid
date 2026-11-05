@@ -1086,6 +1086,10 @@
 <string name="storage_permission_not_granted">Quyền truy cập bộ nhớ đã bị từ chối</string>
 <string name="storage_migration_title">Cần có quyền chỉnh sửa kho lưu trữ</string>
     <string name="storage_migration_message">LeviLauncher phải di chuyển dữ liệu từ games/org.levimc sang %1$s trước khi tiếp tục.
+
+Việc thay đổi thư mục lưu trữ này là cần thiết để tuân thủ các quy định về hiển thị danh sách trên Google Play. Thư mục cũ sẽ được giữ nguyên, nhưng sẽ không còn được sử dụng sau khi chuyển đổi. 
+
+Quá trình chuyển đổi có thể mất một lúc. Bạn có thể để ứng dụng chạy ngầm trong khi nó thực hiện; điện thoại có thể nóng lên trong quá trình sao chép tập tin lớn. Cảm ơn sự thông cảm của bạn.</string>
 <string name="storage_migration_start">Di chuyển</string>
 <string name="storage_migration_permission_denied">Cần có quyền truy cập bộ nhớ để đọc thư mục cũ phục vụ cho quá trình di chuyển.</string>
 <string name="storage_migration_progress_title">Di chuyển dữ liệu</string>
@@ -1100,10 +1104,14 @@
 <string name="storage_migration_background_hint">Quá trình chuyển dữ liệu có thể tiếp tục chạy ngầm. Nên sạc đầy pin điện thoại; điện thoại có thể nóng lên trong quá trình sao chép tập tin. Cảm ơn sự thông cảm của bạn.</string>
 <string name="storage_migration_completed_title">Quá trình chuyển đổi đã hoàn tất.</string>
     <string name="storage_migration_completed_message">Đã di chuyển %1$d files (%2$s). %3$d files đã được cập nhật.
+
+Thư mục games/org.levimc cũ không bị xóa và không còn được sử dụng nữa.</string>
 <string name="storage_migration_partial_title">Di chuyển chưa hoàn tất</string>
 <string name="storage_migration_partial_message">Không thể sao chép tập tin %1$d trong %2$d. Quá trình di chuyển phải hoàn tất trước khi LeviLauncher có thể tiếp tục. </string>
 <string name="storage_migration_failed_title">Quá trình di chuyển thất bại</string>
     <string name="storage_migration_failed_message">Quá trình di chuyển không thể tiếp tục: %1$s
+
+Quá trình chuyển đổi phải hoàn tất trước khi LeviLauncher có thể tiếp tục.</string>
 <string name="curseforge_search">Tìm kiếm</string>
     <string name="curseforge_featured">Nổi bật</string>
     <string name="curseforge_creation_date">Ngày tạo</string>
@@ -1978,8 +1986,14 @@
 <string name="fm_ui_editor_save_exit">Lưu và thoát</string>
 <string name="fm_ui_editor_discard">Hủy thay đổi</string>
     <string name="online_connected_fmt">Đã kết nối ✓
+IP ảo: %1$s
+(Danh sách phòng và tham gia một chạm sắp ra mắt)</string>
     <string name="online_share_text">【Lời mời LBBL】
+Tham gia thế giới Minecraft của tôi! Mã mời: %1$s
+Mở LBBL → Trực tuyến → Tham gia, sau đó dán mã————————%2$s</string>
     <string name="online_room_created_fmt">Đã tạo phòng ✓
+Mã mời: %1$s
+(Bạn bè dùng cùng Wi-Fi có thể tham gia bằng mã này)</string>
     <string name="scan_type_world">Thế giới</string>
     <string name="scan_type_resource">Gói tài nguyên</string>
     <string name="scan_type_behavior">Gói hành vi</string>

@@ -81,14 +81,9 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled true
-            shrinkResources false
+            minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             firebaseCrashlytics {
-<<<<<<< HEAD
-=======
-                mappingFileUploadEnabled true
->>>>>>> v1.6.0
                 nativeSymbolUploadEnabled true
             }
             ndk {
@@ -97,15 +92,9 @@ android {
             buildConfigField "boolean", "IS_BETA", "false"
         }
         debug {
-            debuggable false
-            minifyEnabled true
-            shrinkResources false
+            minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             firebaseCrashlytics {
-<<<<<<< HEAD
-=======
-                mappingFileUploadEnabled true
->>>>>>> v1.6.0
                 nativeSymbolUploadEnabled true
             }
             ndk {
@@ -115,22 +104,14 @@ android {
         }
         beta {
             initWith release
-            minifyEnabled true
-            shrinkResources false
+            minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             firebaseCrashlytics {
-<<<<<<< HEAD
                 mappingFileUploadEnabled false
                 nativeSymbolUploadEnabled true
             }
             // v0.4.13：装机用变体——不可调试（消除 16KB 兼容性警告），名字同正式版
             resValue "string", "app_name", "LBBL"
-=======
-                mappingFileUploadEnabled true
-                nativeSymbolUploadEnabled true
-            }
-            resValue "string", "app_name", "LeviLauncher Beta"
->>>>>>> v1.6.0
             buildConfigField "boolean", "IS_BETA", "true"
             matchingFallbacks = ["release"]
             ndk {
@@ -140,14 +121,8 @@ android {
 
     }
     packagingOptions {
-        jniLibs {
-            useLegacyPackaging = true
-            keepDebugSymbols += [
-                    "**/libpreloader.so",
-                    "**/libgxcore.so",
-                    "**/libinbuiltmods.so"
-            ]
-        }
+        jniLibs.useLegacyPackaging = true
+        doNotStrip "**/*.so"
         resources.excludes += [
                 "DebugProbesKt.bin"
         ]
@@ -200,13 +175,9 @@ dependencies {
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     implementation libs.androidx.dynamicanimation
     implementation libs.androidx.browser
-<<<<<<< HEAD
     implementation libs.bedrock.connection
     implementation libs.xcrash
     // v0.4.104：文件管理器图片 OCR（中英混合识别，模型约 47MB 内置）
-=======
-    implementation libs.xcrash
->>>>>>> v1.6.0
     implementation libs.play.services.games.v2
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
