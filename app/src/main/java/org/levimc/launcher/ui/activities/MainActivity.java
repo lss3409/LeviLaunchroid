@@ -771,15 +771,17 @@ import okhttp3.OkHttpClient;
 
                      accountExecutor.execute(() -> {
                          try {
-                             BedrockAuthManager authManager = MsftAuthManager.refreshAndAuth(account);
-                             MsftAuthManager.saveAccountOrThrow(MainActivity.this, authManager);
-                             MsftAccountStore.setActive(MainActivity.this, account.id);
-                             String minecraftUsername = authManager.getMinecraftCertificateChain().getUpToDate().getIdentityDisplayName();
-
+                             // v1.6.0 merge：官方流程 refreshAccountAndActivate（旧 refreshAndAuth 已删）
+                             MsftAccountStore.MsftAccount refreshed =
+                                     MsftAuthManager.refreshAccountAndActivate(MainActivity.this, account.id);
+                             String statusName = refreshed != null
+                                     ? (refreshed.xboxGamertag != null && !refreshed.xboxGamertag.isEmpty()
+                                             ? refreshed.xboxGamertag : refreshed.minecraftUsername)
+                                     : null;
                              runOnUiThread(() -> {
                                  DialogUtils.dismissQuietly(accountLoadingDialog);
-                                 String statusName = minecraftUsername != null ? minecraftUsername : getString(R.string.not_signed_in);
-                                 Toast.makeText(MainActivity.this, getString(R.string.ms_login_success, statusName), Toast.LENGTH_SHORT).show();
+                                 String shown = statusName != null ? statusName : getString(R.string.not_signed_in);
+                                 Toast.makeText(MainActivity.this, getString(R.string.ms_login_success, shown), Toast.LENGTH_SHORT).show();
                                  refreshAccountHeaderUI();
                              });
                          } catch (Exception e) {
@@ -1124,7 +1126,7 @@ import okhttp3.OkHttpClient;
         if (lastPauseElapsed > 0
                 && android.os.SystemClock.elapsedRealtime() - lastPauseElapsed > LONG_PAUSE_HEAL_MS) {
             if (MinecraftActivityState.isRunning()) {
-                MinecraftProcessRestarter.INSTANCE.restartLauncherAfterMinecraftExit(this, true);
+                MinecraftProcessRestarter.INSTANCE.restartLauncherAfterMinecraftExit(this);
                 finish();
                 return;
             }

@@ -10,18 +10,13 @@
 
     <color name="tertiary">#01579B</color>
     <color name="on_tertiary">#FFFFFF</color>
-
     <color name="external_mod_ad">#E65100</color>
 
     <color name="error">#F44336</color>
     <color name="on_error">#FFFFFF</color>
 
-    <color name="warning">#FFB74D</color>
-
     <color name="background">#F8FFF0</color>
     <color name="surface">#F1F8E9</color>
-    <!-- v445：置顶卡片背景（比 surface 深一级） -->
-    <color name="surface_high">#E2EDD9</color>
     <color name="surface_variant">#E8F5E9</color>
     <color name="on_background">#212121</color>
     <color name="on_surface">#212121</color>
@@ -43,8 +38,9 @@
     <color name="text_secondary">#757575</color>
     <color name="qa_icon_color">#000000</color>
     <color name="ic_launcher_adaptive_back">#F6F3EA</color>
+    <color name="warning">#FFB74D</color>
 
-    <!-- World map (Blocktopograph-style terrain palette) -->
+    <color name="surface_high">#E2EDD9</color>
     <color name="world_map_water_deep">#1E56A0</color>
     <color name="world_map_sand">#E8DC8F</color>
     <color name="world_map_grass">#55A64A</color>

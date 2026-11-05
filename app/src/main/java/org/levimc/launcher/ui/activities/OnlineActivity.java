@@ -1920,7 +1920,7 @@ public final class OnlineActivity extends BaseActivity
                 // v524：游戏正在前台时立即挂悬浮窗（否则要等游戏下次 onResume 才出现）
                 try {
                     if (org.levimc.launcher.core.minecraft.MinecraftActivityState.isRunning()) {
-                        android.app.Activity game = org.levimc.launcher.core.minecraft.MinecraftActivityState.getActivity();
+                        android.app.Activity game = org.levimc.launcher.core.minecraft.MinecraftActivityState.getCurrentActivity();
                         if (game != null) {
                             OnlineOverlay.get(game).show();
                         }

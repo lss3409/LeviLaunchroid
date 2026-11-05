@@ -590,6 +590,28 @@ public class VersionManager {
         return version.isInstalled ? LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID : version.directoryName;
     }
 
+    /** v1.6.0 merge 补（官方同款）：设置实例显示名（InstanceSettingsActivity 用）。 */
+    public boolean setInstanceDisplayName(GameVersion version, String displayName) {
+        if (version == null || displayName == null || displayName.trim().isEmpty()) return false;
+        String value = displayName.trim();
+        try {
+            File metadataDir = LauncherStorage.getProfileMetadataDir(context, getMetadataDirectoryName(version));
+            metadataStore.update(
+                    metadataDir,
+                    metadataDefaults(version.isInstalled, version.directoryName, version.packageName, version.versionCode),
+                    metadata -> metadata.displayName = value
+            );
+            String fullDisplayName = value;
+            if (version.versionCode != null && !version.versionCode.trim().isEmpty()) {
+                fullDisplayName = value + " (" + version.versionCode.trim() + ")";
+            }
+            version.displayName = fullDisplayName;
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
     private interface GameVersionMutator {
         void mutate(GameVersion version);
     }

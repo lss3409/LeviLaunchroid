@@ -37,9 +37,6 @@
     <external-path
         name="screenshotsExternalLegacyVrTrial"
         path="games/com.mojang.trial/vr/Screenshots"/>
-    <external-path
-        name="download"
-        path="Download/"/>
     <external-cache-path
         name="external_cache"
         path="."/>

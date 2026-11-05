@@ -16,8 +16,17 @@ import org.levimc.launcher.util.PersonalizationManager;
 
 public class LoadingDialog extends Dialog {
     private TextView messageView;
+    private TextView detailView;
+    private TextView hideView;
     private ProgressBar progressBar;
     private CharSequence pendingMessage;
+    private CharSequence pendingDetail;
+
+    public interface OnHideListener {
+        void onHide();
+    }
+
+    private OnHideListener hideListener;
 
     public LoadingDialog(Context context) {
         super(context);
@@ -38,17 +47,39 @@ public class LoadingDialog extends Dialog {
         getWindow().setAttributes(params);
 
         messageView = view.findViewById(R.id.tv_message);
+        detailView = view.findViewById(R.id.tv_detail);
+        hideView = view.findViewById(R.id.tv_hide);
         progressBar = view.findViewById(R.id.progress_bar);
-        
+
         if (pendingMessage != null) {
             messageView.setText(pendingMessage);
         }
-        
+        if (pendingDetail != null) {
+            detailView.setText(pendingDetail);
+        }
+        if (hideView != null) {
+            hideView.setOnClickListener(v -> {
+                if (hideListener != null) {
+                    hideListener.onHide();
+                } else {
+                    // 默认行为：隐藏弹窗，后台操作（导入/备份/登录）继续，
+                    // 操作完成后仍会弹出结果提示。
+                    dismiss();
+                }
+            });
+        }
+
         try {
             PersonalizationManager pm = new PersonalizationManager(getContext());
             int accent = pm.getAccentColor();
-            if (accent != 0 && progressBar != null) {
-                progressBar.setIndeterminateTintList(ColorStateList.valueOf(accent));
+            if (accent != 0) {
+                if (progressBar != null) {
+                    progressBar.setIndeterminateTintList(ColorStateList.valueOf(accent));
+                }
+                // 隐藏按钮文字跟随个性化 accent 色（默认是主题色 primary）
+                if (hideView != null) {
+                    hideView.setTextColor(accent);
+                }
             }
         } catch (Exception ignored) {}
     }
@@ -58,6 +89,21 @@ public class LoadingDialog extends Dialog {
             messageView.setText(message);
         } else {
             pendingMessage = message;
+        }
+    }
+
+    public void setDetail(CharSequence detail) {
+        if (detailView != null) {
+            detailView.setText(detail);
+        } else {
+            pendingDetail = detail;
+        }
+    }
+
+    public void setOnHideListener(OnHideListener listener) {
+        this.hideListener = listener;
+        if (hideView != null && listener != null) {
+            hideView.setOnClickListener(v -> listener.onHide());
         }
     }
 }

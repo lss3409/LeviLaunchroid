@@ -379,7 +379,7 @@ public final class EasyTierManager {
                     try {
                         if (org.levimc.launcher.core.minecraft.MinecraftActivityState.isRunning()) {
                             android.app.Activity game =
-                                    org.levimc.launcher.core.minecraft.MinecraftActivityState.getActivity();
+                                    org.levimc.launcher.core.minecraft.MinecraftActivityState.getCurrentActivity();
                             if (game != null) {
                                 main.post(() -> OnlineOverlay.get(game).show());
                             }

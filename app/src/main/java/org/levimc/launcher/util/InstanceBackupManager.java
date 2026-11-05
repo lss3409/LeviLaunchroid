@@ -8,6 +8,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
+import android.content.UriPermission;
 import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
@@ -1143,5 +1144,47 @@ public class InstanceBackupManager {
             this.baseDir = baseDir;
             this.relativePath = relativePath;
         }
+    }
+    // ---------------- v1.6.0 merge 补：官方下载目录选择三方法 ----------------
+
+    public boolean needsDownloadsFolderSelection() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) return false;
+        Uri tree = getBackupDownloadsTree();
+        if (tree == null) return true;
+        for (UriPermission permission : context.getContentResolver().getPersistedUriPermissions()) {
+            if (tree.equals(permission.getUri()) && permission.isReadPermission() && permission.isWritePermission()) return false;
+        }
+        return true;
+    }
+
+    public Intent downloadsFolderPicker() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        intent.putExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI,
+                android.provider.DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", "primary:Download"));
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
+        return intent;
+    }
+
+    public void setDownloadsFolder(Intent data) throws IOException {
+        Uri tree = data == null ? null : data.getData();
+        if (tree == null || !"com.android.externalstorage.documents".equals(tree.getAuthority())
+                || !"primary:Download".equals(android.provider.DocumentsContract.getTreeDocumentId(tree))) {
+            throw new IOException(context.getString(org.levimc.launcher.R.string.backup_select_downloads));
+        }
+        int flags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        if ((flags & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION))
+                != (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION)) {
+            throw new IOException(context.getString(org.levimc.launcher.R.string.backup_select_downloads));
+        }
+        context.getContentResolver().takePersistableUriPermission(tree, flags);
+        context.getSharedPreferences("instance_backups", Context.MODE_PRIVATE).edit()
+                .putString("downloads_tree", tree.toString()).apply();
+    }
+
+    private Uri getBackupDownloadsTree() {
+        String value = context.getSharedPreferences("instance_backups", Context.MODE_PRIVATE)
+                .getString("downloads_tree", null);
+        return value == null ? null : Uri.parse(value);
     }
 }

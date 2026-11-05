@@ -137,7 +137,12 @@ public class PersonalizationManager {
         sChangeGeneration++;
     }
 
-    public void setBackgroundImage(Uri sourceUri, Context activityContext) {
+    /** v1.6.0 merge：返回 boolean（官方签名）——gif 背景等调用方需要。 */
+    public boolean hasAnimatedBackground() {
+        return false; // gif/视频动态背景未跟官方（静态背景路径）
+    }
+
+    public boolean setBackgroundImage(Uri sourceUri, Context activityContext) {
         try {
             File destDir = new File(context.getFilesDir(), "personalization");
             if (!destDir.exists()) destDir.mkdirs();
@@ -151,7 +156,7 @@ public class PersonalizationManager {
             if (isGif || isVideo) {
                 File destFile = new File(destDir, isGif ? "background.gif" : "background.mp4");
                 InputStream is = activityContext.getContentResolver().openInputStream(sourceUri);
-                if (is == null) return;
+                if (is == null) return false;
                 FileOutputStream fos = new FileOutputStream(destFile);
                 byte[] buf = new byte[65536];
                 int n;
@@ -162,17 +167,17 @@ public class PersonalizationManager {
                 is.close();
                 prefs.edit().putString(KEY_BG_IMAGE_PATH, destFile.getAbsolutePath()).apply();
                 sChangeGeneration++;
-                return;
+                return true;
             }
 
             File destFile = new File(destDir, "background.jpg");
 
             InputStream is = activityContext.getContentResolver().openInputStream(sourceUri);
-            if (is == null) return;
+            if (is == null) return false;
 
             Bitmap original = BitmapFactory.decodeStream(is);
             is.close();
-            if (original == null) return;
+            if (original == null) return false;
 
             int maxDim = 2048;
             float scale = Math.min((float) maxDim / original.getWidth(), (float) maxDim / original.getHeight());
@@ -191,8 +196,10 @@ public class PersonalizationManager {
 
             prefs.edit().putString(KEY_BG_IMAGE_PATH, destFile.getAbsolutePath()).apply();
             sChangeGeneration++;
+            return true;
         } catch (Exception e) {
             e.printStackTrace();
+            return false;
         }
     }
 

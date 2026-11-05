@@ -1,9 +1,10 @@
 package org.levimc.launcher.ui.activities;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
@@ -16,6 +17,8 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.google.android.material.switchmaterial.SwitchMaterial;
 
@@ -29,11 +32,11 @@ import org.levimc.launcher.util.InstanceBackupManager;
 import org.levimc.launcher.util.InstanceShortcutManager;
 
 public class InstanceSettingsActivity extends BaseActivity {
+    private static final int REQUEST_BACKUP_STORAGE = 4201;
 
     private GameVersion version;
     private VersionManager versionManager;
     private InstanceBackupManager backupManager;
-    private ActivityResultLauncher<Intent> backupDownloadsFolderLauncher;
     private InstallProgressDialog backupProgressDialog;
     private Button backupButton;
 
@@ -41,16 +44,13 @@ public class InstanceSettingsActivity extends BaseActivity {
     private View sectionGeneral, sectionLaunchOptions, sectionManagement;
 
     private EditText editName;
-    private SwitchMaterial switchIsolation;
-    private SwitchMaterial switchLaunchVertically;
     private EditText editShortcutName;
     private ImageView shortcutIconPreview;
     private String shortcutIconUri;
     private ActivityResultLauncher<String[]> shortcutIconPicker;
-    private final Handler autoSaveHandler = new Handler(Looper.getMainLooper());
-    private Runnable pendingNameSave;
+    private SwitchMaterial switchLaunchVertically;
+    private String originalDisplayName = "";
     private boolean populatingData;
-    private String lastSavedInstanceName = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -74,18 +74,6 @@ public class InstanceSettingsActivity extends BaseActivity {
 
         versionManager = VersionManager.get(this);
         backupManager = new InstanceBackupManager(this);
-        backupDownloadsFolderLauncher = registerForActivityResult(
-                new ActivityResultContracts.StartActivityForResult(),
-                result -> {
-                    if (result.getResultCode() != RESULT_OK || result.getData() == null) return;
-                    try {
-                        backupManager.setDownloadsFolder(result.getData());
-                        startBackup();
-                    } catch (Exception error) {
-                        Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show();
-                    }
-                });
-
 
         version = getIntent().getParcelableExtra("version");
         if (version == null) {
@@ -108,40 +96,10 @@ public class InstanceSettingsActivity extends BaseActivity {
         sectionManagement = findViewById(R.id.section_management);
 
         editName = findViewById(R.id.edit_instance_name);
-        switchIsolation = findViewById(R.id.switch_version_isolation);
-        switchLaunchVertically = findViewById(R.id.switch_launch_vertically);
         editShortcutName = findViewById(R.id.edit_shortcut_name);
         shortcutIconPreview = findViewById(R.id.shortcut_icon_preview);
+        switchLaunchVertically = findViewById(R.id.switch_launch_vertically);
 
-        tabGeneral.setOnClickListener(v -> selectTab(tabGeneral));
-        tabLaunchOptions.setOnClickListener(v -> selectTab(tabLaunchOptions));
-        tabManagement.setOnClickListener(v -> selectTab(tabManagement));
-
-        switchIsolation.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (populatingData) return;
-            versionManager.setInstanceVersionIsolation(version, isChecked);
-            setResult(RESULT_OK);
-        });
-        switchLaunchVertically.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (populatingData) return;
-            versionManager.setInstanceLaunchVertically(version, isChecked);
-            setResult(RESULT_OK);
-        });
-
-        editName.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (!populatingData) scheduleInstanceNameSave();
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {
-            }
-        });
         editShortcutName.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -164,7 +122,17 @@ public class InstanceSettingsActivity extends BaseActivity {
             updateShortcutIconPreview();
             saveShortcutSettings();
         });
-        findViewById(R.id.btn_add_instance_shortcut).setOnClickListener(v -> addInstanceShortcut());
+        Button btnAddShortcut = findViewById(R.id.btn_add_instance_shortcut);
+        Button btnRemoveShortcut = findViewById(R.id.btn_remove_shortcut);
+        if (btnAddShortcut != null) btnAddShortcut.setOnClickListener(v -> addInstanceShortcut());
+        if (btnRemoveShortcut != null) btnRemoveShortcut.setOnClickListener(v -> removeShortcut());
+
+        tabGeneral.setOnClickListener(v -> selectTab(tabGeneral));
+        tabLaunchOptions.setOnClickListener(v -> selectTab(tabLaunchOptions));
+        tabManagement.setOnClickListener(v -> selectTab(tabManagement));
+
+        findViewById(R.id.btn_cancel).setOnClickListener(v -> finish());
+        findViewById(R.id.btn_ok).setOnClickListener(v -> saveAndFinish());
 
         Button btnDelete = findViewById(R.id.btn_delete_instance);
         backupButton = findViewById(R.id.btn_backup_instance);
@@ -197,11 +165,12 @@ public class InstanceSettingsActivity extends BaseActivity {
                 currentName = dn;
             }
         }
+        originalDisplayName = currentName.trim();
         populatingData = true;
-        lastSavedInstanceName = currentName.trim();
         editName.setText(currentName);
-        switchIsolation.setChecked(version.versionIsolation);
+
         switchLaunchVertically.setChecked(version.launchVertically);
+
         editShortcutName.setText(InstanceShortcutManager.getSavedName(this, version));
         shortcutIconUri = InstanceShortcutManager.getSavedIconUri(this, version);
         updateShortcutIconPreview();
@@ -244,30 +213,6 @@ public class InstanceSettingsActivity extends BaseActivity {
         }
     }
 
-    private void scheduleInstanceNameSave() {
-        if (pendingNameSave != null) {
-            autoSaveHandler.removeCallbacks(pendingNameSave);
-        }
-        pendingNameSave = this::saveInstanceNameNow;
-        autoSaveHandler.postDelayed(pendingNameSave, 250);
-    }
-
-    private void saveInstanceNameNow() {
-        if (pendingNameSave != null) {
-            autoSaveHandler.removeCallbacks(pendingNameSave);
-            pendingNameSave = null;
-        }
-        if (editName == null || version == null) return;
-        String newName = editName.getText().toString().trim();
-        if (newName.isEmpty() || newName.equals(lastSavedInstanceName)) return;
-        if (versionManager.setInstanceDisplayName(version, newName)) {
-            lastSavedInstanceName = newName;
-            setResult(RESULT_OK);
-        } else {
-            Toast.makeText(this, R.string.instance_settings_auto_save_failed, Toast.LENGTH_SHORT).show();
-        }
-    }
-
     private void saveShortcutSettings() {
         if (populatingData || version == null || editShortcutName == null) return;
         String shortcutName = editShortcutName.getText().toString().trim();
@@ -287,13 +232,62 @@ public class InstanceSettingsActivity extends BaseActivity {
         }
     }
 
+    private void removeShortcut() {
+        if (version == null) return;
+        android.content.pm.ShortcutManager sm = getSystemService(android.content.pm.ShortcutManager.class);
+        if (sm == null) return;
+        try {
+            sm.disableShortcuts(java.util.Collections.singletonList(InstanceShortcutManager.getShortcutId(version)));
+        } catch (Exception ignored) {
+        }
+        Toast.makeText(this, R.string.remove_shortcut_hint, Toast.LENGTH_LONG).show();
+    }
+
     private void updateShortcutIconPreview() {
         if (shortcutIconPreview == null) return;
         android.graphics.Bitmap bitmap = InstanceShortcutManager.loadIconBitmap(this, shortcutIconUri);
         if (bitmap != null) {
             shortcutIconPreview.setImageBitmap(bitmap);
         } else {
-            shortcutIconPreview.setImageResource(R.mipmap.ic_launcher);
+            shortcutIconPreview.setImageResource(R.drawable.ic_minecraft_cube);
+        }
+    }
+
+    private void saveAndFinish() {
+        String newName = editName.getText().toString().trim();
+
+        versionManager.setInstanceLaunchVertically(version, switchLaunchVertically.isChecked());
+
+        if (!newName.isEmpty() && !newName.equals(originalDisplayName)) {
+            View btnOk = findViewById(R.id.btn_ok);
+            if (btnOk != null) {
+                btnOk.setEnabled(false);
+                btnOk.setAlpha(0.5f);
+            }
+            versionManager.renameVersion(version, newName, new VersionManager.OnRenameVersionCallback() {
+                @Override
+                public void onRenameCompleted(boolean success) {
+                    runOnUiThread(() -> {
+                        setResult(RESULT_OK);
+                        finish();
+                    });
+                }
+
+                @Override
+                public void onRenameFailed(Exception e) {
+                    runOnUiThread(() -> {
+                        if (btnOk != null) {
+                            btnOk.setEnabled(true);
+                            btnOk.setAlpha(1.0f);
+                        }
+                        Toast.makeText(InstanceSettingsActivity.this,
+                                "Rename failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    });
+                }
+            });
+        } else {
+            setResult(RESULT_OK);
+            finish();
         }
     }
 
@@ -314,7 +308,7 @@ public class InstanceSettingsActivity extends BaseActivity {
                         @Override
                         public void onDeleteFailed(Exception e) {
                             runOnUiThread(() -> Toast.makeText(InstanceSettingsActivity.this,
-                                    getString(R.string.toast_delete_failed, e.getMessage()), Toast.LENGTH_SHORT).show());
+                                    "Delete failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
                         }
                     });
                 })
@@ -332,8 +326,12 @@ public class InstanceSettingsActivity extends BaseActivity {
     }
 
     private void startBackupWithPermissionCheck() {
-        if (backupManager.needsDownloadsFolderSelection()) {
-            backupDownloadsFolderLauncher.launch(backupManager.downloadsFolderPicker());
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                    REQUEST_BACKUP_STORAGE);
             return;
         }
         startBackup();
@@ -369,11 +367,10 @@ public class InstanceSettingsActivity extends BaseActivity {
             @Override
             public void onSuccess(String displayPath) {
                 finishBackupProgress();
-                new CustomAlertDialog(InstanceSettingsActivity.this)
-                        .setTitleText(getString(R.string.instance_backup_success_title))
-                        .setMessage(getString(R.string.instance_backup_success_message, displayPath))
-                        .setPositiveButton(getString(R.string.confirm), null)
-                        .show();
+                // v532：备份完成提示改通知栏（删弹窗）
+                org.levimc.launcher.util.BackupNotifier.show(InstanceSettingsActivity.this,
+                        getString(R.string.instance_backup_success_title),
+                        getString(R.string.instance_backup_success_message, displayPath));
             }
 
             @Override
@@ -401,18 +398,20 @@ public class InstanceSettingsActivity extends BaseActivity {
 
     @Override
     protected void onPause() {
-        saveInstanceNameNow();
         saveShortcutSettings();
         super.onPause();
     }
 
     @Override
-    protected void onDestroy() {
-        if (pendingNameSave != null) {
-            autoSaveHandler.removeCallbacks(pendingNameSave);
-            pendingNameSave = null;
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_BACKUP_STORAGE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startBackup();
+            } else {
+                Toast.makeText(this, R.string.storage_permission_not_granted, Toast.LENGTH_SHORT).show();
+            }
         }
-        super.onDestroy();
     }
 
     private void setupNavBar() {

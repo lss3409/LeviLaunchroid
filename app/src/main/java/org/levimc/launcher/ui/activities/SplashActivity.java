@@ -15,6 +15,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
+import androidx.interpolator.view.animation.FastOutSlowInInterpolator;
 import android.view.animation.LinearInterpolator;
 
 import androidx.interpolator.view.animation.LinearOutSlowInInterpolator;
@@ -43,6 +44,19 @@ public class SplashActivity extends BaseActivity {
     protected void onCreate(Bundle savedInstanceState) {
         syncSystemLocale();
         super.onCreate(savedInstanceState);
+        // v0.4.41：进程热启动（MainActivity 仍在栈中）跳过动画——
+        // 桌面点图标不再每次走 Splash（此前用户误以为后台被杀）
+        org.levimc.launcher.ui.activities.MainActivity main =
+                org.levimc.launcher.ui.activities.MainActivity.sInstance;
+        if (main != null && !main.isDestroyed() && !main.isFinishing()) {
+            finish();
+            overridePendingTransition(0, 0);
+            return;
+        }
+        // v549：启动器活跃时间戳（详情卡「最近在线」随心跳广播）
+        org.levimc.launcher.core.online.PlayerIdentity.touchLastActive(this);
+        // v564：联机调试文件日志初始化（vivo logcat 抓不到应用日志）
+        org.levimc.launcher.util.OnlineDebugLog.init(this);
         binding = ActivitySplashBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
@@ -138,10 +152,13 @@ public class SplashActivity extends BaseActivity {
                 .setDuration(400)
                 .setInterpolator(new LinearOutSlowInInterpolator())
                 .start();
+            // v0.4.132：LBBL 手写艺术字描边动画（苹果风）
+            binding.tvAppName.startHandwriting(1500);
         }, 500);
 
         binding.loadingBar.postDelayed(() -> {
             binding.loadingBar.animate().alpha(1f).setDuration(300).start();
+            binding.loadingBar.startWaving();
             binding.tvPreparing.animate().alpha(0.7f).setDuration(300).start();
             startLoadingAnimation();
         }, 700);
@@ -155,17 +172,15 @@ public class SplashActivity extends BaseActivity {
         binding.logoGlow.setBackground(createRadialGlow(accent));
         binding.orbitRing.setBackground(createOrbitRing(accent));
         binding.orbitDot.setBackground(createOrbitDot(accent));
-        binding.loadingBar.setProgressTintList(ColorStateList.valueOf(accent));
-        binding.loadingBar.setProgressBackgroundTintList(ColorStateList.valueOf(withAlpha(accent, 42)));
-        binding.loadingBar.setIndeterminateTintList(ColorStateList.valueOf(accent));
+        // v0.4.132：波浪进度条（WaveProgressView）+ 手写字（HandwritingTextView）
+        binding.loadingBar.setWaveColor(accent);
+        binding.tvAppName.setTextColor(accent);
+        binding.tvAppName.setText(getString(R.string.app_name));
         binding.tvPreparing.setTextColor(blendColors(
             getColor(R.color.text_secondary),
             accent,
             isDarkMode() ? 0.24f : 0.18f
         ));
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            binding.loadingBar.getProgressDrawable().setColorFilter(null);
-        }
     }
 
     private int resolveAccentColor() {
@@ -272,32 +287,58 @@ public class SplashActivity extends BaseActivity {
     }
 
     private void startLoadingAnimation() {
-        progressAnimator = ObjectAnimator.ofInt(binding.loadingBar, "progress", 0, 100);
+        // v0.4.132：波浪进度条 0→1（ValueAnimator 驱动 setProgress）
+        progressAnimator = ObjectAnimator.ofFloat(binding.loadingBar, "progress", 0f, 1f);
         progressAnimator.setDuration(2200);
         progressAnimator.setInterpolator(new AccelerateDecelerateInterpolator());
         progressAnimator.addListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator animation) {
-                navigateToMain();
+                playIconTransition();
             }
         });
         progressAnimator.start();
     }
 
-    private void navigateToMain() {
+    /** v0.4.132：Levi 图标过渡——进度完成后中央图标缩小飞向
+     *  左上角（主页图标位置），其余元素淡出后进主页。 */
+    private void playIconTransition() {
         if (navigated) return;
         navigated = true;
+        cancelAnimators();
 
-        binding.getRoot().animate()
-            .alpha(0f)
-            .setDuration(300)
+        float curCx = binding.imgLeaf.getX() + binding.imgLeaf.getWidth() / 2f;
+        float curCy = binding.imgLeaf.getY() + binding.imgLeaf.getHeight() / 2f;
+        float tx = dp(72) - curCx;
+        float ty = dp(72) - curCy;
+
+        binding.orbitRing.animate().alpha(0f).setDuration(250).start();
+        binding.orbitDot.animate().alpha(0f).setDuration(250).start();
+        binding.tvAppName.animate().alpha(0f).setDuration(250).start();
+        binding.loadingBar.animate().alpha(0f).setDuration(250).start();
+        binding.tvPreparing.animate().alpha(0f).setDuration(250).start();
+        binding.logoGlow.animate().alpha(0f).setDuration(300).start();
+
+        binding.imgLeaf.animate()
+            .translationX(tx)
+            .translationY(ty)
+            .scaleX(0.4f)
+            .scaleY(0.4f)
+            .setDuration(650)
+            // v0.4.133：Overshoot 回弹插值器——图标过渡 Q 弹
+            // （弹簧过冲效果，落位后轻微回弹）
+            .setInterpolator(new android.view.animation.OvershootInterpolator(1.35f))
             .withEndAction(() -> {
                 Intent intent = new Intent(SplashActivity.this, MainActivity.class);
                 startActivity(intent);
                 finish();
-                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+                overridePendingTransition(0, 0);
             })
             .start();
+    }
+
+    private void navigateToMain() {
+        playIconTransition();
     }
 
     private void syncSystemLocale() {

@@ -67,8 +67,8 @@ public class AboutActivity extends BaseActivity {
     }
 
     private void setupNavBar() {
-        setActiveNavTab(R.id.nav_tab_about);
-        findViewById(R.id.nav_tab_about).setOnClickListener(v -> {});
+        setActiveNavTab(R.id.nav_tab_settings);
+        findViewById(R.id.nav_tab_settings).setOnClickListener(v -> {});
     }
 
     private void loadAvatars() {

@@ -1,22 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- v549：弹窗固定主题——游戏进程（MinecraftActivity 非 AppCompat）里
-     Dialog 继承 Activity 主题时 Button 的 textAppearance 等 attr 解析失败崩溃，
-     所有 CustomAlertDialog 统一用此完整主题，不依赖宿主 Activity。 -->
-    <style name="LeviDialogTheme" parent="Theme.MaterialComponents.Light.Dialog.Alert">
-        <item name="android:windowBackground">@android:color/transparent</item>
-        <!-- v550：Alert 主题默认窗口最小宽度约 65% 屏幕，会覆盖代码 setLayout 的收窄宽度 -->
-        <item name="android:windowMinWidthMajor">0dp</item>
-        <item name="android:windowMinWidthMinor">0dp</item>
-        <item name="android:colorBackground">@color/background</item>
-        <item name="colorPrimary">@color/primary</item>
-        <item name="colorOnPrimary">@color/on_primary</item>
-        <item name="colorOnSurface">@color/on_surface</item>
-        <item name="android:textColorPrimary">@color/on_surface</item>
-        <item name="android:textColorSecondary">@color/text_secondary</item>
-        <item name="android:fontFamily">@font/misans</item>
-    </style>
-
     <style name="AppFullScreenTheme" parent="Theme.AppCompat.NoActionBar">
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionBar">false</item>
@@ -42,7 +25,19 @@
         <item name="cornerSize">10dp</item>
     </style>
 
-    <!-- v460：世界设置表单——胶囊选择按钮（复用 tab 选中/未选中背景，不改颜色） -->
+    <style name="LeviDialogTheme" parent="Theme.MaterialComponents.Light.Dialog.Alert">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <!-- v550：Alert 主题默认窗口最小宽度约 65% 屏幕，会覆盖代码 setLayout 的收窄宽度 -->
+        <item name="android:windowMinWidthMajor">0dp</item>
+        <item name="android:windowMinWidthMinor">0dp</item>
+        <item name="android:colorBackground">@color/background</item>
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorOnPrimary">@color/on_primary</item>
+        <item name="colorOnSurface">@color/on_surface</item>
+        <item name="android:textColorPrimary">@color/on_surface</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:fontFamily">@font/misans</item>
+    </style>
     <style name="NbtCapsule">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">34dp</item>
@@ -56,16 +51,12 @@
         <item name="android:textColor">@color/text_secondary</item>
         <item name="android:textSize">12sp</item>
     </style>
-
-    <!-- v460：世界设置表单——开关行容器 -->
     <style name="NbtSwitchRow">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">48dp</item>
         <item name="android:gravity">center_vertical</item>
         <item name="android:orientation">horizontal</item>
     </style>
-
-    <!-- v460：世界设置表单——开关行标签 -->
     <style name="NbtSwitchLabel">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">wrap_content</item>
@@ -74,8 +65,6 @@
         <item name="android:textColor">@color/on_surface</item>
         <item name="android:textSize">13sp</item>
     </style>
-
-    <!-- v460：世界设置表单——开关本体 -->
     <style name="NbtSwitch">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
