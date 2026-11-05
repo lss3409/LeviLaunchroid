@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+               background: #12141A; }
+  #container { position: absolute; inset: 0; }
+  #loading { position: absolute; inset: 0; display: flex; align-items: center;
+             justify-content: center; color: #8A8A8A; font: 14px sans-serif; }
+  /* XYZ 轴（皮肤 3D 预览同款：独立 2D canvas，左下角） */
+  #axes { position: absolute; left: 10px; bottom: 12px; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="container"></div>
+<div id="loading">Loading…</div>
+<canvas id="axes" width="72" height="72"></canvas>
+<script src="three.min.js"></script>
+<script src="OrbitControls.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

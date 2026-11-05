@@ -34,6 +34,7 @@ import org.levimc.launcher.core.content.PackActivator;
 import org.levimc.launcher.core.content.WorldManager;
 import org.levimc.launcher.core.versions.GameVersion;
 import org.levimc.launcher.core.versions.VersionManager;
+import org.levimc.launcher.core.content.ContentImporter;
 import org.levimc.launcher.databinding.ActivityContentListBinding;
 import org.levimc.launcher.settings.FeatureSettings;
 import org.levimc.launcher.ui.adapter.ResourcePacksAdapter;
@@ -91,6 +92,8 @@ public class ContentListActivity extends BaseActivity {
     private ActivityResultLauncher<Intent> customFlatWorldLauncher;
     private ActivityResultLauncher<Intent> structureExportLauncher;
     private ActivityResultLauncher<Intent> batchExportFolderLauncher;
+    private ActivityResultLauncher<Intent> importLauncher;
+    private ContentImporter contentImporter;
     private WorldItem pendingExportWorld;
     private ResourcePackItem pendingExportPack;
     private WorldItem pendingStructureExportWorld;
@@ -132,6 +135,7 @@ public class ContentListActivity extends BaseActivity {
         sharedMode = getIntent().getBooleanExtra(EXTRA_SHARED_MODE, false);
         contentManager = ContentManager.getInstance(this);
         versionManager = VersionManager.get(this);
+        contentImporter = new ContentImporter(this);
 
         if (sharedMode) {
             configureSharedDirectories();
@@ -152,6 +156,26 @@ public class ContentListActivity extends BaseActivity {
     }
 
     private void setupActivityResultLaunchers() {
+        // v0.4.214：二级菜单导入按键——系统文件选择器（多选）
+        importLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() != RESULT_OK || result.getData() == null) return;
+                List<Uri> uris = new ArrayList<>();
+                android.content.ClipData clip = result.getData().getClipData();
+                if (clip != null) {
+                    for (int i = 0; i < clip.getItemCount(); i++) {
+                        Uri u = clip.getItemAt(i).getUri();
+                        if (u != null) uris.add(u);
+                    }
+                } else {
+                    Uri u = result.getData().getData();
+                    if (u != null) uris.add(u);
+                }
+                if (!uris.isEmpty()) handleImport(uris);
+            }
+        );
+
         exportLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
@@ -374,7 +398,9 @@ public class ContentListActivity extends BaseActivity {
 
             @Override
             public void onWorldViewMap(WorldItem world) {
-                openNbtViewer(world);
+                // v0.4.214：照搬官方 v1.6.0 入口——世界地图查看开官方
+                // WorldEditorActivity（onWorldEdit 官方方案）
+                openWorldEditor(world);
             }
 
             @Override
@@ -400,6 +426,11 @@ public class ContentListActivity extends BaseActivity {
             @Override
             public void onWorldTogglePin(WorldItem world) {
                 togglePinWorld(world);
+            }
+
+            @Override
+            public void onWorldImport() {
+                showImportPicker();
             }
         });
         // v445：置顶集合与顺序快照（SharedPreferences 持久化）
@@ -541,17 +572,22 @@ public class ContentListActivity extends BaseActivity {
         }
     }
 
-    /** 地图按钮：直接打开世界数据/地图查看（NBT 查看器）。 */
+    /** v0.4.214：地图按钮照搬官方 v1.6.0 方案——开官方 WorldEditorActivity。 */
     private void openNbtViewer(WorldItem world) {
+        openWorldEditor(world);
+    }
+
+    /** 官方 v1.6.0 openWorldEditor（原样照搬）。 */
+    private void openWorldEditor(WorldItem world) {
         File worldFile = world.getFile();
         if (worldFile == null || !worldFile.exists()) {
             Toast.makeText(this, R.string.world_directory_not_found, Toast.LENGTH_SHORT).show();
             return;
         }
 
-        Intent intent = new Intent(this, NbtViewerActivity.class);
-        intent.putExtra(NbtViewerActivity.EXTRA_WORLD_DIR, worldFile.getAbsolutePath());
-        intent.putExtra(NbtViewerActivity.EXTRA_WORLD_NAME, world.getWorldName());
+        Intent intent = new Intent(this, WorldEditorActivity.class);
+        intent.putExtra(WorldEditorActivity.EXTRA_WORLD_PATH, worldFile.getAbsolutePath());
+        intent.putExtra(WorldEditorActivity.EXTRA_WORLD_NAME, world.getWorldName());
         startActivity(intent);
     }
 
@@ -568,6 +604,99 @@ public class ContentListActivity extends BaseActivity {
         Intent intent = new Intent(this, FileManagerActivity.class);
         intent.putExtra(FileManagerActivity.EXTRA_PATH, dir.getAbsolutePath());
         startActivity(intent);
+    }
+
+    /** v0.4.214：二级菜单导入按键——全局扫描可视化菜单（与内容管理
+     *  主页导入按钮同款），选中后按本页栏位目录导入。 */
+    private void showImportPicker() {
+        org.levimc.launcher.ui.dialogs.ImportPickerDialog.show(this,
+                new org.levimc.launcher.ui.dialogs.ImportPickerDialog.Listener() {
+                    @Override
+                    public void onPick(java.io.File file) {
+                        handleImport(java.util.Collections.singletonList(
+                                android.net.Uri.fromFile(file)));
+                    }
+
+                    @Override
+                    public void onPickFromFiles() {
+                        startImport();
+                    }
+                });
+    }
+
+    private void startImport() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"application/zip", "application/octet-stream", "application/vnd.android.package-archive"});
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+        importLauncher.launch(intent);
+    }
+
+    /** 导入分发（复刻 ContentManagementActivity.handleImport——
+     *  目录按本页 storageType/栏位类型解析）。 */
+    private void handleImport(List<Uri> uris) {
+        GameVersion currentVersion = versionManager.getSelectedVersion();
+        if (currentVersion == null) {
+            Toast.makeText(this, R.string.not_found_version, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        File gameDataDir = getGameDataDirForType(currentStorageType);
+        if (gameDataDir == null) {
+            Toast.makeText(this, R.string.file_not_found, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        File worldsDir = new File(gameDataDir, "minecraftWorlds");
+        File resourcePacksDir = new File(gameDataDir, "resource_packs");
+        File behaviorPacksDir = new File(gameDataDir, "behavior_packs");
+        File skinPacksDir = new File(gameDataDir, "skin_packs");
+        File structuresDir = new File(
+                org.levimc.launcher.util.LauncherStorage.getSharedGameDataDir(this, true),
+                "structures");
+
+        showProgressDialog(getString(R.string.importing_content));
+        contentImporter.importContent(uris, resourcePacksDir, behaviorPacksDir,
+                skinPacksDir, worldsDir, structuresDir,
+                currentVersion.versionCode != null && !currentVersion.versionCode.isEmpty()
+                        ? currentVersion.versionCode : currentVersion.displayName,
+                new ContentImporter.ImportCallback() {
+                    @Override
+                    public void onSuccess(String message) {
+                        runOnUiThread(() -> {
+                            hideProgressDialog();
+                            Toast.makeText(ContentListActivity.this, message,
+                                    Toast.LENGTH_SHORT).show();
+                            contentManager.refreshContent();
+                            loadContent();
+                        });
+                    }
+
+                    @Override
+                    public void onError(String error) {
+                        runOnUiThread(() -> {
+                            hideProgressDialog();
+                            Toast.makeText(ContentListActivity.this, error,
+                                    Toast.LENGTH_LONG).show();
+                        });
+                    }
+
+                    @Override
+                    public void onProgress(int current, int total, String fileName) {
+                        runOnUiThread(() -> {
+                            if (progressDialog != null && progressDialog.isShowing()) {
+                                progressDialog.setMessage(
+                                        getString(R.string.importing_file_detail,
+                                                current, total, fileName));
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onVersionWarnings(List<String> warnings) {
+                        runOnUiThread(() -> ContentImporter.showVersionWarningsAndNotify(
+                                ContentListActivity.this, warnings));
+                    }
+                });
     }
 
     private void setupPacksRecyclerView() {
@@ -603,6 +732,11 @@ public class ContentListActivity extends BaseActivity {
             @Override
             public void onResourcePackActivate(ResourcePackItem pack) {
                 showActivatePackDialog(pack);
+            }
+
+            @Override
+            public void onResourcePackImport() {
+                showImportPicker();
             }
         });
         packsAdapter.setOnSelectionChangedListener(count -> updateSelectionToolbar());

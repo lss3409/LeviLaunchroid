@@ -49,9 +49,9 @@ public final class WorldOperations {
                     || Math.abs((long) x2) > 30000000
                     || Math.abs((long) z1) > 30000000
                     || Math.abs((long) z2) > 30000000)
-                throw new IOException("Coordinates exceed the world bounds");
+                throw new IOException("world_e_out_of_bounds");
             if (y1 < (dimension == 0 ? -64 : 0) || y2 > (dimension == 0 ? 319 : 255))
-                throw new IOException("Y range is outside the dimension's build height");
+                throw new IOException("world_e_bad_y_range");
         }
 
         public long chunks() {
@@ -61,9 +61,9 @@ public final class WorldOperations {
 
         public void validate() throws IOException {
             validateBounds();
-            if (chunks() > 256) throw new IOException("Select at most 256 chunks per operation");
+            if (chunks() > 256) throw new IOException("world_e_max_chunks");
             if (volume() < 1 || volume() > 524288)
-                throw new IOException("Select at most 524288 blocks per edit");
+                throw new IOException("world_e_max_blocks");
         }
 
         public boolean contains(double x, double y, double z) {
@@ -98,9 +98,9 @@ public final class WorldOperations {
         if (result.getType() != NbtTag.TAG_COMPOUND
                 || result.getTag("name") == null
                 || result.getTag("states") == null)
-            throw new IOException("Use a block name or a compound containing name and states");
+            throw new IOException("world_e_block_compound");
         if (!WorldChunk.name(result).matches("[a-z0-9_.-]+:[a-z0-9_./-]+"))
-            throw new IOException("Invalid block identifier");
+            throw new IOException("world_e_bad_block");
         return result;
     }
 
@@ -109,7 +109,7 @@ public final class WorldOperations {
         region.validate();
         String replacementSnbt = NativeNbt.toSnbt(replacement);
         if (layer < 0 || layer > 1)
-            throw new IOException("Select foreground or background storage");
+            throw new IOException("world_e_storage_layer");
         Map<byte[], byte[]> edits = new LinkedHashMap<>();
         int changed = 0, done = 0;
         int total =
@@ -192,9 +192,9 @@ public final class WorldOperations {
     public int biome(Region region, int biome, Progress progress) throws IOException {
         region.validateBounds();
         if (region.chunks() > 256)
-            throw new IOException("Select at most 256 chunks for a biome edit");
+            throw new IOException("world_e_max_biome_chunks");
         if (biome < 0 || biome > 65535)
-            throw new IOException("Biome ID must be between 0 and 65535");
+            throw new IOException("world_e_biome_range");
         Map<byte[], byte[]> edits = new LinkedHashMap<>();
         int done = 0,
                 total =
@@ -204,9 +204,9 @@ public final class WorldOperations {
             for (int cz = Math.floorDiv(region.z1, 16); cz <= Math.floorDiv(region.z2, 16); cz++) {
                 if (!progress.update(++done, total)) throw new java.io.InterruptedIOException();
                 WorldChunk chunk = WorldChunk.load(session, cx, cz, region.dimension);
-                if (!chunk.exists) throw new IOException("Selection contains an ungenerated chunk");
+                if (!chunk.exists) throw new IOException("world_e_ungenerated");
                 if (chunk.data3d == null && biome > 255)
-                    throw new IOException("Legacy biome storage only supports IDs up to 255");
+                    throw new IOException("world_e_legacy_biome");
                 byte[] data =
                         chunk.withBiomes(
                                 Math.max(region.x1 - cx * 16, 0),
@@ -224,10 +224,75 @@ public final class WorldOperations {
         return done;
     }
 
+    /** v0.4.214（LBBL）：多边形选区精确生物群系——poly=顶点链 block
+     *  坐标（顺时针正交多边形），bbox 提供维度与 Y 范围。覆盖判定用
+     *  块中心点（.5 偏移，顶点整数坐标不会产生边界歧义）。 */
+    public int biomePolygon(Region bbox, int[][] poly, int biome, Progress progress)
+            throws IOException {
+        bbox.validateBounds();
+        if (bbox.chunks() > 256)
+            throw new IOException("world_e_max_biome_chunks");
+        if (biome < 0 || biome > 65535)
+            throw new IOException("world_e_biome_range");
+        if (poly == null || poly.length < 4)
+            throw new IOException("world_e_bad_polygon");
+        Map<byte[], byte[]> edits = new LinkedHashMap<>();
+        int done = 0,
+                count = 0,
+                total =
+                        (Math.floorDiv(bbox.x2, 16) - Math.floorDiv(bbox.x1, 16) + 1)
+                                * (Math.floorDiv(bbox.z2, 16)
+                                        - Math.floorDiv(bbox.z1, 16)
+                                        + 1);
+        for (int cx = Math.floorDiv(bbox.x1, 16); cx <= Math.floorDiv(bbox.x2, 16); cx++)
+            for (int cz = Math.floorDiv(bbox.z1, 16); cz <= Math.floorDiv(bbox.z2, 16); cz++) {
+                if (!progress.update(++done, total))
+                    throw new java.io.InterruptedIOException();
+                WorldChunk chunk = WorldChunk.load(session, cx, cz, bbox.dimension);
+                if (!chunk.exists)
+                    throw new IOException("world_e_ungenerated");
+                if (chunk.data3d == null && biome > 255)
+                    throw new IOException(
+                            "world_e_legacy_biome");
+                boolean[][] mask = new boolean[16][16];
+                int covered = 0;
+                for (int x = 0; x < 16; x++)
+                    for (int z = 0; z < 16; z++)
+                        if (contains(poly, cx * 16 + x + 0.5, cz * 16 + z + 0.5)) {
+                            mask[x][z] = true;
+                            covered++;
+                        }
+                if (covered == 0) continue;
+                byte[] data = chunk.withBiomesMask(mask, bbox.y1, bbox.y2, biome);
+                edits.put(
+                        ChunkKey.of(
+                                cx,
+                                cz,
+                                bbox.dimension,
+                                chunk.data3d == null ? 0x2d : 0x2b),
+                        data);
+                count += covered;
+            }
+        session.stageBatch(edits);
+        return count;
+    }
+
+    /** 射线法多边形包含测试（顶点链顺时针/逆时针均可）。 */
+    public static boolean contains(int[][] poly, double x, double z) {
+        boolean inside = false;
+        int n = poly.length;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+            double xi = poly[i][0], zi = poly[i][1], xj = poly[j][0], zj = poly[j][1];
+            if ((zi > z) != (zj > z)
+                    && x < (xj - xi) * (z - zi) / (zj - zi) + xi) inside = !inside;
+        }
+        return inside;
+    }
+
     public int deleteChunks(Region region, Progress progress) throws IOException {
         region.validateBounds();
         if (region.chunks() > 64)
-            throw new IOException("Select at most 64 chunks for one deletion");
+            throw new IOException("world_e_max_delete_chunks");
         int total = (int) region.chunks();
         Map<byte[], byte[]> edits = new LinkedHashMap<>();
         int done = 0;
@@ -247,7 +312,7 @@ public final class WorldOperations {
                 byte[] key = WorldRecords.digestKey(x, z, region.dimension),
                         digest = session.get(key);
                 if (digest != null) {
-                    if (digest.length % 8 != 0) throw new IOException("Invalid entity index");
+                    if (digest.length % 8 != 0) throw new IOException("world_e_bad_entity_index");
                     for (int i = 0; i < digest.length; i += 8)
                         edits.put(
                                 WorldRecords.actorKey(Arrays.copyOfRange(digest, i, i + 8)), null);
@@ -262,7 +327,7 @@ public final class WorldOperations {
         region.validate();
         if ((long) (Math.floorDiv(region.x2, 16) - Math.floorDiv(region.x1, 16) + 1)
                         * (Math.floorDiv(region.z2, 16) - Math.floorDiv(region.z1, 16) + 1)
-                > 64) throw new IOException("Select at most 64 chunks for structure extraction");
+                > 64) throw new IOException("world_e_max_structure_chunks");
         List<NbtTag> foreground = new ArrayList<>((int) region.volume()),
                 background = new ArrayList<>((int) region.volume()),
                 palette = new ArrayList<>(),
@@ -283,7 +348,7 @@ public final class WorldOperations {
                     if (chunk == null) {
                         chunk = WorldChunk.load(session, cx, cz, region.dimension);
                         if (!chunk.exists)
-                            throw new IOException("Selection includes an ungenerated chunk");
+                            throw new IOException("world_e_ungenerated_export");
                         chunks.put(key, chunk);
                     }
                     if (chunk.legacyTerrain || chunk.legacySubchunks)
@@ -389,7 +454,7 @@ public final class WorldOperations {
 
     public void saveStructure(String id, byte[] data) throws IOException {
         if (!id.matches("[a-z0-9_.-]+:[a-zA-Z0-9_./-]+") || id.contains(".."))
-            throw new IOException("Use a structure ID such as mystructure:house");
+            throw new IOException("world_e_structure_id");
         validateStructure(data);
         session.stage(
                 ("structuretemplate_" + id).getBytes(java.nio.charset.StandardCharsets.UTF_8),
@@ -405,12 +470,12 @@ public final class WorldOperations {
                 || root.getTag("structure") == null
                 || root.getTag("size") == null
                 || root.getTag("size").getList().size() != 3)
-            throw new IOException("File is not a valid .mcstructure");
+            throw new IOException("world_e_bad_mcstructure");
         List<NbtTag> size = root.getTag("size").getList();
         long volume = 1;
         for (NbtTag n : size) {
             if (n.getInt() < 1 || n.getInt() > 512)
-                throw new IOException("Invalid structure dimensions");
+                throw new IOException("world_e_bad_structure_dims");
             volume *= n.getInt();
         }
         NbtTag structure = root.getTag("structure"),
@@ -421,15 +486,15 @@ public final class WorldOperations {
                 || indices.getList().size() != 2
                 || p == null
                 || p.getTag("default") == null)
-            throw new IOException("Invalid structure palette or size");
+            throw new IOException("world_e_bad_structure_palette");
         NbtTag palette = p.getTag("default").getTag("block_palette");
-        if (palette == null) throw new IOException("Structure block palette is missing");
+        if (palette == null) throw new IOException("world_e_no_palette");
         for (NbtTag layer : indices.getList()) {
             if (layer.getList().size() != volume)
-                throw new IOException("Structure indices do not match its size");
+                throw new IOException("world_e_structure_indices");
             for (NbtTag n : layer.getList())
                 if (n.getInt() < -1 || n.getInt() >= palette.getList().size())
-                    throw new IOException("Invalid structure palette index");
+                    throw new IOException("world_e_bad_palette_index");
         }
         return root;
     }
@@ -472,7 +537,7 @@ public final class WorldOperations {
                     if (chunk == null) {
                         chunk = WorldChunk.load(session, cx, cz, dimension);
                         if (!chunk.exists)
-                            throw new IOException("Destination contains an ungenerated chunk");
+                            throw new IOException("world_e_dest_ungenerated");
                         requireWritable(chunk);
                         chunks.put(key, chunk);
                         touched.put(key, new BitSet());
@@ -504,7 +569,7 @@ public final class WorldOperations {
             for (Map.Entry<String, NbtTag> entry : positions.getCompound().entrySet()) {
                 int index = Integer.parseInt(entry.getKey());
                 if (index < 0 || index >= region.volume())
-                    throw new IOException("Invalid structure block entity index");
+                    throw new IOException("world_e_bad_block_entity");
                 NbtTag entity = entry.getValue().getTag("block_entity_data");
                 if (entity == null) continue;
                 int x = index / (region.height() * region.depth()),

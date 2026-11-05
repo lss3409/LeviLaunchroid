@@ -146,9 +146,9 @@
         android:layout_gravity="center_vertical"
         android:layout_marginEnd="6dp"
         android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/world_view_map"
+        android:contentDescription="@string/edit"
         android:padding="9dp"
-        android:src="@drawable/ic_map"
+        android:src="@drawable/ic_edit"
         app:tint="@color/on_surface" />
 
     <ImageButton

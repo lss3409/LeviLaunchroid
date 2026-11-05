@@ -46,6 +46,8 @@ public class ResourcePacksAdapter extends RecyclerView.Adapter<ResourcePacksAdap
         void onResourcePackPreloadChanged(ResourcePackItem pack, boolean preloaded);
         /** v0.1.0：激活包到指定存档（写入 world_*_packs.json）。 */
         void onResourcePackActivate(ResourcePackItem pack);
+        /** v0.4.214：二级菜单导入按键。 */
+        void onResourcePackImport();
     }
 
     public interface OnSelectionChangedListener {
@@ -212,6 +214,9 @@ public class ResourcePacksAdapter extends RecyclerView.Adapter<ResourcePacksAdap
 
     private void showOverflow(View anchor, ResourcePackItem pack) {
         java.util.List<ContentActionPopup.Action> actions = new java.util.ArrayList<>(Arrays.asList(
+                new ContentActionPopup.Action(R.drawable.ic_download, R.string.import_content, false, () -> {
+                    if (onResourcePackActionListener != null) onResourcePackActionListener.onResourcePackImport();
+                }),
                 new ContentActionPopup.Action(R.drawable.ic_export, R.string.export, false, () -> {
                     if (onResourcePackActionListener != null) onResourcePackActionListener.onResourcePackExport(pack);
                 }),

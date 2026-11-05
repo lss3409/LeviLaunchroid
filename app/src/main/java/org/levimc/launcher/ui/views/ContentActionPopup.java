@@ -69,7 +69,10 @@ public final class ContentActionPopup {
             TextView label = row.findViewById(R.id.action_label);
             icon.setImageResource(action.iconRes);
             label.setText(action.labelRes);
+            // v0.4.214：气泡统一白底——文字/图标改深色（on_surface 在深色
+            // 主题下是白色，白底白字看不见）；error 红保留
             int color = ContextCompat.getColor(context, action.destructive ? R.color.error : R.color.on_surface);
+            if (!action.destructive) color = 0xFF49454F;
             label.setTextColor(color);
             ImageViewCompat.setImageTintList(icon, ColorStateList.valueOf(color));
             if (compact) {

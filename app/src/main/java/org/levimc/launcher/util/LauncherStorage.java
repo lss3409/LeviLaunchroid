@@ -486,6 +486,15 @@ public final class LauncherStorage {
         return dir;
     }
 
+    /** v0.4.214：方块贴图库目录（MCJE 全彩贴图，3D 视图/缩略图用）——
+     *  <内容根>/textures/blocks/<方块名>.png，用户可直接替换贴图，
+     *  启动器每次读取同步更新显示。 */
+    public static File getTexturesDir(Context context) {
+        File dir = new File(getExtendedRootDir(context), "textures");
+        ensureDir(dir);
+        return dir;
+    }
+
     /** v569：扩展缓存目录：<内容根>/Cache/map_cache（烘培地图数据）。 */
     public static File getBakedMapCacheDir(Context context) {
         File dir = new File(getExtendedRootDir(context), "Cache/map_cache");

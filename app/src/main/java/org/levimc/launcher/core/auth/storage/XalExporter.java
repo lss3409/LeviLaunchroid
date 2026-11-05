@@ -92,6 +92,16 @@ public class XalExporter {
         }
     }
 
+    /** 清理全部 XAL 导出数据（关掉「启动器管理登录」时调用——残留的
+     *  过期凭据会让游戏进程误判为接管登录态，报「找不到微软」）。 */
+    public static void clearAll(Context ctx) {
+        try {
+            clearXalData(ctx);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to clear XAL data", e);
+        }
+    }
+
     public static void removeAccountData(Context ctx, String userId) {
         if (userId == null || userId.isEmpty()) return;
         File userDir = new File(ctx.getApplicationContext().getFilesDir(), "xal/" + encodeUserId(userId));

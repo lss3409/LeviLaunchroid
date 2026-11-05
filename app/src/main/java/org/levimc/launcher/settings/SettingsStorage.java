@@ -14,7 +14,10 @@ public class SettingsStorage {
     public static void save(Context context, FeatureSettings settings) {
         SharedPreferences sp = context.getSharedPreferences(SP_NAME, Context.MODE_PRIVATE);
         String json = gson.toJson(settings);
-        sp.edit().putString(KEY_SETTINGS_JSON, json).apply();
+        // v0.4.214：apply→commit 同步落盘——启动链路跨进程读设置
+        // （游戏进程 native XAL 库），apply 异步落盘在立即启动时可能
+        // 读旧值（关掉登录开关仍报「找不到微软」的候选根因）
+        sp.edit().putString(KEY_SETTINGS_JSON, json).commit();
     }
 
     public static FeatureSettings load(Context context) {

@@ -459,7 +459,7 @@ public class ImportPickerDialog {
                     }
                 }
                 View card = buildCategoryCard(context, g, count, density, accent,
-                        textMain, cardBg, type == expandedType, phone, v -> {
+                        textMain, cardBg, type == expandedType, v -> {
                             // v610：单展开位——必须始终有一个分类展开
                             // （点已展开卡不再收起，避免下方出现大空缺）
                             // v653：防御——点已展开卡直接无操作
@@ -989,6 +989,13 @@ public class ImportPickerDialog {
         if (w != null) {
             w.setBackgroundDrawableResource(android.R.color.transparent);
             w.setLayout(widthArr[0], ViewGroup.LayoutParams.WRAP_CONTENT);
+            // v0.4.214：窗口顶部对齐——高度自适应（内容多少调整）只动
+            // 底边，顶部搜索/状态行/四分类卡固定不动（默认居中时高度
+            // 变化上下都动=上面功能区被「带动」，用户实测）
+            android.view.WindowManager.LayoutParams wlp = w.getAttributes();
+            wlp.gravity = Gravity.TOP;
+            wlp.y = (int) (56 * density);
+            w.setAttributes(wlp);
         }
         // v647：关闭后扫描回调静默（缓存仍由 onDone 收尾写入）
         // v656：关闭弹窗同时退出多选模式并清空勾选（防跨弹窗残留）
@@ -1017,12 +1024,11 @@ public class ImportPickerDialog {
     }
 
     /** 分类卡：图标 + 名称 + 数量，选中态 accent 描边。
-     *  v651：手机（phone）收小——高 44dp/图标 14dp/字号 10；
-     *  v654：平板也收紧间距——padding 8→5dp、卡间 6→3dp、高 72→64dp、
-     *  图标 22→20dp（用户反馈平板分类卡间距过大）。 */
+     *  v0.4.214：尺寸统一 64dp/图标 20/字号 11——「四栏不能动」
+     *  （自适应只动底部实例区，顶部功能区固定；phone 收小分支删除）。 */
     private static View buildCategoryCard(Context context, int group, int count,
                                           float density, int accent, int textMain,
-                                          int cardBg, boolean selected, boolean phone,
+                                          int cardBg, boolean selected,
                                           View.OnClickListener onClick) {
         LinearLayout card = new LinearLayout(context);
         card.setOrientation(LinearLayout.VERTICAL);
@@ -1037,7 +1043,7 @@ public class ImportPickerDialog {
         }
         card.setBackground(bg);
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0,
-                (int) ((phone ? 44 : 64) * density), 1f);
+                (int) (64 * density), 1f);
         if (group > 0) {
             cp.leftMargin = (int) (3 * density);
         }
@@ -1048,16 +1054,15 @@ public class ImportPickerDialog {
         icon.setImageResource(ICONS[group]);
         // v615：分类卡图标灰色（对齐内容管理分类图标观感）
         icon.setColorFilter(0xFF8A8A8A);
-        int iconDp = phone ? 14 : 20;
         icon.setLayoutParams(new LinearLayout.LayoutParams(
-                (int) (iconDp * density), (int) (iconDp * density)));
+                (int) (20 * density), (int) (20 * density)));
         card.addView(icon);
 
         TextView label = new TextView(context);
         label.setTag("count"); // v647：增量扫描更新计数用
         label.setText(LABELS[group] + (count > 0 ? "  " + count : ""));
         label.setTextColor(textMain);
-        label.setTextSize(phone ? 10 : 11);
+        label.setTextSize(11);
         label.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);

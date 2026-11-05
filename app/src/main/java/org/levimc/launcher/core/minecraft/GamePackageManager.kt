@@ -8,6 +8,7 @@ import android.content.res.AssetManager
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
+import org.levimc.launcher.R
 import org.levimc.launcher.core.versions.GameVersion
 import org.levimc.launcher.util.LauncherStorage
 import org.levimc.launcher.util.NativeBridgeHelper
@@ -25,7 +26,7 @@ class GamePackageManager private constructor(
     private val progressListener: MinecraftRuntimePreparer.ProgressListener?
 ) {
 
-    private val packageContext: Context
+    private val packageContext: Context?
     private val assetManager: AssetManager
     private val nativeLibDir: String
     private val applicationInfo: ApplicationInfo
@@ -65,18 +66,25 @@ class GamePackageManager private constructor(
 
     init {
         report("GamePackageManager init started")
-        val packageName = detectGamePackage() ?: throw IllegalStateException("Minecraft not found")
-        report("Detected Minecraft package: $packageName")
-        packageContext = context.createPackageContext(
-            packageName,
-            Context.CONTEXT_IGNORE_SECURITY or Context.CONTEXT_INCLUDE_CODE
-        )
-        
+        val detected = detectGamePackage()
+        // v0.4.214：独立版本（导入 APK 免安装）不要求设备装有游戏本体——
+        // 游戏运行在启动器进程（preloader 注入），本体包只用于已安装版本
+        if (detected == null && !(version != null && !version.isInstalled)) {
+            throw IllegalStateException(context.getString(R.string.launch_err_mc_not_found))
+        }
+        if (detected != null) report("Detected Minecraft package: $detected")
+        packageContext = detected?.let {
+            context.createPackageContext(
+                it,
+                Context.CONTEXT_IGNORE_SECURITY or Context.CONTEXT_INCLUDE_CODE
+            )
+        }
+
         if (version != null && !version.isInstalled) {
             applicationInfo = MinecraftLauncher(context).createFakeApplicationInfo(version, MinecraftLauncher.MC_PACKAGE_NAME)
             nativeLibDir = applicationInfo.nativeLibraryDir
         } else {
-            applicationInfo = packageContext.applicationInfo
+            applicationInfo = packageContext!!.applicationInfo
             nativeLibDir = resolveNativeLibDir()
         }
         
@@ -175,7 +183,7 @@ class GamePackageManager private constructor(
                 }
             }
         } else {
-            val appInfo = packageContext.applicationInfo
+            val appInfo = packageContext!!.applicationInfo
             if (File(appInfo.nativeLibraryDir).exists()) {
                 copyFromNativeDir(appInfo.nativeLibraryDir, outputDir)
             }
@@ -202,7 +210,7 @@ class GamePackageManager private constructor(
             applicationInfo.sourceDir?.let { paths.add(it) }
             applicationInfo.splitSourceDirs?.let { paths.addAll(it) }
         } else {
-            val appInfo = packageContext.applicationInfo
+            val appInfo = packageContext!!.applicationInfo
             appInfo.sourceDir?.let { paths.add(it) }
             appInfo.splitPublicSourceDirs?.let { paths.addAll(it) }
         }
@@ -451,9 +459,11 @@ class GamePackageManager private constructor(
                 }
             }
         } else {
-            paths.add(packageContext.packageResourcePath)
-            val splitPath = packageContext.packageResourcePath.replace("base.apk", "split_install_pack.apk")
-            if (File(splitPath).exists()) paths.add(splitPath)
+            packageContext?.let { pc ->
+                paths.add(pc.packageResourcePath)
+                val splitPath = pc.packageResourcePath.replace("base.apk", "split_install_pack.apk")
+                if (File(splitPath).exists()) paths.add(splitPath)
+            }
         }
         
         paths.add(context.packageResourcePath)
@@ -652,13 +662,15 @@ class GamePackageManager private constructor(
         }
     }
 
-    fun getPackageContext(): Context = packageContext
+    fun getPackageContext(): Context = packageContext ?: context
 
     fun getApplicationInfo(): ApplicationInfo = applicationInfo
 
     fun getVersionName(): String? {
         return try {
-            context.packageManager.getPackageInfo(packageContext.packageName, 0).versionName
+            context.packageManager.getPackageInfo(
+                packageContext?.packageName ?: MinecraftLauncher.MC_PACKAGE_NAME, 0
+            ).versionName
         } catch (e: Exception) {
             version?.versionCode
         }

@@ -52,6 +52,8 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
         void onWorldPlay(WorldItem world);
         /** v445：置顶/取消置顶。 */
         void onWorldTogglePin(WorldItem world);
+        /** v0.4.214：二级菜单导入按键。 */
+        void onWorldImport();
     }
 
     public interface OnSelectionChangedListener {
@@ -303,6 +305,9 @@ public class WorldsAdapter extends RecyclerView.Adapter<WorldsAdapter.WorldViewH
         // v445：置顶项（状态文案随当前置顶状态切换）
         boolean pinned = pinnedPaths.contains(pathOf(world));
         ContentActionPopup.show(anchor, world.getWorldName(), Arrays.asList(
+                new ContentActionPopup.Action(R.drawable.ic_download, R.string.import_content, false, () -> {
+                    if (onWorldActionListener != null) onWorldActionListener.onWorldImport();
+                }),
                 new ContentActionPopup.Action(R.drawable.ic_export, R.string.export, false, () -> {
                     if (onWorldActionListener != null) onWorldActionListener.onWorldExport(world);
                 }),

@@ -106,6 +106,27 @@ public class VoxelView extends View {
         if (file == null) {
             return null;
         }
+        // v0.4.214：外部 MCJE 贴图库优先（用户可替换、启动器同步更新）
+        synchronized (extCache) {
+            if (extCache.containsKey(file)) {
+                return extCache.get(file); // 含 null negative cache
+            }
+            try {
+                java.io.File f =
+                        new java.io.File(
+                                org.levimc.launcher.util.LauncherStorage.getTexturesDir(
+                                                getContext()),
+                                "blocks/" + file + ".png");
+                if (f.isFile()) {
+                    android.graphics.Bitmap bmp =
+                            android.graphics.BitmapFactory.decodeFile(f.getAbsolutePath());
+                    extCache.put(file, bmp);
+                    return bmp;
+                }
+                extCache.put(file, null);
+            } catch (Exception ignored) {
+            }
+        }
         synchronized (texCache) {
             if (texCache.containsKey(file)) {
                 return texCache.get(file); // 含 null negative cache
@@ -119,6 +140,43 @@ public class VoxelView extends View {
                 texCache.put(file, null); // negative cache：不存在的文件不再试
                 return null;
             }
+        }
+    }
+
+    /** v0.4.214：实体类方块判定（无贴图时显示名称标签）。 */
+    private static boolean isEntityBlock(String name) {
+        if (name == null) return false;
+        return name.contains("frame")
+                || name.contains("painting")
+                || name.contains("armor_stand")
+                || name.contains("skull")
+                || name.contains("banner")
+                || name.contains("sign")
+                || name.endsWith("_head");
+    }
+
+    /** 名称缩写：去 minecraft: 前缀，超 8 字符截断。 */
+    private static String shortLabel(String name) {
+        String s = name;
+        int colon = s.indexOf(':');
+        if (colon > 0) s = s.substring(colon + 1);
+        return s.length() > 8 ? s.substring(0, 8) : s;
+    }
+
+    /** v0.4.214：外部 MCJE 贴图缓存（全彩贴图，无需灰度模板乘色）。 */
+    private final java.util.Map<String, android.graphics.Bitmap> extCache =
+            new java.util.HashMap<>();
+
+    /** 该方块是否命中外部 MCJE 全彩贴图（命中则跳过 tintedTexture 乘色）。 */
+    private boolean isExternalTexture(String blockName) {
+        if (blockName == null) return false;
+        String file = TEX_MAP.get(blockName);
+        if (file == null && blockName.startsWith("minecraft:")) {
+            file = blockName.substring("minecraft:".length());
+        }
+        if (file == null) return false;
+        synchronized (extCache) {
+            return extCache.get(file) != null;
         }
     }
 
@@ -653,8 +711,11 @@ public class VoxelView extends View {
         // 无纹理回退纯色菱形
         if (showDiamond) {
             android.graphics.Bitmap tex = textureFor(blockName);
-            // v487：灰度模板纹理乘色调（草顶灰白"白色十字"根因）
-            tex = tintedTexture(blockName, tex, color);
+            // v487：灰度模板纹理乘色调（草顶灰白"白色十字"根因）；
+            // v0.4.214：外部 MCJE 全彩贴图跳过乘色（贴图已带原色）
+            if (!isExternalTexture(blockName)) {
+                tex = tintedTexture(blockName, tex, color);
+            }
             if (tex != null) {
                 android.graphics.Matrix mt = new android.graphics.Matrix();
                 float[] src = {0f, 0f, tex.getWidth(), 0f, 0f, tex.getHeight()};
@@ -674,9 +735,23 @@ public class VoxelView extends View {
                 top.lineTo(px(cx, topY, -1, 0, u, cosA, sinA), py(cx, topY, -1, 0, u, cosA, sinA));
                 top.lineTo(px(cx, topY, 0, -1, u, cosA, sinA), py(cx, topY, 0, -1, u, cosA, sinA));
                 top.close();
-                fillPaint.setColor(lit);
-                canvas.drawPath(top, fillPaint);
-                canvas.drawPath(top, strokePaint);
+                if (isEntityBlock(blockName)) {
+                    // v0.4.214：实体类（展示框/画/盔甲架/告示牌等）——
+                    // 无贴图时显示名称标签（浅底+文字，用户指定）
+                    fillPaint.setColor(0xFFECE5D8);
+                    canvas.drawPath(top, fillPaint);
+                    canvas.drawPath(top, strokePaint);
+                    String label = shortLabel(blockName);
+                    fillPaint.setColor(0xFF3A2F1D);
+                    fillPaint.setTextSize(u * 0.42f);
+                    fillPaint.setTextAlign(Paint.Align.CENTER);
+                    canvas.drawText(label, cx, topY + u * 0.16f, fillPaint);
+                    fillPaint.setTextAlign(Paint.Align.LEFT);
+                } else {
+                    fillPaint.setColor(lit);
+                    canvas.drawPath(top, fillPaint);
+                    canvas.drawPath(top, strokePaint);
+                }
             }
         }
 

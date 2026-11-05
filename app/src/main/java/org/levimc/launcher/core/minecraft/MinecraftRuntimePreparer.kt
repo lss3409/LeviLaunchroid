@@ -68,6 +68,11 @@ object MinecraftRuntimePreparer {
                     error
                 )
             }
+        } else {
+            // 开关关掉：清掉残留的 XAL 导出凭据，让游戏走自己的登录流程
+            // （残留过期凭据会让游戏进程误判为接管登录态报「找不到微软」）
+            org.levimc.launcher.core.auth.storage.XalExporter.clearAll(context.applicationContext)
+            trace.mark("Microsoft credentials cleared (launcher-managed login disabled)")
         }
 
         listener.onProgress(12, "Preparing game files")

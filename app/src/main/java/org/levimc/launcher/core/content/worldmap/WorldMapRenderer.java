@@ -4556,6 +4556,35 @@ public class WorldMapRenderer {
      * 有 bounds 缓存文件直接读（毫秒）；无则 readKeys 扫一遍 subchunk
      * key（155MB 世界约 5 秒）并保存。渲染交给视口按需。
      */
+    /** v0.4.214：已生成 chunk 质心（block 坐标）——打开地图编辑器定位用。
+     *  1.26 存档生成区稀疏散布（大片未生成海区），bounds 矩形中心常落在
+     *  未生成区（用户实测「打开后准星空白、渲染像从旁边开始」），质心=
+     *  所有已生成 chunk 的平均位置，必然贴近有内容的地方。 */
+    public static double[] buildChunkCentroid(File dbDir, int dimension) {
+        try {
+            LevelDBReader reader = new LevelDBReader(dbDir);
+            List<byte[]> subKeys = reader.readKeys(k -> {
+                int[] ck = parseChunkKey(k);
+                return ck != null && ck[2] == dimension && isSubchunkKey(k);
+            });
+            reader.close();
+            double sx = 0, sz = 0;
+            int n = 0;
+            for (byte[] k : subKeys) {
+                int[] ck = parseChunkKey(k);
+                if (ck == null) continue;
+                sx += ck[0] * 16 + 8;
+                sz += ck[1] * 16 + 8;
+                n++;
+            }
+            if (n == 0) return null;
+            return new double[] {sx / n, sz / n};
+        } catch (Exception ex) {
+            Log.w(TAG, "chunk 质心扫描失败", ex);
+            return null;
+        }
+    }
+
     public static WorldMap buildBoundsOnly(File dbDir, int dimension) {
         File bf = boundsFile(dbDir, dimension);
         try {
@@ -4865,11 +4894,16 @@ public class WorldMapRenderer {
         public final int[] colors; // 从顶向下的方块颜色（不含空气）
         public final int[] ys;
         public final String[] names; // 方块全名（纹理贴图用）
+        public final int biome; // v0.4.214：该列群系 id（colormap 采样用）
+        public final int surfaceY; // v0.4.214：该列地表高度（3D 视图
+        // 只渲染地表以上结构，剔除地面板/基底用）
 
-        VoxelColumn(int[] colors, int[] ys, String[] names) {
+        VoxelColumn(int[] colors, int[] ys, String[] names, int biome, int surfaceY) {
             this.colors = colors;
             this.ys = ys;
             this.names = names;
+            this.biome = biome;
+            this.surfaceY = surfaceY;
         }
     }
 
@@ -5079,7 +5113,9 @@ public class WorldMapRenderer {
                             ys[0] = floorY + 1;
                             n = 1;
                         }
-                        out[dz][dx] = new VoxelColumn(colors, ys, names);
+                        out[dz][dx] =
+                                new VoxelColumn(
+                                        colors, ys, names, colBiome[dz][dx], colYStart[dz][dx]);
                     }
                 }
                 return out;

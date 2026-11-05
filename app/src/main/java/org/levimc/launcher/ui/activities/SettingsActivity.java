@@ -508,8 +508,13 @@ public class SettingsActivity extends BaseActivity {
         // v0.4.213：使用启动器管理登录开关（merge 后加回——用户依赖 LL 登录）
         SwitchMaterial switchManagedLogin = findViewById(R.id.switch_managed_login);
         switchManagedLogin.setChecked(fs.isLauncherManagedMcLoginEnabled());
-        switchManagedLogin.setOnCheckedChangeListener((btn, checked) ->
-                fs.setLauncherManagedMcLoginEnabled(checked));
+        switchManagedLogin.setOnCheckedChangeListener((btn, checked) -> {
+            fs.setLauncherManagedMcLoginEnabled(checked);
+            // v0.4.214：关掉开关立即清理 XAL 导出凭据——残留凭据会让
+            // 游戏进程误判接管登录态，报「找不到微软」无法启动
+            if (!checked)
+                org.levimc.launcher.core.auth.storage.XalExporter.clearAll(this);
+        });
 
         // v0.4.11：手柄光标灵敏度（0.5x-3.0x，默认 1.0x）
         com.google.android.material.slider.Slider sliderCursorSpeed =

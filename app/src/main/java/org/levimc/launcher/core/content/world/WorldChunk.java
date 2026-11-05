@@ -128,7 +128,7 @@ public final class WorldChunk {
             Section s = new Section(keyY);
             s.layers.clear();
             if (version <= 1) {
-                if (b.remaining() < 6144) throw new IOException("Truncated legacy subchunk");
+                if (b.remaining() < 6144) throw new IOException("world_e_truncated_subchunk");
                 byte[] ids = new byte[4096], meta = new byte[2048];
                 b.get(ids);
                 b.get(meta);
@@ -155,7 +155,7 @@ public final class WorldChunk {
                 return s;
             }
             if (version != 8 && version != 9)
-                throw new IOException("Unsupported subchunk version " + version);
+                throw new IOException("world_e_bad_subchunk_version:" + version);
             int count = b.get() & 255;
             if (version == 9 && b.get() != keyY)
                 throw new IOException("Subchunk Y does not match its database key");
@@ -403,6 +403,60 @@ public final class WorldChunk {
     public NbtTag blockAt(int x, int y, int z) {
         Section s = sections.get(Math.floorDiv(y, 16));
         return s == null ? AIR : s.at(x, y & 15, z);
+    }
+
+    /** v0.4.214（LBBL）：多边形选区精确生物群系——mask=本 chunk 内
+     *  16×16 覆盖块布尔网格，一次编码写回（withBiomes 每次基于原始
+     *  数据，多段调用会互相覆盖，故必须合并为单次）。 */
+    public byte[] withBiomesMask(boolean[][] mask, int minY, int maxY, int biome)
+            throws IOException {
+        if (data3d == null || data3d.length < 512) {
+            if (data2d == null || data2d.length < 768)
+                throw new IOException("This chunk has no editable biome storage");
+            byte[] copy = data2d.clone();
+            for (int x = 0; x < 16; x++)
+                for (int z = 0; z < 16; z++)
+                    if (mask[x][z]) copy[512 + z * 16 + x] = (byte) biome;
+            return copy;
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write(data3d, 0, 512);
+        if (biomes.isEmpty()) throw new IOException("No decoded biome storage");
+        for (Map.Entry<Integer, int[]> section : biomes.entrySet()) {
+            int[] values = section.getValue().clone();
+            int sy = section.getKey();
+            for (int x = 0; x < 16; x++)
+                for (int z = 0; z < 16; z++)
+                    if (mask[x][z])
+                        for (int y = Math.max(minY, sy * 16); y <= Math.min(maxY, sy * 16 + 15); y++)
+                            values[(x << 8) | (z << 4) | (y & 15)] = biome;
+            boolean unknown = true;
+            for (int value : values)
+                if (value >= 0) {
+                    unknown = false;
+                    break;
+                }
+            if (unknown) {
+                out.write(255);
+                continue;
+            }
+            Map<Integer, Integer> palette = new LinkedHashMap<>();
+            int[] indices = new int[4096];
+            for (int i = 0; i < 4096; i++) {
+                Integer n = palette.get(values[i]);
+                if (n == null) {
+                    n = palette.size();
+                    palette.put(values[i], n);
+                }
+                indices[i] = n;
+            }
+            int bits = bits(palette.size());
+            out.write(bits << 1);
+            pack(out, indices, bits);
+            if (bits != 0) integer(out, palette.size());
+            for (int id : palette.keySet()) integer(out, id);
+        }
+        return out.toByteArray();
     }
 
     public NbtTag layerAt(int x, int y, int z, int layer) {

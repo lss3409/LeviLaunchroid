@@ -30,6 +30,7 @@ public final class EasyTierManager {
     public static final int ROOM_CENTER_PORT = 18090;
     /** v537：IP 轮询 3s→1s（加入房间提速）。 */
     private static final long POLL_INTERVAL_MS = 1000;
+    private long lastPollLog; // v0.4.214：poll 状态日志节流
     private static final long IP_TIMEOUT_MS = 60_000;
     private static final String FALLBACK_CIDR = "10.144.0.0/16";
     /** 内核 DHCP 默认网段（OSPF 路由未同步时成员会拿到 10.126.126.x）。 */
@@ -421,9 +422,8 @@ public final class EasyTierManager {
             if (json == null || json.isEmpty()) {
                 return null;
             }
-            // 尾部含 peers/peer_route_pairs（头部日志过长截断在前）
-            Log.i(TAG, "poll json tail: " + (json.length() > 2500
-                    ? json.substring(json.length() - 2500) : json));
+            // v0.4.214：poll JSON 全量日志删除——每 1s 2500 字符刷爆
+            // logcat（调试遗留，对用户无价值）；异常排查走 OnlineDebugLog
             JSONObject root = new JSONObject(json);
             JSONObject map = root.optJSONObject("map");
             if (map == null) {
@@ -552,8 +552,13 @@ public final class EasyTierManager {
                     }
                 }
             }
-            Log.i(TAG, "poll: running=" + info.running + " ip=" + info.virtualIp
-                    + " cidrs=" + info.cidrs + " err=" + info.errorMsg);
+            // v0.4.214：状态日志 30s 节流（poll 仍 1s 保持连接状态响应）
+            long now = System.currentTimeMillis();
+            if (now - lastPollLog > 30000) {
+                lastPollLog = now;
+                Log.i(TAG, "poll: running=" + info.running + " ip=" + info.virtualIp
+                        + " cidrs=" + info.cidrs + " err=" + info.errorMsg);
+            }
             return info;
         } catch (Throwable t) {
             Log.w(TAG, "解析网络信息失败", t);

@@ -91,17 +91,18 @@ public class CurseForgeActivity extends BaseActivity {
     }
 
     private void setupData() {
-        categories.add(new Category("All", 0));
-        categories.add(new Category("Addons", 4984));
-        categories.add(new Category("Maps", 6913));
-        categories.add(new Category("Skins", 6925));
-        categories.add(new Category("Textures", 6929));
-        categories.add(new Category("Scripts", 6940));
+        // v0.4.214：分类/排序恢复 v0.4.210 的 11 语言翻译（此前硬编码英文）
+        categories.add(new Category(getString(R.string.curseforge_all_categories), 0));
+        categories.add(new Category(getString(R.string.curseforge_addons), 4984));
+        categories.add(new Category(getString(R.string.curseforge_maps), 6913));
+        categories.add(new Category(getString(R.string.curseforge_skins), 6925));
+        categories.add(new Category(getString(R.string.curseforge_texture_packs), 6929));
+        categories.add(new Category(getString(R.string.curseforge_scripts), 6940));
 
-        sortOptions.add(new SortOption("Popular", CurseForgeClient.SORT_POPULARITY, "desc"));
-        sortOptions.add(new SortOption("Downloads", CurseForgeClient.SORT_TOTAL_DOWNLOADS, "desc"));
-        sortOptions.add(new SortOption("Recently updated", CurseForgeClient.SORT_LAST_UPDATED, "desc"));
-        sortOptions.add(new SortOption("Name", CurseForgeClient.SORT_NAME, "asc"));
+        sortOptions.add(new SortOption(getString(R.string.curseforge_relevancy), CurseForgeClient.SORT_POPULARITY, "desc"));
+        sortOptions.add(new SortOption(getString(R.string.curseforge_total_downloads), CurseForgeClient.SORT_TOTAL_DOWNLOADS, "desc"));
+        sortOptions.add(new SortOption(getString(R.string.curseforge_last_updated), CurseForgeClient.SORT_LAST_UPDATED, "desc"));
+        sortOptions.add(new SortOption(getString(R.string.curseforge_name), CurseForgeClient.SORT_NAME, "asc"));
     }
 
     private int dp(float value) {
@@ -199,7 +200,7 @@ public class CurseForgeActivity extends BaseActivity {
         });
 
         currentSort = sortOptions.get(0);
-        btnSort.setText(currentSort.name);
+        btnSort.setText(getString(R.string.curseforge_sort, currentSort.name));
         btnSort.setOnClickListener(view -> {
             PopupMenu menu = new PopupMenu(this, view);
             for (int i = 0; i < sortOptions.size(); i++) {
@@ -207,7 +208,7 @@ public class CurseForgeActivity extends BaseActivity {
             }
             menu.setOnMenuItemClickListener(item -> {
                 currentSort = sortOptions.get(item.getItemId());
-                btnSort.setText(currentSort.name);
+                btnSort.setText(getString(R.string.curseforge_sort, currentSort.name));
                 currentPage = 1;
                 loadContent();
                 return true;

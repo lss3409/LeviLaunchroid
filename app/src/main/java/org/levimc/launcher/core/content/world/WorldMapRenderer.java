@@ -13,10 +13,26 @@ public final class WorldMapRenderer {
             new LinkedHashMap<>(32, .75f, true) {
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<String, WorldChunk> eldest) {
+                    // v0.4.214：512 回退官方 24——WorldChunk 解码后每个约
+                    // 0.5MB，512 个≈250MB+ 直接 OOM（用户实测：关实体显示
+                    // 触发全量重渲染时崩溃，tombstone heap 2422KB until OOM）。
+                    // LOD 采样 miss 率高一点但安全优先。
                     return size() > 24;
                 }
             };
     private long revision = -1;
+    // v0.4.214：LOD 金字塔基图缓存——span16 合成图（16×16 chunk 区域
+    // →16×16 像素，每像素=对应 chunk 中心点）。span32/64 采样点全部
+    // 落在 span16 网格上，从基图取像素零解码（此前 span64 每 tile 直
+    // 接解码 256 chunk×屏幕 150 tile=3.8 万次解码+LRU24 反复淘汰=
+    // 平板实测卡死根因）。每张 1KB，1024 张≈1MB。
+    private final LinkedHashMap<String, Bitmap> lodCache =
+            new LinkedHashMap<>(256, .75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, Bitmap> eldest) {
+                    return size() > 1024;
+                }
+            };
 
     public WorldMapRenderer(WorldSession session) {
         this.session = session;
@@ -26,6 +42,7 @@ public final class WorldMapRenderer {
         long current = session.revision();
         if (current != revision) {
             chunks.clear();
+            lodCache.clear();
             revision = current;
         }
         String key = x + ":" + z + ":" + dimension;
@@ -44,6 +61,10 @@ public final class WorldMapRenderer {
     public Bitmap render(int chunkX, int chunkZ, MapSettings options) throws IOException {
         int[] pixels = new int[256];
         if (options.layer == MapSettings.Layer.SLIME) {
+            // v0.4.214：未生成/未加载的 chunk 不显示史莱姆色（用户反馈
+            // 未渲染区块也全绿——原实现不查 exists）
+            WorldChunk chunk = chunk(chunkX, chunkZ, options.dimension);
+            if (!chunk.exists) return Bitmap.createBitmap(pixels, 16, 16, Bitmap.Config.ARGB_8888);
             java.util.Arrays.fill(
                     pixels,
                     options.dimension == 0 && slime(chunkX, chunkZ) ? 0xff8bcf6e : 0xff303d43);
@@ -65,18 +86,8 @@ public final class WorldMapRenderer {
                 int color;
                 switch (options.layer) {
                     case HEIGHTMAP -> {
-                        float h =
-                                Math.max(
-                                        0,
-                                        Math.min(
-                                                1,
-                                                (surface - options.lowerY)
-                                                        / (float)
-                                                                Math.max(
-                                                                        1,
-                                                                        options.upperY
-                                                                                - options.lowerY)));
-                        color = Color.HSVToColor(new float[] {225 - h * 220, .38f, .35f + h * .6f});
+                        // v0.4.214：地理地图标准分层设色（绝对高度色带）
+                        color = MapPalette.heightColor(surface);
                     }
                     case BIOMES ->
                             color =
@@ -90,7 +101,9 @@ public final class WorldMapRenderer {
                     case XRAY -> {
                         color = 0;
                         String[] filters =
-                                options.xray.toLowerCase(java.util.Locale.ROOT).split(",");
+                                (options.xray == null ? "" : options.xray)
+                                        .toLowerCase(java.util.Locale.ROOT)
+                                        .split(",");
                         for (int scan =
                                         Math.min(
                                                 options.slice ? options.y : chunk.maxY(),
@@ -106,7 +119,8 @@ public final class WorldMapRenderer {
                                 }
                             if (match) {
                                 y = scan;
-                                color = MapPalette.block(name, chunk.biome(x, scan, z));
+                                // v0.4.214：X 射线用官方矿石色（鲜明易分辨）
+                                color = MapPalette.xray(name, chunk.biome(x, scan, z));
                                 break;
                             }
                         }
@@ -169,6 +183,127 @@ public final class WorldMapRenderer {
                 pixels[z * 16 + x] = MapPalette.shade(color, options.brightness);
             }
         return Bitmap.createBitmap(pixels, 16, 16, Bitmap.Config.ARGB_8888);
+    }
+
+    /** v0.4.214：LOD 超级块 tile——span chunk 区域均匀取 16×16 个采样点
+     *  （每点=对应 chunk 的 (8,8) 像素），拼成 16×16 采样图。
+     *  用户指令：16/32/64 三个缩放等级分梯次做 LOD。
+     *  金字塔：采样点走 lodPixel→span16 基图缓存（16×16 chunk 合成图），
+     *  span32/64 零解码从基图取像素；基图 miss 才合成（256 chunk 采样）。 */
+    public Bitmap renderLod(int chunkX, int chunkZ, int span, MapSettings options)
+            throws IOException {
+        if (span <= 1) return render(chunkX, chunkZ, options);
+        int[] pixels = new int[256];
+        for (int i = 0; i < 16; i++)
+            for (int j = 0; j < 16; j++) {
+                if (Thread.currentThread().isInterrupted())
+                    throw new java.io.InterruptedIOException();
+                int cx = chunkX + i * span / 16, cz = chunkZ + j * span / 16;
+                pixels[j * 16 + i] = lodPixel(cx, cz, options);
+            }
+        return Bitmap.createBitmap(pixels, 16, 16, Bitmap.Config.ARGB_8888);
+    }
+
+    /** LOD 采样点像素：从 span16 基图取（=该 chunk 的 (8,8) 像素）。 */
+    private int lodPixel(int chunkX, int chunkZ, MapSettings options) throws IOException {
+        Bitmap base =
+                span16Base(Math.floorDiv(chunkX, 16), Math.floorDiv(chunkZ, 16), options);
+        return base.getPixel(Math.floorMod(chunkX, 16), Math.floorMod(chunkZ, 16));
+    }
+
+    /** span16 基图：16×16 chunk 区域每 chunk 中心像素合成 16×16 图。 */
+    private Bitmap span16Base(int tx, int tz, MapSettings options) throws IOException {
+        String key = tx + ":" + tz + ":" + options.dimension + ":" + options.renderKey();
+        Bitmap cached = lodCache.get(key);
+        if (cached != null) return cached;
+        int[] pixels = new int[256];
+        for (int i = 0; i < 16; i++)
+            for (int j = 0; j < 16; j++) {
+                if (Thread.currentThread().isInterrupted())
+                    throw new java.io.InterruptedIOException();
+                pixels[j * 16 + i] = samplePixel(tx * 16 + i, tz * 16 + j, options);
+            }
+        Bitmap b = Bitmap.createBitmap(pixels, 16, 16, Bitmap.Config.ARGB_8888);
+        lodCache.put(key, b);
+        return b;
+    }
+
+    /** 单像素采样（LOD 快路径）：只扫 (8,8) 一列，不做阴影。 */
+    private int samplePixel(int chunkX, int chunkZ, MapSettings options) throws IOException {
+        WorldChunk chunk = chunk(chunkX, chunkZ, options.dimension);
+        if (!chunk.exists) return 0;
+        int surface = Math.min(options.upperY, chunk.top(8, 8, options.leaves));
+        int y = options.slice ? options.y : surface;
+        y = Math.min(y, options.upperY);
+        int minY = Math.max(options.lowerY, chunk.minY());
+        switch (options.layer) {
+            case HEIGHTMAP -> {
+                return MapPalette.heightColor(surface);
+            }
+            case BIOMES -> {
+                return MapPalette.biome(chunk.biome(8, options.slice ? options.y : surface, 8));
+            }
+            case FOLIAGE -> {
+                int biome = chunk.biome(8, options.slice ? options.y : surface, 8);
+                return biome < 0 ? 0 : MapPalette.foliage(biome);
+            }
+            case SLIME -> {
+                return slime(chunkX, chunkZ) ? 0xff8bcf6e : 0xff303d43;
+            }
+            case XRAY -> {
+                // v0.4.214：xray 可能为 null（prefs 历史数据）——兜底空串
+                String[] filters =
+                        (options.xray == null ? "" : options.xray)
+                                .toLowerCase(java.util.Locale.ROOT)
+                                .split(",");
+                for (int scan =
+                                Math.min(options.slice ? options.y : chunk.maxY(), options.upperY);
+                        scan >= minY;
+                        scan--) {
+                    String name = WorldChunk.name(chunk.blockAt(8, scan, 8));
+                    for (String filter : filters)
+                        if (!filter.trim().isEmpty() && name.contains(filter.trim())) {
+                            return MapPalette.xray(name, chunk.biome(8, scan, 8));
+                        }
+                }
+                return 0;
+            }
+            case CAVE -> {
+                int scan = Math.min(options.y, chunk.maxY());
+                boolean space = false, covered = options.y <= surface;
+                for (; scan >= minY; scan--) {
+                    String n = WorldChunk.name(chunk.blockAt(8, scan, 8));
+                    if (n.contains("leaves") || n.contains("_log")) continue;
+                    if (WorldChunk.isAir(n) || n.contains("water")) {
+                        if (covered) space = true;
+                        continue;
+                    }
+                    if (!covered) {
+                        covered = true;
+                        continue;
+                    }
+                    if (space) return MapPalette.block(n, chunk.biome(8, scan, 8));
+                }
+                return 0;
+            }
+            case LIGHT -> {
+                // 光照需邻域 BFS，无法单列——回退整 chunk 渲染取 (8,8)
+                Bitmap tile = render(chunkX, chunkZ, options);
+                int c = tile.getPixel(8, 8);
+                tile.recycle();
+                return c;
+            }
+            default -> {
+                for (int scan = y; scan >= minY; scan--) {
+                    String n = WorldChunk.name(chunk.blockAt(8, scan, 8));
+                    if (WorldChunk.isAir(n)
+                            || (!options.leaves && n.contains("leaves"))
+                            || (!options.water && n.contains("water"))) continue;
+                    return MapPalette.block(n, chunk.biome(8, scan, 8));
+                }
+                return 0;
+            }
+        }
     }
 
     public Bitmap regionImage(WorldOperations.Region region, MapSettings options)

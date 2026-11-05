@@ -77,24 +77,24 @@ public final class NbtTreePanel extends LinearLayout {
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setPadding(WorldUi.dp(c, 4), 0, WorldUi.dp(c, 8), 0);
         upButton = WorldUi.backButton(c, this::up);
-        upButton.setContentDescription("Parent tag");
-        upButton.setTooltipText("Parent tag");
+        upButton.setContentDescription(getContext().getString(R.string.world_nbt_parent));
+        upButton.setTooltipText(getContext().getString(R.string.world_nbt_parent));
         bar.addView(upButton, new LayoutParams(WorldUi.dp(c, 40), WorldUi.dp(c, 44)));
         breadcrumb = WorldUi.text(c, "/", 12, true);
         breadcrumb.setSingleLine(true);
         breadcrumb.setGravity(Gravity.CENTER_VERTICAL);
         breadcrumb.setPadding(0, 0, WorldUi.dp(c, 8), 0);
-        breadcrumb.setTooltipText("Edit as SNBT");
+        breadcrumb.setTooltipText(getContext().getString(R.string.world_nbt_edit_snbt));
         breadcrumb.setOnClickListener(
                 v -> host.snbt(current(), tag -> replace(trail.get(trail.size() - 1), tag)));
         HorizontalScrollView path = new HorizontalScrollView(c);
         path.setHorizontalScrollBarEnabled(false);
         path.addView(breadcrumb, new ViewGroup.LayoutParams(-2, -1));
         bar.addView(path, new LayoutParams(0, -1, 1));
-        search = WorldUi.input(c, "Search tags", "", false);
+        search = WorldUi.input(c, getContext().getString(R.string.world_nbt_search_tags), "", false);
         bar.addView(search, new LayoutParams(WorldUi.dp(c, 144), WorldUi.dp(c, 36)));
         bar.addView(
-                WorldUi.iconButton(c, R.drawable.ic_add, "Add tag", this::add),
+                WorldUi.iconButton(c, R.drawable.ic_add, getContext().getString(R.string.world_nbt_add_tag), this::add),
                 new LayoutParams(WorldUi.dp(c, 40), WorldUi.dp(c, 44)));
         addView(bar, new LayoutParams(-1, WorldUi.dp(c, 48)));
         search.addTextChangedListener(
@@ -183,7 +183,7 @@ public final class NbtTreePanel extends LinearLayout {
         upButton.setAlpha(trail.size() > 1 ? 1f : .3f);
         if (!query.isEmpty()) {
             summary.setVisibility(VISIBLE);
-            summary.setText("Searching…");
+            summary.setText(getContext().getString(R.string.world_nbt_searching));
             searchJob =
                     () -> {
                         List<Path> found = new ArrayList<>();
@@ -217,7 +217,7 @@ public final class NbtTreePanel extends LinearLayout {
                 rows.add(child(current, tag.getList().get(i), i));
         } else rows.add(current);
         summary.setVisibility(rows.isEmpty() ? VISIBLE : GONE);
-        summary.setText("No tags");
+        summary.setText(getContext().getString(R.string.world_nbt_no_tags));
         adapter.notifyDataSetChanged();
     }
 
@@ -293,11 +293,11 @@ public final class NbtTreePanel extends LinearLayout {
                         new MaterialAlertDialogBuilder(c)
                                 .setTitle(
                                         row.tag.getName().isEmpty()
-                                                ? "Edit " + NbtTag.getTypeName(row.tag.getType())
+                                                ? getContext().getString(R.string.world_nbt_edit_fmt, NbtTag.getTypeName(row.tag.getType()))
                                                 : row.tag.getName())
                                 .setView(form)
-                                .setPositiveButton("Apply", null)
-                                .setNegativeButton("Cancel", null));
+                                .setPositiveButton(getContext().getString(R.string.world_apply), null)
+                                .setNegativeButton(getContext().getString(R.string.world_cancel), null));
         dialog.getButton(AlertDialog.BUTTON_POSITIVE)
                 .setOnClickListener(
                         v -> {
@@ -320,14 +320,17 @@ public final class NbtTreePanel extends LinearLayout {
                                 dialog.dismiss();
                             } catch (IllegalArgumentException ex) {
                                 error.setText(
-                                        "Value is outside the range of "
-                                                + NbtTag.getTypeName(row.tag.getType()));
+                                        getContext()
+                                                .getString(
+                                                        R.string.world_nbt_value_range_fmt,
+                                                        NbtTag.getTypeName(
+                                                                row.tag.getType())));
                             }
                         });
     }
 
     private void actions(Path row) {
-        String[] actions = {"Edit / open", "Rename", "Duplicate", "Replace with SNBT", "Delete"};
+        String[] actions = {getContext().getString(R.string.world_nbt_edit_open), getContext().getString(R.string.world_nbt_rename), getContext().getString(R.string.world_nbt_duplicate), getContext().getString(R.string.world_nbt_replace_snbt), getContext().getString(R.string.world_nbt_delete)};
         WorldUi.show(
                 getContext(),
                 new MaterialAlertDialogBuilder(getContext())
@@ -342,7 +345,7 @@ public final class NbtTreePanel extends LinearLayout {
                                                 row.tag,
                                                 tag -> {
                                                     if (row.parent == null) {
-                                                        host.error("The root cannot be duplicated");
+                                                        host.error(getContext().getString(R.string.world_nbt_root_duplicate));
                                                         return;
                                                     }
                                                     if (row.parent.getType() == NbtTag.TAG_LIST) {
@@ -359,7 +362,7 @@ public final class NbtTreePanel extends LinearLayout {
 
     private void rename(Path row) {
         if (row.parent == null) {
-            host.error("The root name is preserved by the file format");
+            host.error(getContext().getString(R.string.world_nbt_root_name_preserved));
             return;
         }
         if (row.parent.getType() != NbtTag.TAG_COMPOUND) {
@@ -374,10 +377,10 @@ public final class NbtTreePanel extends LinearLayout {
                 WorldUi.show(
                         c,
                         new MaterialAlertDialogBuilder(c)
-                                .setTitle("Rename tag")
+                                .setTitle(getContext().getString(R.string.world_nbt_rename_tag))
                                 .setView(form)
-                                .setPositiveButton("Rename", null)
-                                .setNegativeButton("Cancel", null));
+                                .setPositiveButton(getContext().getString(R.string.world_nbt_rename), null)
+                                .setNegativeButton(getContext().getString(R.string.world_cancel), null));
         dialog.getButton(AlertDialog.BUTTON_POSITIVE)
                 .setOnClickListener(
                         v -> {
@@ -398,7 +401,7 @@ public final class NbtTreePanel extends LinearLayout {
 
     private void remove(Path row) {
         if (row.parent == null) {
-            host.error("The root cannot be deleted");
+            host.error(getContext().getString(R.string.world_nbt_root_delete));
             return;
         }
         WorldUi.show(
@@ -407,7 +410,7 @@ public final class NbtTreePanel extends LinearLayout {
                         .setTitle("Delete tag?")
                         .setMessage(row.label)
                         .setPositiveButton(
-                                "Delete",
+                                getContext().getString(R.string.world_nbt_delete),
                                 (d, w) -> {
                                     if (row.parent.getType() == NbtTag.TAG_COMPOUND)
                                         row.parent.getCompound().remove(row.key);
@@ -415,7 +418,7 @@ public final class NbtTreePanel extends LinearLayout {
                                     host.changed();
                                     refresh();
                                 })
-                        .setNegativeButton("Cancel", null));
+                        .setNegativeButton(getContext().getString(R.string.world_cancel), null));
     }
 
     private void replace(Path row, NbtTag tag) {
@@ -478,10 +481,10 @@ public final class NbtTreePanel extends LinearLayout {
                 WorldUi.show(
                         getContext(),
                         new MaterialAlertDialogBuilder(getContext())
-                                .setTitle("Add tag")
+                                .setTitle(getContext().getString(R.string.world_nbt_add_tag))
                                 .setView(form)
                                 .setPositiveButton("Add", null)
-                                .setNegativeButton("Cancel", null));
+                                .setNegativeButton(getContext().getString(R.string.world_cancel), null));
         dialog.getButton(AlertDialog.BUTTON_POSITIVE)
                 .setOnClickListener(
                         v -> {
